@@ -1,0 +1,164 @@
+# 📦 map-gl-offline
+
+An npm package for **Mapbox GL JS** and **MapLibre GL JS** that allows offline storage and usage of vector and raster tiles, sprites, styles, and entire map regions. The package also supports custom layers and region management, including updating, deleting, and handling various zoom levels for offline areas. This package uses the [`idb`](https://www.npmjs.com/package/idb) library for efficient IndexedDB management and supports custom layers and different zoom levels.
+
+---
+
+## 🚀 Features
+
+- 🌐 **Offline Support** for entire map regions
+- 🗂️ **Vector & Raster Tiles** Offline storage of vector and raster tiles using idb (IndexedDB).
+- 🎨 **Sprites & Styles** Default style handling with support for custom styles.
+- 🗂️ **Custom Layers** Add custom layers with ease.
+- 🔄 **Region Management:** Download, update, and delete
+- 🔍 **Multi-Zoom Level Support**  Handle multiple zoom levels for offline areas.
+- ⚡ **IndexedDB Integration**  Fast and efficient storage with IndexedDB. `idb`
+
+---
+
+## 📦 Installation
+
+```bash
+npm install map-gl-offline
+```
+
+> **Note:** This package requires either `mapbox-gl` or `maplibre-gl` as a peer dependency.
+
+```bash
+npm install mapbox-gl maplibre-gl
+```
+
+---
+
+## 🛠 Usage
+
+### 1. **Import and Initialize**
+
+```typescript
+import mapboxgl from 'mapbox-gl';
+// or
+import maplibregl from 'maplibre-gl';
+
+import { OfflineMapManager } from 'map-gl-offline';
+
+mapboxgl.accessToken = 'YOUR_MAPBOX_ACCESS_TOKEN';
+
+const map = new mapboxgl.Map({
+  container: 'map',
+  style: 'mapbox://styles/mapbox/streets-v11',
+  center: [-74.5, 40],
+  zoom: 9,
+});
+
+const offlineManager = new OfflineMapManager(map);
+```
+
+### 2. **Add a Region for Offline Use**
+
+```typescript
+await offlineManager.addRegion({
+  id: 'nyc-region',
+  bounds: [
+    [-74.25909, 40.477399], // Southwest coordinates
+    [-73.700272, 40.916178], // Northeast coordinates
+  ],
+  minZoom: 10,
+  maxZoom: 15,
+});
+
+console.log('NYC region downloaded for offline use!');
+```
+
+### 3. **Load an Offline Region**
+
+```typescript
+await offlineManager.loadRegion('nyc-region');
+console.log('NYC region loaded from offline storage!');
+```
+
+### 4. **List Stored Regions**
+
+```typescript
+const regions = await offlineManager.listRegions();
+console.log('Stored offline regions:', regions);
+```
+
+### 5. **Delete a Region**
+
+```typescript
+await offlineManager.deleteRegion('nyc-region');
+console.log('NYC region removed from offline storage.');
+```
+
+---
+
+## ⚡ API Reference
+
+### `OfflineMapManager`
+
+#### **Constructor**
+
+```typescript
+new OfflineMapManager(map: mapboxgl.Map | maplibregl.Map)
+```
+
+#### **addRegion(region: OfflineRegionOptions): Promise**
+
+Downloads and stores the specified region offline.
+
+#### **loadRegion(regionId: string): Promise**
+
+Loads the offline region into the map.
+
+#### **listRegions(): Promise\<OfflineRegionOptions[]>**
+
+Lists all regions stored offline.
+
+#### **deleteRegion(regionId: string): Promise**
+
+Removes the specified region from offline storage.
+
+---
+
+## 🔄 Region Options (`OfflineRegionOptions`)
+
+```typescript
+interface OfflineRegionOptions {
+  id: string;
+  bounds: [[number, number], [number, number]]; // [[west, south], [east, north]]
+  minZoom: number;
+  maxZoom: number;
+}
+```
+
+---
+
+## 💡 Contributing
+
+Contributions are welcome! Feel free to open issues or submit pull requests. Please follow the coding style and ensure all tests pass.
+
+```bash
+git clone https://github.com/muimsd/map-gl-offline.git
+cd map-gl-offline
+npm install
+npm test
+```
+
+---
+
+## 📝 License
+
+[MIT](LICENSE)
+
+---
+
+## ✨ Acknowledgements
+
+- [Mapbox GL JS](https://github.com/mapbox/mapbox-gl-js)
+- [MapLibre GL JS](https://github.com/maplibre/maplibre-gl-js)
+- [idb](https://github.com/jakearchibald/idb)
+
+---
+
+> ⚡ **Built with ❤️ for seamless offline maps on Mapbox and MapLibre!**
+
