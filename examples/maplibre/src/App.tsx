@@ -3,7 +3,7 @@ import { Map, NavigationControl, GeoJSONSource } from 'maplibre-gl';
 import { updatePolygons } from './utils';
 //@ts-ignore
 import 'maplibre-gl/dist/maplibre-gl.css';
-import { DisplayArea } from './AreaDisplay';
+import { DisplayArea } from './DisplayArea';
 
 function App() {
   const mapContainer = useRef<HTMLDivElement | null>(null);

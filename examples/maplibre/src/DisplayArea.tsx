@@ -2,7 +2,7 @@ export const DisplayArea = ({ area }: { area: number }) => {
     return (
         <div style={{
             position: 'absolute',
-            bottom: 5,
+            bottom: 15,
             left: '50%',
             transform: 'translateX(-50%)',
             padding: '0px 10px',

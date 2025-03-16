@@ -1,4 +1,4 @@
-import { area, bboxPolygon, difference } from "@turf/turf";
+import { area, bboxPolygon, difference, convertArea } from "@turf/turf";
 import { featureCollection, polygon } from "@turf/helpers";
 import { Map, GeoJSONSource } from 'maplibre-gl';
 
@@ -30,12 +30,9 @@ export const updatePolygons = (map: React.RefObject<Map | null>, setArea: React.
         [minLng, minLat]
     ]]);
 
-    // console.log('Original Polygon:', JSON.stringify(originalPolygon));
-    // console.log('Clipped Polygon:', JSON.stringify(clippedPolygon));
-
-    const clippedPolygonAreaKM = area(clippedPolygon) / 1000;
-    setArea(parseFloat(clippedPolygonAreaKM.toFixed(2)));
-    // console.log('Clipped Polygon Area:', clippedPolygonAreaKM);
+    const clippedPolygonAreaM2 = area(clippedPolygon);
+    const clippedPolygonAreaKM2 = convertArea(clippedPolygonAreaM2, 'meters', 'kilometers');
+    setArea(parseFloat(clippedPolygonAreaKM2.toFixed(2)));
 
     const leftoverPolygon = difference(featureCollection([originalPolygon, clippedPolygon]));
 
@@ -43,28 +40,6 @@ export const updatePolygons = (map: React.RefObject<Map | null>, setArea: React.
         console.error('Failed to compute the difference between polygons');
         return;
     }
-
-    // console.log('Leftover Polygon:', JSON.stringify(leftoverPolygon));
-
-    // if (map.current?.getSource('clippedPolygon')) {
-    //     (map.current.getSource('clippedPolygon') as GeoJSONSource).setData(clippedPolygon);
-    // } else {
-    //     map.current?.addSource('clippedPolygon', {
-    //         type: 'geojson',
-    //         data: clippedPolygon,
-    //     });
-
-    //     map.current?.addLayer({
-    //         id: 'clippedPolygon',
-    //         type: 'fill',
-    //         source: 'clippedPolygon',
-    //         layout: {},
-    //         paint: {
-    //             'fill-color': '#088',
-    //             'fill-opacity': 0.8,
-    //         },
-    //     });
-    // }
 
     if (map.current?.getSource('leftoverPolygon')) {
         (map.current.getSource('leftoverPolygon') as GeoJSONSource).setData(leftoverPolygon);
