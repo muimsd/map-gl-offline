@@ -9,8 +9,8 @@ export const updatePolygons = (map: React.RefObject<Map | null>, setArea: React.
     const [minLng, minLat] = bboxArray[0];
     const [maxLng, maxLat] = bboxArray[1];
 
-    const lngDiff = (maxLng - minLng) * 0.1;
-    const latDiff = (maxLat - minLat) * 0.1;
+    const lngDiff = (maxLng - minLng) * 0.2;
+    const latDiff = (maxLat - minLat) * 0.2;
 
     const clippedBbox = [
         minLng + lngDiff, minLat + latDiff,
