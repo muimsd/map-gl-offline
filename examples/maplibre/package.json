@@ -10,6 +10,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@turf/turf": "^7.2.0",
     "maplibre-gl": "^5.1.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
