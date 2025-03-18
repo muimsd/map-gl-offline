@@ -1,5 +1,5 @@
 import { useRef, useEffect, useState } from 'react';
-import { Map, NavigationControl, GeoJSONSource } from 'maplibre-gl';
+import { Map, NavigationControl } from 'maplibre-gl';
 import { updatePolygons } from './utils';
 //@ts-ignore
 import 'maplibre-gl/dist/maplibre-gl.css';
@@ -13,14 +13,13 @@ function App() {
     if (map.current || !mapContainer.current) return; // stops map from initializing more than once
     const lng = 35;
     const lat = 41;
-    const zoom = 5;
+    const zoom = 10;
     map.current = new Map({
       container: mapContainer.current,
       style: 'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json',
       center: [lng, lat],
       zoom: zoom,
     });
-
     // Add zoom and rotation controls to the map.
     map.current.addControl(
       new NavigationControl({
@@ -33,11 +32,12 @@ function App() {
 
     // Add the polygons to the map
     map.current.once('load', () => {
-
       updatePolygons(map, setArea);
 
       // Update the polygon coordinates when the zoom level changes
-      map.current!.on('move', () => { updatePolygons(map, setArea) });
+      map.current!.on('move', () => {
+        updatePolygons(map, setArea);
+      });
       // map.current!.on('moveend', () => { updatePolygons(map) });
     });
   }, []);

@@ -13,6 +13,10 @@ export interface OfflineMapDB extends DBSchema {
     key: string;
     value: ArrayBuffer;
   };
+  glyphs: {
+    key: string;
+    value: ArrayBuffer;
+  };
   styles: {
     key: string;
     value: string;

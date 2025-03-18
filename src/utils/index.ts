@@ -3,5 +3,5 @@ export async function fetchResource(url: string): Promise<ArrayBuffer> {
   if (!response.ok) {
     throw new Error(`Failed to fetch resource: ${response.statusText}`);
   }
-  return await response.arrayBuffer();
+  return (await response.arrayBuffer()) || response.blob();
 }
