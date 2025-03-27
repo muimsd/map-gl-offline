@@ -1,51 +1,72 @@
-import { dbPromise } from '@/src/storage/indexedDbManager';
+import { dbPromise } from '@/storage/indexedDbManager';
 import {
   downloadTiles,
   loadTiles,
   deleteTiles,
-} from '@/src/map/tileDownloader';
+} from '@/map/tileDownloader';
 import {
   downloadSprites,
   loadSprites,
   deleteSprites,
-} from '@/src/map/spriteManager';
+} from '@/map/spriteManager';
 import {
   downloadStyles,
   loadStyles,
   deleteStyles,
-} from '@/src/map/styleManager';
+} from '@/map/styleManager';
 import * as mapboxgl from 'mapbox-gl';
 import * as maplibregl from 'maplibre-gl';
 import { generateFontUrls } from './fontUtils';
-import { OfflineRegionOptions } from '@/src/types';
+import { OfflineRegionOptions } from '@/types';
 import { downloadFonts, loadFonts, deleteFonts } from './fontManager';
 
 export class OfflineMapManager {
-  private map: mapboxgl.Map | maplibregl.Map;
+  // private map: mapboxgl.Map | maplibregl.Map;
 
-  constructor(map: mapboxgl.Map | maplibregl.Map) {
-    this.map = map;
-  }
-
+  // constructor(map: mapboxgl.Map | maplibregl.Map) {
+  //   this.map = map;
+  // }
+  constructor() {}
   async addRegion(region: OfflineRegionOptions): Promise<void> {
     const db = await dbPromise;
-    await db.put('regions', region);
-    await downloadTiles(region);
-    await downloadSprites();
-    await downloadStyles();
-    const fontUrls = generateFontUrls(); // Implement this function to generate font URLs
-    await downloadFonts(fontUrls);
+    console.log('Adding region:', region);
+    if (region.multipleRegions) {
+      // Option 1: Save region by style URL
+      console.log(`Saving region by style URL: ${region.styleUrl}`);
+      const styleID = await downloadStyles(region.styleUrl!);
+      console.log(`Style ID: ${styleID}`);
+      // await db.put('regions', region);
+      // await downloadTiles(region);
+      // await downloadSprites();
+      // const fontUrls = generateFontUrls(region.styleUrl!); // Pass style URL to generate font URLs
+      // await downloadFonts(fontUrls);
+    } else {
+      // Option 2: Save region differently (e.g., by custom identifier)
+      console.log(`Saving region by custom identifier: ${region.id}`);
+      // await db.put('regions', region);
+      // await downloadTiles(region);
+      // await downloadSprites();
+      // await downloadStyles(region.styleUrl!);
+      // const fontUrls = generateFontUrls(region.styleUrl!); // Generate font URLs without style URL
+      // await downloadFonts(fontUrls);
+    }
   }
 
-  async loadRegion(regionId: string): Promise<void> {
+  async loadRegion(region: OfflineRegionOptions): Promise<void> {
     const db = await dbPromise;
-    const region = await db.get('regions', regionId);
-    if (region) {
-      await loadTiles(region);
+    const currentRegion = await db.get('regions', region.id);
+    if (currentRegion) {
+      await loadTiles(currentRegion);
       await loadSprites();
-      await loadStyles();
-      const fontUrls = generateFontUrls(); // Implement this function to generate font URLs
-      await loadFonts(fontUrls);
+      // if (region.styleUrl) {
+      //   await loadStyles(region.styleUrl!);
+      //   const fontUrls = generateFontUrls(region.styleUrl);
+      //   await loadFonts(fontUrls);
+      // } else {
+      //   await loadStyles();
+      //   const fontUrls = generateFontUrls();
+      //   await loadFonts(fontUrls);
+      // }
     }
   }
 
@@ -57,10 +78,6 @@ export class OfflineMapManager {
   async deleteRegion(regionId: string): Promise<void> {
     const db = await dbPromise;
     await db.delete('regions', regionId);
-    await deleteTiles(regionId);
-    await deleteSprites();
-    await deleteStyles();
-    const fontUrls = generateFontUrls(); // Implement this function to generate font URLs
-    await deleteFonts(fontUrls);
+    // Add logic to delete tiles, sprites, styles, and fonts if necessary
   }
 }

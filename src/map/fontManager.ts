@@ -1,6 +1,6 @@
-import { dbPromise } from '@/src/storage/indexedDbManager';
-import { fetchResource } from '@/src/utils';
-import { OfflineMapDB } from '../types';
+import { dbPromise } from '@/storage/indexedDbManager';
+import { fetchResource } from '@/utils';
+import { OfflineMapDB } from '@/types';
 
 export async function downloadFonts(fontUrls: string[]): Promise<void> {
   const db = await dbPromise;

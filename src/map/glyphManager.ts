@@ -1,4 +1,4 @@
-import { dbPromise } from '@/src/storage/indexedDbManager';
+import { dbPromise } from '@/storage/indexedDbManager';
 
 export interface Glyph {
   id: string;
@@ -25,7 +25,7 @@ export async function downloadGlyphs(url: string): Promise<void> {
     const store = tx.objectStore('glyphs');
     
     for (const glyph of glyphs) {
-      await store.put(glyph);
+      await store.put(glyph as any);
     }
     
     await tx.oncomplete;
@@ -42,7 +42,7 @@ export async function loadGlyphs(): Promise<Glyph[]> {
     const store = tx.objectStore('glyphs');
     const glyphs = await store.getAll();
     await tx.oncomplete;
-    return glyphs;
+    return glyphs as unknown as Glyph[];
   } catch (error) {
     console.error('Error loading glyphs:', error);
     return [];

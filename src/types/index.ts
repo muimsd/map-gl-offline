@@ -29,7 +29,10 @@ export interface OfflineMapDB extends DBSchema {
 
 export interface OfflineRegionOptions {
   id: string;
+  name: string,
   bounds: [[number, number], [number, number]]; // [[west, south], [east, north]]
+  multipleRegions?: boolean;
+  styleUrl?: string;
   minZoom: number;
   maxZoom: number;
 }

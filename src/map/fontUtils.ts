@@ -1,4 +1,4 @@
-export function generateFontUrls(): string[] {
+export function generateFontUrls(stylesUrl: string): string[] {
   const fonts = ['OpenSans-Regular', 'OpenSans-Bold']; // Add more fonts as needed
   const urls: string[] = [];
 

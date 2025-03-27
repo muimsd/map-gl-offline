@@ -1,5 +1,5 @@
 import { openDB } from 'idb';
-import { OfflineMapDB } from '../types';
+import { OfflineMapDB } from '@/types';
 
 export const dbPromise = openDB<OfflineMapDB>('offline-map-db', 1, {
   upgrade(db) {

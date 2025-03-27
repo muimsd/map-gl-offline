@@ -1,7 +1,7 @@
-import { dbPromise } from '@/src/storage/indexedDbManager';
-import { OfflineRegionOptions } from '@/src/types';
-import tilebelt from '@mapbox/tilebelt';
-import { fetchResource } from '../utils';
+import { dbPromise } from '@/storage/indexedDbManager';
+import { OfflineRegionOptions } from '@/types';
+import * as tilebelt from '@mapbox/tilebelt';
+import { fetchResource } from '@/utils';
 
 export async function downloadTiles(
   region: OfflineRegionOptions,
