@@ -1,30 +1,27 @@
 import { dbPromise } from '@/storage/indexedDbManager';
 
-export async function downloadStyles(stylesUrl: string): Promise<string[]> {
+export async function downloadStyles(
+  stylesUrl: string,
+): Promise<string | null> {
   try {
     const response = await fetch(stylesUrl);
     if (!response.ok) {
       throw new Error('Failed to download styles');
     }
-    const styles = await response.json();
+    const style = await response.json();
 
     const db = await dbPromise;
     const tx = db.transaction('styles', 'readwrite');
-    const store = tx.objectStore('styles');
+    // const store = tx.objectStore('styles');
 
-    const storedStyleIds: string[] = [];
-    for (const style of styles) {
-      const styleWithId = { ...style, id: style.id || crypto.randomUUID() }; // Ensure each style has an ID
-      await store.put(styleWithId);
-      storedStyleIds.push(styleWithId.id); // Collect the ID of the stored style
-    }
-
-    await tx.oncomplete;
+    const styleWithId = JSON.stringify(style); // Ensure each style has an ID
+    await tx.store.put('styles', styleWithId);
+    await tx.done;
     console.log('Styles downloaded and stored successfully');
-    return storedStyleIds; // Return the IDs of the stored styles
+    return style.id;
   } catch (error) {
     console.error('Error downloading styles:', error);
-    return [];
+    return null;
   }
 }
 
