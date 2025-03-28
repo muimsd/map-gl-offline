@@ -2,8 +2,8 @@
   "name": "map-gl-offline",
   "version": "0.0.01",
   "description": "An npm package for Mapbox GL JS and MapLibre GL JS that allows offline storage and usage of vector and raster tiles, sprites, styles, and entire map regions.",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
+  "main": "src/main.ts",
+  "types": "src/index.d.ts",
   "repository": {
     "type": "git",
     "url": "https://github.com/muimsd/map-gl-offline.git"
