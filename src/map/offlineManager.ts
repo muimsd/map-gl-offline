@@ -1,19 +1,11 @@
 import { dbPromise } from '@/storage/indexedDbManager';
-import {
-  downloadTiles,
-  loadTiles,
-  deleteTiles,
-} from '@/map/tileDownloader';
+import { downloadTiles, loadTiles, deleteTiles } from '@/map/tileDownloader';
 import {
   downloadSprites,
   loadSprites,
   deleteSprites,
 } from '@/map/spriteManager';
-import {
-  downloadStyles,
-  loadStyles,
-  deleteStyles,
-} from '@/map/styleManager';
+import { downloadStyles, loadStyles, deleteStyles } from '@/map/styleManager';
 import * as mapboxgl from 'mapbox-gl';
 import * as maplibregl from 'maplibre-gl';
 import { generateFontUrls } from './fontUtils';
@@ -33,10 +25,11 @@ export class OfflineMapManager {
     if (region.multipleRegions) {
       // Option 1: Save region by style URL
       console.log(`Saving region by style URL: ${region.styleUrl}`);
-      const styleID = await downloadStyles(region.styleUrl!);
-      console.log(`Style ID: ${styleID}`);
-      // await db.put('regions', region);
-      // await downloadTiles(region);
+      const style = await downloadStyles(region.styleUrl!);
+      console.log('Downloaded style:', style);
+      await db.put('regions', region);
+      // console.log(`regions`, await db.getAll('regions'));
+      await downloadTiles(region, style);
       // await downloadSprites();
       // const fontUrls = generateFontUrls(region.styleUrl!); // Pass style URL to generate font URLs
       // await downloadFonts(fontUrls);

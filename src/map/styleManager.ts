@@ -2,7 +2,7 @@ import { dbPromise } from '@/storage/indexedDbManager';
 
 export async function downloadStyles(
   stylesUrl: string,
-): Promise<string | null> {
+): Promise<object | null> {
   try {
     const response = await fetch(stylesUrl);
     if (!response.ok) {
@@ -10,15 +10,34 @@ export async function downloadStyles(
     }
     const style = await response.json();
 
+    // Fetch and store sources inside the style object
+    for (const sourceKey of Object.keys(style.sources)) {
+      const source = style.sources[sourceKey];
+
+      if (source.url) {
+        try {
+          const sourceResponse = await fetch(source.url);
+          if (sourceResponse.ok) {
+            const sourceURL = await sourceResponse.json();
+            style.sources[sourceKey].url = sourceURL; // Embed source data
+          } else {
+            console.warn(`Failed to fetch source for ${sourceKey}`);
+          }
+        } catch (error) {
+          console.error(`Error fetching source for ${sourceKey}:`, error);
+        }
+      }
+    }
+
+    // Save the style with embedded sources
     const db = await dbPromise;
     const tx = db.transaction('styles', 'readwrite');
-    // const store = tx.objectStore('styles');
-
-    const styleWithId = JSON.stringify(style); // Ensure each style has an ID
-    await tx.store.put('styles', styleWithId);
+    const store = tx.objectStore('styles');
+    await store.put({ ...style, key: style.id });
     await tx.done;
-    console.log('Styles downloaded and stored successfully');
-    return style.id;
+
+    console.log('Downloaded style with sources saved successfully');
+    return style;
   } catch (error) {
     console.error('Error downloading styles:', error);
     return null;
