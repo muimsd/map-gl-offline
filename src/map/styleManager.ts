@@ -1,8 +1,10 @@
 import { dbPromise } from '@/storage/indexedDbManager';
+import mapboxgl from 'mapbox-gl';
+import maplibregl from 'maplibre-gl';
 
 export async function downloadStyles(
   stylesUrl: string,
-): Promise<object | null> {
+): Promise<mapboxgl.Style | maplibregl.Style | null> {
   try {
     const response = await fetch(stylesUrl);
     if (!response.ok) {

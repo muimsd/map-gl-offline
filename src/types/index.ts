@@ -1,4 +1,3 @@
-
 import { DBSchema } from 'idb';
 export interface OfflineMapDB extends DBSchema {
   regions: {
@@ -11,7 +10,10 @@ export interface OfflineMapDB extends DBSchema {
   };
   sprites: {
     key: string;
-    value: ArrayBuffer;
+    value: {
+      data: ArrayBuffer;
+      contentType?: string;
+    };
   };
   glyphs: {
     key: string;

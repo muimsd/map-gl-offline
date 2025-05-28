@@ -30,3 +30,21 @@ export async function deleteFonts(fontUrls: string[]): Promise<void> {
     await db.delete('fonts', url);
   }
 }
+
+export async function loadFontsByStyleId(styleId: string): Promise<void> {
+  const db = await dbPromise;
+  // Example: get all keys and filter by styleId prefix
+  // const allKeys = await db.getAllKeys('fonts');
+  // const styleKeys = allKeys.filter(k => k.startsWith(styleId + '::'));
+  // for (const key of styleKeys) { ... }
+  console.log(`Would load fonts for styleId: ${styleId}`);
+}
+
+export async function deleteFontsByStyleId(styleId: string): Promise<void> {
+  const db = await dbPromise;
+  // Example: get all keys and delete those with styleId prefix
+  // const allKeys = await db.getAllKeys('fonts');
+  // const styleKeys = allKeys.filter(k => k.startsWith(styleId + '::'));
+  // for (const key of styleKeys) { await db.delete('fonts', key); }
+  console.log(`Would delete fonts for styleId: ${styleId}`);
+}

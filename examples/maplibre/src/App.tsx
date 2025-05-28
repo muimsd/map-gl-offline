@@ -41,10 +41,14 @@ function App() {
       // map.current!.on('moveend', () => { updatePolygons(map) });
     });
   }, []);
-
+  const handleOffline = async () => {
+    map.current!.on('move', () => {
+      updatePolygons(map, setArea);
+    });
+  };
   return (
     <div style={{ width: '100vw', height: '100vh' }} ref={mapContainer}>
-      <DisplayArea area={area}></DisplayArea>
+      <DisplayArea area={area} handleOffline={handleOffline}></DisplayArea>
     </div>
   );
 }

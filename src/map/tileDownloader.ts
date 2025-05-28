@@ -6,6 +6,7 @@ import { fetchResource } from '@/utils';
 export async function downloadTiles(
   region: OfflineRegionOptions,
   style: any,
+  styleId: string
 ): Promise<void> {
   const db = await dbPromise;
   const { bounds, minZoom, maxZoom } = region;
@@ -14,31 +15,47 @@ export async function downloadTiles(
     if (source.url) {
       const tilesURL = source.url.tiles;
       const tileUrls = generateTileUrls(tilesURL, bounds, minZoom, maxZoom);
+      const downloadPromises = [];
+
       for (const url of tileUrls) {
-        const tileData = await fetchResource(url);
-        await db.put('tiles', { key: url, value: tileData } as any);
+        const downloadPromise = (async () => {
+          const tileResource = await fetchResource(url);
+          const key = `${styleId}::${url}`; // Save tile with style ID as part of the key
+          await db.put('tiles', tileResource.data, key);
+        })();
+        downloadPromises.push(downloadPromise);
+
+        // Limit to 100 parallel downloads
+        if (downloadPromises.length >= 100) {
+          await Promise.all(downloadPromises);
+          downloadPromises.length = 0; // Clear the array
+        }
       }
-    }else{
+
+      // Wait for any remaining downloads
+      if (downloadPromises.length > 0) {
+        await Promise.all(downloadPromises);
+      }
+    } else {
       console.warn(`No tiles URL found for source ${sourceKey}`);
     }
   }
-
 }
 
-export async function loadTiles(region: OfflineRegionOptions): Promise<void> {
+export async function loadTiles(region: OfflineRegionOptions, styleId?: string): Promise<void> {
   const db = await dbPromise;
-  const { bounds, minZoom, maxZoom } = region;
-
-  // Generate tile URLs based on the region bounds and zoom levels
-  // const tileUrls = generateTileUrls(bounds, minZoom, maxZoom);
-
-  // for (const url of tileUrls) {
-  //   const tileData = await db.get('tiles', url);
-  //   if (tileData) {
-  //     // Logic to add tile data to the map
-  //     console.log(`Loaded tile from ${url}`);
-  //   }
-  // }
+  const allKeys = await db.getAllKeys('tiles');
+  let keysToLoad = allKeys;
+  if (styleId) {
+    keysToLoad = allKeys.filter(k => typeof k === 'string' && k.startsWith(styleId + '::'));
+  }
+  for (const key of keysToLoad) {
+    const tileData = await db.get('tiles', key);
+    if (tileData) {
+      // Logic to add tile data to the map or return it
+      console.log(`Loaded tile: ${key}`);
+    }
+  }
 }
 export async function deleteTiles(regionId: string): Promise<void> {
   const db = await dbPromise;
