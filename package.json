@@ -23,7 +23,8 @@
   "type": "module",
   "dependencies": {
     "@mapbox/tilebelt": "^2.0.2",
-    "idb": "^8.0.2"
+    "idb": "^8.0.2",
+    "uuid": "^11.1.0"
   },
   "peerDependencies": {
     "mapbox-gl": "^2.0.0",

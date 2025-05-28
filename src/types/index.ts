@@ -37,4 +37,8 @@ export interface OfflineRegionOptions {
   styleUrl?: string;
   minZoom: number;
   maxZoom: number;
+  styleId?: string;
+  downloadId?: string;
+  created?: number;
+  updated?: number;
 }

@@ -1,24 +1,41 @@
-import { dbPromise } from '@/storage/indexedDbManager';
-import { fetchResource } from '@/utils';
-import { OfflineMapDB } from '@/types';
+import { dbPromise } from '../storage/indexedDbManager';
+import { fetchResource } from '../utils';
+import { OfflineMapDB } from '../types';
 
-export async function downloadFonts(fontUrls: string[]): Promise<void> {
+export async function downloadFonts(
+  fontUrls: string[],
+  downloadId?: string,
+): Promise<void> {
   const db = await dbPromise;
 
+  // Use a CORS proxy for development only
+  const corsProxy = 'https://corsproxy.io/?key=1062f4f8&url=';
+
   for (const url of fontUrls) {
-    const fontData = await fetchResource(url);
-    await db.put('fonts', { key: url, value: fontData } as any);
+    try {
+      // Prepend the CORS proxy to the font URL
+      const proxiedUrl = url.startsWith('http') ? corsProxy + url : url;
+      const fontData = await fetchResource(proxiedUrl);
+      const key = downloadId ? `${downloadId}::${url}` : url;
+      await db.put('fonts', { key, data: fontData } as any); // Do not pass key as a separate argument
+    } catch (e) {
+      console.warn(`Font not found or failed to fetch: ${url}`);
+    }
   }
 }
 
-export async function loadFonts(fontUrls: string[]): Promise<void> {
+export async function loadFonts(
+  fontUrls: string[],
+  downloadId?: string,
+): Promise<void> {
   const db = await dbPromise;
 
   for (const url of fontUrls) {
-    const fontData = await db.get('fonts', url);
+    const key = downloadId ? `${downloadId}::${url}` : url;
+    const fontData = await db.get('fonts', key);
     if (fontData) {
       // Logic to add font data to the map
-      console.log(`Loaded font from ${url}`);
+      console.log(`Loaded font from ${key}`);
     }
   }
 }
@@ -42,9 +59,27 @@ export async function loadFontsByStyleId(styleId: string): Promise<void> {
 
 export async function deleteFontsByStyleId(styleId: string): Promise<void> {
   const db = await dbPromise;
-  // Example: get all keys and delete those with styleId prefix
-  // const allKeys = await db.getAllKeys('fonts');
-  // const styleKeys = allKeys.filter(k => k.startsWith(styleId + '::'));
-  // for (const key of styleKeys) { await db.delete('fonts', key); }
-  console.log(`Would delete fonts for styleId: ${styleId}`);
+  const allKeys = await db.getAllKeys('fonts');
+  const styleKeys = allKeys.filter(
+    (k) => typeof k === 'string' && k.startsWith(styleId + '::'),
+  );
+  for (const key of styleKeys) {
+    await db.delete('fonts', key);
+    console.log(`Deleted font: ${key}`);
+  }
+}
+
+export async function loadFontsByDownloadId(downloadId: string): Promise<void> {
+  const db = await dbPromise;
+  const allKeys = await db.getAllKeys('fonts');
+  const keysToLoad = allKeys.filter(
+    (k) => typeof k === 'string' && k.startsWith(downloadId + '::'),
+  );
+  for (const key of keysToLoad) {
+    const fontData = await db.get('fonts', key);
+    if (fontData) {
+      // Logic to add font data to the map
+      console.log(`Loaded font from ${key}`);
+    }
+  }
 }

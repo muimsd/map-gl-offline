@@ -1,4 +1,4 @@
-import { dbPromise } from '@/storage/indexedDbManager';
+import { dbPromise } from '../storage/indexedDbManager';
 
 export interface Glyph {
   id: string;
@@ -25,7 +25,7 @@ export async function downloadGlyphs(url: string): Promise<void> {
     const store = tx.objectStore('glyphs');
     
     for (const glyph of glyphs) {
-      await store.put(glyph as any);
+      await store.put({ key: glyph.id, data: glyph.data } as any);
     }
     
     await tx.oncomplete;

@@ -4,6 +4,7 @@ import { updatePolygons } from './utils';
 //@ts-ignore
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { DisplayArea } from './DisplayArea';
+import { OfflineMapManager } from '../../../src/map/offlineManager';
 
 function App() {
   const mapContainer = useRef<HTMLDivElement | null>(null);
@@ -46,8 +47,31 @@ function App() {
       updatePolygons(map, setArea);
     });
   };
+  // For testing: add region on button click
+  const handleAddRegion = async () => {
+    const offlineManager = new OfflineMapManager();
+    await offlineManager.addRegion({
+      id: 'test-region',
+      name: 'Test Region',
+      bounds: [
+        [34, 40],
+        [36, 42],
+      ],
+      minZoom: 8,
+      maxZoom: 12,
+      styleUrl: 'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json',
+      multipleRegions: true,
+    });
+    alert('Region download started!');
+  };
   return (
     <div style={{ width: '100vw', height: '100vh' }} ref={mapContainer}>
+      <button
+        style={{ position: 'absolute', zIndex: 10, top: 10, left: 10 }}
+        onClick={handleAddRegion}
+      >
+        Download Region (Test)
+      </button>
       <DisplayArea area={area} handleOffline={handleOffline}></DisplayArea>
     </div>
   );

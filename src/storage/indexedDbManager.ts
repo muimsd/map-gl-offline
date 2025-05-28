@@ -1,12 +1,12 @@
 import { openDB } from 'idb';
-import { OfflineMapDB } from '@/types';
+import { OfflineMapDB } from '../types';
 
 export const dbPromise = openDB<OfflineMapDB>('offline-map-db', 1, {
   upgrade(db) {
     db.createObjectStore('regions', { keyPath: 'key' });
-    db.createObjectStore('tiles', { keyPath: 'key' });
-    db.createObjectStore('sprites', { keyPath: 'key' });
-    db.createObjectStore('styles', { keyPath: 'key' });
-    db.createObjectStore('fonts', { keyPath: 'key' });
+    db.createObjectStore('tiles'); // out-of-line keys
+    db.createObjectStore('sprites'); // out-of-line keys
+    db.createObjectStore('styles'); // out-of-line keys
+    db.createObjectStore('fonts'); // out-of-line keys
   },
 });

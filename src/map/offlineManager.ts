@@ -1,16 +1,12 @@
-import { dbPromise } from '@/storage/indexedDbManager';
-import { downloadTiles, loadTiles, deleteTiles } from '@/map/tileDownloader';
-import {
-  downloadSprites,
-  loadSprites,
-  deleteSprites,
-} from '@/map/spriteManager';
-import { downloadStyles, loadStyles, deleteStyles } from '@/map/styleManager';
-import * as mapboxgl from 'mapbox-gl';
-import * as maplibregl from 'maplibre-gl';
-import { OfflineRegionOptions } from '@/types';
-import { downloadFonts, loadFonts, deleteFonts } from './fontManager';
-import { generateGlyphUrlsFromStyle } from '@/utils';
+import { dbPromise } from '../storage/indexedDbManager';
+import { downloadTiles, loadTiles, deleteTiles } from './tileDownloader';
+import { downloadSprites, loadSprites, deleteSprites } from './spriteManager';
+import { downloadStyles, loadStyles } from './styleManager';
+import { deleteStyleById } from './styleManager';
+import { downloadFonts, loadFonts, deleteFonts, deleteFontsByStyleId } from './fontManager';
+import { generateGlyphUrlsFromStyle } from '../utils';
+import { v4 as uuidv4 } from 'uuid';
+import type { OfflineRegionOptions } from '../types';
 
 export class OfflineMapManager {
   // private map: mapboxgl.Map | maplibregl.Map;
@@ -22,71 +18,59 @@ export class OfflineMapManager {
   async addRegion(region: OfflineRegionOptions): Promise<void> {
     const db = await dbPromise;
     console.log('Adding region:', region);
-    if (region.multipleRegions) {
-      // Option 1: Save region by style URL
-      console.log(`Saving region by style URL: ${region.styleUrl}`);
-      const style = await downloadStyles(region.styleUrl!);
-      console.log('Downloaded style:', style);
-      // Use style id for saving items
-      const styleId = style!.id || region.id;
-      await db.put('regions', { ...region }); // Do not add styleId to region object
-      await downloadTiles(region, style, styleId); // Pass styleId to downloadTiles
-      // Download fonts (glyphs) referenced in the style
-      const styleObj = style as any;
-      if (styleObj && styleObj.glyphs) {
-        const fontUrls = generateGlyphUrlsFromStyle(styleObj, styleObj.glyphs).map(url => `${styleId}::${url}`);
-        await downloadFonts(fontUrls); // downloadFonts expects 1 argument
-      }
-      // Download sprites referenced in the style
-      if (styleObj && styleObj.sprite) {
-        const spriteBase = styleObj.sprite;
-        const spriteVariants = [
-          `${spriteBase}.json`,
-          `${spriteBase}.png`,
-          `${spriteBase}@2x.json`,
-          `${spriteBase}@2x.png`,
-        ].map(url => `${styleId}::${url}`);
-        await downloadSprites(spriteVariants); // downloadSprites expects 1 argument
-      }
-      // TODO: Download other resources if needed
-      // await downloadStyles(region.styleUrl!); // Download styles if needed
-      // const fontUrls = generateFontUrls(region.styleUrl!); // Generate font URLs from style URL
-      // await downloadFonts(fontUrls); // downloadFonts expects 1 argument
-    } else {
-      // Option 2: Save region differently (e.g., by custom identifier)
-      console.log(`Saving region by custom identifier: ${region.id}`);
-      // await db.put('regions', region);
-      // await downloadTiles(region);
-      // await downloadSprites();
-      // await downloadStyles(region.styleUrl!);
-      // const fontUrls = generateFontUrls(region.styleUrl!); // Generate font URLs without style URL
-      // await downloadFonts(fontUrls);
+    // Generate a unique downloadId for this region (styleId + timestamp)
+    const style = await downloadStyles(region.styleUrl!);
+    const styleObj = style as any;
+    const styleId = styleObj.id || region.id;
+    const timestamp = new Date().toISOString().replace(/[-:.TZ]/g, '');
+    const downloadId = `${styleId}-${timestamp}`;
+    // Save region metadata with bbox, zoom, styleId, downloadId
+    await db.put('regions', {
+      ...region,
+      styleId,
+      downloadId,
+      created: Date.now(),
+    });
+    // Download and store tiles
+    await downloadTiles(region, style, downloadId);
+    // Download fonts (glyphs)
+    if (styleObj && styleObj.glyphs) {
+      const fontUrls = generateGlyphUrlsFromStyle(styleObj, styleObj.glyphs);
+      await downloadFonts(fontUrls, downloadId); // Store with downloadId prefix for offline lookup
     }
+    // Download sprites
+    if (styleObj && styleObj.sprite) {
+      const spriteBase = styleObj.sprite;
+      const spriteVariants = [
+        `${spriteBase}.json`,
+        `${spriteBase}.png`,
+        `${spriteBase}@2x.json`,
+        `${spriteBase}@2x.png`,
+      ];
+      await downloadSprites(spriteVariants); // Only store with downloadId prefix inside downloadSprites
+    }
+    // Save the patched style JSON for offline use
+    const patchedStyle = { ...patchStyleForOffline(styleObj, downloadId), key: downloadId };
+    await db.put('styles', patchedStyle); // In-line key for compatibility
   }
 
   async loadRegion(region: OfflineRegionOptions): Promise<void> {
     const db = await dbPromise;
     const currentRegion = await db.get('regions', region.id);
     if (currentRegion) {
-      // Derive styleId the same way as in addRegion
-      let styleId = currentRegion.id;
-      if (currentRegion.styleUrl) {
-        // Try to extract style id from URL if possible
-        const urlParts = currentRegion.styleUrl.split('/');
-        const last = urlParts[urlParts.length - 1];
-        styleId = last.endsWith('.json') ? last.replace('.json', '') : last;
+      const downloadId = currentRegion.downloadId;
+      if (!downloadId) throw new Error('No downloadId found for region');
+      await loadTiles(currentRegion, downloadId);
+      await loadSprites(downloadId);
+      // Optionally load fonts by downloadId
+      // await loadFontsByStyleId(downloadId);
+      // Load and set the patched style for offline mode
+      const style = await db.get('styles', downloadId);
+      if (style) {
+        // Set the style on the map instance here if needed
+        // map.current.setStyle(style);
+        console.log('Loaded offline style for region:', region.id);
       }
-      await loadTiles(currentRegion, styleId); // Pass styleId to loadTiles
-      await loadSprites(styleId); // loadSprites expects 1 argument
-      // if (region.styleUrl) {
-      //   await loadStyles(region.styleUrl!);
-      //   const fontUrls = generateFontUrls(region.styleUrl);
-      //   await loadFonts(fontUrls);
-      // } else {
-      //   await loadStyles();
-      //   const fontUrls = generateFontUrls();
-      //   await loadFonts(fontUrls);
-      // }
     }
   }
 
@@ -97,13 +81,60 @@ export class OfflineMapManager {
 
   async deleteRegion(regionId: string): Promise<void> {
     const db = await dbPromise;
+    const region = await db.get('regions', regionId);
+    if (!region) return;
+    const downloadId = region.downloadId;
     await db.delete('regions', regionId);
-    // Also delete tiles, sprites, styles, and fonts for this region
-    // (Assumes keys are prefixed or associated with regionId, or you have a mapping)
-    // Example cleanup logic (pseudo, adapt to your keying strategy):
-    // await deleteTiles(regionId);
-    // await deleteSprites(regionId);
-    // await deleteFonts(regionId);
-    // await deleteStyles(regionId);
+    if (!downloadId) return;
+    // Delete all resources for this region using downloadId
+    await Promise.all([
+      deleteTiles(downloadId),
+      deleteSprites(downloadId),
+      deleteFontsByStyleId(downloadId),
+      deleteStyleById(downloadId),
+      db.delete('styles', downloadId), // Redundant but safe
+    ]);
   }
+
+  async updateRegion(region: OfflineRegionOptions): Promise<void> {
+    const db = await dbPromise;
+    // Fetch the existing region by id
+    const existing = await db.get('regions', region.id);
+    if (existing && existing.downloadId) {
+      const downloadId = existing.downloadId;
+      await Promise.all([
+        deleteTiles(downloadId),
+        deleteSprites(downloadId),
+        deleteFontsByStyleId(downloadId),
+        deleteStyleById(downloadId),
+        db.delete('styles', downloadId),
+      ]);
+    }
+    // Add the region again (new downloadId, new resources)
+    await this.addRegion({ ...region, updated: Date.now() });
+  }
+}
+
+// ---
+// Patch style for offline use
+function patchStyleForOffline(style: any, downloadId: string) {
+  // Patch sources
+  for (const sourceKey in style.sources) {
+    const source = style.sources[sourceKey];
+    if (source.tiles) {
+      source.tiles = source.tiles.map((url: string) => `idb://${downloadId}/tile/${encodeURIComponent(url)}`);
+    }
+    if (source.url) {
+      source.url = `idb://${downloadId}/tilesjson/${encodeURIComponent(source.url)}`;
+    }
+  }
+  // Patch glyphs
+  if (style.glyphs) {
+    style.glyphs = `idb://${downloadId}/glyph/{fontstack}/{range}.pbf`;
+  }
+  // Patch sprite
+  if (style.sprite) {
+    style.sprite = `idb://${downloadId}/sprite/sprite`;
+  }
+  return style;
 }

@@ -1,38 +1,52 @@
 // idbFetchHandler.ts
 // Intercepts idb:// URLs and serves resources from IndexedDB for MapLibre GL offline mode
-import { dbPromise } from '@/storage/indexedDbManager';
+import { dbPromise } from '../storage/indexedDbManager';
+
+function hasDataProp(obj: any): obj is { data: ArrayBuffer } {
+  return obj && typeof obj === 'object' && 'data' in obj;
+}
+
+// idb://{downloadId}/tile/{url}
+// idb://{downloadId}/glyph/{fontstack}/{range}.pbf
+// idb://{downloadId}/sprite/{spriteName}
+// idb://{downloadId}/tilesjson/{url}
 
 export async function idbFetchHandler(url: string): Promise<Response> {
   const db = await dbPromise;
-  // Parse the idb:// protocol
-  // Example: idb://tiles/https%3A%2F%2Ftiles.example.com%2Fz%2Fx%2Fy.pbf
   const parsed = url.replace('idb://', '').split('/');
-  const [type, ...rest] = parsed;
-  const key = decodeURIComponent(rest.join('/'));
+  const [downloadId, type, ...rest] = parsed;
+  const resourcePath = rest.join('/');
+  const key = `${downloadId}::${decodeURIComponent(resourcePath)}`;
 
   switch (type) {
-    case 'tiles': {
+    case 'tile': {
       const tile = await db.get('tiles', key);
-      if (tile) return new Response(tile, { status: 200 });
+      if (tile) {
+        const data = hasDataProp(tile) ? tile.data : tile;
+        return new Response(data, { status: 200 });
+      }
       break;
     }
-    case 'glyphs': {
+    case 'glyph': {
       const font = await db.get('fonts', key);
-      if (font) return new Response(font, { status: 200 });
+      if (font) {
+        const data = hasDataProp(font) ? font.data : font;
+        return new Response(data, { status: 200 });
+      }
       break;
     }
-    case 'sprites': {
+    case 'sprite': {
       const sprite = await db.get('sprites', key);
-      if (sprite && sprite.value) {
-        return new Response(sprite.value.data, {
+      if (sprite && sprite.data) {
+        return new Response(sprite.data, {
           status: 200,
-          headers: sprite.value.contentType ? { 'Content-Type': sprite.value.contentType } : undefined,
+          headers: sprite.contentType ? { 'Content-Type': sprite.contentType } : undefined,
         });
       }
       break;
     }
     case 'tilesjson': {
-      const style = await db.get('styles', key);
+      const style = await db.get('styles', downloadId);
       if (style) return new Response(JSON.stringify(style), { status: 200, headers: { 'Content-Type': 'application/json' } });
       break;
     }

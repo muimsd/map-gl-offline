@@ -1,40 +1,42 @@
-import { dbPromise } from '@/storage/indexedDbManager';
-import { OfflineRegionOptions } from '@/types';
+import { dbPromise } from '../storage/indexedDbManager';
+import { OfflineRegionOptions } from '../types';
 import * as tilebelt from '@mapbox/tilebelt';
-import { fetchResource } from '@/utils';
+import { fetchResource } from '../utils';
 
 export async function downloadTiles(
   region: OfflineRegionOptions,
   style: any,
-  styleId: string
+  styleId: string,
 ): Promise<void> {
   const db = await dbPromise;
   const { bounds, minZoom, maxZoom } = region;
   for (const sourceKey of Object.keys(style.sources)) {
     const source = style.sources[sourceKey];
     if (source.url) {
-      const tilesURL = source.url.tiles;
-      const tileUrls = generateTileUrls(tilesURL, bounds, minZoom, maxZoom);
-      const downloadPromises = [];
+      const tilesArr = Array.isArray(source.url.tiles) ? source.url.tiles : [source.url.tiles];
+      for (const tilesURL of tilesArr) {
+        const tileUrls = generateTileUrls(tilesURL, bounds, minZoom, maxZoom);
+        const downloadPromises = [];
 
-      for (const url of tileUrls) {
-        const downloadPromise = (async () => {
-          const tileResource = await fetchResource(url);
-          const key = `${styleId}::${url}`; // Save tile with style ID as part of the key
-          await db.put('tiles', tileResource.data, key);
-        })();
-        downloadPromises.push(downloadPromise);
+        for (const url of tileUrls) {
+          const downloadPromise = (async () => {
+            const tileResource = await fetchResource(url);
+            const key = `${styleId}::${url}`; // Save tile with style ID as part of the key
+            await db.put('tiles', { key, data: tileResource.data } as any);
+          })();
+          downloadPromises.push(downloadPromise);
 
-        // Limit to 100 parallel downloads
-        if (downloadPromises.length >= 100) {
-          await Promise.all(downloadPromises);
-          downloadPromises.length = 0; // Clear the array
+          // Limit to 100 parallel downloads
+          if (downloadPromises.length >= 100) {
+            await Promise.all(downloadPromises);
+            downloadPromises.length = 0; // Clear the array
+          }
         }
-      }
 
-      // Wait for any remaining downloads
-      if (downloadPromises.length > 0) {
-        await Promise.all(downloadPromises);
+        // Wait for any remaining downloads
+        if (downloadPromises.length > 0) {
+          await Promise.all(downloadPromises);
+        }
       }
     } else {
       console.warn(`No tiles URL found for source ${sourceKey}`);
@@ -42,12 +44,17 @@ export async function downloadTiles(
   }
 }
 
-export async function loadTiles(region: OfflineRegionOptions, styleId?: string): Promise<void> {
+export async function loadTiles(
+  region: OfflineRegionOptions,
+  styleId?: string,
+): Promise<void> {
   const db = await dbPromise;
   const allKeys = await db.getAllKeys('tiles');
   let keysToLoad = allKeys;
   if (styleId) {
-    keysToLoad = allKeys.filter(k => typeof k === 'string' && k.startsWith(styleId + '::'));
+    keysToLoad = allKeys.filter(
+      (k) => typeof k === 'string' && k.startsWith(styleId + '::'),
+    );
   }
   for (const key of keysToLoad) {
     const tileData = await db.get('tiles', key);
@@ -57,11 +64,14 @@ export async function loadTiles(region: OfflineRegionOptions, styleId?: string):
     }
   }
 }
-export async function deleteTiles(regionId: string): Promise<void> {
+export async function deleteTiles(downloadId: string): Promise<void> {
   const db = await dbPromise;
-  // Logic to delete tiles from storage
-  // Implement delete tiles
-  console.log(`Deleted tiles for region ${regionId}`);
+  const allKeys = await db.getAllKeys('tiles');
+  const keysToDelete = allKeys.filter(k => typeof k === 'string' && k.startsWith(downloadId + '::'));
+  for (const key of keysToDelete) {
+    await db.delete('tiles', key);
+    console.log(`Deleted tile: ${key}`);
+  }
 }
 
 function generateTileUrls(

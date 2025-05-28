@@ -1,4 +1,4 @@
-import { dbPromise } from '@/storage/indexedDbManager';
+import { dbPromise } from '../storage/indexedDbManager';
 import mapboxgl from 'mapbox-gl';
 import maplibregl from 'maplibre-gl';
 
@@ -35,7 +35,7 @@ export async function downloadStyles(
     const db = await dbPromise;
     const tx = db.transaction('styles', 'readwrite');
     const store = tx.objectStore('styles');
-    await store.put({ ...style, key: style.id });
+    await store.put({ ...style, key: style.id }); // Use in-line key for compatibility
     await tx.done;
 
     console.log('Downloaded style with sources saved successfully');
@@ -90,10 +90,7 @@ export async function deleteStyles(): Promise<void> {
 export async function deleteStyleById(styleId: string): Promise<void> {
   try {
     const db = await dbPromise;
-    const tx = db.transaction('styles', 'readwrite');
-    const store = tx.objectStore('styles');
-    await store.delete(styleId); // Delete the style by ID
-    await tx.oncomplete;
+    await db.delete('styles', styleId);
     console.log(`Style with ID ${styleId} deleted successfully`);
   } catch (error) {
     console.error(`Error deleting style with ID ${styleId}:`, error);

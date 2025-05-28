@@ -1,4 +1,4 @@
-import { dbPromise } from '@/storage/indexedDbManager';
+import { dbPromise } from '../storage/indexedDbManager';
 
 export async function downloadSprites(urls: string[]): Promise<void> {
   const db = await dbPromise;
@@ -10,7 +10,7 @@ export async function downloadSprites(urls: string[]): Promise<void> {
     }
     const contentType = response.headers.get('content-type') || undefined;
     const data = await response.arrayBuffer();
-    await db.put('sprites', { data, contentType }, url);
+    await db.put('sprites', { key: url, data, contentType } as any);
   }
 }
 
