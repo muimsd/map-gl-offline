@@ -9,7 +9,7 @@ export async function downloadFonts(
   const db = await dbPromise;
 
   // Use a CORS proxy for development only
-  const corsProxy = 'https://corsproxy.io/?key=1062f4f8&url=';
+  const corsProxy = 'https://api.allorigins.win/raw?url=';
 
   for (const url of fontUrls) {
     try {

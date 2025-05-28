@@ -1,6 +1,9 @@
 import { dbPromise } from '../storage/indexedDbManager';
 import mapboxgl from 'mapbox-gl';
 import maplibregl from 'maplibre-gl';
+import { downloadFonts } from './fontManager';
+import { downloadSprites } from './spriteManager';
+import { generateGlyphUrlsFromStyle } from '../utils';
 
 export async function downloadStyles(
   stylesUrl: string,
@@ -39,6 +42,26 @@ export async function downloadStyles(
     await tx.done;
 
     console.log('Downloaded style with sources saved successfully');
+
+    // Download fonts (glyphs) for the style
+    if (style && style.glyphs) {
+      const fontUrls = generateGlyphUrlsFromStyle(style, style.glyphs);
+      await downloadFonts(fontUrls, style.id);
+      style.fonts = fontUrls;
+    }
+    // Download sprites for the style
+    if (style && style.sprite) {
+      const spriteBase = style.sprite;
+      const spriteVariants = [
+        `${spriteBase}.json`,
+        `${spriteBase}.png`,
+        `${spriteBase}@2x.json`,
+        `${spriteBase}@2x.png`,
+      ];
+      await downloadSprites(spriteVariants);
+      style.sprites = spriteVariants;
+    }
+
     return style;
   } catch (error) {
     console.error('Error downloading styles:', error);

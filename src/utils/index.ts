@@ -1,5 +1,6 @@
 export async function fetchResource(url: string): Promise<{ type: 'image' | 'pbf'; data: ArrayBuffer }> {
-  const response = await fetch(url);
+  // Add CORS mode to fetch
+  const response = await fetch(url, { mode: 'cors' });
   if (!response.ok) {
     throw new Error(`Failed to fetch resource: ${response.statusText}`);
   }

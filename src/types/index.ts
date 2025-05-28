@@ -21,7 +21,7 @@ export interface OfflineMapDB extends DBSchema {
   };
   styles: {
     key: string;
-    value: string;
+    value: any; // Allow storing style entry objects, not just string
   };
   fonts: {
     key: string;
@@ -42,3 +42,13 @@ export interface OfflineRegionOptions {
   created?: number;
   updated?: number;
 }
+
+// StyleEntry type for offline style management
+export type StyleEntry = {
+  key: string;
+  style: any;
+  regions: any[];
+  fonts: string[];
+  glyphs: string[];
+  sprites: string[];
+};
