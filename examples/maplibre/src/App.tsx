@@ -61,8 +61,25 @@ function App() {
       maxZoom: 12,
       styleUrl: 'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json',
       multipleRegions: true,
+      deleteOnExpiry: true, // This region will auto-delete when expired
     });
-    alert('Region download started!');
+    
+    // Start auto-cleanup (in real apps, do this once at app startup)
+    const cleanupInterval = offlineManager.startAutoCleanup();
+    
+    // For demo purposes, stop cleanup after 10 seconds
+    setTimeout(() => {
+      offlineManager.stopAutoCleanup(cleanupInterval);
+    }, 10000);
+    
+    alert('Region download started! Auto-cleanup enabled for 10 seconds.');
+  };
+
+  // For testing: manual cleanup
+  const handleCleanup = async () => {
+    const offlineManager = new OfflineMapManager();
+    const cleanedCount = await offlineManager.cleanupExpiredRegions();
+    alert(`Manual cleanup removed ${cleanedCount} expired regions`);
   };
   return (
     <div style={{ width: '100vw', height: '100vh' }} ref={mapContainer}>
@@ -71,6 +88,12 @@ function App() {
         onClick={handleAddRegion}
       >
         Download Region (Test)
+      </button>
+      <button
+        style={{ position: 'absolute', zIndex: 10, top: 10, left: 200 }}
+        onClick={handleCleanup}
+      >
+        Manual Cleanup
       </button>
       <DisplayArea area={area} handleOffline={handleOffline}></DisplayArea>
     </div>

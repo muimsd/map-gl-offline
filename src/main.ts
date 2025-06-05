@@ -15,6 +15,15 @@ const map = new maplibregl.Map({
 
 const offlineManager = new OfflineMapManager();
 
+// Start automatic cleanup of expired regions (runs every hour)
+const cleanupInterval = offlineManager.startAutoCleanup();
+
+// Optional: manually trigger cleanup
+async function manualCleanup() {
+  const cleanedCount = await offlineManager.cleanupExpiredRegions();
+  console.log(`Manual cleanup removed ${cleanedCount} expired regions`);
+}
+
 async function handleOffline() {
   //   Example usage of OfflineMapManager
   await offlineManager.addRegion({
@@ -28,12 +37,27 @@ async function handleOffline() {
     ],
     minZoom: 0,
     maxZoom: 6,
+    deleteOnExpiry: true, // This region will be auto-deleted when expired
   });
 
   console.log('Style URL:', styleURL);
+  
+  // Example: check region expiry
+  const expiryInfo = await offlineManager.getRegionExpiry('world');
+  if (expiryInfo) {
+    console.log(`Region expires: ${new Date(expiryInfo.expiry).toISOString()}`);
+    console.log(`Is expired: ${expiryInfo.expired}`);
+    
+    // Example: extend expiry if needed
+    if (expiryInfo.expired) {
+      await offlineManager.extendRegionExpiry('world');
+      console.log('Extended region expiry');
+    }
+  }
 }
-// Attach the function to the global scope
+// Attach functions to the global scope
 (window as any).handleOffline = handleOffline;
+(window as any).manualCleanup = manualCleanup;
 map.on('load', async () => {
   console.log('Map loaded');
   // Get the style URL from the map instance

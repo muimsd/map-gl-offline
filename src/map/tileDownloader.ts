@@ -45,7 +45,7 @@ export async function downloadTiles(
 }
 
 export async function loadTiles(
-  region: OfflineRegionOptions,
+  regionOptions: OfflineRegionOptions,
   styleId?: string,
 ): Promise<void> {
   const db = await dbPromise;

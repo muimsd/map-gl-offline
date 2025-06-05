@@ -13,6 +13,8 @@ An npm package for **Mapbox GL JS** and **MapLibre GL JS** that allows offline s
 - 🔄 **Region Management:** Download, update, and delete
 - 🔍 **Multi-Zoom Level Support**  Handle multiple zoom levels for offline areas.
 - ⚡ **IndexedDB Integration**  Fast and efficient storage with IndexedDB. `idb`
+- ⏰ **Automatic Expiry Management** Configurable region expiry with automatic cleanup
+- 🧹 **Background Cleanup** Automatic removal of expired regions
 
 ---
 
@@ -50,7 +52,10 @@ const map = new mapboxgl.Map({
   zoom: 9,
 });
 
-const offlineManager = new OfflineMapManager(map);
+const offlineManager = new OfflineMapManager();
+
+// Optional: Configure custom expiry (default is 30 days)
+const customOfflineManager = new OfflineMapManager(1000 * 60 * 60 * 24 * 7); // 7 days
 ```
 
 ### 2. **Add a Region for Offline Use**
@@ -58,12 +63,15 @@ const offlineManager = new OfflineMapManager(map);
 ```typescript
 await offlineManager.addRegion({
   id: 'nyc-region',
+  name: 'New York City',
+  styleUrl: 'https://api.maptiler.com/maps/streets/style.json',
   bounds: [
     [-74.25909, 40.477399], // Southwest coordinates
     [-73.700272, 40.916178], // Northeast coordinates
   ],
   minZoom: 10,
   maxZoom: 15,
+  deleteOnExpiry: true, // Automatically delete when expired (default: false)
 });
 
 console.log('NYC region downloaded for offline use!');
@@ -72,18 +80,52 @@ console.log('NYC region downloaded for offline use!');
 ### 3. **Load an Offline Region**
 
 ```typescript
-await offlineManager.loadRegion('nyc-region');
+await offlineManager.loadRegion({
+  id: 'nyc-region',
+  // ... other region options
+});
 console.log('NYC region loaded from offline storage!');
 ```
 
-### 4. **List Stored Regions**
+### 4. **Automatic Expiry Management**
+
+```typescript
+// Start automatic cleanup (runs every hour by default)
+// Only regions with deleteOnExpiry: true will be auto-deleted
+const cleanupInterval = offlineManager.startAutoCleanup();
+
+// Manual cleanup of expired regions (respects deleteOnExpiry setting)
+const cleanedCount = await offlineManager.cleanupExpiredRegions();
+console.log(`Removed ${cleanedCount} expired regions`);
+
+// Force cleanup all expired regions (ignores deleteOnExpiry setting)
+const forceCleanedCount = await offlineManager.forceCleanupExpiredRegions();
+console.log(`Force removed ${forceCleanedCount} expired regions`);
+
+// Get expired regions breakdown
+const expiredRegions = await offlineManager.getExpiredRegions();
+console.log(`Auto-deletable: ${expiredRegions.autoDelete.length}`);
+console.log(`Manual-only: ${expiredRegions.manualOnly.length}`);
+
+// Check region expiry status
+const expiryInfo = await offlineManager.getRegionExpiry('nyc-region');
+if (expiryInfo?.expired) {
+  await offlineManager.extendRegionExpiry('nyc-region');
+  console.log('Region expiry extended');
+}
+
+// Stop automatic cleanup when no longer needed
+offlineManager.stopAutoCleanup(cleanupInterval);
+```
+
+### 5. **List Stored Regions**
 
 ```typescript
 const regions = await offlineManager.listRegions();
 console.log('Stored offline regions:', regions);
 ```
 
-### 5. **Delete a Region**
+### 6. **Delete a Region**
 
 ```typescript
 await offlineManager.deleteRegion('nyc-region');
@@ -99,24 +141,54 @@ console.log('NYC region removed from offline storage.');
 #### **Constructor**
 
 ```typescript
-new OfflineMapManager(map: mapboxgl.Map | maplibregl.Map)
+new OfflineMapManager(regionExpiryMs?: number)
 ```
 
-#### **addRegion(region: OfflineRegionOptions): Promise**
+- `regionExpiryMs` (optional): Region expiry time in milliseconds (default: 30 days)
+
+#### **addRegion(region: OfflineRegionOptions): Promise<void>**
 
 Downloads and stores the specified region offline.
 
-#### **loadRegion(regionId: string): Promise**
+#### **loadRegion(region: OfflineRegionOptions): Promise<void>**
 
 Loads the offline region into the map.
 
-#### **listRegions(): Promise\<OfflineRegionOptions[]>**
+#### **listRegions(): Promise<OfflineRegionOptions[]>**
 
 Lists all regions stored offline.
 
-#### **deleteRegion(regionId: string): Promise**
+#### **deleteRegion(regionId: string, styleId?: string): Promise<void>**
 
 Removes the specified region from offline storage.
+
+#### **cleanupExpiredRegions(): Promise<number>**
+
+Removes expired regions that have `deleteOnExpiry: true`. Returns the number of regions cleaned up.
+
+#### **forceCleanupExpiredRegions(): Promise<number>**
+
+Removes all expired regions regardless of the `deleteOnExpiry` setting. Returns the number of regions cleaned up.
+
+#### **getExpiredRegions(): Promise<{autoDelete: StoredRegion[], manualOnly: StoredRegion[]}>**
+
+Gets all expired regions categorized by auto-deletable and manual-only.
+
+#### **startAutoCleanup(intervalMs?: number): ReturnType<typeof setInterval>**
+
+Starts automatic cleanup of expired regions. Default interval is 1 hour.
+
+#### **stopAutoCleanup(intervalId: ReturnType<typeof setInterval>): void**
+
+Stops automatic cleanup.
+
+#### **getRegionExpiry(regionId: string): Promise<{expiry: number, expired: boolean} | null>**
+
+Gets expiry information for a region.
+
+#### **extendRegionExpiry(regionId: string): Promise<void>**
+
+Extends a region's expiry by the default expiry time.
 
 ---
 
@@ -125,9 +197,16 @@ Removes the specified region from offline storage.
 ```typescript
 interface OfflineRegionOptions {
   id: string;
+  name: string;
+  styleUrl?: string;
   bounds: [[number, number], [number, number]]; // [[west, south], [east, north]]
   minZoom: number;
   maxZoom: number;
+  multipleRegions?: boolean;
+  styleId?: string;
+  expiry?: number; // Timestamp when region expires
+  deleteOnExpiry?: boolean; // Whether to auto-delete when expired (default: false)
+}
 }
 ```
 

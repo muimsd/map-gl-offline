@@ -58,7 +58,7 @@ export async function downloadStyles(
         `${spriteBase}@2x.json`,
         `${spriteBase}@2x.png`,
       ];
-      await downloadSprites(spriteVariants);
+      await downloadSprites(style.id, spriteVariants);
       style.sprites = spriteVariants;
     }
 

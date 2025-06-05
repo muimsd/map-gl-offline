@@ -1,6 +1,5 @@
 import { dbPromise } from '../storage/indexedDbManager';
 import { fetchResource } from '../utils';
-import { OfflineMapDB } from '../types';
 
 export async function downloadFonts(
   fontUrls: string[],
@@ -16,7 +15,8 @@ export async function downloadFonts(
       // Prepend the CORS proxy to the font URL
       const proxiedUrl = url.startsWith('http') ? corsProxy + url : url;
       const fontData = await fetchResource(proxiedUrl);
-      const key = downloadId ? `${downloadId}::${url}` : url;
+      const fileName = url.split('/').pop() || url;
+      const key = downloadId ? `${downloadId}::${fileName}` : fileName;
       await db.put('fonts', { key, data: fontData } as any); // Do not pass key as a separate argument
     } catch (e) {
       console.warn(`Font not found or failed to fetch: ${url}`);
@@ -49,7 +49,6 @@ export async function deleteFonts(fontUrls: string[]): Promise<void> {
 }
 
 export async function loadFontsByStyleId(styleId: string): Promise<void> {
-  const db = await dbPromise;
   // Example: get all keys and filter by styleId prefix
   // const allKeys = await db.getAllKeys('fonts');
   // const styleKeys = allKeys.filter(k => k.startsWith(styleId + '::'));

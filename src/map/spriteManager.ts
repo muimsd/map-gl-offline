@@ -1,8 +1,10 @@
 import { dbPromise } from '../storage/indexedDbManager';
 
-export async function downloadSprites(urls: string[]): Promise<void> {
+export async function downloadSprites(styleId: string, urls: string[]): Promise<void> {
   const db = await dbPromise;
   for (const url of urls) {
+    const fileName = url.split('/').pop() || url;
+    const key = `${styleId}::${fileName}`;
     const response = await fetch(url);
     if (!response.ok) {
       console.warn(`Failed to download sprite: ${url}`);
@@ -10,7 +12,7 @@ export async function downloadSprites(urls: string[]): Promise<void> {
     }
     const contentType = response.headers.get('content-type') || undefined;
     const data = await response.arrayBuffer();
-    await db.put('sprites', { key: url, data, contentType } as any);
+    await db.put('sprites', { key, data, contentType } as any);
   }
 }
 
