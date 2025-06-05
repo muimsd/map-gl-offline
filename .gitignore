@@ -33,11 +33,17 @@ jspm_packages/
 # VS Code
 .vscode/
 
-# npm package-lock
+# node lock
 package-lock.json
-
-# pnpm-lock
 pnpm-lock.yaml
 
 # Idea
 ./idea
+
+# Build output
+dist/
+build/
+
+# Build directories inside examples
+examples/*/dist/
+examples/*/build/
