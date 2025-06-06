@@ -16,12 +16,12 @@ const map = new maplibregl.Map({
 const offlineManager = new OfflineMapManager();
 
 // Start automatic cleanup of expired regions (runs every hour)
-const cleanupInterval = offlineManager.startAutoCleanup();
+offlineManager.startAutoCleanup();
 
 // Optional: manually trigger cleanup
 async function manualCleanup() {
   const cleanedCount = await offlineManager.cleanupExpiredRegions();
-  console.log(`Manual cleanup removed ${cleanedCount} expired regions`);
+  console.warn(`Manual cleanup removed ${cleanedCount} expired regions`);
 }
 
 async function handleOffline() {
@@ -40,26 +40,26 @@ async function handleOffline() {
     deleteOnExpiry: true, // This region will be auto-deleted when expired
   });
 
-  console.log('Style URL:', styleURL);
+  console.warn('Style URL:', styleURL);
 
   // Example: check region expiry
   const expiryInfo = await offlineManager.getRegionExpiry('world');
   if (expiryInfo) {
-    console.log(`Region expires: ${new Date(expiryInfo.expiry).toISOString()}`);
-    console.log(`Is expired: ${expiryInfo.expired}`);
+    console.warn(`Region expires: ${new Date(expiryInfo.expiry).toISOString()}`);
+    console.warn(`Is expired: ${expiryInfo.expired}`);
 
     // Example: extend expiry if needed
     if (expiryInfo.expired) {
       // await offlineManager.extendRegionExpiry('world');
-      console.log('Extended region expiry');
+      console.warn('Extended region expiry');
     }
   }
 }
 // Attach functions to the global scope
-(window as any).handleOffline = handleOffline;
-(window as any).manualCleanup = manualCleanup;
+(window as Window & typeof globalThis & { handleOffline: () => Promise<void>; manualCleanup: () => Promise<void> }).handleOffline = handleOffline;
+(window as Window & typeof globalThis & { handleOffline: () => Promise<void>; manualCleanup: () => Promise<void> }).manualCleanup = manualCleanup;
 map.on('load', async () => {
-  console.log('Map loaded');
+  console.warn('Map loaded');
   // Get the style URL from the map instance
   // const styleURL = map.getStyle()?.styleUrl;
   handleOffline();

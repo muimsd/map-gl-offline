@@ -47,7 +47,7 @@ export interface TileStats {
 
 export async function downloadTiles(
   region: OfflineRegionOptions,
-  style: any,
+  style: Record<string, unknown>,
   styleId: string,
   options: TileDownloadOptions = {}
 ): Promise<TileDownloadResult> {
@@ -62,7 +62,6 @@ export async function downloadTiles(
     retryDelay = 1000,
     timeout = 30000,
     validateTiles = true,
-    compressTiles = false,
     priorityZoomLevels = [],
     bandwidthLimit,
     storageQuotaCheck = true
@@ -80,7 +79,7 @@ export async function downloadTiles(
     errors: []
   };
 
-  console.log(`Starting enhanced tile download for region ${region.id} (${minZoom}-${maxZoom})`);
+  console.warn(`Starting enhanced tile download for region ${region.id} (${minZoom}-${maxZoom})`);
 
   // Check storage quota if enabled
   if (storageQuotaCheck && 'storage' in navigator && 'estimate' in navigator.storage) {
@@ -113,11 +112,11 @@ export async function downloadTiles(
       }
       
       result.totalTiles += tileUrls.length;
-      console.log(`Generated ${tileUrls.length} tile URLs for source ${sourceKey}`);
+      console.warn(`Generated ${tileUrls.length} tile URLs for source ${sourceKey}`);
       
       const progressTracker = createProgressTracker(tileUrls.length);
       let downloadedBytes = 0;
-      let lastBandwidthCheck = Date.now();
+      const lastBandwidthCheck = Date.now();
       
       await processBatch(
         tileUrls,
@@ -155,7 +154,7 @@ export async function downloadTiles(
               }
             }
 
-            let tileData = tileResource.data;
+            const tileData = tileResource.data;
             
             // Store the tile with metadata
             await db.put('tiles', {
@@ -171,7 +170,7 @@ export async function downloadTiles(
             result.downloadedTiles++;
             result.totalSize += tileData.byteLength;
             
-            console.log(`Downloaded tile: ${key} (${(tileData.byteLength / 1024).toFixed(1)}KB, type: ${tileResource.type})`);
+            console.warn(`Downloaded tile: ${key} (${(tileData.byteLength / 1024).toFixed(1)}KB, type: ${tileResource.type})`);
             
             return { url, key, size: tileData.byteLength, downloaded: true };
           } catch (error) {
@@ -199,14 +198,14 @@ export async function downloadTiles(
       );
 
       const finalProgress = progressTracker.getProgress();
-      console.log(`Tile batch completed: ${finalProgress.completed}/${finalProgress.total} (${finalProgress.percentage}%)`);
+      console.warn(`Tile batch completed: ${finalProgress.completed}/${finalProgress.total} (${finalProgress.percentage}%)`);
     }
   }
 
   result.downloadTime = Date.now() - startTime;
   result.averageSpeed = calculateDownloadSpeed(result.totalSize, result.downloadTime);
 
-  console.log(`Tile download summary:`, {
+  console.warn(`Tile download summary:`, {
     total: result.totalTiles,
     downloaded: result.downloadedTiles,
     skipped: result.skippedTiles,
@@ -235,7 +234,7 @@ export async function loadTiles(
       );
     }
     
-    console.log(`Loading ${keysToLoad.length} tiles for region ${regionOptions.id}`);
+    console.warn(`Loading ${keysToLoad.length} tiles for region ${regionOptions.id}`);
     
     let loaded = 0;
     for (const key of keysToLoad) {
@@ -243,14 +242,14 @@ export async function loadTiles(
         const tileData = await db.get('tiles', key);
         if (tileData) {
           loaded++;
-          console.log(`Loaded tile: ${key}`);
+          console.warn(`Loaded tile: ${key}`);
         }
       } catch (error) {
         console.warn(`Failed to load tile ${key}:`, error);
       }
     }
     
-    console.log(`Successfully loaded ${loaded}/${keysToLoad.length} tiles`);
+    console.warn(`Successfully loaded ${loaded}/${keysToLoad.length} tiles`);
   } catch (error) {
     console.error('Error loading tiles:', error);
     throw new Error(`Failed to load tiles for region ${regionOptions.id}: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -264,20 +263,20 @@ export async function deleteTiles(downloadId: string): Promise<void> {
     const allKeys = await db.getAllKeys('tiles');
     const keysToDelete = allKeys.filter(k => typeof k === 'string' && k.startsWith(downloadId + '::'));
     
-    console.log(`Deleting ${keysToDelete.length} tiles for download ID: ${downloadId}`);
+    console.warn(`Deleting ${keysToDelete.length} tiles for download ID: ${downloadId}`);
     
     let deleted = 0;
     for (const key of keysToDelete) {
       try {
         await db.delete('tiles', key);
         deleted++;
-        console.log(`Deleted tile: ${key}`);
+        console.warn(`Deleted tile: ${key}`);
       } catch (error) {
         console.warn(`Failed to delete tile ${key}:`, error);
       }
     }
     
-    console.log(`Successfully deleted ${deleted}/${keysToDelete.length} tiles`);
+    console.warn(`Successfully deleted ${deleted}/${keysToDelete.length} tiles`);
   } catch (error) {
     console.error('Error deleting tiles:', error);
     throw new Error(`Failed to delete tiles for download ID ${downloadId}: ${error instanceof Error ? error.message : 'Unknown error'}`);

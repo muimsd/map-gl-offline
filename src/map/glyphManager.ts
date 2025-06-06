@@ -84,7 +84,6 @@ export async function downloadGlyphs(
     retries = 3,
     timeout = 30000,
     onProgress,
-    includeMetadata = true,
     enableValidation = true,
     priorityFonts = []
   } = options;
@@ -103,7 +102,7 @@ export async function downloadGlyphs(
   let smallestGlyph = { fontstack: '', range: '', size: Infinity };
 
   if (glyphUrls.length === 0) {
-    console.log('No glyphs to download');
+    console.warn('No glyphs to download');
     return {
       totalGlyphs: 0,
       downloadedGlyphs: 0,
@@ -358,7 +357,7 @@ export async function getGlyphStats(styleId: string): Promise<EnhancedGlyphStats
       if (!isValidGlyphData(glyph.data, glyph.contentType)) {
         corruptedGlyphs.push(glyph.key);
       }
-    } catch (error) {
+    } catch {
       corruptedGlyphs.push(glyph.key);
     }
     
@@ -410,7 +409,7 @@ export async function deleteGlyphs(styleId: string): Promise<void> {
       await db.delete('glyphs', glyph.key);
     }
     
-    console.log(`Deleted ${glyphsToDelete.length} glyphs for style ${styleId}`);
+    console.warn(`Deleted ${glyphsToDelete.length} glyphs for style ${styleId}`);
   } catch (error) {
     console.error('Error deleting glyphs:', error);
   }
@@ -423,7 +422,7 @@ export async function deleteAllGlyphs(): Promise<void> {
   try {
     const db = await dbPromise;
     await db.clear('glyphs');
-    console.log('All glyphs deleted successfully');
+    console.warn('All glyphs deleted successfully');
   } catch (error) {
     console.error('Error deleting all glyphs:', error);
   }
@@ -524,7 +523,7 @@ export async function verifyAndRepairGlyphs(
   );
   
   let corruptedGlyphs = 0;
-  let repairedGlyphs = 0;
+  const repairedGlyphs = 0;
   let removedGlyphs = 0;
   
   for (let i = 0; i < styleGlyphs.length; i++) {
@@ -540,7 +539,7 @@ export async function verifyAndRepairGlyphs(
           removedGlyphs++;
         }
       }
-    } catch (error) {
+    } catch {
       corruptedGlyphs++;
       
       if (removeCorrupted) {
@@ -563,6 +562,189 @@ export async function verifyAndRepairGlyphs(
     repairedGlyphs,
     removedGlyphs
   };
+}
+
+/**
+ * Get comprehensive glyph analytics across all styles or for a specific style
+ * @param styleId - Optional style identifier to filter by specific style
+ * @returns Comprehensive analytics about stored glyphs
+ */
+export async function getGlyphAnalytics(styleId?: string): Promise<{
+  totalGlyphs: number;
+  totalSize: number;
+  averageSize: number;
+  glyphsByStyle: Record<string, number>;
+  glyphsByFontstack: Record<string, number>;
+  sizeByFontstack: Record<string, number>;
+  unicodeRangesCovered: string[];
+  downloadTimeRange: { oldest?: Date; newest?: Date };
+  compressionStats: {
+    averageRatio: number;
+    totalCompressed: number;
+    bestCompressed: { key: string; ratio: number };
+    worstCompressed: { key: string; ratio: number };
+  };
+  qualityMetrics: {
+    corruptedGlyphs: number;
+    validGlyphs: number;
+    corruptionRate: number;
+  };
+  storageEfficiency: {
+    totalRanges: number;
+    averageRangeSize: number;
+    duplicateRanges: number;
+  };
+}> {
+  const db = await dbPromise;
+  
+  try {
+    const allGlyphs = await db.getAll('glyphs') as unknown as GlyphEntry[];
+    let glyphsToAnalyze = allGlyphs;
+    
+    if (styleId) {
+      glyphsToAnalyze = allGlyphs.filter(glyph => glyph.key.startsWith(`${styleId}:`));
+    }
+    
+    let totalSize = 0;
+    let oldestDate: Date | undefined;
+    let newestDate: Date | undefined;
+    const glyphsByStyle: Record<string, number> = {};
+    const glyphsByFontstack: Record<string, number> = {};
+    const sizeByFontstack: Record<string, number> = {};
+    const unicodeRangesSet = new Set<string>();
+    const rangeMap = new Map<string, number>(); // Track duplicate ranges
+    
+    // Compression tracking
+    let totalCompressionRatio = 0;
+    let compressionCount = 0;
+    let bestCompressed = { key: '', ratio: 0 };
+    let worstCompressed = { key: '', ratio: Infinity };
+    
+    // Quality tracking
+    let corruptedGlyphs = 0;
+    let validGlyphs = 0;
+    
+    for (const glyph of glyphsToAnalyze) {
+      totalSize += glyph.size;
+      
+      // Extract style ID from key
+      const colonIndex = glyph.key.indexOf(':');
+      if (colonIndex > 0) {
+        const style = glyph.key.substring(0, colonIndex);
+        glyphsByStyle[style] = (glyphsByStyle[style] || 0) + 1;
+      }
+      
+      // Count by fontstack
+      glyphsByFontstack[glyph.fontstack] = (glyphsByFontstack[glyph.fontstack] || 0) + 1;
+      sizeByFontstack[glyph.fontstack] = (sizeByFontstack[glyph.fontstack] || 0) + glyph.size;
+      
+      // Track unicode ranges
+      if (glyph.metadata?.unicodeRange) {
+        unicodeRangesSet.add(glyph.metadata.unicodeRange);
+      }
+      
+      // Track range duplicates
+      const rangeKey = `${glyph.fontstack}/${glyph.range}`;
+      rangeMap.set(rangeKey, (rangeMap.get(rangeKey) || 0) + 1);
+      
+      // Track download timestamps
+      if (glyph.lastModified) {
+        const downloadDate = new Date(glyph.lastModified);
+        if (!oldestDate || downloadDate < oldestDate) oldestDate = downloadDate;
+        if (!newestDate || downloadDate > newestDate) newestDate = downloadDate;
+      }
+      
+      // Track compression
+      if (glyph.metadata?.compressionRatio) {
+        totalCompressionRatio += glyph.metadata.compressionRatio;
+        compressionCount++;
+        
+        if (glyph.metadata.compressionRatio > bestCompressed.ratio) {
+          bestCompressed = { key: glyph.key, ratio: glyph.metadata.compressionRatio };
+        }
+        if (glyph.metadata.compressionRatio < worstCompressed.ratio) {
+          worstCompressed = { key: glyph.key, ratio: glyph.metadata.compressionRatio };
+        }
+      }
+      
+      // Check glyph validity
+      try {
+        if (await isValidGlyph(glyph.data)) {
+          validGlyphs++;
+        } else {
+          corruptedGlyphs++;
+        }
+      } catch {
+        corruptedGlyphs++;
+      }
+    }
+    
+    // Calculate duplicate ranges
+    let duplicateRanges = 0;
+    for (const count of rangeMap.values()) {
+      if (count > 1) {
+        duplicateRanges += count - 1;
+      }
+    }
+    
+    const totalGlyphs = glyphsToAnalyze.length;
+    const averageCompressionRatio = compressionCount > 0 ? totalCompressionRatio / compressionCount : 0;
+    
+    return {
+      totalGlyphs,
+      totalSize,
+      averageSize: totalGlyphs > 0 ? totalSize / totalGlyphs : 0,
+      glyphsByStyle,
+      glyphsByFontstack,
+      sizeByFontstack,
+      unicodeRangesCovered: Array.from(unicodeRangesSet).sort(),
+      downloadTimeRange: { oldest: oldestDate, newest: newestDate },
+      compressionStats: {
+        averageRatio: averageCompressionRatio,
+        totalCompressed: compressionCount,
+        bestCompressed: bestCompressed.ratio > 0 ? bestCompressed : { key: '', ratio: 0 },
+        worstCompressed: worstCompressed.ratio < Infinity ? worstCompressed : { key: '', ratio: 0 }
+      },
+      qualityMetrics: {
+        corruptedGlyphs,
+        validGlyphs,
+        corruptionRate: totalGlyphs > 0 ? corruptedGlyphs / totalGlyphs : 0
+      },
+      storageEfficiency: {
+        totalRanges: rangeMap.size,
+        averageRangeSize: rangeMap.size > 0 ? totalSize / rangeMap.size : 0,
+        duplicateRanges
+      }
+    };
+  } catch (error) {
+    console.error('Error getting glyph analytics:', error);
+    return {
+      totalGlyphs: 0,
+      totalSize: 0,
+      averageSize: 0,
+      glyphsByStyle: {},
+      glyphsByFontstack: {},
+      sizeByFontstack: {},
+      unicodeRangesCovered: [],
+      downloadTimeRange: {},
+      compressionStats: {
+        averageRatio: 0,
+        totalCompressed: 0,
+        bestCompressed: { key: '', ratio: 0 },
+        worstCompressed: { key: '', ratio: 0 }
+      },
+      qualityMetrics: {
+        corruptedGlyphs: 0,
+        validGlyphs: 0,
+        corruptionRate: 0
+      },
+      storageEfficiency: {
+        totalRanges: 0,
+        averageRangeSize: 0,
+        duplicateRanges: 0
+      }
+    };
+  }
 }
 
 // Helper functions
@@ -595,17 +777,13 @@ function isValidGlyphData(data: ArrayBuffer, contentType: string): boolean {
   return data.byteLength > 0;
 }
 
-async function extractGlyphCount(data: ArrayBuffer): Promise<number> {
+async function isValidGlyph(data: ArrayBuffer): Promise<boolean> {
+  // Implement actual glyph validation logic here
+  // For now, we assume glyph is valid if it can be decoded without errors
   try {
-    // Simple estimation based on data size and typical glyph size
-    return Math.floor(data.byteLength / 100);
-  } catch (error) {
-    return 0;
+    const view = new Uint8Array(data);
+    return view.length > 0;
+  } catch {
+    return false;
   }
-}
-
-function calculateCompressionRatio(data: ArrayBuffer, compressedSize: number): number {
-  // Estimate original size and calculate compression ratio
-  const estimatedOriginalSize = compressedSize * 2; // Conservative estimate
-  return compressedSize / estimatedOriginalSize;
 }

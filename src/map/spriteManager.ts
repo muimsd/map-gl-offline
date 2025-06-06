@@ -1,10 +1,8 @@
 import { dbPromise } from '../storage/indexedDbManager';
 import { 
-  fetchResourceWithRetry, 
   fetchWithRetry,
   processBatch, 
-  createProgressTracker, 
-  validateResource,
+  createProgressTracker,
   DownloadProgress 
 } from '../utils';
 
@@ -41,13 +39,12 @@ export interface SpriteDownloadResult {
 export interface EnhancedSpriteStats {
   count: number;
   totalSize: number;
-  averageSize: number;
-  sprites: Array<{ 
+  averageSize: number;  sprites: Array<{
     name: string; 
     size: number; 
     type: string; 
     lastModified?: number;
-    metadata?: any;
+    metadata?: Record<string, unknown>;
   }>;
   spritesByType: Record<string, number>;
   sizeByType: Record<string, number>;
@@ -183,7 +180,7 @@ export async function downloadSprites(
   let smallestSprite = { name: '', size: Infinity };
 
   if (urls.length === 0) {
-    console.log('No sprites to download');
+    console.warn('No sprites to download');
     return {
       totalSprites: 0,
       downloadedSprites: 0,
@@ -220,7 +217,7 @@ export async function downloadSprites(
   // Sort URLs by priority
   const sortedUrls = sortSpritesByPriority(urls, prioritySprites);
 
-  console.log(`Starting download of ${urls.length} sprites for style ${styleId}`);
+  console.warn(`Starting download of ${urls.length} sprites for style ${styleId}`);
   const progressTracker = createProgressTracker(urls.length);
 
   await processBatch(
@@ -235,7 +232,7 @@ export async function downloadSprites(
         if (skipExisting) {
           const existingSprite = await db.get('sprites', key);
           if (existingSprite) {
-            console.log(`Sprite already exists: ${key}, skipping download`);
+            console.warn(`Sprite already exists: ${key}, skipping download`);
             skippedCount++;
             spritesByType[spriteType] = (spritesByType[spriteType] || 0) + 1;
             return { url, key, skipped: true };
@@ -292,7 +289,7 @@ export async function downloadSprites(
           smallestSprite = { name: fileName, size };
         }
 
-        console.log(`Downloaded sprite: ${key} (${(size / 1024).toFixed(1)}KB, ${spriteType})`);
+        console.warn(`Downloaded sprite: ${key} (${(size / 1024).toFixed(1)}KB, ${spriteType})`);
         
         return { url, key, size, downloaded: true };
       } catch (error) {
@@ -339,8 +336,8 @@ export async function downloadSprites(
   };
 
   const finalProgress = progressTracker.getProgress();
-  console.log(`Sprite download completed: ${finalProgress.completed}/${finalProgress.total} (${finalProgress.percentage}%) in ${(duration / 1000).toFixed(1)}s`);
-  console.log(`Download speed: ${(downloadSpeed / 1024).toFixed(1)} KB/s, Total size: ${(totalSize / 1024).toFixed(1)} KB`);
+  console.warn(`Sprite download completed: ${finalProgress.completed}/${finalProgress.total} (${finalProgress.percentage}%) in ${(duration / 1000).toFixed(1)}s`);
+  console.warn(`Download speed: ${(downloadSpeed / 1024).toFixed(1)} KB/s, Total size: ${(totalSize / 1024).toFixed(1)} KB`);
   
   if (finalProgress.errors.length > 0) {
     console.warn(`Sprite download completed with ${finalProgress.errors.length} errors`);
@@ -360,7 +357,7 @@ export async function loadSprites(styleId?: string): Promise<void> {
       keysToLoad = allKeys.filter(k => typeof k === 'string' && k.startsWith(styleId + '::'));
     }
     
-    console.log(`Loading ${keysToLoad.length} sprites${styleId ? ` for style ${styleId}` : ''}`);
+    console.warn(`Loading ${keysToLoad.length} sprites${styleId ? ` for style ${styleId}` : ''}`);
     let loaded = 0;
     
     for (const key of keysToLoad) {
@@ -368,14 +365,14 @@ export async function loadSprites(styleId?: string): Promise<void> {
         const sprite = await db.get('sprites', key);
         if (sprite) {
           loaded++;
-          console.log(`Loaded sprite: ${key}`);
+          console.warn(`Loaded sprite: ${key}`);
         }
       } catch (error) {
         console.warn(`Failed to load sprite ${key}:`, error);
       }
     }
     
-    console.log(`Successfully loaded ${loaded}/${keysToLoad.length} sprites`);
+    console.warn(`Successfully loaded ${loaded}/${keysToLoad.length} sprites`);
   } catch (error) {
     console.error('Error loading sprites:', error);
     throw new Error(`Failed to load sprites: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -393,20 +390,20 @@ export async function deleteSprites(styleId?: string): Promise<void> {
       keysToDelete = allKeys.filter(k => typeof k === 'string' && k.startsWith(styleId + '::'));
     }
     
-    console.log(`Deleting ${keysToDelete.length} sprites${styleId ? ` for style ${styleId}` : ''}`);
+    console.warn(`Deleting ${keysToDelete.length} sprites${styleId ? ` for style ${styleId}` : ''}`);
     let deleted = 0;
     
     for (const key of keysToDelete) {
       try {
         await db.delete('sprites', key);
         deleted++;
-        console.log(`Deleted sprite: ${key}`);
+        console.warn(`Deleted sprite: ${key}`);
       } catch (error) {
         console.warn(`Failed to delete sprite ${key}:`, error);
       }
     }
     
-    console.log(`Successfully deleted ${deleted}/${keysToDelete.length} sprites`);
+    console.warn(`Successfully deleted ${deleted}/${keysToDelete.length} sprites`);
   } catch (error) {
     console.error('Error deleting sprites:', error);
     throw new Error(`Failed to delete sprites: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -429,7 +426,7 @@ export async function getSpriteStats(styleId: string): Promise<EnhancedSpriteSta
       size: number; 
       type: string; 
       lastModified?: number;
-      metadata?: any;
+      metadata?: Record<string, unknown>;
     }> = [];
     const spritesByType: Record<string, number> = {};
     const sizeByType: Record<string, number> = {};
@@ -535,8 +532,8 @@ export async function getSpriteStats(styleId: string): Promise<EnhancedSpriteSta
 }
 
 // Type guard for enhanced sprite format
-function isEnhancedSpriteFormat(sprite: any): sprite is SpriteStorageItem {
-  return sprite && typeof sprite === 'object' && 'key' in sprite && 'data' in sprite;
+function isEnhancedSpriteFormat(sprite: unknown): sprite is SpriteStorageItem {
+  return sprite !== null && typeof sprite === 'object' && 'key' in sprite && 'data' in sprite;
 }
 
 /**
@@ -590,7 +587,7 @@ export async function cleanupOldSprites(
       return { deletedCount: 0, freedSpace: 0, errors: [] };
     }
     
-    console.log(`Cleaning up ${spritesToDelete.length} old sprites for style ${styleId}`);
+    console.warn(`Cleaning up ${spritesToDelete.length} old sprites for style ${styleId}`);
     
     let deletedCount = 0;
     let freedSpace = 0;
@@ -617,7 +614,7 @@ export async function cleanupOldSprites(
       }
     }
     
-    console.log(`Sprite cleanup completed: ${deletedCount} sprites deleted, ${(freedSpace / 1024).toFixed(1)}KB freed`);
+    console.warn(`Sprite cleanup completed: ${deletedCount} sprites deleted, ${(freedSpace / 1024).toFixed(1)}KB freed`);
     return { deletedCount, freedSpace, errors };
     
   } catch (error) {
@@ -653,10 +650,10 @@ export async function verifyAndRepairSprites(
     const stats = await getSpriteStats(styleId);
     let validCount = 0;
     let corruptedCount = 0;
-    let repairedCount = 0;
+    const repairedCount = 0;
     const errors: Array<{ name: string; error: string }> = [];
     
-    console.log(`Verifying ${stats.count} sprites for style ${styleId}`);
+    console.warn(`Verifying ${stats.count} sprites for style ${styleId}`);
     
     for (let i = 0; i < stats.sprites.length; i++) {
       const sprite = stats.sprites[i];
@@ -709,7 +706,7 @@ export async function verifyAndRepairSprites(
       }
     }
     
-    console.log(`Sprite verification completed: ${validCount} valid, ${corruptedCount} corrupted`);
+    console.warn(`Sprite verification completed: ${validCount} valid, ${corruptedCount} corrupted`);
     
     return {
       totalSprites: stats.count,

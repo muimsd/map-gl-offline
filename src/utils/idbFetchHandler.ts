@@ -3,8 +3,8 @@
 import { dbPromise } from '../storage/indexedDbManager';
 import { extractTileKey } from './index';
 
-function hasDataProp(obj: any): obj is { data: ArrayBuffer } {
-  return obj && typeof obj === 'object' && 'data' in obj;
+function hasDataProp(obj: unknown): obj is { data: ArrayBuffer } {
+  return obj !== null && typeof obj === 'object' && 'data' in obj;
 }
 
 // idb://{downloadId}/tile/{url}

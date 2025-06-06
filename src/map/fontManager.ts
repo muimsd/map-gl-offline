@@ -2,10 +2,10 @@ import { dbPromise } from '../storage/indexedDbManager';
 import { 
   fetchResourceWithRetry, 
   processBatch, 
-  createProgressTracker, 
-  validateResource,
+  createProgressTracker,
   DownloadProgress 
 } from '../utils';
+import { FontEntry } from '../types';
 
 export interface FontDownloadOptions {
   onProgress?: (progress: DownloadProgress) => void;
@@ -43,24 +43,6 @@ export interface EnhancedFontStats {
   corruptedFonts: string[];
 }
 
-// Enhanced font storage format
-interface EnhancedFontData {
-  data: ArrayBuffer;
-  metadata: {
-    downloadTimestamp: number;
-    size: number;
-    type: string;
-    url?: string;
-    checksum?: string;
-  };
-}
-
-// Legacy font storage format (for backward compatibility)
-interface LegacyFontData {
-  key: string;
-  data: ArrayBuffer;
-}
-
 export async function downloadFonts(
   fontUrls: string[],
   downloadId?: string,
@@ -94,12 +76,12 @@ export async function downloadFonts(
   };
 
   if (fontUrls.length === 0) {
-    console.log('No fonts to download');
+    console.warn('No fonts to download');
     result.downloadTime = Date.now() - startTime;
     return result;
   }
 
-  console.log(`Starting enhanced download of ${fontUrls.length} fonts`);
+  console.warn(`Starting enhanced download of ${fontUrls.length} fonts`);
 
   // Check storage quota if enabled
   if (storageQuotaCheck && 'storage' in navigator && 'estimate' in navigator.storage) {
@@ -129,7 +111,7 @@ export async function downloadFonts(
           const existingFont = await db.get('fonts', key);
           if (existingFont) {
             result.skippedFonts++;
-            console.log(`Font already exists: ${key}, skipping download`);
+            console.warn(`Font already exists: ${key}, skipping download`);
             return { url, key, skipped: true };
           }
         }
@@ -158,7 +140,7 @@ export async function downloadFonts(
           originalUrl: url.startsWith('http') && corsProxy ? url.replace(corsProxy, '').replace(/^[^=]*=/, '') : url
         };
 
-        await db.put('fonts', fontEntry as any);
+        await db.put('fonts', fontEntry as FontEntry);
         
         downloadedBytes += fontData.data.byteLength;
         result.downloadedFonts++;
@@ -167,7 +149,7 @@ export async function downloadFonts(
         // Track by font type
         result.fontsByType[fontEntry.type] = (result.fontsByType[fontEntry.type] || 0) + 1;
         
-        console.log(`Downloaded font: ${key} (${(fontData.data.byteLength / 1024).toFixed(1)}KB, type: ${fontEntry.type})`);
+        console.warn(`Downloaded font: ${key} (${(fontData.data.byteLength / 1024).toFixed(1)}KB, type: ${fontEntry.type})`);
         
         return { url, key, size: fontData.data.byteLength, downloaded: true };
       } catch (error) {
@@ -197,7 +179,7 @@ export async function downloadFonts(
   result.averageSpeed = calculateFontDownloadSpeed(result.totalSize, result.downloadTime);
 
   const finalProgress = progressTracker.getProgress();
-  console.log(`Font download summary:`, {
+  console.warn(`Font download summary:`, {
     total: result.totalFonts,
     downloaded: result.downloadedFonts,
     skipped: result.skippedFonts,
@@ -220,7 +202,7 @@ export async function loadFonts(
 ): Promise<void> {
   const db = await dbPromise;
 
-  console.log(`Loading ${fontUrls.length} fonts`);
+  console.warn(`Loading ${fontUrls.length} fonts`);
   let loaded = 0;
 
   for (const url of fontUrls) {
@@ -229,20 +211,20 @@ export async function loadFonts(
       const fontData = await db.get('fonts', key);
       if (fontData) {
         loaded++;
-        console.log(`Loaded font from ${key}`);
+        console.warn(`Loaded font from ${key}`);
       }
     } catch (error) {
       console.warn(`Failed to load font ${url}:`, error);
     }
   }
   
-  console.log(`Successfully loaded ${loaded}/${fontUrls.length} fonts`);
+  console.warn(`Successfully loaded ${loaded}/${fontUrls.length} fonts`);
 }
 
 export async function deleteFonts(fontUrls: string[]): Promise<void> {
   const db = await dbPromise;
 
-  console.log(`Deleting ${fontUrls.length} fonts`);
+  console.warn(`Deleting ${fontUrls.length} fonts`);
   let deleted = 0;
 
   for (const url of fontUrls) {
@@ -254,7 +236,7 @@ export async function deleteFonts(fontUrls: string[]): Promise<void> {
     }
   }
   
-  console.log(`Successfully deleted ${deleted}/${fontUrls.length} fonts`);
+  console.warn(`Successfully deleted ${deleted}/${fontUrls.length} fonts`);
 }
 
 export async function loadFontsByStyleId(styleId: string): Promise<void> {
@@ -262,7 +244,7 @@ export async function loadFontsByStyleId(styleId: string): Promise<void> {
   // const allKeys = await db.getAllKeys('fonts');
   // const styleKeys = allKeys.filter(k => k.startsWith(styleId + '::'));
   // for (const key of styleKeys) { ... }
-  console.log(`Would load fonts for styleId: ${styleId}`);
+  console.warn(`Would load fonts for styleId: ${styleId}`);
 }
 
 export async function deleteFontsByStyleId(styleId: string): Promise<void> {
@@ -274,20 +256,20 @@ export async function deleteFontsByStyleId(styleId: string): Promise<void> {
       (k) => typeof k === 'string' && k.startsWith(styleId + '::'),
     );
     
-    console.log(`Deleting ${styleKeys.length} fonts for style ${styleId}`);
+    console.warn(`Deleting ${styleKeys.length} fonts for style ${styleId}`);
     let deleted = 0;
     
     for (const key of styleKeys) {
       try {
         await db.delete('fonts', key);
         deleted++;
-        console.log(`Deleted font: ${key}`);
+        console.warn(`Deleted font: ${key}`);
       } catch (error) {
         console.warn(`Failed to delete font ${key}:`, error);
       }
     }
     
-    console.log(`Successfully deleted ${deleted}/${styleKeys.length} fonts`);
+    console.warn(`Successfully deleted ${deleted}/${styleKeys.length} fonts`);
   } catch (error) {
     console.error(`Error deleting fonts for style ${styleId}:`, error);
     throw new Error(`Failed to delete fonts for style ${styleId}: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -303,7 +285,7 @@ export async function loadFontsByDownloadId(downloadId: string): Promise<void> {
       (k) => typeof k === 'string' && k.startsWith(downloadId + '::'),
     );
     
-    console.log(`Loading ${keysToLoad.length} fonts for download ID ${downloadId}`);
+    console.warn(`Loading ${keysToLoad.length} fonts for download ID ${downloadId}`);
     let loaded = 0;
     
     for (const key of keysToLoad) {
@@ -311,14 +293,14 @@ export async function loadFontsByDownloadId(downloadId: string): Promise<void> {
         const fontData = await db.get('fonts', key);
         if (fontData) {
           loaded++;
-          console.log(`Loaded font from ${key}`);
+          console.warn(`Loaded font from ${key}`);
         }
       } catch (error) {
         console.warn(`Failed to load font ${key}:`, error);
       }
     }
     
-    console.log(`Successfully loaded ${loaded}/${keysToLoad.length} fonts`);
+    console.warn(`Successfully loaded ${loaded}/${keysToLoad.length} fonts`);
   } catch (error) {
     console.error(`Error loading fonts for download ID ${downloadId}:`, error);
     throw new Error(`Failed to load fonts for download ID ${downloadId}: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -359,7 +341,7 @@ export async function getFontStats(styleId: string): Promise<EnhancedFontStats> 
           fontType = detectFontType(key.toString());
         } else if (font && typeof font === 'object' && 'data' in font) {
           // Legacy format with data property
-          fontSize = (font as any).data.byteLength;
+          fontSize = (font as FontEntry).data.byteLength;
           fontType = detectFontType(key.toString());
         }
         
@@ -456,10 +438,12 @@ function isValidFontData(data: ArrayBuffer, filename: string): boolean {
       return view[0] === 0x77 && view[1] === 0x4F && view[2] === 0x46 && view[3] === 0x32;
     case 'TrueType':
     case 'OpenType':
-      // TTF/OTF magic numbers
-      const isTTF = view[0] === 0x00 && view[1] === 0x01 && view[2] === 0x00 && view[3] === 0x00;
-      const isOTF = view[0] === 0x4F && view[1] === 0x54 && view[2] === 0x54 && view[3] === 0x4F;
-      return isTTF || isOTF;
+      {
+        // TTF/OTF magic numbers
+        const isTTF = view[0] === 0x00 && view[1] === 0x01 && view[2] === 0x00 && view[3] === 0x00;
+        const isOTF = view[0] === 0x4F && view[1] === 0x54 && view[2] === 0x54 && view[3] === 0x4F;
+        return isTTF || isOTF;
+      }
     case 'EOT':
       // EOT magic numbers
       return view[0] === 0x4C && view[1] === 0x50;
@@ -475,16 +459,12 @@ function isValidFontData(data: ArrayBuffer, filename: string): boolean {
 /**
  * Type guard to check if font is in enhanced format
  */
-function isEnhancedFontFormat(font: any): font is {
-  key: string;
-  data: ArrayBuffer;
-  downloadedAt: string;
-  size: number;
-  type: string;
-  url: string;
-  originalUrl?: string;
-} {
-  return font && typeof font === 'object' && 'data' in font && 'size' in font && 'type' in font;
+function isEnhancedFontFormat(font: unknown): font is FontEntry {
+  return font !== null && 
+         typeof font === 'object' && 
+         'data' in font && 
+         'size' in font && 
+         'type' in font;
 }
 
 /**
@@ -508,7 +488,7 @@ export async function cleanupOldFonts(
       keysToCheck = allKeys.filter(k => typeof k === 'string' && k.startsWith(styleId + '::'));
     }
     
-    const fontsToDelete: { key: any; size: number; age: number }[] = [];
+    const fontsToDelete: { key: string; size: number; age: number }[] = [];
     let totalSize = 0;
     
     for (const key of keysToCheck) {
@@ -523,7 +503,7 @@ export async function cleanupOldFonts(
         } else if (font instanceof ArrayBuffer) {
           fontSize = font.byteLength;
         } else if (font && typeof font === 'object' && 'data' in font) {
-          fontSize = (font as any).data.byteLength;
+          fontSize = (font as { data: ArrayBuffer }).data.byteLength;
         }
         
         totalSize += fontSize;
@@ -559,7 +539,7 @@ export async function cleanupOldFonts(
       }
     }
     
-    console.log(`Font cleanup completed: deleted ${deletedCount} fonts, freed ${(freedSpace / 1024).toFixed(1)} KB`);
+    console.warn(`Font cleanup completed: deleted ${deletedCount} fonts, freed ${(freedSpace / 1024).toFixed(1)} KB`);
     
     return { deletedCount, freedSpace };
   } catch (error) {
@@ -606,7 +586,7 @@ export async function verifyAndRepairFonts(
           fontData = font;
           fileName = key.toString();
         } else if (font && typeof font === 'object' && 'data' in font) {
-          fontData = (font as any).data;
+          fontData = (font as { data: ArrayBuffer }).data;
           fileName = key.toString();
         } else {
           corruptedFonts++;
@@ -634,7 +614,7 @@ export async function verifyAndRepairFonts(
       onProgress?.({ checked, total: styleKeys.length, corrupted: corruptedFonts });
     }
     
-    console.log(`Font verification completed: ${checked} checked, ${corruptedFonts} corrupted, ${removedFonts} removed`);
+    console.warn(`Font verification completed: ${checked} checked, ${corruptedFonts} corrupted, ${removedFonts} removed`);
     
     return {
       totalFonts: styleKeys.length,
@@ -690,7 +670,7 @@ export async function getFontAnalytics(styleId?: string): Promise<{
           fontSize = font.byteLength;
           fontType = detectFontType(key.toString());
         } else if (font && typeof font === 'object' && 'data' in font) {
-          fontSize = (font as any).data.byteLength;
+          fontSize = (font as { data: ArrayBuffer }).data.byteLength;
           fontType = detectFontType(key.toString());
         }
         

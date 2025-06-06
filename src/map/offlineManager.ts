@@ -1,4 +1,5 @@
 import { dbPromise } from '../storage/indexedDbManager';
+import { OfflineRegionOptions } from '../types';
 import { downloadTiles, loadTiles, deleteTiles, getTileStats, TileDownloadOptions, TileDownloadResult, TileStats } from './tileDownloader';
 import { 
   downloadSprites, 
@@ -13,21 +14,12 @@ import {
 } from './spriteManager';
 import { 
   downloadStyles, 
-  deleteStyleById, 
-  loadStyleById,
-  getStyleStats,
-  cleanupOldStyles,
-  verifyAndValidateStyles,
-  getStyleAnalytics,
-  StyleDownloadOptions,
-  StyleDownloadResult,
-  EnhancedStyleStats
+  loadStyleById
 } from './styleManager';
 import { 
-  downloadFonts, 
-  deleteFontsByStyleId, 
-  loadFontsByDownloadId, 
-  getFontStats, 
+  downloadFonts,
+  deleteFontsByStyleId,
+  getFontStats,
   getFontAnalytics,
   cleanupOldFonts,
   verifyAndRepairFonts,
@@ -38,8 +30,8 @@ import {
 import {
   downloadGlyphs,
   loadGlyphs,
-  deleteGlyphs,
   getGlyphStats,
+  getGlyphAnalytics,
   cleanupOldGlyphs,
   verifyAndRepairGlyphs,
   GlyphDownloadOptions,
@@ -47,8 +39,8 @@ import {
   EnhancedGlyphStats
 } from './glyphManager';
 import { RegionCleanupManager, RegionCleanupOptions, CleanupResult, RegionAnalytics } from './regionCleanup';
-import type { OfflineRegionOptions, StyleEntry, StoredRegion } from '../types';
-import { DownloadProgress } from '../utils';
+import type { OfflineRegionOptions, StyleEntry, StoredRegion, MapboxStyle } from '../types';
+import type { StorageAnalyticsReport } from '../types/maintenanceTypes';
 
 export class OfflineMapManager {
   private cleanupManager: RegionCleanupManager;
@@ -95,8 +87,11 @@ export class OfflineMapManager {
 
   async addRegion(region: OfflineRegionOptions): Promise<void> {
     const db = await dbPromise;
-    console.log('Adding region:', region);
-    const styleResult = await downloadStyles(region.styleUrl!, {});
+    console.warn('Adding region:', region);
+    if (!region.styleUrl) {
+      throw new Error('Region must have a styleUrl');
+    }
+    const styleResult = await downloadStyles(region.styleUrl, {});
     if (!styleResult.success) {
       throw new Error(`Failed to download style from ${region.styleUrl}`);
     }
@@ -104,7 +99,7 @@ export class OfflineMapManager {
     const style = await loadStyleById(styleResult.styleId);
     
     // Ensure styleId is available
-    let styleId = region.styleId || region.id;
+    const styleId = region.styleId || region.id;
     if (!styleId) throw new Error('Style must have an id');
 
     // Get or create the style entry
@@ -131,11 +126,12 @@ export class OfflineMapManager {
     
     // Add region metadata to the style entry
     const bboxExists = styleEntry.regions.some(
-      (r: any) => JSON.stringify(r.bounds) === JSON.stringify(region.bounds),
+      (r: OfflineRegionOptions) => JSON.stringify(r.bounds) === JSON.stringify(region.bounds),
     );
     
     if (!bboxExists) {
-      const expiry = Date.now() + region.expiry!;
+      const expiryTime = region.expiry || 7 * 24 * 60 * 60 * 1000; // Default to 7 days if not specified
+      const expiry = Date.now() + expiryTime;
       const regionWithMeta = {
         ...region,
         regionId,
@@ -154,7 +150,7 @@ export class OfflineMapManager {
       };
       await db.put('regions', storedRegion);
     } else {
-      console.log('Region with the same bbox already exists for this style.');
+      console.warn('Region with the same bbox already exists for this style.');
       return;
     }
     
@@ -209,7 +205,7 @@ export class OfflineMapManager {
   // Enhanced Tile Management Methods
   async downloadTilesWithOptions(
     region: OfflineRegionOptions,
-    style: any,
+    style: MapboxStyle,
     styleId: string,
     options: TileDownloadOptions = {}
   ): Promise<TileDownloadResult> {
@@ -333,7 +329,42 @@ export class OfflineMapManager {
     return getGlyphStats(styleId);
   }
 
-  async loadGlyphsForStyle(styleId: string, fontstack?: string): Promise<any[]> {
+  async getGlyphAnalytics(styleId?: string): Promise<{
+    totalGlyphs: number;
+    totalSize: number;
+    averageSize: number;
+    glyphsByStyle: Record<string, number>;
+    glyphsByFontstack: Record<string, number>;
+    sizeByFontstack: Record<string, number>;
+    unicodeRangesCovered: string[];
+    downloadTimeRange: { oldest?: Date; newest?: Date };
+    compressionStats: {
+      averageRatio: number;
+      totalCompressed: number;
+      bestCompressed: { key: string; ratio: number };
+      worstCompressed: { key: string; ratio: number };
+    };
+    qualityMetrics: {
+      corruptedGlyphs: number;
+      validGlyphs: number;
+      corruptionRate: number;
+    };
+    storageEfficiency: {
+      totalRanges: number;
+      averageRangeSize: number;
+      duplicateRanges: number;
+    };
+  }> {
+    return getGlyphAnalytics(styleId);
+  }
+
+  async loadGlyphsForStyle(styleId: string, fontstack?: string): Promise<{
+    fontstack: string;
+    range: string;
+    data: ArrayBuffer;
+    size: number;
+    lastModified: number;
+  }[]> {
     const glyphEntries = await loadGlyphs(styleId, fontstack);
     return glyphEntries.map(entry => ({
       fontstack: entry.fontstack,
@@ -385,16 +416,7 @@ export class OfflineMapManager {
   }
 
   // Comprehensive Storage Analytics
-  async getComprehensiveStorageAnalytics(): Promise<{
-    tiles: TileStats;
-    fonts: EnhancedFontStats;
-    sprites: EnhancedSpriteStats;
-    glyphs: EnhancedGlyphStats;
-    regions: RegionAnalytics;
-    totalStorageSize: number;
-    storageByType: Record<string, number>;
-    recommendations: string[];
-  }> {
+  async getComprehensiveStorageAnalytics(): Promise<StorageAnalyticsReport> {
     const [tileStats, fontStats, spriteStats, glyphStats, regionAnalytics] = await Promise.all([
       this.getAllTileStats(),
       this.getAllFontStats(),
@@ -449,7 +471,7 @@ export class OfflineMapManager {
     let newestTile: Date | undefined;
     
     for (const style of styles) {
-      const styleStats = await getTileStats((style as any).key);
+      const styleStats = await getTileStats((style as StyleEntry).key);
       totalCount += styleStats.count || 0;
       totalSize += styleStats.totalSize || 0;
       
@@ -522,7 +544,7 @@ export class OfflineMapManager {
     
     for (const style of styles) {
       try {
-        const styleStats = await getGlyphStats((style as any).key);
+        const styleStats = await getGlyphStats((style as StyleEntry).key);
         totalCount += styleStats.count || 0;
         totalSize += styleStats.totalSize || 0;
         
@@ -545,7 +567,7 @@ export class OfflineMapManager {
           newestGlyph = styleStats.newestGlyph;
         }
       } catch (error) {
-        console.warn(`Failed to get glyph stats for style ${(style as any).key}:`, error);
+        console.warn(`Failed to get glyph stats for style ${(style as StyleEntry).key}:`, error);
       }
     }
     
@@ -643,11 +665,56 @@ export class OfflineMapManager {
       freedSpace: number;
       optimizedResources: number;
     };
-    analyticsReport?: any;
+    analyticsReport?: {
+      styles: number;
+      regions: number;
+      tiles: {
+        count: number;
+        size: number;
+        byZoomLevel: Record<number, {count: number; size: number}>;
+      };
+      fonts: {
+        count: number;
+        size: number;
+        byType: Record<string, number>;
+      };
+      glyphs: {
+        count: number;
+        size: number;
+      };
+      sprites: {
+        count: number;
+        size: number;
+        byType: Record<string, number>;
+      };
+    };
     totalTimeMs: number;
   }> {
     const startTime = Date.now();
-    const results: any = {};
+    const results: {
+      cleanupResults?: CleanupResult;
+      integrityResults?: {
+        tiles: { errors: number; fixed: number };
+        fonts: { corrupted: number; repaired: number };
+        sprites: { corrupted: number; repaired: number };
+        glyphs: { corrupted: number; repaired: number };
+      };
+      optimizationResults?: {
+        freedSpace: number;
+        optimizedResources: number;
+      };
+      analyticsReport?: {
+      tiles: TileStats;
+      fonts: EnhancedFontStats;
+      sprites: EnhancedSpriteStats;
+      glyphs: EnhancedGlyphStats;
+      regions: RegionAnalytics;
+      totalStorageSize: number;
+      storageByType: Record<string, number>;
+      recommendations: string[];
+    };
+      totalTimeMs?: number;
+    } = {};
     let currentProgress = 0;
     const totalStages = Object.values(options).filter(Boolean).length;
     
@@ -741,10 +808,13 @@ export class OfflineMapManager {
 
 // ---
 // Patch style for offline use
-function patchStyleForOffline(style: any, downloadId: string) {
+function patchStyleForOffline(style: MapboxStyle, downloadId: string) {
   // Patch sources
   for (const sourceKey in style.sources) {
-    const source = style.sources[sourceKey];
+    const source = style.sources[sourceKey] as {
+      tiles?: string[];
+      url?: string;
+    };
     if (source.tiles) {
       source.tiles = source.tiles.map(
         (url: string) => `idb://${downloadId}/tile/${encodeURIComponent(url)}`,

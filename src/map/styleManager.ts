@@ -1,6 +1,4 @@
 import { dbPromise } from '../storage/indexedDbManager';
-import mapboxgl from 'mapbox-gl';
-import maplibregl from 'maplibre-gl';
 import { downloadFonts, FontDownloadOptions, FontDownloadResult } from './fontManager';
 import { downloadSprites, SpriteDownloadOptions, SpriteDownloadResult } from './spriteManager';
 import { generateGlyphUrlsFromStyle, fetchWithRetry, DownloadProgress } from '../utils';
@@ -50,7 +48,7 @@ export interface EnhancedStyleStats {
     layerCount: number;
     hasGlyphs: boolean;
     hasSprites: boolean;
-    metadata?: any;
+    metadata?: Record<string, unknown>;
   }>;
   sourceTypes: Record<string, number>;
   layerTypes: Record<string, number>;
@@ -66,8 +64,8 @@ export interface StyleStorageItem {
   id: string;
   name?: string;
   version?: number;
-  sources: Record<string, any>;
-  layers: any[];
+  sources: Record<string, unknown>;
+  layers: unknown[];
   glyphs?: string;
   sprite?: string;
   // Enhanced metadata
@@ -157,7 +155,7 @@ export async function downloadStyles(
     if (skipExisting) {
       const existingStyle = await db.get('styles', style.id);
       if (existingStyle && typeof existingStyle === 'object') {
-        console.log(`Style ${style.id} already exists in database, using existing version`);
+        console.warn(`Style ${style.id} already exists in database, using existing version`);
         onProgress?.({ 
           completed: 100, 
           total: 100, 
@@ -193,7 +191,7 @@ export async function downloadStyles(
       errors: [] 
     });
     
-    console.log(`Downloading new style: ${style.id}`);
+    console.warn(`Downloading new style: ${style.id}`);
 
     // Process sources
     if (enableSourceEmbedding && style.sources) {
@@ -220,7 +218,7 @@ export async function downloadStyles(
             const sourceData = await sourceResponse.json();
             style.sources[sourceKey] = { ...source, ...sourceData }; // Embed source data
             sourcesEmbedded++;
-            console.log(`Embedded source data for ${sourceKey}`);
+            console.warn(`Embedded source data for ${sourceKey}`);
           } catch (error) {
             const errorMsg = `Failed to fetch source for ${sourceKey}: ${error instanceof Error ? error.message : 'Unknown error'}`;
             errors.push(errorMsg);
@@ -264,7 +262,7 @@ export async function downloadStyles(
 
     // Save the style
     await db.put('styles', styleStorageItem);
-    console.log('Style with sources saved successfully');
+    console.warn('Style with sources saved successfully');
     
     onProgress?.({ 
       completed: 50, 
@@ -377,7 +375,7 @@ export async function downloadStyles(
       errors: [...errors] 
     });
     
-    console.log(`Style ${style.id} download completed successfully in ${(downloadTime / 1000).toFixed(1)}s`);
+    console.warn(`Style ${style.id} download completed successfully in ${(downloadTime / 1000).toFixed(1)}s`);
     
     return {
       styleId: style.id,
@@ -481,7 +479,7 @@ export async function deleteStyles(): Promise<void> {
     const store = tx.objectStore('styles');
     await store.clear();
     await tx.oncomplete;
-    console.log('All styles deleted successfully');
+    console.warn('All styles deleted successfully');
   } catch (error) {
     console.error('Error deleting styles:', error);
   }
@@ -491,7 +489,7 @@ export async function deleteStyleById(styleId: string): Promise<void> {
   try {
     const db = await dbPromise;
     await db.delete('styles', styleId);
-    console.log(`Style with ID ${styleId} deleted successfully`);
+    console.warn(`Style with ID ${styleId} deleted successfully`);
   } catch (error) {
     console.error(`Error deleting style with ID ${styleId}:`, error);
   }
@@ -501,8 +499,6 @@ export async function deleteStyleById(styleId: string): Promise<void> {
  * Get enhanced style statistics
  */
 export async function getStyleStats(): Promise<EnhancedStyleStats> {
-  const db = await dbPromise;
-  
   try {
     const allStyles = await loadStyles();
     let totalSize = 0;
@@ -530,18 +526,20 @@ export async function getStyleStats(): Promise<EnhancedStyleStats> {
       
       // Track source types
       if (style.sources) {
-        Object.values(style.sources).forEach((source: any) => {
-          if (source.type) {
-            sourceTypes[source.type] = (sourceTypes[source.type] || 0) + 1;
+        Object.values(style.sources).forEach((source: unknown) => {
+          const sourceObj = source as Record<string, unknown>;
+          if (sourceObj.type && typeof sourceObj.type === 'string') {
+            sourceTypes[sourceObj.type] = (sourceTypes[sourceObj.type] || 0) + 1;
           }
         });
       }
       
       // Track layer types
       if (style.layers && Array.isArray(style.layers)) {
-        style.layers.forEach((layer: any) => {
-          if (layer.type) {
-            layerTypes[layer.type] = (layerTypes[layer.type] || 0) + 1;
+        style.layers.forEach((layer: unknown) => {
+          const layerObj = layer as Record<string, unknown>;
+          if (layerObj.type && typeof layerObj.type === 'string') {
+            layerTypes[layerObj.type] = (layerTypes[layerObj.type] || 0) + 1;
           }
         });
       }
@@ -626,8 +624,8 @@ export async function getStyleStats(): Promise<EnhancedStyleStats> {
 }
 
 // Type guard for enhanced style format
-function isEnhancedStyleFormat(style: any): style is StyleStorageItem {
-  return style && typeof style === 'object' && 'id' in style && (
+function isEnhancedStyleFormat(style: unknown): style is StyleStorageItem {
+  return style !== null && typeof style === 'object' && 'id' in style && (
     'lastModified' in style || 
     'downloadedAt' in style || 
     'size' in style ||
@@ -652,7 +650,6 @@ export async function cleanupOldStyles(
   freedSpace: number;
   errors: string[];
 }> {
-  const db = await dbPromise;
   const { maxAge, maxCount, maxSize, keepIds = [], onProgress } = options;
   
   try {
@@ -691,7 +688,7 @@ export async function cleanupOldStyles(
       return { deletedCount: 0, freedSpace: 0, errors: [] };
     }
     
-    console.log(`Cleaning up ${stylesToDelete.length} old styles`);
+    console.warn(`Cleaning up ${stylesToDelete.length} old styles`);
     
     let deletedCount = 0;
     let freedSpace = 0;
@@ -717,7 +714,7 @@ export async function cleanupOldStyles(
       }
     }
     
-    console.log(`Style cleanup completed: ${deletedCount} styles deleted, ${(freedSpace / 1024).toFixed(1)}KB freed`);
+    console.warn(`Style cleanup completed: ${deletedCount} styles deleted, ${(freedSpace / 1024).toFixed(1)}KB freed`);
     return { deletedCount, freedSpace, errors };
     
   } catch (error) {
@@ -755,7 +752,7 @@ export async function verifyAndValidateStyles(
     let repairedCount = 0;
     const errors: Array<{ id: string; error: string }> = [];
     
-    console.log(`Verifying ${allStyles.length} styles`);
+    console.warn(`Verifying ${allStyles.length} styles`);
     
     for (let i = 0; i < allStyles.length; i++) {
       const style = allStyles[i];
@@ -781,7 +778,7 @@ export async function verifyAndValidateStyles(
               if (isValidStyleData(style)) {
                 await db.put('styles', style);
                 repairedCount++;
-                console.log(`Repaired style: ${style.id}`);
+                console.warn(`Repaired style: ${style.id}`);
               }
             } catch (repairError) {
               console.warn(`Failed to repair style ${style.id}:`, repairError);
@@ -808,7 +805,7 @@ export async function verifyAndValidateStyles(
       }
     }
     
-    console.log(`Style verification completed: ${validCount} valid, ${invalidCount} invalid, ${repairedCount} repaired`);
+    console.warn(`Style verification completed: ${validCount} valid, ${invalidCount} invalid, ${repairedCount} repaired`);
     
     return {
       totalStyles: allStyles.length,

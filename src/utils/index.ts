@@ -220,12 +220,13 @@ export function validateResource(data: ArrayBuffer, type: string): boolean {
     case 'pbf':
       // Check for protobuf magic bytes or reasonable size
       return data.byteLength > 0 && data.byteLength < 50 * 1024 * 1024; // Max 50MB
-    case 'image':
+    case 'image': {
       // Check for common image format headers
       const isPNG = view[0] === 0x89 && view[1] === 0x50 && view[2] === 0x4E && view[3] === 0x47;
       const isJPEG = view[0] === 0xFF && view[1] === 0xD8;
       const isWebP = view[8] === 0x57 && view[9] === 0x45 && view[10] === 0x42 && view[11] === 0x50;
       return isPNG || isJPEG || isWebP;
+    }
     default:
       return data.byteLength > 0;
   }
@@ -236,7 +237,7 @@ export function validateResource(data: ArrayBuffer, type: string): boolean {
  * @param glyphsUrlTemplate The glyphs URL template from the style (e.g. .../fonts/{fontstack}/{range}.pbf)
  * @param ranges Optional array of ranges (default: [0-255, 256-511, ..., 61440-61695])
  */
-export function generateGlyphUrlsFromStyle(style: any, glyphsUrlTemplate: string, ranges?: Array<[number, number]>): string[] {
+export function generateGlyphUrlsFromStyle(style: { layers?: Array<{ layout?: { [key: string]: unknown } }> }, glyphsUrlTemplate: string, ranges?: Array<[number, number]>): string[] {
   // Default Unicode ranges for Mapbox/MapLibre fonts
   const defaultRanges: Array<[number, number]> = [
     [0, 255], [256, 511], [512, 767], [768, 1023], [1024, 1279],

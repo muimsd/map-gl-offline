@@ -1,5 +1,5 @@
 import { dbPromise } from '../storage/indexedDbManager';
-import type { StoredRegion } from '../types';
+import type { StoredRegion, OfflineRegionOptions } from '../types';
 
 export interface RegionCleanupOptions {
   maxAge?: number;           // Days
@@ -298,7 +298,7 @@ export class RegionCleanupManager {
           region.expiry < now &&
           region.deleteOnExpiry === true
         ) {
-          console.log(
+          console.warn(
             `Auto-cleaning expired region: ${region.key} (deleteOnExpiry: true)`,
           );
 
@@ -307,13 +307,13 @@ export class RegionCleanupManager {
           await db.delete('regions', region.key);
           cleanedCount++;
         } else if (region.expiry && region.expiry < now) {
-          console.log(
+          console.warn(
             `Expired region ${region.key} found but deleteOnExpiry is false - skipping auto-deletion`,
           );
         }
       }
 
-      console.log(`Auto-cleanup: Removed ${cleanedCount} expired regions`);
+      console.warn(`Auto-cleanup: Removed ${cleanedCount} expired regions`);
       return cleanedCount;
     } catch (error) {
       console.error('Error during cleanup of expired regions:', error);
@@ -336,7 +336,7 @@ export class RegionCleanupManager {
 
       for (const region of allRegions) {
         if (region.expiry && region.expiry < now) {
-          console.log(`Force-cleaning expired region: ${region.key}`);
+          console.warn(`Force-cleaning expired region: ${region.key}`);
 
           // Delete the region and its associated resources
           await this.deleteRegionCallback(region.key, region.styleId);
@@ -345,7 +345,7 @@ export class RegionCleanupManager {
         }
       }
 
-      console.log(`Force cleanup: Removed ${cleanedCount} expired regions`);
+      console.warn(`Force cleanup: Removed ${cleanedCount} expired regions`);
       return cleanedCount;
     } catch (error) {
       console.error('Error during force cleanup of expired regions:', error);
@@ -425,7 +425,7 @@ export class RegionCleanupManager {
       ) {
         const regions = styleEntry.regions || [];
         const regionIndex = regions.findIndex(
-          (r: any) => r.regionId === regionId,
+          (r: OfflineRegionOptions & { regionId?: string }) => r.regionId === regionId,
         );
         if (regionIndex !== -1) {
           regions[regionIndex].expiry = newExpiry;
@@ -434,7 +434,7 @@ export class RegionCleanupManager {
       }
     }
 
-    console.log(
+    console.warn(
       `Extended expiry for region ${regionId} to ${new Date(newExpiry).toISOString()}`,
     );
   }
@@ -453,7 +453,7 @@ export class RegionCleanupManager {
       try {
         const result = await this.smartCleanup(options);
         if (result.deletedRegions > 0) {
-          console.log(`Auto-cleanup: Removed ${result.deletedRegions} regions, freed ${(result.freedSpace / 1024 / 1024).toFixed(2)} MB`);
+          console.warn(`Auto-cleanup: Removed ${result.deletedRegions} regions, freed ${(result.freedSpace / 1024 / 1024).toFixed(2)} MB`);
         }
         if (result.errors.length > 0) {
           console.warn(`Auto-cleanup encountered ${result.errors.length} errors`);
@@ -464,7 +464,7 @@ export class RegionCleanupManager {
     }, intervalMs);
 
     this.autoCleanupIntervals.add(intervalId);
-    console.log(`Started enhanced auto-cleanup with interval: ${intervalMs}ms`);
+    console.warn(`Started enhanced auto-cleanup with interval: ${intervalMs}ms`);
     return intervalId;
   }
 
@@ -474,7 +474,7 @@ export class RegionCleanupManager {
   stopAutoCleanup(intervalId: ReturnType<typeof setInterval>): void {
     clearInterval(intervalId);
     this.autoCleanupIntervals.delete(intervalId);
-    console.log('Stopped auto-cleanup');
+    console.warn('Stopped auto-cleanup');
   }
 
   /**
@@ -485,7 +485,7 @@ export class RegionCleanupManager {
       clearInterval(intervalId);
     }
     this.autoCleanupIntervals.clear();
-    console.log('Stopped all auto-cleanup intervals');
+    console.warn('Stopped all auto-cleanup intervals');
   }
 
   /**
@@ -515,7 +515,7 @@ export class RegionCleanupManager {
   private generateRecommendations(
     result: CleanupResult, 
     allRegions: StoredRegion[], 
-    options: RegionCleanupOptions
+    _options: RegionCleanupOptions
   ): void {
     const now = Date.now();
     

@@ -30,11 +30,11 @@ export interface OfflineMapDB extends DBSchema {
   };
   styles: {
     key: string;
-    value: any; // Allow storing style entry objects, not just string
+    value: StyleEntry; // Use proper type instead of any
   };
   fonts: {
     key: string;
-    value: ArrayBuffer;
+    value: ArrayBuffer | FontEntry;
   };
 }
 
@@ -66,9 +66,32 @@ export interface OfflineRegionOptions {
 // StyleEntry type for offline style management
 export type StyleEntry = {
   key: string;
-  style: any;
-  regions: any[];
+  style: MapboxStyle;
+  regions: OfflineRegionOptions[];
   fonts: string[];
   glyphs: string[];
   sprites: string[];
 };
+
+// Basic MapboxStyle interface
+export interface MapboxStyle {
+  version: number;
+  name?: string;
+  metadata?: Record<string, unknown>;
+  sources: Record<string, unknown>;
+  layers: unknown[];
+  sprite?: string;
+  glyphs?: string;
+  [key: string]: unknown;
+}
+
+// Font entry stored in the fonts table
+export interface FontEntry {
+  key: string;
+  data: ArrayBuffer;
+  downloadedAt: string;
+  size: number;
+  type: string;
+  url: string;
+  originalUrl: string;
+}
