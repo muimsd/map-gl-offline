@@ -496,7 +496,7 @@ export class RegionCleanupManager {
       return 10 * 1024 * 1024; // 10MB default estimate
     }
 
-    const [west, south, east, north] = region.bounds;
+    const [[west, south], [east, north]] = region.bounds;
     const latRange = north - south;
     const lngRange = east - west;
     const area = latRange * lngRange;

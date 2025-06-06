@@ -84,8 +84,12 @@ export class OfflineMapManager {
   async addRegion(region: OfflineRegionOptions): Promise<void> {
     const db = await dbPromise;
     console.log('Adding region:', region);
-    const styleResult = await downloadStyles(region.styleUrl!, region.styleId!, {});
-    const style = styleResult.styles[0]?.data;
+    const styleResult = await downloadStyles(region.styleUrl!, {});
+    if (!styleResult.success) {
+      throw new Error(`Failed to download style: ${styleResult.errors.join(', ')}`);
+    }
+    // Get the style from database after successful download
+    const style = await db.get('styles', styleResult.styleId);
     
     // Ensure styleId is available
     let styleId = region.styleId || region.id;
@@ -206,27 +210,27 @@ export class OfflineMapManager {
 
   // Enhanced Font Management Methods
   async downloadFontsWithOptions(
-    styleId: string,
     glyphUrls: string[],
+    styleId: string,
     options: FontDownloadOptions = {}
   ): Promise<FontDownloadResult> {
-    return downloadFonts(styleId, glyphUrls, options);
+    return downloadFonts(glyphUrls, styleId, options);
   }
 
   async getFontStatistics(styleId: string): Promise<EnhancedFontStats> {
     return getFontStats(styleId);
   }
 
-  async getFontAnalytics(styleId?: string): Promise<{
+  async getFontAnalytics(): Promise<{
     totalFonts: number;
     totalSize: number;
     averageSize: number;
+    sizeByType: Record<string, number>;
+    countByType: Record<string, number>;
+    downloadTimeRange: { oldest?: Date; newest?: Date };
     compressionRatio: number;
-    formatBreakdown: Record<string, number>;
-    topFonts: Array<{ name: string; size: number; usageCount: number }>;
-    recommendations: string[];
   }> {
-    return getFontAnalytics(styleId);
+    return getFontAnalytics();
   }
 
   async cleanupOldFonts(options: {
@@ -279,14 +283,20 @@ export class OfflineMapManager {
   async verifyAndRepairSprites(
     styleId: string,
     options: {
-      removeCorrupted?: boolean;
-      onProgress?: (progress: { checked: number; total: number; corrupted: number; repaired: number }) => void;
+      autoRepair?: boolean;
+      onProgress?: (progress: { completed: number; total: number; message: string }) => void;
     } = {}
-  ): Promise<{ totalSprites: number; corruptedSprites: number; repairedSprites: number; removedSprites: number }> {
+  ): Promise<{ 
+    totalSprites: number; 
+    validSprites: number;
+    corruptedSprites: number; 
+    repairedSprites: number;
+    errors: Array<{ name: string; error: string }>;
+  }> {
     return verifyAndRepairSprites(styleId, options);
   }
 
-  async getSpriteAnalytics(styleId?: string): Promise<{
+  async getSpriteAnalytics(): Promise<{
     totalSprites: number;
     totalSize: number;
     styleCount: number;
@@ -295,20 +305,19 @@ export class OfflineMapManager {
     topStyles: Array<{ styleId: string; spriteCount: number; size: number }>;
     recommendations: string[];
   }> {
-    return getSpriteAnalytics(styleId);
+    return getSpriteAnalytics();
   }
 
   // Enhanced Style Management Methods
   async downloadStylesWithOptions(
     styleUrl: string,
-    styleId: string,
     options: StyleDownloadOptions = {}
   ): Promise<StyleDownloadResult> {
-    return downloadStyles(styleUrl, styleId, options);
+    return downloadStyles(styleUrl, options);
   }
 
-  async getStyleStatistics(styleId: string): Promise<EnhancedStyleStats> {
-    return getStyleStats(styleId);
+  async getStyleStatistics(): Promise<EnhancedStyleStats> {
+    return getStyleStats();
   }
 
   async cleanupOldStyles(options: {
@@ -321,9 +330,15 @@ export class OfflineMapManager {
   }
 
   async verifyAndValidateStyles(options: {
-    removeInvalid?: boolean;
-    onProgress?: (progress: { checked: number; total: number; invalid: number; repaired: number }) => void;
-  } = {}): Promise<{ totalStyles: number; invalidStyles: number; repairedStyles: number; removedStyles: number }> {
+    autoRepair?: boolean;
+    onProgress?: (progress: { completed: number; total: number; message: string }) => void;
+  } = {}): Promise<{ 
+    totalStyles: number; 
+    validStyles: number;
+    invalidStyles: number; 
+    repairedStyles: number;
+    errors: Array<{ id: string; error: string }>;
+  }> {
     return verifyAndValidateStyles(options);
   }
 
@@ -358,10 +373,10 @@ export class OfflineMapManager {
     };
   }> {
     const [tileStats, fontStats, spriteStats, styleStats] = await Promise.all([
-      styleId ? getTileStats(styleId) : this.getAllTileStats(),
+      this.getAllTileStats(),
       styleId ? getFontStats(styleId) : this.getAllFontStats(),
       styleId ? getSpriteStats(styleId) : this.getAllSpriteStats(),
-      styleId ? getStyleStats(styleId) : this.getAllStyleStats()
+      getStyleStats()
     ]);
 
     const totalSize = tileStats.totalSize + fontStats.totalSize + spriteStats.totalSize + styleStats.totalSize;
@@ -471,22 +486,22 @@ export class OfflineMapManager {
         // Sprite verification
         onProgress?.({ component: 'sprites', message: 'Verifying sprite integrity...' });
         for (const styleId of styleIds) {
-          const spriteVerification = await verifyAndRepairSprites(styleId, { removeCorrupted });
+          const spriteVerification = await verifyAndRepairSprites(styleId, { autoRepair: removeCorrupted });
           if (!results.sprites.verified) {
-            results.sprites.verified = { totalSprites: 0, corruptedSprites: 0, removedSprites: 0 };
+            results.sprites.verified = { totalSprites: 0, corruptedSprites: 0, repairedSprites: 0 };
           }
           results.sprites.verified.totalSprites += spriteVerification.totalSprites;
           results.sprites.verified.corruptedSprites += spriteVerification.corruptedSprites;
-          results.sprites.verified.removedSprites += spriteVerification.removedSprites;
+          results.sprites.verified.repairedSprites += spriteVerification.repairedSprites;
         }
 
         // Style verification
         onProgress?.({ component: 'styles', message: 'Verifying style integrity...' });
-        const styleVerification = await verifyAndValidateStyles({ removeInvalid: removeCorrupted });
+        const styleVerification = await verifyAndValidateStyles({ autoRepair: removeCorrupted });
         results.styles.verified = {
           totalStyles: styleVerification.totalStyles,
           invalidStyles: styleVerification.invalidStyles,
-          removedStyles: styleVerification.removedStyles
+          repairedStyles: styleVerification.repairedStyles
         };
       }
 
@@ -740,8 +755,7 @@ export class OfflineMapManager {
     let totalCount = 0;
     let totalSize = 0;
     const spritesByType: Record<string, number> = {};
-    const allSprites: string[] = [];
-    const corruptedSprites: string[] = [];
+    const allSprites: Array<{ name: string; size: number; type: string; lastModified?: number; metadata?: any }> = [];
     
     for (const styleId of styleIds) {
       try {
@@ -749,7 +763,6 @@ export class OfflineMapManager {
         totalCount += stats.count;
         totalSize += stats.totalSize;
         allSprites.push(...stats.sprites);
-        corruptedSprites.push(...stats.corruptedSprites);
         
         // Merge sprite types
         Object.entries(stats.spritesByType).forEach(([type, count]) => {
@@ -766,9 +779,10 @@ export class OfflineMapManager {
       averageSize: totalCount > 0 ? totalSize / totalCount : 0,
       sprites: allSprites,
       spritesByType,
+      sizeByType: spritesByType,
       oldestSprite: undefined,
       newestSprite: undefined,
-      corruptedSprites
+      storageRecommendations: []
     };
   }
 
@@ -778,11 +792,11 @@ export class OfflineMapManager {
     
     let totalCount = 0;
     let totalSize = 0;
-    const allStyles: string[] = [];
+    const allStyles: Array<{ id: string; name?: string; size: number; lastModified?: number; sourceCount: number; layerCount: number; hasGlyphs: boolean; hasSprites: boolean; metadata?: any }> = [];
     
     for (const styleId of styleIds) {
       try {
-        const stats = await getStyleStats(styleId);
+        const stats = await getStyleStats();
         totalCount += stats.count;
         totalSize += stats.totalSize;
         allStyles.push(...stats.styles);
@@ -796,8 +810,11 @@ export class OfflineMapManager {
       totalSize,
       averageSize: totalCount > 0 ? totalSize / totalCount : 0,
       styles: allStyles,
+      sourceTypes: {},
+      layerTypes: {},
       oldestStyle: undefined,
-      newestStyle: undefined
+      newestStyle: undefined,
+      storageRecommendations: []
     };
   }
 }

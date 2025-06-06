@@ -37,6 +37,7 @@ import {
 import { RegionCleanupManager } from './regionCleanup';
 import type { OfflineRegionOptions, StyleEntry, StoredRegion } from '../types';
 import { DownloadProgress } from '../utils';
+
 export class OfflineMapManager {
   private cleanupManager: RegionCleanupManager;
 
@@ -83,18 +84,19 @@ export class OfflineMapManager {
   async addRegion(region: OfflineRegionOptions): Promise<void> {
     const db = await dbPromise;
     console.log('Adding region:', region);
-    const style = await downloadStyles(region.styleUrl!);
+    const styleResult = await downloadStyles(region.styleUrl!, {});
+    if (!styleResult.success) {
+      throw new Error(`Failed to download style: ${styleResult.errors.join(', ')}`);
+    }
+    // Get the style from database after successful download
+    const style = await db.get('styles', styleResult.styleId);
+    
     // Ensure styleId is available
-    let styleId =
-      style && (style as any).id
-        ? (style as any).id
-        : region.styleId || region.id;
+    let styleId = region.styleId || region.id;
     if (!styleId) throw new Error('Style must have an id');
 
     // Get or create the style entry
-    let styleEntry = (await db.get('styles', styleId)) as
-      | StyleEntry
-      | undefined;
+    let styleEntry = (await db.get('styles', styleId)) as StyleEntry | undefined;
     if (!styleEntry || typeof styleEntry === 'string') {
       styleEntry = {
         key: styleId,
@@ -105,17 +107,21 @@ export class OfflineMapManager {
         sprites: [],
       };
     }
+    
     // Ensure regions is always an array
     if (!Array.isArray(styleEntry.regions)) {
       styleEntry.regions = [];
     }
+    
     // Create a unique regionId for this region
     const timestamp = new Date().toISOString().replace(/[-:.TZ]/g, '');
     const regionId = `${region.id}-${timestamp}`;
+    
     // Add region metadata to the style entry
     const bboxExists = styleEntry.regions.some(
       (r: any) => JSON.stringify(r.bounds) === JSON.stringify(region.bounds),
     );
+    
     if (!bboxExists) {
       const expiry = Date.now() + region.expiry!;
       const regionWithMeta = {
@@ -125,6 +131,7 @@ export class OfflineMapManager {
         expiry,
       };
       styleEntry.regions.push(regionWithMeta);
+      
       // Also add to the regions table for fast lookup
       const storedRegion: StoredRegion = {
         ...region,
@@ -138,160 +145,83 @@ export class OfflineMapManager {
       console.log('Region with the same bbox already exists for this style.');
       return;
     }
+    
     // Download and store tiles for this region
     await downloadTiles(region, style, styleId);
-    // Fonts and sprites are handled by style download logic, not here
+    
     // Save the updated style entry
-    // Always ensure the key is set and value is an object
     await db.put('styles', { ...styleEntry, key: styleId });
-    // Optionally, also update a separate regions store for fast lookup (future-proofing)
-    // await db.put('regions', { ...region, styleId, regionId });
   }
 
   async loadRegion(region: OfflineRegionOptions): Promise<void> {
     const db = await dbPromise;
-    // Find the style entry for this region
     const styleId = region.styleId || region.id;
-    const styleEntry = await db.get('styles', styleId);
-    if (
-      styleEntry &&
-      typeof styleEntry === 'object' &&
-      'regions' in styleEntry
-    ) {
-      const entry: any = styleEntry;
-      // Find the region in the style's regions array
-      // Try to match by id, or fallback to first region if only one exists
-      let regionMeta = entry.regions.find((r: any) => r.id === region.id);
-      if (!regionMeta && entry.regions.length === 1) {
-        regionMeta = entry.regions[0];
-      }
-      if (!regionMeta) throw new Error('Region not found in style');
-      // Load tiles for this region
-      await loadTiles(regionMeta, styleId);
-      // Load sprites for the style
-      if (styleId && entry.style && entry.style.sprite) {
-        const spriteBase = entry.style.sprite;
-        const spriteVariants = [
-          `${spriteBase}.json`,
-          `${spriteBase}.png`,
-          `${spriteBase}@2x.json`,
-          `${spriteBase}@2x.png`,
-        ];
-        await downloadSprites(styleId, spriteVariants);
-        entry.sprites = spriteVariants.map(
-          (url) => `${styleId}::${url.split('/').pop()}`,
-        );
-      }
-      // Load fonts for the style
-      await loadFontsByDownloadId(styleId);
-      // Load and set the patched style for offline mode
-      if (entry.style) {
-        // Set the style on the map instance here if needed
-        // map.current.setStyle(entry.style);
-        console.log('Loaded offline style for region:', region.id);
-      }
+    const storedStyle = await db.get('styles', styleId!);
+    
+    if (!storedStyle) {
+      throw new Error(`Style not found for region: ${region.id}`);
     }
+
+    // Load tiles from storage
+    await loadTiles(storedStyle);
+  }
+
+  async deleteRegion(regionId: string): Promise<void> {
+    const db = await dbPromise;
+    const region = await db.get('regions', regionId);
+    
+    if (!region) {
+      console.warn(`Region ${regionId} not found`);
+      return;
+    }
+
+    const styleId = (region as StoredRegion).styleId;
+    
+    // Delete associated resources
+    await Promise.all([
+      deleteTiles(styleId),
+      deleteFontsByStyleId(styleId),
+      deleteSprites(styleId),
+    ]);
+
+    // Remove from regions table
+    await db.delete('regions', regionId);
   }
 
   async listRegions(): Promise<OfflineRegionOptions[]> {
     const db = await dbPromise;
-    // Gather all regions from all styles
-    const allStyles = await db.getAll('styles');
-    return allStyles
-      .filter(
-        (styleEntry: any) =>
-          typeof styleEntry === 'object' && 'regions' in styleEntry,
-      )
-      .flatMap((styleEntry: any) => styleEntry.regions || []);
+    const regions = await db.getAll('regions');
+    return regions as OfflineRegionOptions[];
   }
 
-  async deleteRegion(regionId: string, styleId?: string): Promise<void> {
-    const db = await dbPromise;
-    // Find the style entry containing this region
-    let styleEntry: any;
-    if (styleId) {
-      styleEntry = await db.get('styles', styleId);
-    } else {
-      // Search all styles for the region
-      const allStyles = await db.getAll('styles');
-      styleEntry = allStyles.find(
-        (entry: any) =>
-          typeof entry === 'object' &&
-          'regions' in entry &&
-          (entry.regions || []).some((r: any) => r.regionId === regionId),
-      );
-    }
-    if (
-      !styleEntry ||
-      typeof styleEntry !== 'object' ||
-      !('regions' in styleEntry)
-    )
-      return;
-    // Find the region
-    const regionIdx = styleEntry.regions.findIndex(
-      (r: any) => r.regionId === regionId,
-    );
-    if (regionIdx === -1) return;
-    // Delete region's tiles
-    await deleteTiles(styleEntry.key);
-    // Delete region from style's regions array
-    styleEntry.regions.splice(regionIdx, 1);
-    // If no regions remain, delete all resources for the style
-    if (styleEntry.regions.length === 0) {
-      await Promise.all([
-        deleteSprites(styleEntry.key),
-        deleteFontsByStyleId(styleEntry.key),
-        deleteStyleById(styleEntry.key),
-        db.delete('styles', styleEntry.key),
-      ]);
-    } else {
-      // Otherwise, just update the style entry
-      await db.put('styles', styleEntry);
-    }
+  // Enhanced Tile Management Methods
+  async downloadTilesWithOptions(
+    region: OfflineRegionOptions,
+    style: any,
+    styleId: string,
+    options: TileDownloadOptions = {}
+  ): Promise<TileDownloadResult> {
+    return downloadTiles(region, style, styleId, options);
   }
 
-  async updateRegion(region: OfflineRegionOptions): Promise<void> {
-    const db = await dbPromise;
-    // Fetch the existing region by id
-    const existing = await db.get('regions', region.id);
-    if (existing && existing.downloadId) {
-      const downloadId = existing.downloadId;
-      await Promise.all([
-        deleteTiles(downloadId),
-        deleteSprites(downloadId),
-        deleteFontsByStyleId(downloadId),
-        deleteStyleById(downloadId),
-        db.delete('styles', downloadId),
-      ]);
-    }
-    // Add the region again (new downloadId, new resources)
-    await this.addRegion({ ...region, updated: Date.now() });
+  async getTileStatistics(styleId: string): Promise<TileStats> {
+    return getTileStats(styleId);
   }
 
-  // Enhanced font management methods
-  
-  /**
-   * Download fonts with enhanced options and progress tracking
-   */
+  // Enhanced Font Management Methods
   async downloadFontsWithOptions(
-    fontUrls: string[],
+    glyphUrls: string[],
     styleId: string,
     options: FontDownloadOptions = {}
   ): Promise<FontDownloadResult> {
-    return downloadFonts(fontUrls, styleId, options);
+    return downloadFonts(glyphUrls, styleId, options);
   }
 
-  /**
-   * Get comprehensive font statistics for a style
-   */
   async getFontStatistics(styleId: string): Promise<EnhancedFontStats> {
     return getFontStats(styleId);
   }
 
-  /**
-   * Get comprehensive font analytics across all styles or specific style
-   */
-  async getFontAnalytics(styleId?: string): Promise<{
+  async getFontAnalytics(): Promise<{
     totalFonts: number;
     totalSize: number;
     averageSize: number;
@@ -300,12 +230,9 @@ export class OfflineMapManager {
     downloadTimeRange: { oldest?: Date; newest?: Date };
     compressionRatio: number;
   }> {
-    return getFontAnalytics(styleId);
+    return getFontAnalytics();
   }
 
-  /**
-   * Clean up old fonts based on age or storage quota
-   */
   async cleanupOldFonts(options: {
     maxAge?: number;
     maxStorageSize?: number;
@@ -314,9 +241,6 @@ export class OfflineMapManager {
     return cleanupOldFonts(options);
   }
 
-  /**
-   * Verify font integrity and repair if needed
-   */
   async verifyAndRepairFonts(
     styleId: string,
     options: {
@@ -331,9 +255,110 @@ export class OfflineMapManager {
     return verifyAndRepairFonts(styleId, options);
   }
 
-  /**
-   * Get comprehensive storage analytics across all components
-   */
+  // Enhanced Sprite Management Methods
+  async downloadSpritesWithOptions(
+    styleId: string,
+    urls: string[],
+    options: SpriteDownloadOptions = {}
+  ): Promise<SpriteDownloadResult> {
+    return downloadSprites(styleId, urls, options);
+  }
+
+  async getSpriteStatistics(styleId: string): Promise<EnhancedSpriteStats> {
+    return getSpriteStats(styleId);
+  }
+
+  async cleanupOldSprites(
+    styleId: string,
+    options: {
+      maxAge?: number;
+      maxCount?: number;
+      maxSize?: number;
+      onProgress?: (progress: { completed: number; total: number; message: string }) => void;
+    } = {}
+  ): Promise<{ deletedCount: number; freedSpace: number; errors: string[] }> {
+    return cleanupOldSprites(styleId, options);
+  }
+
+  async verifyAndRepairSprites(
+    styleId: string,
+    options: {
+      autoRepair?: boolean;
+      onProgress?: (progress: { completed: number; total: number; message: string }) => void;
+    } = {}
+  ): Promise<{ 
+    totalSprites: number; 
+    validSprites: number;
+    corruptedSprites: number; 
+    repairedSprites: number;
+    errors: Array<{ name: string; error: string }>;
+  }> {
+    return verifyAndRepairSprites(styleId, options);
+  }
+
+  async getSpriteAnalytics(): Promise<{
+    totalSprites: number;
+    totalSize: number;
+    styleCount: number;
+    spritesByType: Record<string, number>;
+    sizeByType: Record<string, number>;
+    topStyles: Array<{ styleId: string; spriteCount: number; size: number }>;
+    recommendations: string[];
+  }> {
+    return getSpriteAnalytics();
+  }
+
+  // Enhanced Style Management Methods
+  async downloadStylesWithOptions(
+    styleUrl: string,
+    options: StyleDownloadOptions = {}
+  ): Promise<StyleDownloadResult> {
+    return downloadStyles(styleUrl, options);
+  }
+
+  async getStyleStatistics(): Promise<EnhancedStyleStats> {
+    return getStyleStats();
+  }
+
+  async cleanupOldStyles(options: {
+    maxAge?: number;
+    maxCount?: number;
+    maxSize?: number;
+    onProgress?: (progress: { completed: number; total: number; message: string }) => void;
+  } = {}): Promise<{ deletedCount: number; freedSpace: number; errors: string[] }> {
+    return cleanupOldStyles(options);
+  }
+
+  async verifyAndValidateStyles(options: {
+    autoRepair?: boolean;
+    onProgress?: (progress: { completed: number; total: number; message: string }) => void;
+  } = {}): Promise<{ 
+    totalStyles: number; 
+    validStyles: number;
+    invalidStyles: number; 
+    repairedStyles: number;
+    errors: Array<{ id: string; error: string }>;
+  }> {
+    return verifyAndValidateStyles(options);
+  }
+
+  async getStyleAnalytics(): Promise<{
+    totalStyles: number;
+    totalSize: number;
+    totalSources: number;
+    totalLayers: number;
+    sourceTypeBreakdown: Record<string, number>;
+    layerTypeBreakdown: Record<string, number>;
+    stylesWithGlyphs: number;
+    stylesWithSprites: number;
+    averageLayersPerStyle: number;
+    averageSourcesPerStyle: number;
+    recommendations: string[];
+  }> {
+    return getStyleAnalytics();
+  }
+
+  // Cross-Component Analytics and Management
   async getStorageAnalytics(styleId?: string): Promise<{
     tiles: TileStats;
     fonts: EnhancedFontStats;
@@ -348,10 +373,10 @@ export class OfflineMapManager {
     };
   }> {
     const [tileStats, fontStats, spriteStats, styleStats] = await Promise.all([
-      styleId ? getTileStats(styleId) : this.getAllTileStats(),
+      this.getAllTileStats(),
       styleId ? getFontStats(styleId) : this.getAllFontStats(),
       styleId ? getSpriteStats(styleId) : this.getAllSpriteStats(),
-      styleId ? getStyleStats(styleId) : this.getAllStyleStats()
+      getStyleStats()
     ]);
 
     const totalSize = tileStats.totalSize + fontStats.totalSize + spriteStats.totalSize + styleStats.totalSize;
@@ -383,16 +408,13 @@ export class OfflineMapManager {
     };
   }
 
-  /**
-   * Perform comprehensive maintenance across all components
-   */
   async performMaintenance(options: {
     maxAge?: number;
     maxStorageSize?: number;
     verifyIntegrity?: boolean;
     removeCorrupted?: boolean;
     onProgress?: (progress: {
-      component: 'tiles' | 'fonts' | 'sprites' | 'cleanup';
+      component: 'tiles' | 'fonts' | 'sprites' | 'styles' | 'cleanup';
       message: string;
       completed?: number;
       total?: number;
@@ -403,6 +425,14 @@ export class OfflineMapManager {
       verified?: { totalFonts: number; corruptedFonts: number; removedFonts: number };
       cleaned: { deletedCount: number; freedSpace: number };
     };
+    sprites: {
+      verified?: { totalSprites: number; corruptedSprites: number; removedSprites: number };
+      cleaned: { deletedCount: number; freedSpace: number; errors: string[] };
+    };
+    styles: {
+      verified?: { totalStyles: number; invalidStyles: number; removedStyles: number };
+      cleaned: { deletedCount: number; freedSpace: number; errors: string[] };
+    };
     totalFreedSpace: number;
     summary: string;
   }> {
@@ -411,6 +441,8 @@ export class OfflineMapManager {
     const results = {
       tiles: { cleaned: { deletedCount: 0, freedSpace: 0 } },
       fonts: { cleaned: { deletedCount: 0, freedSpace: 0 } },
+      sprites: { cleaned: { deletedCount: 0, freedSpace: 0, errors: [] } },
+      styles: { cleaned: { deletedCount: 0, freedSpace: 0, errors: [] } },
       totalFreedSpace: 0,
       summary: ''
     } as any;
@@ -430,7 +462,7 @@ export class OfflineMapManager {
         for (const styleId of styleIds) {
           const verification = await verifyAndRepairFonts(styleId, {
             removeCorrupted,
-            onProgress: (progress) => {
+            onProgress: (progress: { checked: number; total: number; corrupted: number }) => {
               onProgress?.({
                 component: 'fonts',
                 message: `Verifying fonts for ${styleId}...`,
@@ -450,15 +482,67 @@ export class OfflineMapManager {
           corruptedFonts: totalCorrupted,
           removedFonts: totalRemoved
         };
+
+        // Sprite verification
+        onProgress?.({ component: 'sprites', message: 'Verifying sprite integrity...' });
+        for (const styleId of styleIds) {
+          const spriteVerification = await verifyAndRepairSprites(styleId, { autoRepair: removeCorrupted });
+          if (!results.sprites.verified) {
+            results.sprites.verified = { totalSprites: 0, corruptedSprites: 0, repairedSprites: 0 };
+          }
+          results.sprites.verified.totalSprites += spriteVerification.totalSprites;
+          results.sprites.verified.corruptedSprites += spriteVerification.corruptedSprites;
+          results.sprites.verified.repairedSprites += spriteVerification.repairedSprites;
+        }
+
+        // Style verification
+        onProgress?.({ component: 'styles', message: 'Verifying style integrity...' });
+        const styleVerification = await verifyAndValidateStyles({ autoRepair: removeCorrupted });
+        results.styles.verified = {
+          totalStyles: styleVerification.totalStyles,
+          invalidStyles: styleVerification.invalidStyles,
+          repairedStyles: styleVerification.repairedStyles
+        };
       }
 
-      // Font cleanup
+      // Cleanup operations
       onProgress?.({ component: 'fonts', message: 'Cleaning up old fonts...' });
       const fontCleanup = await cleanupOldFonts({ maxAge, maxStorageSize });
       results.fonts.cleaned = fontCleanup;
       results.totalFreedSpace += fontCleanup.freedSpace;
 
-      // Region cleanup (includes tiles and other resources)
+      onProgress?.({ component: 'sprites', message: 'Cleaning up old sprites...' });
+      const allStyles = await this.listRegions();
+      const styleIds = [...new Set(allStyles.map(r => r.styleId || r.id))];
+      
+      let totalSpriteDeleted = 0;
+      let totalSpriteFreed = 0;
+      const spriteErrors: string[] = [];
+
+      for (const styleId of styleIds) {
+        try {
+          const spriteCleanup = await cleanupOldSprites(styleId, { maxAge });
+          totalSpriteDeleted += spriteCleanup.deletedCount;
+          totalSpriteFreed += spriteCleanup.freedSpace;
+          spriteErrors.push(...spriteCleanup.errors);
+        } catch (error) {
+          spriteErrors.push(`Failed to cleanup sprites for ${styleId}: ${error}`);
+        }
+      }
+
+      results.sprites.cleaned = {
+        deletedCount: totalSpriteDeleted,
+        freedSpace: totalSpriteFreed,
+        errors: spriteErrors
+      };
+      results.totalFreedSpace += totalSpriteFreed;
+
+      onProgress?.({ component: 'styles', message: 'Cleaning up old styles...' });
+      const styleCleanup = await cleanupOldStyles({ maxAge });
+      results.styles.cleaned = styleCleanup;
+      results.totalFreedSpace += styleCleanup.freedSpace;
+
+      // Region cleanup
       onProgress?.({ component: 'cleanup', message: 'Cleaning up expired regions...' });
       const expiredCount = await this.cleanupExpiredRegions();
       
@@ -467,6 +551,8 @@ export class OfflineMapManager {
         `Maintenance completed:`,
         `- Fonts: ${results.fonts.cleaned.deletedCount} deleted`,
         results.fonts.verified ? `- Font verification: ${results.fonts.verified.corruptedFonts} corrupted, ${results.fonts.verified.removedFonts} removed` : '',
+        `- Sprites: ${results.sprites.cleaned.deletedCount} deleted`,
+        `- Styles: ${results.styles.cleaned.deletedCount} deleted`,
         `- Expired regions: ${expiredCount} cleaned`,
         `- Total space freed: ${(results.totalFreedSpace / 1024 / 1024).toFixed(2)} MB`
       ].filter(Boolean).join('\n');
@@ -482,9 +568,6 @@ export class OfflineMapManager {
     }
   }
 
-  /**
-   * Get storage dashboard with comprehensive metrics
-   */
   async getStorageDashboard(): Promise<{
     overview: {
       totalSize: number;
@@ -546,7 +629,7 @@ export class OfflineMapManager {
     return {
       overview: {
         totalSize,
-        totalItems: analytics.tiles.count + analytics.fonts.count,
+        totalItems: analytics.tiles.count + analytics.fonts.count + analytics.sprites.count + analytics.styles.count,
         lastUpdated: new Date()
       },
       breakdown: {
@@ -672,14 +755,14 @@ export class OfflineMapManager {
     let totalCount = 0;
     let totalSize = 0;
     const spritesByType: Record<string, number> = {};
-    let totalSprites = 0;
+    const allSprites: Array<{ name: string; size: number; type: string; lastModified?: number; metadata?: any }> = [];
     
     for (const styleId of styleIds) {
       try {
         const stats = await getSpriteStats(styleId);
         totalCount += stats.count;
         totalSize += stats.totalSize;
-        totalSprites += stats.totalSprites;
+        allSprites.push(...stats.sprites);
         
         // Merge sprite types
         Object.entries(stats.spritesByType).forEach(([type, count]) => {
@@ -694,12 +777,12 @@ export class OfflineMapManager {
       count: totalCount,
       totalSize,
       averageSize: totalCount > 0 ? totalSize / totalCount : 0,
-      sprites: [],
+      sprites: allSprites,
       spritesByType,
-      totalSprites,
+      sizeByType: spritesByType,
       oldestSprite: undefined,
       newestSprite: undefined,
-      corruptedSprites: []
+      storageRecommendations: []
     };
   }
 
@@ -709,27 +792,14 @@ export class OfflineMapManager {
     
     let totalCount = 0;
     let totalSize = 0;
-    let totalSources = 0;
-    let totalLayers = 0;
-    const sourceTypeBreakdown: Record<string, number> = {};
-    const layerTypeBreakdown: Record<string, number> = {};
+    const allStyles: Array<{ id: string; name?: string; size: number; lastModified?: number; sourceCount: number; layerCount: number; hasGlyphs: boolean; hasSprites: boolean; metadata?: any }> = [];
     
     for (const styleId of styleIds) {
       try {
-        const stats = await getStyleStats(styleId);
+        const stats = await getStyleStats();
         totalCount += stats.count;
         totalSize += stats.totalSize;
-        totalSources += stats.totalSources;
-        totalLayers += stats.totalLayers;
-        
-        // Merge source and layer types
-        Object.entries(stats.sourceTypeBreakdown).forEach(([type, count]) => {
-          sourceTypeBreakdown[type] = (sourceTypeBreakdown[type] || 0) + count;
-        });
-        
-        Object.entries(stats.layerTypeBreakdown).forEach(([type, count]) => {
-          layerTypeBreakdown[type] = (layerTypeBreakdown[type] || 0) + count;
-        });
+        allStyles.push(...stats.styles);
       } catch (error) {
         console.warn(`Failed to get style stats for ${styleId}:`, error);
       }
@@ -739,636 +809,12 @@ export class OfflineMapManager {
       count: totalCount,
       totalSize,
       averageSize: totalCount > 0 ? totalSize / totalCount : 0,
-      styles: [],
-      totalSources,
-      totalLayers,
-      sourceTypeBreakdown,
-      layerTypeBreakdown,
+      styles: allStyles,
+      sourceTypes: {},
+      layerTypes: {},
       oldestStyle: undefined,
-      newestStyle: undefined
-    };
-  }
-  // Enhanced Sprite Management Methods
-  
-  /**
-   * Download sprites with enhanced options and analytics
-   */
-  async downloadSpritesWithOptions(
-    styleId: string,
-    urls: string[],
-    options: SpriteDownloadOptions = {}
-  ): Promise<SpriteDownloadResult> {
-    return downloadSprites(styleId, urls, options);
-  }
-
-  /**
-   * Get enhanced sprite statistics for a style
-   */
-  async getSpriteStatistics(styleId: string): Promise<EnhancedSpriteStats> {
-    return getSpriteStats(styleId);
-  }
-
-  /**
-   * Clean up old sprites for a style
-   */
-  async cleanupOldSprites(
-    styleId: string,
-    options: {
-      maxAge?: number;
-      maxCount?: number;
-      maxSize?: number;
-      onProgress?: (progress: { completed: number; total: number; message: string }) => void;
-    } = {}
-  ): Promise<{ deletedCount: number; freedSpace: number; errors: string[] }> {
-    return cleanupOldSprites(styleId, options);
-  }
-
-  /**
-   * Verify and repair sprite integrity for a style
-   */
-  async verifyAndRepairSprites(
-    styleId: string,
-    options: {
-      onProgress?: (progress: { completed: number; total: number; message: string }) => void;
-      autoRepair?: boolean;
-    } = {}
-  ): Promise<{
-    totalSprites: number;
-    validSprites: number;
-    corruptedSprites: number;
-    repairedSprites: number;
-    errors: Array<{ name: string; error: string }>;
-  }> {
-    return verifyAndRepairSprites(styleId, options);
-  }
-
-  /**
-   * Get comprehensive sprite analytics across all styles
-   */
-  async getSpriteAnalytics(): Promise<{
-    totalSprites: number;
-    totalSize: number;
-    styleCount: number;
-    spritesByType: Record<string, number>;
-    sizeByType: Record<string, number>;
-    topStyles: Array<{ styleId: string; spriteCount: number; size: number }>;
-    recommendations: string[];
-  }> {
-    return getSpriteAnalytics();
-  }
-
-  // Enhanced Style Management Methods
-  
-  /**
-   * Download styles with enhanced options and analytics
-   */
-  async downloadStylesWithOptions(
-    stylesUrl: string,
-    options: StyleDownloadOptions = {}
-  ): Promise<StyleDownloadResult> {
-    return downloadStyles(stylesUrl, options);
-  }
-
-  /**
-   * Get enhanced style statistics
-   */
-  async getStyleStatistics(): Promise<EnhancedStyleStats> {
-    return getStyleStats();
-  }
-
-  /**
-   * Clean up old styles
-   */
-  async cleanupOldStyles(
-    options: {
-      maxAge?: number;
-      maxCount?: number;
-      maxSize?: number;
-      keepIds?: string[];
-      onProgress?: (progress: { completed: number; total: number; message: string }) => void;
-    } = {}
-  ): Promise<{ deletedCount: number; freedSpace: number; errors: string[] }> {
-    return cleanupOldStyles(options);
-  }
-
-  /**
-   * Verify and validate style integrity
-   */
-  async verifyAndValidateStyles(
-    options: {
-      onProgress?: (progress: { completed: number; total: number; message: string }) => void;
-      autoRepair?: boolean;
-    } = {}
-  ): Promise<{
-    totalStyles: number;
-    validStyles: number;
-    invalidStyles: number;
-    repairedStyles: number;
-    errors: Array<{ id: string; error: string }>;
-  }> {
-    return verifyAndValidateStyles(options);
-  }
-
-  /**
-   * Get comprehensive style analytics
-   */
-  async getStyleAnalytics(): Promise<{
-    totalStyles: number;
-    totalSize: number;
-    totalSources: number;
-    totalLayers: number;
-    sourceTypeBreakdown: Record<string, number>;
-    layerTypeBreakdown: Record<string, number>;
-    stylesWithGlyphs: number;
-    stylesWithSprites: number;
-    averageLayersPerStyle: number;
-    averageSourcesPerStyle: number;
-    recommendations: string[];
-  }> {
-    return getStyleAnalytics();
-  }
-
-  // Cross-Component Analytics and Management
-  
-  /**
-   * Get comprehensive storage analytics across all components
-   */
-  async getStorageAnalytics(): Promise<{
-    tiles: TileStats;
-    fonts: EnhancedFontStats;
-    sprites: {
-      totalSprites: number;
-      totalSize: number;
-      styleCount: number;
-      spritesByType: Record<string, number>;
-      sizeByType: Record<string, number>;
-      topStyles: Array<{ styleId: string; spriteCount: number; size: number }>;
-      recommendations: string[];
-    };
-    styles: {
-      totalStyles: number;
-      totalSize: number;
-      totalSources: number;
-      totalLayers: number;
-      sourceTypeBreakdown: Record<string, number>;
-      layerTypeBreakdown: Record<string, number>;
-      stylesWithGlyphs: number;
-      stylesWithSprites: number;
-      averageLayersPerStyle: number;
-      averageSourcesPerStyle: number;
-      recommendations: string[];
-    };
-    total: {
-      size: number;
-      recommendations: string[];
-    };
-  }> {
-    const [tileStats, fontStats, spriteAnalytics, styleAnalytics] = await Promise.all([
-      this.getAllTileStats(),
-      this.getAllFontStats(),
-      this.getSpriteAnalytics(),
-      this.getStyleAnalytics()
-    ]);
-
-    const totalSize = tileStats.totalSize + fontStats.totalSize + spriteAnalytics.totalSize + styleAnalytics.totalSize;
-    const totalRecommendations = [
-      ...tileStats.recommendations,
-      ...fontStats.recommendations,
-      ...spriteAnalytics.recommendations,
-      ...styleAnalytics.recommendations
-    ];
-
-    // Add cross-component recommendations
-    if (totalSize > 500 * 1024 * 1024) { // 500MB
-      totalRecommendations.push(`Total storage is very large (${(totalSize / 1024 / 1024).toFixed(1)}MB) - consider comprehensive cleanup`);
-    }
-
-    const componentCounts = [
-      tileStats.totalTiles,
-      fontStats.count,
-      spriteAnalytics.totalSprites,
-      styleAnalytics.totalStyles
-    ];
-    
-    if (componentCounts.some(count => count > 10000)) {
-      totalRecommendations.push('Some components have very high item counts - consider archiving or cleanup');
-    }
-
-    return {
-      tiles: tileStats,
-      fonts: fontStats,
-      sprites: spriteAnalytics,
-      styles: styleAnalytics,
-      total: {
-        size: totalSize,
-        recommendations: [...new Set(totalRecommendations)] // Remove duplicates
-      }
-    };
-  }
-
-  /**
-   * Perform comprehensive maintenance across all components
-   */
-  async performMaintenance(
-    options: {
-      tiles?: {
-        maxAge?: number;
-        maxCount?: number;
-        maxSize?: number;
-      };
-      fonts?: {
-        maxAge?: number;
-        maxCount?: number;
-        maxSize?: number;
-      };
-      sprites?: {
-        maxAge?: number;
-        maxCount?: number;
-        maxSize?: number;
-      };
-      styles?: {
-        maxAge?: number;
-        maxCount?: number;
-        maxSize?: number;
-        keepIds?: string[];
-      };
-      onProgress?: (progress: { 
-        component: string; 
-        completed: number; 
-        total: number; 
-        message: string 
-      }) => void;
-    } = {}
-  ): Promise<{
-    tiles: { deletedCount: number; freedSpace: number; errors: string[] };
-    fonts: { deletedCount: number; freedSpace: number; errors: string[] };
-    sprites: { deletedCount: number; freedSpace: number; errors: string[] };
-    styles: { deletedCount: number; freedSpace: number; errors: string[] };
-    verification: {
-      tiles: { totalTiles: number; validTiles: number; corruptedTiles: number };
-      fonts: { totalFonts: number; validFonts: number; corruptedFonts: number; repairedFonts: number };
-      sprites: { totalSprites: number; validSprites: number; corruptedSprites: number; repairedSprites: number };
-      styles: { totalStyles: number; validStyles: number; invalidStyles: number; repairedStyles: number };
-    };
-    summary: {
-      totalDeleted: number;
-      totalFreedSpace: number;
-      totalErrors: number;
-    };
-  }> {
-    const { tiles: tileOptions, fonts: fontOptions, sprites: spriteOptions, styles: styleOptions, onProgress } = options;
-
-    let totalDeleted = 0;
-    let totalFreedSpace = 0;
-    let totalErrors = 0;
-
-    // Get region list for tile and font cleanup
-    const regions = await this.listRegions();
-
-    // Tile cleanup and verification
-    onProgress?.({ component: 'tiles', completed: 0, total: 100, message: 'Starting tile maintenance' });
-    
-    const tileResults = { deletedCount: 0, freedSpace: 0, errors: [] as string[] };
-    const tileVerification = { totalTiles: 0, validTiles: 0, corruptedTiles: 0 };
-    
-    if (tileOptions) {
-      for (const region of regions) {
-        // Individual region tile cleanup would go here
-        // This is a placeholder for the actual implementation
-      }
-    }
-
-    onProgress?.({ component: 'tiles', completed: 100, total: 100, message: 'Tile maintenance completed' });
-
-    // Font cleanup and verification
-    onProgress?.({ component: 'fonts', completed: 0, total: 100, message: 'Starting font maintenance' });
-    
-    let fontResults = { deletedCount: 0, freedSpace: 0, errors: [] as string[] };
-    let fontVerification = { totalFonts: 0, validFonts: 0, corruptedFonts: 0, repairedFonts: 0 };
-    
-    if (fontOptions) {
-      for (const region of regions) {
-        const styleId = region.styleId || region.id;
-        const cleanup = await this.cleanupOldFonts(styleId, {
-          ...fontOptions,
-          onProgress: (progress) => {
-            onProgress?.({ 
-              component: 'fonts', 
-              completed: progress.completed, 
-              total: progress.total, 
-              message: progress.message 
-            });
-          }
-        });
-        
-        fontResults.deletedCount += cleanup.deletedCount;
-        fontResults.freedSpace += cleanup.freedSpace;
-        fontResults.errors.push(...cleanup.errors);
-      }
-
-      // Font verification
-      for (const region of regions) {
-        const styleId = region.styleId || region.id;
-        const verification = await this.verifyAndRepairFonts(styleId, { autoRepair: true });
-        fontVerification.totalFonts += verification.totalFonts;
-        fontVerification.validFonts += verification.validFonts;
-        fontVerification.corruptedFonts += verification.corruptedFonts;
-        fontVerification.repairedFonts += verification.repairedFonts;
-      }
-    }
-
-    onProgress?.({ component: 'fonts', completed: 100, total: 100, message: 'Font maintenance completed' });
-
-    // Sprite cleanup and verification
-    onProgress?.({ component: 'sprites', completed: 0, total: 100, message: 'Starting sprite maintenance' });
-    
-    let spriteResults = { deletedCount: 0, freedSpace: 0, errors: [] as string[] };
-    let spriteVerification = { totalSprites: 0, validSprites: 0, corruptedSprites: 0, repairedSprites: 0 };
-    
-    if (spriteOptions) {
-      for (const region of regions) {
-        const styleId = region.styleId || region.id;
-        const cleanup = await this.cleanupOldSprites(styleId, {
-          ...spriteOptions,
-          onProgress: (progress) => {
-            onProgress?.({ 
-              component: 'sprites', 
-              completed: progress.completed, 
-              total: progress.total, 
-              message: progress.message 
-            });
-          }
-        });
-        
-        spriteResults.deletedCount += cleanup.deletedCount;
-        spriteResults.freedSpace += cleanup.freedSpace;
-        spriteResults.errors.push(...cleanup.errors);
-      }
-
-      // Sprite verification
-      for (const region of regions) {
-        const styleId = region.styleId || region.id;
-        const verification = await this.verifyAndRepairSprites(styleId, { autoRepair: true });
-        spriteVerification.totalSprites += verification.totalSprites;
-        spriteVerification.validSprites += verification.validSprites;
-        spriteVerification.corruptedSprites += verification.corruptedSprites;
-        spriteVerification.repairedSprites += verification.repairedSprites;
-      }
-    }
-
-    onProgress?.({ component: 'sprites', completed: 100, total: 100, message: 'Sprite maintenance completed' });
-
-    // Style cleanup and verification
-    onProgress?.({ component: 'styles', completed: 0, total: 100, message: 'Starting style maintenance' });
-    
-    let styleResults = { deletedCount: 0, freedSpace: 0, errors: [] as string[] };
-    let styleVerification = { totalStyles: 0, validStyles: 0, invalidStyles: 0, repairedStyles: 0 };
-    
-    if (styleOptions) {
-      styleResults = await this.cleanupOldStyles({
-        ...styleOptions,
-        onProgress: (progress) => {
-          onProgress?.({ 
-            component: 'styles', 
-            completed: progress.completed, 
-            total: progress.total, 
-            message: progress.message 
-          });
-        }
-      });
-
-      styleVerification = await this.verifyAndValidateStyles({ autoRepair: true });
-    }
-
-    onProgress?.({ component: 'styles', completed: 100, total: 100, message: 'Style maintenance completed' });
-
-    // Calculate totals
-    totalDeleted = tileResults.deletedCount + fontResults.deletedCount + spriteResults.deletedCount + styleResults.deletedCount;
-    totalFreedSpace = tileResults.freedSpace + fontResults.freedSpace + spriteResults.freedSpace + styleResults.freedSpace;
-    totalErrors = tileResults.errors.length + fontResults.errors.length + spriteResults.errors.length + styleResults.errors.length;
-
-    return {
-      tiles: tileResults,
-      fonts: fontResults,
-      sprites: spriteResults,
-      styles: styleResults,
-      verification: {
-        tiles: tileVerification,
-        fonts: fontVerification,
-        sprites: spriteVerification,
-        styles: styleVerification
-      },
-      summary: {
-        totalDeleted,
-        totalFreedSpace,
-        totalErrors
-      }
-    };
-  }
-
-  /**
-   * Get comprehensive storage dashboard with recommendations
-   */
-  async getStorageDashboard(): Promise<{
-    overview: {
-      totalSize: string;
-      components: Array<{ name: string; size: string; percentage: number }>;
-    };
-    details: {
-      tiles: TileStats & { recommendations: string[] };
-      fonts: EnhancedFontStats & { recommendations: string[] };
-      sprites: {
-        totalSprites: number;
-        totalSize: number;
-        styleCount: number;
-        spritesByType: Record<string, number>;
-        sizeByType: Record<string, number>;
-        topStyles: Array<{ styleId: string; spriteCount: number; size: number }>;
-        recommendations: string[];
-      };
-      styles: {
-        totalStyles: number;
-        totalSize: number;
-        totalSources: number;
-        totalLayers: number;
-        sourceTypeBreakdown: Record<string, number>;
-        layerTypeBreakdown: Record<string, number>;
-        stylesWithGlyphs: number;
-        stylesWithSprites: number;
-        averageLayersPerStyle: number;
-        averageSourcesPerStyle: number;
-        recommendations: string[];
-      };
-    };
-    recommendations: {
-      immediate: string[];
-      maintenance: string[];
-      optimization: string[];
-    };
-    healthScore: {
-      overall: number;
-      breakdown: {
-        storage: number;
-        integrity: number;
-        organization: number;
-        performance: number;
-      };
-    };
-  }> {
-    const analytics = await this.getStorageAnalytics();
-    const totalSize = analytics.total.size;
-
-    // Format sizes
-    const formatSize = (bytes: number): string => {
-      if (bytes >= 1024 * 1024 * 1024) return `${(bytes / 1024 / 1024 / 1024).toFixed(1)}GB`;
-      if (bytes >= 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)}MB`;
-      if (bytes >= 1024) return `${(bytes / 1024).toFixed(1)}KB`;
-      return `${bytes}B`;
-    };
-
-    // Calculate component percentages
-    const components = [
-      { name: 'Tiles', size: formatSize(analytics.tiles.totalSize), percentage: (analytics.tiles.totalSize / totalSize) * 100 },
-      { name: 'Fonts', size: formatSize(analytics.fonts.totalSize), percentage: (analytics.fonts.totalSize / totalSize) * 100 },
-      { name: 'Sprites', size: formatSize(analytics.sprites.totalSize), percentage: (analytics.sprites.totalSize / totalSize) * 100 },
-      { name: 'Styles', size: formatSize(analytics.styles.totalSize), percentage: (analytics.styles.totalSize / totalSize) * 100 }
-    ].filter(c => c.percentage > 0);
-
-    // Categorize recommendations
-    const immediate: string[] = [];
-    const maintenance: string[] = [];
-    const optimization: string[] = [];
-
-    analytics.total.recommendations.forEach(rec => {
-      if (rec.includes('very large') || rec.includes('critical') || rec.includes('corrupted')) {
-        immediate.push(rec);
-      } else if (rec.includes('cleanup') || rec.includes('old') || rec.includes('expired')) {
-        maintenance.push(rec);
-      } else {
-        optimization.push(rec);
-      }
-    });
-
-    // Calculate health score
-    const storageScore = Math.max(0, 100 - (totalSize / (100 * 1024 * 1024)) * 10); // Penalty for large storage
-    const integrityScore = 90; // Placeholder - would calculate based on corruption rates
-    const organizationScore = Math.max(0, 100 - immediate.length * 20 - maintenance.length * 5);
-    const performanceScore = Math.max(0, 100 - optimization.length * 10);
-    const overallScore = (storageScore + integrityScore + organizationScore + performanceScore) / 4;
-
-    return {
-      overview: {
-        totalSize: formatSize(totalSize),
-        components
-      },
-      details: {
-        tiles: { ...analytics.tiles, recommendations: analytics.tiles.recommendations },
-        fonts: { ...analytics.fonts, recommendations: analytics.fonts.recommendations },
-        sprites: analytics.sprites,
-        styles: analytics.styles
-      },
-      recommendations: {
-        immediate,
-        maintenance,
-        optimization
-      },
-      healthScore: {
-        overall: Math.round(overallScore),
-        breakdown: {
-          storage: Math.round(storageScore),
-          integrity: Math.round(integrityScore),
-          organization: Math.round(organizationScore),
-          performance: Math.round(performanceScore)
-        }
-      }
-    };
-  }
-
-  private async getAllTileStats(): Promise<TileStats> {
-    const regions = await this.listRegions();
-    const styleIds = [...new Set(regions.map(r => r.styleId || r.id))];
-    
-    let totalCount = 0;
-    let totalSize = 0;
-    let oldestTile: Date | undefined;
-    let newestTile: Date | undefined;
-    const zoomLevelStats = new Map<number, { count: number; size: number }>();
-    
-    for (const styleId of styleIds) {
-      const stats = await getTileStats(styleId);
-      totalCount += stats.count;
-      totalSize += stats.totalSize;
-      
-      // Track oldest and newest tiles
-      if (stats.oldestTile && (!oldestTile || stats.oldestTile < oldestTile)) {
-        oldestTile = stats.oldestTile;
-      }
-      if (stats.newestTile && (!newestTile || stats.newestTile > newestTile)) {
-        newestTile = stats.newestTile;
-      }
-      
-      // Merge zoom level stats
-      stats.zoomLevelStats.forEach((levelStats, zoom) => {
-        const existing = zoomLevelStats.get(zoom) || { count: 0, size: 0 };
-        zoomLevelStats.set(zoom, {
-          count: existing.count + levelStats.count,
-          size: existing.size + levelStats.size
-        });
-      });
-    }
-    
-    return {
-      count: totalCount,
-      totalSize,
-      averageSize: totalCount > 0 ? totalSize / totalCount : 0,
-      oldestTile,
-      newestTile,
-      zoomLevelStats
-    };
-  }
-
-  private async getAllFontStats(): Promise<EnhancedFontStats> {
-    const regions = await this.listRegions();
-    const styleIds = [...new Set(regions.map(r => r.styleId || r.id))];
-    
-    let totalCount = 0;
-    let totalSize = 0;
-    const allFonts: string[] = [];
-    const fontsByType: Record<string, number> = {};
-    const corruptedFonts: string[] = [];
-    let oldestFont: { key: string; timestamp: number } | undefined;
-    let newestFont: { key: string; timestamp: number } | undefined;
-    
-    for (const styleId of styleIds) {
-      const stats = await getFontStats(styleId);
-      totalCount += stats.count;
-      totalSize += stats.totalSize;
-      allFonts.push(...stats.fonts);
-      corruptedFonts.push(...stats.corruptedFonts);
-      
-      // Merge font types
-      Object.entries(stats.fontsByType).forEach(([type, count]) => {
-        fontsByType[type] = (fontsByType[type] || 0) + count;
-      });
-      
-      // Track oldest and newest
-      if (stats.oldestFont && (!oldestFont || stats.oldestFont.timestamp < oldestFont.timestamp)) {
-        oldestFont = stats.oldestFont;
-      }
-      if (stats.newestFont && (!newestFont || stats.newestFont.timestamp > newestFont.timestamp)) {
-        newestFont = stats.newestFont;
-      }
-    }
-    
-    return {
-      count: totalCount,
-      totalSize,
-      averageSize: totalCount > 0 ? totalSize / totalCount : 0,
-      fonts: allFonts,
-      fontsByType,
-      oldestFont,
-      newestFont,
-      corruptedFonts
+      newestStyle: undefined,
+      storageRecommendations: []
     };
   }
 }

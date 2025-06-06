@@ -141,10 +141,11 @@ export async function downloadGlyphs(
       const existing = await db.get('glyphs', key);
       if (existing) {
         skippedGlyphs++;
-        progress.increment();
+        const progressData = progress.getProgress();
+        progress.update(progressData.completed + 1, `${fontstack}/${range}`);
         onProgress?.({ 
-          completed: progress.completed, 
-          total: progress.total, 
+          completed: progressData.completed + 1, 
+          total: progressData.total, 
           currentFont: `${fontstack}/${range}` 
         });
         return;
@@ -166,26 +167,8 @@ export async function downloadGlyphs(
         throw new Error(`Invalid glyph data received for ${url}`);
       }
 
-      // Create glyph entry with metadata
-      const glyphEntry: GlyphEntry = {
-        key,
-        fontstack,
-        range,
-        data,
-        contentType,
-        size,
-        lastModified: Date.now(),
-        ...(includeMetadata && {
-          metadata: {
-            unicodeRange: range,
-            glyphCount: await extractGlyphCount(data),
-            compressionRatio: calculateCompressionRatio(data, size)
-          }
-        })
-      };
-
-      // Store glyph in database
-      await db.put('glyphs', glyphEntry);
+      // Store glyph in database (the database schema expects ArrayBuffer for glyphs)
+      await db.put('glyphs', data, key);
 
       // Update statistics
       totalSize += size;
@@ -199,10 +182,11 @@ export async function downloadGlyphs(
         smallestGlyph = { fontstack, range, size };
       }
 
-      progress.increment();
+      const progressData = progress.getProgress();
+      progress.update(progressData.completed + 1, `${fontstack}/${range}`);
       onProgress?.({ 
-        completed: progress.completed, 
-        total: progress.total, 
+        completed: progressData.completed + 1, 
+        total: progressData.total, 
         currentFont: `${fontstack}/${range}` 
       });
 
@@ -212,10 +196,11 @@ export async function downloadGlyphs(
       errors.push(errorMsg);
       console.warn(errorMsg);
       
-      progress.increment();
+      const progressData = progress.getProgress();
+      progress.update(progressData.completed + 1, 'Error', errorMsg);
       onProgress?.({ 
-        completed: progress.completed, 
-        total: progress.total, 
+        completed: progressData.completed + 1, 
+        total: progressData.total, 
         currentFont: 'Error' 
       });
     }
@@ -258,16 +243,48 @@ export async function downloadGlyphs(
 export async function loadGlyphs(styleId: string, fontstack?: string): Promise<GlyphEntry[]> {
   try {
     const db = await dbPromise;
-    const allGlyphs = await db.getAll('glyphs');
+    const allKeys = await db.getAllKeys('glyphs');
     
-    // Filter by styleId and optionally by fontstack
-    const filteredGlyphs = (allGlyphs as unknown as GlyphEntry[]).filter((glyph: GlyphEntry) => {
-      const matchesStyle = glyph.key.startsWith(`${styleId}:`);
-      const matchesFontstack = !fontstack || glyph.fontstack === fontstack;
-      return matchesStyle && matchesFontstack;
+    // Filter keys by styleId and optionally by fontstack
+    const filteredKeys = allKeys.filter((key) => {
+      if (typeof key !== 'string') return false;
+      const matchesStyle = key.startsWith(`${styleId}:`);
+      if (!matchesStyle) return false;
+      
+      if (fontstack) {
+        const keyParts = key.split(':');
+        if (keyParts.length >= 2) {
+          const fontPart = keyParts[1].split('/')[0];
+          return fontPart === fontstack;
+        }
+      }
+      return true;
     });
     
-    return filteredGlyphs;
+    // Load glyph data and create GlyphEntry objects
+    const glyphEntries: GlyphEntry[] = [];
+    for (const key of filteredKeys) {
+      const data = await db.get('glyphs', key as string);
+      if (data && data instanceof ArrayBuffer) {
+        // Parse key to extract fontstack and range
+        const keyStr = key as string;
+        const keyParts = keyStr.split(':');
+        if (keyParts.length >= 2) {
+          const [fontstack, range] = keyParts[1].split('/');
+          glyphEntries.push({
+            key: keyStr,
+            fontstack,
+            range: range.replace('.pbf', ''),
+            data,
+            contentType: 'application/x-protobuf',
+            size: data.byteLength,
+            lastModified: Date.now()
+          });
+        }
+      }
+    }
+    
+    return glyphEntries;
   } catch (error) {
     console.error('Error loading glyphs:', error);
     return [];
