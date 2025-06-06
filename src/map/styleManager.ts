@@ -1,86 +1,452 @@
 import { dbPromise } from '../storage/indexedDbManager';
 import mapboxgl from 'mapbox-gl';
 import maplibregl from 'maplibre-gl';
-import { downloadFonts } from './fontManager';
-import { downloadSprites } from './spriteManager';
-import { generateGlyphUrlsFromStyle } from '../utils';
+import { downloadFonts, FontDownloadOptions, FontDownloadResult } from './fontManager';
+import { downloadSprites, SpriteDownloadOptions, SpriteDownloadResult } from './spriteManager';
+import { generateGlyphUrlsFromStyle, fetchWithRetry, DownloadProgress } from '../utils';
+
+export interface StyleDownloadOptions {
+  onProgress?: (progress: DownloadProgress) => void;
+  fontOptions?: FontDownloadOptions;
+  spriteOptions?: SpriteDownloadOptions;
+  skipExisting?: boolean;
+  validateStyle?: boolean;
+  maxRetries?: number;
+  timeoutMs?: number;
+  enableSourceEmbedding?: boolean;
+  storageQuotaCheck?: boolean;
+  includeMetadata?: boolean;
+}
+
+export interface StyleDownloadResult {
+  styleId: string;
+  success: boolean;
+  downloadTime: number;
+  styleSize: number;
+  sourcesProcessed: number;
+  sourcesEmbedded: number;
+  fontResult?: FontDownloadResult;
+  spriteResult?: SpriteDownloadResult;
+  errors: string[];
+  analytics: {
+    sourceTypes: Record<string, number>;
+    layerTypes: Record<string, number>;
+    totalLayers: number;
+    hasGlyphs: boolean;
+    hasSprites: boolean;
+  };
+}
+
+export interface EnhancedStyleStats {
+  count: number;
+  totalSize: number;
+  averageSize: number;
+  styles: Array<{
+    id: string;
+    name?: string;
+    size: number;
+    lastModified?: number;
+    sourceCount: number;
+    layerCount: number;
+    hasGlyphs: boolean;
+    hasSprites: boolean;
+    metadata?: any;
+  }>;
+  sourceTypes: Record<string, number>;
+  layerTypes: Record<string, number>;
+  oldestStyle?: { id: string; lastModified: number };
+  newestStyle?: { id: string; lastModified: number };
+  largestStyle?: { id: string; size: number };
+  smallestStyle?: { id: string; size: number };
+  storageRecommendations: string[];
+}
+
+export interface StyleStorageItem {
+  key?: string;
+  id: string;
+  name?: string;
+  version?: number;
+  sources: Record<string, any>;
+  layers: any[];
+  glyphs?: string;
+  sprite?: string;
+  // Enhanced metadata
+  lastModified?: number;
+  downloadedAt?: number;
+  originalUrl?: string;
+  validated?: boolean;
+  size?: number;
+  sourceCount?: number;
+  layerCount?: number;
+  fonts?: string[];
+  sprites?: string[];
+}
 
 export async function downloadStyles(
   stylesUrl: string,
-): Promise<mapboxgl.Style | maplibregl.Style | null> {
+  options: StyleDownloadOptions = {}
+): Promise<StyleDownloadResult> {
+  const { 
+    onProgress, 
+    fontOptions, 
+    spriteOptions, 
+    skipExisting = true,
+    validateStyle = true,
+    maxRetries = 3,
+    timeoutMs = 30000,
+    enableSourceEmbedding = true,
+    storageQuotaCheck = false,
+    includeMetadata = true
+  } = options;
+  
+  const startTime = Date.now();
+  let styleSize = 0;
+  let sourcesProcessed = 0;
+  let sourcesEmbedded = 0;
+  const errors: string[] = [];
+  const sourceTypes: Record<string, number> = {};
+  const layerTypes: Record<string, number> = {};
+  
   try {
-    const response = await fetch(stylesUrl);
-    if (!response.ok) {
-      throw new Error('Failed to download styles');
+    // Check storage quota if requested
+    if (storageQuotaCheck && 'navigator' in globalThis && 'storage' in navigator && 'estimate' in navigator.storage) {
+      try {
+        const estimate = await navigator.storage.estimate();
+        const availableSpace = (estimate.quota || 0) - (estimate.usage || 0);
+        const estimatedSize = 5 * 1024 * 1024; // Rough estimate: 5MB for style
+        
+        if (availableSpace < estimatedSize) {
+          console.warn(`Insufficient storage space. Available: ${(availableSpace / 1024 / 1024).toFixed(1)}MB, Estimated need: ${(estimatedSize / 1024 / 1024).toFixed(1)}MB`);
+        }
+      } catch (error) {
+        console.warn('Could not check storage quota:', error);
+      }
     }
+
+    onProgress?.({ 
+      completed: 0, 
+      total: 100, 
+      percentage: 0, 
+      message: 'Fetching style',
+      errors: []
+    });
+    
+    const response = await fetchWithRetry(stylesUrl, {
+      retries: maxRetries,
+      timeout: timeoutMs,
+      retryDelay: 1000
+    });
+    
     const style = await response.json();
+    styleSize = JSON.stringify(style).length;
+
+    // Generate style ID if missing
+    if (!style.id) {
+      style.id = stylesUrl.split('/').pop()?.split('.')[0] || `style_${Date.now()}`;
+      console.warn(`Style missing ID, generated: ${style.id}`);
+    }
+
+    // Validate style if requested
+    if (validateStyle && !isValidStyleData(style)) {
+      throw new Error('Invalid style data received');
+    }
 
     // Check if style already exists in the database
     const db = await dbPromise;
-    const existingStyle = await db.get('styles', style.id);
     
-    if (existingStyle && typeof existingStyle === 'object' && 'style' in existingStyle) {
-      console.log(`Style ${style.id} already exists in database, using existing version`);
-      return existingStyle.style;
+    if (skipExisting) {
+      const existingStyle = await db.get('styles', style.id);
+      if (existingStyle && typeof existingStyle === 'object') {
+        console.log(`Style ${style.id} already exists in database, using existing version`);
+        onProgress?.({ 
+          completed: 100, 
+          total: 100, 
+          percentage: 100, 
+          message: 'Style already exists', 
+          errors: [] 
+        });
+        
+        return {
+          styleId: style.id,
+          success: true,
+          downloadTime: Date.now() - startTime,
+          styleSize: 0,
+          sourcesProcessed: 0,
+          sourcesEmbedded: 0,
+          errors: [],
+          analytics: {
+            sourceTypes: {},
+            layerTypes: {},
+            totalLayers: 0,
+            hasGlyphs: false,
+            hasSprites: false
+          }
+        };
+      }
     }
 
-    // Style doesn't exist, proceed with download and processing
+    onProgress?.({ 
+      completed: 20, 
+      total: 100, 
+      percentage: 20, 
+      message: 'Processing style sources', 
+      errors: [] 
+    });
+    
     console.log(`Downloading new style: ${style.id}`);
 
-    // Fetch and store sources inside the style object
-    for (const sourceKey of Object.keys(style.sources)) {
-      const source = style.sources[sourceKey];
+    // Process sources
+    if (enableSourceEmbedding && style.sources) {
+      const sourceKeys = Object.keys(style.sources);
+      
+      for (let i = 0; i < sourceKeys.length; i++) {
+        const sourceKey = sourceKeys[i];
+        const source = style.sources[sourceKey];
+        sourcesProcessed++;
 
-      if (source.url) {
-        try {
-          const sourceResponse = await fetch(source.url);
-          if (sourceResponse.ok) {
-            const sourceURL = await sourceResponse.json();
-            style.sources[sourceKey].url = sourceURL; // Embed source data
-          } else {
-            console.warn(`Failed to fetch source for ${sourceKey}`);
+        // Track source types
+        if (source.type) {
+          sourceTypes[source.type] = (sourceTypes[source.type] || 0) + 1;
+        }
+
+        if (source.url) {
+          try {
+            const sourceResponse = await fetchWithRetry(source.url, {
+              retries: maxRetries,
+              timeout: timeoutMs,
+              retryDelay: 1000
+            });
+            
+            const sourceData = await sourceResponse.json();
+            style.sources[sourceKey] = { ...source, ...sourceData }; // Embed source data
+            sourcesEmbedded++;
+            console.log(`Embedded source data for ${sourceKey}`);
+          } catch (error) {
+            const errorMsg = `Failed to fetch source for ${sourceKey}: ${error instanceof Error ? error.message : 'Unknown error'}`;
+            errors.push(errorMsg);
+            console.warn(errorMsg);
           }
-        } catch (error) {
-          console.error(`Error fetching source for ${sourceKey}:`, error);
+        }
+        
+        onProgress?.({ 
+          completed: 20 + (i + 1) / sourceKeys.length * 30, 
+          total: 100, 
+          percentage: 20 + (i + 1) / sourceKeys.length * 30, 
+          message: `Processing sources (${i + 1}/${sourceKeys.length})`, 
+          errors: [...errors]
+        });
+      }
+    }
+
+    // Analyze layers
+    if (style.layers && Array.isArray(style.layers)) {
+      for (const layer of style.layers) {
+        if (layer.type) {
+          layerTypes[layer.type] = (layerTypes[layer.type] || 0) + 1;
         }
       }
     }
 
-    // Save the style with embedded sources
-    const tx = db.transaction('styles', 'readwrite');
-    const store = tx.objectStore('styles');
-    await store.put({ ...style, key: style.id }); // Use in-line key for compatibility
-    await tx.done;
+    // Create enhanced style storage item
+    const styleStorageItem: StyleStorageItem = {
+      ...style,
+      key: style.id,
+      ...(includeMetadata && {
+        lastModified: Date.now(),
+        downloadedAt: Date.now(),
+        originalUrl: stylesUrl,
+        validated: validateStyle,
+        size: styleSize,
+        sourceCount: sourcesProcessed,
+        layerCount: style.layers ? style.layers.length : 0
+      })
+    };
 
-    console.log('Downloaded style with sources saved successfully');
+    // Save the style
+    await db.put('styles', styleStorageItem);
+    console.log('Style with sources saved successfully');
+    
+    onProgress?.({ 
+      completed: 50, 
+      total: 100, 
+      percentage: 50, 
+      message: 'Style saved', 
+      errors: [...errors] 
+    });
 
-    // Download fonts (glyphs) for the style (only for new styles)
-    if (style && style.glyphs) {
-      const fontUrls = generateGlyphUrlsFromStyle(style, style.glyphs);
-      await downloadFonts(fontUrls, style.id);
-      style.fonts = fontUrls;
+    let fontResult: FontDownloadResult | undefined;
+    let spriteResult: SpriteDownloadResult | undefined;
+
+    // Download fonts (glyphs) for the style
+    if (style.glyphs) {
+      onProgress?.({ 
+        completed: 60, 
+        total: 100, 
+        percentage: 60, 
+        message: 'Downloading fonts', 
+        errors: [...errors] 
+      });
+      
+      try {
+        const fontUrls = generateGlyphUrlsFromStyle(style, style.glyphs);
+        fontResult = await downloadFonts(fontUrls, style.id, {
+          ...fontOptions,
+          onProgress: (fontProgress) => {
+            onProgress?.({ 
+              completed: 60 + fontProgress.percentage * 0.2, 
+              total: 100, 
+              percentage: 60 + fontProgress.percentage * 0.2, 
+              message: `Downloading fonts (${fontProgress.completed}/${fontProgress.total})`, 
+              errors: [...errors, ...fontProgress.errors]
+            });
+          }
+        });
+        
+        if (includeMetadata) {
+          styleStorageItem.fonts = fontUrls;
+        }
+      } catch (error) {
+        const errorMsg = `Font download failed: ${error instanceof Error ? error.message : 'Unknown error'}`;
+        errors.push(errorMsg);
+        console.warn(errorMsg);
+      }
     }
-    // Download sprites for the style (only for new styles)
-    if (style && style.sprite) {
-      const spriteBase = style.sprite;
-      const spriteVariants = [
-        `${spriteBase}.json`,
-        `${spriteBase}.png`,
-        `${spriteBase}@2x.json`,
-        `${spriteBase}@2x.png`,
-      ];
-      await downloadSprites(style.id, spriteVariants);
-      style.sprites = spriteVariants;
+    
+    onProgress?.({ 
+      completed: 80, 
+      total: 100, 
+      percentage: 80, 
+      message: 'Fonts processed', 
+      errors: [...errors] 
+    });
+
+    // Download sprites for the style
+    if (style.sprite) {
+      onProgress?.({ 
+        completed: 85, 
+        total: 100, 
+        percentage: 85, 
+        message: 'Downloading sprites', 
+        errors: [...errors] 
+      });
+      
+      try {
+        const spriteBase = style.sprite;
+        const spriteVariants = [
+          `${spriteBase}.json`,
+          `${spriteBase}.png`,
+          `${spriteBase}@2x.json`,
+          `${spriteBase}@2x.png`,
+        ];
+        
+        spriteResult = await downloadSprites(style.id, spriteVariants, {
+          ...spriteOptions,
+          onProgress: (spriteProgress) => {
+            onProgress?.({ 
+              completed: 85 + spriteProgress.percentage * 0.1, 
+              total: 100, 
+              percentage: 85 + spriteProgress.percentage * 0.1, 
+              message: `Downloading sprites (${spriteProgress.completed}/${spriteProgress.total})`, 
+              errors: [...errors, ...spriteProgress.errors]
+            });
+          }
+        });
+        
+        if (includeMetadata) {
+          styleStorageItem.sprites = spriteVariants;
+        }
+      } catch (error) {
+        const errorMsg = `Sprite download failed: ${error instanceof Error ? error.message : 'Unknown error'}`;
+        errors.push(errorMsg);
+        console.warn(errorMsg);
+      }
     }
 
-    return style;
+    // Update style with additional metadata if needed
+    if (includeMetadata) {
+      await db.put('styles', styleStorageItem);
+    }
+
+    const downloadTime = Date.now() - startTime;
+    
+    onProgress?.({ 
+      completed: 100, 
+      total: 100, 
+      percentage: 100, 
+      message: 'Style download complete', 
+      errors: [...errors] 
+    });
+    
+    console.log(`Style ${style.id} download completed successfully in ${(downloadTime / 1000).toFixed(1)}s`);
+    
+    return {
+      styleId: style.id,
+      success: true,
+      downloadTime,
+      styleSize,
+      sourcesProcessed,
+      sourcesEmbedded,
+      fontResult,
+      spriteResult,
+      errors,
+      analytics: {
+        sourceTypes,
+        layerTypes,
+        totalLayers: style.layers ? style.layers.length : 0,
+        hasGlyphs: !!style.glyphs,
+        hasSprites: !!style.sprite
+      }
+    };
+    
   } catch (error) {
+    const errorMsg = `Failed to download style from ${stylesUrl}: ${error instanceof Error ? error.message : 'Unknown error'}`;
     console.error('Error downloading styles:', error);
-    return null;
+    errors.push(errorMsg);
+    
+    return {
+      styleId: 'unknown',
+      success: false,
+      downloadTime: Date.now() - startTime,
+      styleSize: 0,
+      sourcesProcessed,
+      sourcesEmbedded,
+      errors,
+      analytics: {
+        sourceTypes,
+        layerTypes,
+        totalLayers: 0,
+        hasGlyphs: false,
+        hasSprites: false
+      }
+    };
   }
 }
 
-export async function loadStyles(): Promise<any[]> {
+// Utility function to validate style data
+function isValidStyleData(style: any): boolean {
+  if (!style || typeof style !== 'object') return false;
+  
+  // Check required properties
+  if (!style.version || !style.sources || !style.layers) return false;
+  
+  // Validate version
+  if (typeof style.version !== 'number' || style.version < 8) return false;
+  
+  // Validate sources
+  if (typeof style.sources !== 'object' || Object.keys(style.sources).length === 0) return false;
+  
+  // Validate layers
+  if (!Array.isArray(style.layers) || style.layers.length === 0) return false;
+  
+  // Basic layer validation
+  for (const layer of style.layers) {
+    if (!layer.id || !layer.type) return false;
+  }
+  
+  return true;
+}
+
+export async function loadStyles(): Promise<StyleStorageItem[]> {
   try {
     const db = await dbPromise;
     const tx = db.transaction('styles', 'readonly');
@@ -94,14 +460,14 @@ export async function loadStyles(): Promise<any[]> {
   }
 }
 
-export async function loadStyleById(styleId: string): Promise<any | null> {
+export async function loadStyleById(styleId: string): Promise<StyleStorageItem | null> {
   try {
     const db = await dbPromise;
     const tx = db.transaction('styles', 'readonly');
     const store = tx.objectStore('styles');
-    const style = await store.get(styleId); // Fetch the style by ID
+    const style = await store.get(styleId);
     await tx.oncomplete;
-    return style || null; // Return the style or null if not found
+    return style || null;
   } catch (error) {
     console.error(`Error loading style with ID ${styleId}:`, error);
     return null;
@@ -128,5 +494,413 @@ export async function deleteStyleById(styleId: string): Promise<void> {
     console.log(`Style with ID ${styleId} deleted successfully`);
   } catch (error) {
     console.error(`Error deleting style with ID ${styleId}:`, error);
+  }
+}
+
+/**
+ * Get enhanced style statistics
+ */
+export async function getStyleStats(): Promise<EnhancedStyleStats> {
+  const db = await dbPromise;
+  
+  try {
+    const allStyles = await loadStyles();
+    let totalSize = 0;
+    const sourceTypes: Record<string, number> = {};
+    const layerTypes: Record<string, number> = {};
+    let oldestStyle: { id: string; lastModified: number } | undefined;
+    let newestStyle: { id: string; lastModified: number } | undefined;
+    let largestStyle: { id: string; size: number } | undefined;
+    let smallestStyle: { id: string; size: number } | undefined;
+    
+    const styles = allStyles.map(style => {
+      // Handle both old and new style storage formats
+      const size = isEnhancedStyleFormat(style) && style.size ? 
+        style.size : 
+        JSON.stringify(style).length;
+      const lastModified = isEnhancedStyleFormat(style) ? style.lastModified : undefined;
+      const sourceCount = isEnhancedStyleFormat(style) && style.sourceCount ? 
+        style.sourceCount : 
+        (style.sources ? Object.keys(style.sources).length : 0);
+      const layerCount = isEnhancedStyleFormat(style) && style.layerCount ? 
+        style.layerCount : 
+        (style.layers ? style.layers.length : 0);
+      
+      totalSize += size;
+      
+      // Track source types
+      if (style.sources) {
+        Object.values(style.sources).forEach((source: any) => {
+          if (source.type) {
+            sourceTypes[source.type] = (sourceTypes[source.type] || 0) + 1;
+          }
+        });
+      }
+      
+      // Track layer types
+      if (style.layers && Array.isArray(style.layers)) {
+        style.layers.forEach((layer: any) => {
+          if (layer.type) {
+            layerTypes[layer.type] = (layerTypes[layer.type] || 0) + 1;
+          }
+        });
+      }
+      
+      // Track oldest and newest styles
+      if (lastModified) {
+        if (!oldestStyle || lastModified < oldestStyle.lastModified) {
+          oldestStyle = { id: style.id, lastModified };
+        }
+        if (!newestStyle || lastModified > newestStyle.lastModified) {
+          newestStyle = { id: style.id, lastModified };
+        }
+      }
+      
+      // Track largest and smallest styles
+      if (!largestStyle || size > largestStyle.size) {
+        largestStyle = { id: style.id, size };
+      }
+      if (!smallestStyle || size < smallestStyle.size) {
+        smallestStyle = { id: style.id, size };
+      }
+      
+      return {
+        id: style.id,
+        name: style.name,
+        size,
+        lastModified,
+        sourceCount,
+        layerCount,
+        hasGlyphs: !!style.glyphs,
+        hasSprites: !!style.sprite,
+        metadata: isEnhancedStyleFormat(style) ? {
+          downloadedAt: style.downloadedAt,
+          originalUrl: style.originalUrl,
+          validated: style.validated
+        } : undefined
+      };
+    });
+    
+    // Generate storage recommendations
+    const storageRecommendations: string[] = [];
+    
+    if (allStyles.length > 10) {
+      storageRecommendations.push(`Many styles stored (${allStyles.length}), consider cleanup`);
+    }
+    
+    if (totalSize > 20 * 1024 * 1024) { // 20MB
+      storageRecommendations.push(`Style storage is large (${(totalSize / 1024 / 1024).toFixed(1)}MB)`);
+    }
+    
+    const layerCounts = Object.values(layerTypes);
+    const totalLayers = layerCounts.reduce((sum, count) => sum + count, 0);
+    if (totalLayers > 1000) {
+      storageRecommendations.push(`High layer count across all styles (${totalLayers})`);
+    }
+    
+    return {
+      count: allStyles.length,
+      totalSize,
+      averageSize: allStyles.length > 0 ? totalSize / allStyles.length : 0,
+      styles,
+      sourceTypes,
+      layerTypes,
+      oldestStyle,
+      newestStyle,
+      largestStyle,
+      smallestStyle,
+      storageRecommendations
+    };
+  } catch (error) {
+    console.error('Error getting enhanced style stats:', error);
+    return {
+      count: 0,
+      totalSize: 0,
+      averageSize: 0,
+      styles: [],
+      sourceTypes: {},
+      layerTypes: {},
+      storageRecommendations: ['Error retrieving style statistics']
+    };
+  }
+}
+
+// Type guard for enhanced style format
+function isEnhancedStyleFormat(style: any): style is StyleStorageItem {
+  return style && typeof style === 'object' && 'id' in style && (
+    'lastModified' in style || 
+    'downloadedAt' in style || 
+    'size' in style ||
+    'sourceCount' in style ||
+    'layerCount' in style
+  );
+}
+
+/**
+ * Clean up old styles based on criteria
+ */
+export async function cleanupOldStyles(
+  options: {
+    maxAge?: number; // milliseconds
+    maxCount?: number;
+    maxSize?: number; // bytes
+    keepIds?: string[]; // style IDs to preserve
+    onProgress?: (progress: { completed: number; total: number; message: string }) => void;
+  } = {}
+): Promise<{
+  deletedCount: number;
+  freedSpace: number;
+  errors: string[];
+}> {
+  const db = await dbPromise;
+  const { maxAge, maxCount, maxSize, keepIds = [], onProgress } = options;
+  
+  try {
+    const stats = await getStyleStats();
+    let stylesToDelete: Array<{ id: string; size: number; lastModified?: number }> = [];
+    
+    // Determine which styles to delete
+    if (maxAge) {
+      const cutoffTime = Date.now() - maxAge;
+      stylesToDelete = stats.styles.filter(style => 
+        !keepIds.includes(style.id) &&
+        style.lastModified && 
+        style.lastModified < cutoffTime
+      );
+    } else if (maxCount && stats.count > maxCount) {
+      // Delete oldest styles first, excluding protected ones
+      const deletableStyles = stats.styles.filter(style => !keepIds.includes(style.id));
+      const sortedStyles = deletableStyles
+        .filter(style => style.lastModified)
+        .sort((a, b) => (a.lastModified || 0) - (b.lastModified || 0));
+      const deleteCount = Math.min(sortedStyles.length, stats.count - maxCount);
+      stylesToDelete = sortedStyles.slice(0, deleteCount);
+    } else if (maxSize && stats.totalSize > maxSize) {
+      // Delete largest styles first until under limit, excluding protected ones
+      const deletableStyles = stats.styles.filter(style => !keepIds.includes(style.id));
+      const sortedStyles = deletableStyles.sort((a, b) => b.size - a.size);
+      let currentSize = stats.totalSize;
+      for (const style of sortedStyles) {
+        if (currentSize <= maxSize) break;
+        stylesToDelete.push(style);
+        currentSize -= style.size;
+      }
+    }
+    
+    if (stylesToDelete.length === 0) {
+      return { deletedCount: 0, freedSpace: 0, errors: [] };
+    }
+    
+    console.log(`Cleaning up ${stylesToDelete.length} old styles`);
+    
+    let deletedCount = 0;
+    let freedSpace = 0;
+    const errors: string[] = [];
+    
+    for (let i = 0; i < stylesToDelete.length; i++) {
+      const style = stylesToDelete[i];
+      
+      try {
+        await deleteStyleById(style.id);
+        deletedCount++;
+        freedSpace += style.size;
+        
+        onProgress?.({
+          completed: i + 1,
+          total: stylesToDelete.length,
+          message: `Deleted style: ${style.id}`
+        });
+      } catch (error) {
+        const errorMsg = `Failed to delete style ${style.id}: ${error instanceof Error ? error.message : 'Unknown error'}`;
+        errors.push(errorMsg);
+        console.warn(errorMsg);
+      }
+    }
+    
+    console.log(`Style cleanup completed: ${deletedCount} styles deleted, ${(freedSpace / 1024).toFixed(1)}KB freed`);
+    return { deletedCount, freedSpace, errors };
+    
+  } catch (error) {
+    console.error('Error during style cleanup:', error);
+    return { 
+      deletedCount: 0, 
+      freedSpace: 0, 
+      errors: [`Cleanup failed: ${error instanceof Error ? error.message : 'Unknown error'}`] 
+    };
+  }
+}
+
+/**
+ * Verify and validate style integrity
+ */
+export async function verifyAndValidateStyles(
+  options: {
+    onProgress?: (progress: { completed: number; total: number; message: string }) => void;
+    autoRepair?: boolean;
+  } = {}
+): Promise<{
+  totalStyles: number;
+  validStyles: number;
+  invalidStyles: number;
+  repairedStyles: number;
+  errors: Array<{ id: string; error: string }>;
+}> {
+  const db = await dbPromise;
+  const { onProgress, autoRepair = false } = options;
+  
+  try {
+    const allStyles = await loadStyles();
+    let validCount = 0;
+    let invalidCount = 0;
+    let repairedCount = 0;
+    const errors: Array<{ id: string; error: string }> = [];
+    
+    console.log(`Verifying ${allStyles.length} styles`);
+    
+    for (let i = 0; i < allStyles.length; i++) {
+      const style = allStyles[i];
+      
+      try {
+        const isValid = isValidStyleData(style);
+        
+        if (isValid) {
+          validCount++;
+        } else {
+          invalidCount++;
+          const errorMsg = 'Invalid style data detected';
+          errors.push({ id: style.id, error: errorMsg });
+          
+          if (autoRepair) {
+            // Basic repair attempts
+            try {
+              if (!style.version) style.version = 8;
+              if (!style.sources) style.sources = {};
+              if (!style.layers) style.layers = [];
+              
+              // Re-validate after repair
+              if (isValidStyleData(style)) {
+                await db.put('styles', style);
+                repairedCount++;
+                console.log(`Repaired style: ${style.id}`);
+              }
+            } catch (repairError) {
+              console.warn(`Failed to repair style ${style.id}:`, repairError);
+            }
+          }
+        }
+        
+        onProgress?.({
+          completed: i + 1,
+          total: allStyles.length,
+          message: `Verified style: ${style.id} (${isValid ? 'valid' : 'invalid'})`
+        });
+        
+      } catch (error) {
+        invalidCount++;
+        const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+        errors.push({ id: style.id, error: errorMsg });
+        
+        onProgress?.({
+          completed: i + 1,
+          total: allStyles.length,
+          message: `Error verifying style: ${style.id}`
+        });
+      }
+    }
+    
+    console.log(`Style verification completed: ${validCount} valid, ${invalidCount} invalid, ${repairedCount} repaired`);
+    
+    return {
+      totalStyles: allStyles.length,
+      validStyles: validCount,
+      invalidStyles: invalidCount,
+      repairedStyles: repairedCount,
+      errors
+    };
+    
+  } catch (error) {
+    console.error('Error during style verification:', error);
+    return {
+      totalStyles: 0,
+      validStyles: 0,
+      invalidStyles: 0,
+      repairedStyles: 0,
+      errors: [{ id: 'verification', error: error instanceof Error ? error.message : 'Unknown error' }]
+    };
+  }
+}
+
+/**
+ * Get comprehensive style analytics
+ */
+export async function getStyleAnalytics(): Promise<{
+  totalStyles: number;
+  totalSize: number;
+  totalSources: number;
+  totalLayers: number;
+  sourceTypeBreakdown: Record<string, number>;
+  layerTypeBreakdown: Record<string, number>;
+  stylesWithGlyphs: number;
+  stylesWithSprites: number;
+  averageLayersPerStyle: number;
+  averageSourcesPerStyle: number;
+  recommendations: string[];
+}> {
+  try {
+    const stats = await getStyleStats();
+    
+    const totalSources = Object.values(stats.sourceTypes).reduce((sum, count) => sum + count, 0);
+    const totalLayers = Object.values(stats.layerTypes).reduce((sum, count) => sum + count, 0);
+    const stylesWithGlyphs = stats.styles.filter(style => style.hasGlyphs).length;
+    const stylesWithSprites = stats.styles.filter(style => style.hasSprites).length;
+    
+    const recommendations: string[] = [...stats.storageRecommendations];
+    
+    if (stats.count > 0) {
+      const avgLayers = totalLayers / stats.count;
+      const avgSources = totalSources / stats.count;
+      
+      if (avgLayers > 50) {
+        recommendations.push(`High average layers per style (${avgLayers.toFixed(1)})`);
+      }
+      
+      if (avgSources > 10) {
+        recommendations.push(`High average sources per style (${avgSources.toFixed(1)})`);
+      }
+      
+      if (stylesWithGlyphs / stats.count < 0.5) {
+        recommendations.push(`Many styles without fonts (${stats.count - stylesWithGlyphs})`);
+      }
+    }
+    
+    return {
+      totalStyles: stats.count,
+      totalSize: stats.totalSize,
+      totalSources,
+      totalLayers,
+      sourceTypeBreakdown: stats.sourceTypes,
+      layerTypeBreakdown: stats.layerTypes,
+      stylesWithGlyphs,
+      stylesWithSprites,
+      averageLayersPerStyle: stats.count > 0 ? totalLayers / stats.count : 0,
+      averageSourcesPerStyle: stats.count > 0 ? totalSources / stats.count : 0,
+      recommendations
+    };
+    
+  } catch (error) {
+    console.error('Error getting style analytics:', error);
+    return {
+      totalStyles: 0,
+      totalSize: 0,
+      totalSources: 0,
+      totalLayers: 0,
+      sourceTypeBreakdown: {},
+      layerTypeBreakdown: {},
+      stylesWithGlyphs: 0,
+      stylesWithSprites: 0,
+      averageLayersPerStyle: 0,
+      averageSourcesPerStyle: 0,
+      recommendations: ['Error retrieving style analytics']
+    };
   }
 }
