@@ -1,6 +1,7 @@
 // idbFetchHandler.ts
 // Intercepts idb:// URLs and serves resources from IndexedDB for MapLibre GL offline mode
 import { dbPromise } from '../storage/indexedDbManager';
+import { extractTileKey } from './index';
 
 function hasDataProp(obj: any): obj is { data: ArrayBuffer } {
   return obj && typeof obj === 'object' && 'data' in obj;
@@ -20,6 +21,9 @@ export async function idbFetchHandler(url: string): Promise<Response> {
 
   switch (type) {
     case 'tile': {
+      // Extract tile coordinates from the resource path
+      const tileKey = extractTileKey(decodeURIComponent(resourcePath));
+      const key = `${downloadId}::${tileKey}`;
       const tile = await db.get('tiles', key);
       if (tile) {
         const data = hasDataProp(tile) ? tile.data : tile;

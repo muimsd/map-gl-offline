@@ -41,16 +41,16 @@ async function handleOffline() {
   });
 
   console.log('Style URL:', styleURL);
-  
+
   // Example: check region expiry
   const expiryInfo = await offlineManager.getRegionExpiry('world');
   if (expiryInfo) {
     console.log(`Region expires: ${new Date(expiryInfo.expiry).toISOString()}`);
     console.log(`Is expired: ${expiryInfo.expired}`);
-    
+
     // Example: extend expiry if needed
     if (expiryInfo.expired) {
-      await offlineManager.extendRegionExpiry('world');
+      // await offlineManager.extendRegionExpiry('world');
       console.log('Extended region expiry');
     }
   }

@@ -12,12 +12,21 @@ export async function downloadFonts(
 
   for (const url of fontUrls) {
     try {
-      // Prepend the CORS proxy to the font URL
-      const proxiedUrl = url.startsWith('http') ? corsProxy + url : url;
-      const fontData = await fetchResource(proxiedUrl);
       const fileName = url.split('/').pop() || url;
       const key = downloadId ? `${downloadId}::${fileName}` : fileName;
-      await db.put('fonts', { key, data: fontData } as any); // Do not pass key as a separate argument
+      
+      // Check if font already exists
+      const existingFont = await db.get('fonts', key);
+      if (existingFont) {
+        console.log(`Font already exists: ${key}, skipping download`);
+        continue;
+      }
+
+      // Font doesn't exist, download it
+      const proxiedUrl = url.startsWith('http') ? corsProxy + url : url;
+      const fontData = await fetchResource(proxiedUrl);
+      await db.put('fonts', { key, data: fontData } as any);
+      console.log(`Downloaded font: ${key}`);
     } catch (e) {
       console.warn(`Font not found or failed to fetch: ${url}`);
     }

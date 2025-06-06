@@ -1,7 +1,7 @@
 import { dbPromise } from '../storage/indexedDbManager';
 import { OfflineRegionOptions } from '../types';
 import * as tilebelt from '@mapbox/tilebelt';
-import { fetchResource } from '../utils';
+import { fetchResource, extractTileKey } from '../utils';
 
 export async function downloadTiles(
   region: OfflineRegionOptions,
@@ -20,9 +20,20 @@ export async function downloadTiles(
 
         for (const url of tileUrls) {
           const downloadPromise = (async () => {
+            const tileKey = extractTileKey(url);
+            const key = `${styleId}::${tileKey}`; // Save tile with style ID and short tile key
+            
+            // Check if tile already exists
+            const existingTile = await db.get('tiles', key);
+            if (existingTile) {
+              console.log(`Tile already exists: ${key}, skipping download`);
+              return;
+            }
+
+            // Tile doesn't exist, download it
             const tileResource = await fetchResource(url);
-            const key = `${styleId}::${url}`; // Save tile with style ID as part of the key
             await db.put('tiles', { key, data: tileResource.data } as any);
+            console.log(`Downloaded tile: ${key}`);
           })();
           downloadPromises.push(downloadPromise);
 

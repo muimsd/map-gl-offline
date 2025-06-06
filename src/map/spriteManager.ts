@@ -5,6 +5,15 @@ export async function downloadSprites(styleId: string, urls: string[]): Promise<
   for (const url of urls) {
     const fileName = url.split('/').pop() || url;
     const key = `${styleId}::${fileName}`;
+    
+    // Check if sprite already exists
+    const existingSprite = await db.get('sprites', key);
+    if (existingSprite) {
+      console.log(`Sprite already exists: ${key}, skipping download`);
+      continue;
+    }
+
+    // Sprite doesn't exist, download it
     const response = await fetch(url);
     if (!response.ok) {
       console.warn(`Failed to download sprite: ${url}`);
@@ -13,6 +22,7 @@ export async function downloadSprites(styleId: string, urls: string[]): Promise<
     const contentType = response.headers.get('content-type') || undefined;
     const data = await response.arrayBuffer();
     await db.put('sprites', { key, data, contentType } as any);
+    console.log(`Downloaded sprite: ${key}`);
   }
 }
 

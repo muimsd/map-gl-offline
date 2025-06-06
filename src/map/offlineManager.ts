@@ -3,154 +3,49 @@ import { downloadTiles, loadTiles, deleteTiles } from './tileDownloader';
 import { downloadSprites, deleteSprites } from './spriteManager';
 import { downloadStyles, deleteStyleById } from './styleManager';
 import { deleteFontsByStyleId, loadFontsByDownloadId } from './fontManager';
+import { RegionCleanupManager } from './regionCleanup';
 import type { OfflineRegionOptions, StyleEntry, StoredRegion } from '../types';
 export class OfflineMapManager {
+  private cleanupManager: RegionCleanupManager;
 
-  private regionExpiryMs: number;
-
-  constructor(regionExpiryMs: number = 1000 * 60 * 60 * 24 * 30) { // default 30 days
-    this.regionExpiryMs = regionExpiryMs;
+  constructor() {
+    this.cleanupManager = new RegionCleanupManager(this.deleteRegion.bind(this));
   }
 
-  /**
-   * Clean up expired regions automatically
-   * Only deletes regions that have deleteOnExpiry set to true
-   * Should be called periodically by the application
-   */
+  // Delegate cleanup methods to the RegionCleanupManager
   async cleanupExpiredRegions(): Promise<number> {
-    const db = await dbPromise;
-    const now = Date.now();
-    let cleanedCount = 0;
-
-    try {
-      // Get all regions from the regions table
-      const allRegions = await db.getAll('regions');
-      
-      for (const region of allRegions) {
-        // Only delete if the region is expired AND deleteOnExpiry is true
-        if (region.expiry && region.expiry < now && region.deleteOnExpiry === true) {
-          console.log(`Auto-cleaning expired region: ${region.key} (deleteOnExpiry: true)`);
-          
-          // Delete the region and its associated resources
-          await this.deleteRegion(region.key, region.styleId);
-          await db.delete('regions', region.key);
-          cleanedCount++;
-        } else if (region.expiry && region.expiry < now) {
-          console.log(`Expired region ${region.key} found but deleteOnExpiry is false - skipping auto-deletion`);
-        }
-      }
-
-      console.log(`Auto-cleanup: Removed ${cleanedCount} expired regions`);
-      return cleanedCount;
-    } catch (error) {
-      console.error('Error during cleanup of expired regions:', error);
-      return 0;
-    }
+    return this.cleanupManager.cleanupExpiredRegions();
   }
 
-  /**
-   * Manually clean up expired regions regardless of deleteOnExpiry setting
-   * Useful for manual cleanup operations
-   */
   async forceCleanupExpiredRegions(): Promise<number> {
-    const db = await dbPromise;
-    const now = Date.now();
-    let cleanedCount = 0;
-
-    try {
-      // Get all regions from the regions table
-      const allRegions = await db.getAll('regions');
-      
-      for (const region of allRegions) {
-        if (region.expiry && region.expiry < now) {
-          console.log(`Force-cleaning expired region: ${region.key}`);
-          
-          // Delete the region and its associated resources
-          await this.deleteRegion(region.key, region.styleId);
-          await db.delete('regions', region.key);
-          cleanedCount++;
-        }
-      }
-
-      console.log(`Force cleanup: Removed ${cleanedCount} expired regions`);
-      return cleanedCount;
-    } catch (error) {
-      console.error('Error during force cleanup of expired regions:', error);
-      return 0;
-    }
+    return this.cleanupManager.forceCleanupExpiredRegions();
   }
 
-  /**
-   * Get all expired regions (both auto-deletable and manual-only)
-   */
-  async getExpiredRegions(): Promise<{ autoDelete: StoredRegion[]; manualOnly: StoredRegion[] }> {
-    const db = await dbPromise;
-    const now = Date.now();
-    const allRegions = await db.getAll('regions');
-    
-    const autoDelete: StoredRegion[] = [];
-    const manualOnly: StoredRegion[] = [];
-    
-    for (const region of allRegions) {
-      if (region.expiry && region.expiry < now) {
-        if (region.deleteOnExpiry === true) {
-          autoDelete.push(region);
-        } else {
-          manualOnly.push(region);
-        }
-      }
-    }
-    
-    return { autoDelete, manualOnly };
+  async getExpiredRegions(): Promise<{
+    autoDelete: StoredRegion[];
+    manualOnly: StoredRegion[];
+  }> {
+    return this.cleanupManager.getExpiredRegions();
   }
 
-  /**
-   * Get region expiry information
-   */
-  async getRegionExpiry(regionId: string): Promise<{ expiry: number; expired: boolean } | null> {
-    const db = await dbPromise;
-    const region = await db.get('regions', regionId);
-    
-    if (!region || !region.expiry) {
-      return null;
-    }
-
-    return {
-      expiry: region.expiry,
-      expired: region.expiry < Date.now()
-    };
+  async getRegionExpiry(
+    regionId: string,
+  ): Promise<{ expiry: number; expired: boolean } | null> {
+    return this.cleanupManager.getRegionExpiry(regionId);
   }
 
-  /**
-   * Extend region expiry by the default expiry time
-   */
-  async extendRegionExpiry(regionId: string): Promise<void> {
-    const db = await dbPromise;
-    const region = await db.get('regions', regionId);
-    
-    if (!region) {
-      throw new Error(`Region ${regionId} not found`);
-    }
+  async extendRegionExpiry(regionId: string, newExpiry: number): Promise<void> {
+    return this.cleanupManager.extendRegionExpiry(regionId, newExpiry);
+  }
 
-    const newExpiry = Date.now() + this.regionExpiryMs;
-    
-    // Update the region in the regions table
-    await db.put('regions', { ...region, expiry: newExpiry });
-    
-    // Also update the region in the style's regions array
-    if (region.styleId) {
-      const styleEntry = await db.get('styles', region.styleId);
-      if (styleEntry && typeof styleEntry === 'object' && 'regions' in styleEntry) {
-        const regions = styleEntry.regions || [];
-        const regionIndex = regions.findIndex((r: any) => r.regionId === regionId);
-        if (regionIndex !== -1) {
-          regions[regionIndex].expiry = newExpiry;
-          await db.put('styles', { ...styleEntry, regions });
-        }
-      }
-    }
-    
-    console.log(`Extended expiry for region ${regionId} to ${new Date(newExpiry).toISOString()}`);
+  startAutoCleanup(
+    intervalMs: number = 1000 * 60 * 60,
+  ): ReturnType<typeof setInterval> {
+    return this.cleanupManager.startAutoCleanup(intervalMs);
+  }
+
+  stopAutoCleanup(intervalId: ReturnType<typeof setInterval>): void {
+    this.cleanupManager.stopAutoCleanup(intervalId);
   }
 
   async addRegion(region: OfflineRegionOptions): Promise<void> {
@@ -165,7 +60,9 @@ export class OfflineMapManager {
     if (!styleId) throw new Error('Style must have an id');
 
     // Get or create the style entry
-    let styleEntry = (await db.get('styles', styleId)) as StyleEntry | undefined;
+    let styleEntry = (await db.get('styles', styleId)) as
+      | StyleEntry
+      | undefined;
     if (!styleEntry || typeof styleEntry === 'string') {
       styleEntry = {
         key: styleId,
@@ -188,7 +85,7 @@ export class OfflineMapManager {
       (r: any) => JSON.stringify(r.bounds) === JSON.stringify(region.bounds),
     );
     if (!bboxExists) {
-      const expiry = Date.now() + this.regionExpiryMs;
+      const expiry = Date.now() + region.expiry!;
       const regionWithMeta = {
         ...region,
         regionId,
@@ -197,12 +94,12 @@ export class OfflineMapManager {
       };
       styleEntry.regions.push(regionWithMeta);
       // Also add to the regions table for fast lookup
-      const storedRegion: StoredRegion = { 
-        ...region, 
-        key: regionId, 
-        styleId, 
-        created: Date.now(), 
-        expiry 
+      const storedRegion: StoredRegion = {
+        ...region,
+        key: regionId,
+        styleId,
+        created: Date.now(),
+        expiry,
       };
       await db.put('regions', storedRegion);
     } else {
@@ -249,7 +146,9 @@ export class OfflineMapManager {
           `${spriteBase}@2x.png`,
         ];
         await downloadSprites(styleId, spriteVariants);
-        entry.sprites = spriteVariants.map(url => `${styleId}::${url.split('/').pop()}`);
+        entry.sprites = spriteVariants.map(
+          (url) => `${styleId}::${url.split('/').pop()}`,
+        );
       }
       // Load fonts for the style
       await loadFontsByDownloadId(styleId);
@@ -317,35 +216,6 @@ export class OfflineMapManager {
       // Otherwise, just update the style entry
       await db.put('styles', styleEntry);
     }
-  }
-
-  /**
-   * Start automatic cleanup of expired regions
-   * @param intervalMs How often to run cleanup (default: 1 hour)
-   * @returns Cleanup interval ID that can be used with clearInterval()
-   */
-  startAutoCleanup(intervalMs: number = 1000 * 60 * 60): ReturnType<typeof setInterval> {
-    const intervalId = setInterval(async () => {
-      try {
-        const cleanedCount = await this.cleanupExpiredRegions();
-        if (cleanedCount > 0) {
-          console.log(`Auto-cleanup: Removed ${cleanedCount} expired regions`);
-        }
-      } catch (error) {
-        console.error('Auto-cleanup failed:', error);
-      }
-    }, intervalMs);
-
-    console.log(`Started auto-cleanup with interval: ${intervalMs}ms`);
-    return intervalId;
-  }
-
-  /**
-   * Stop automatic cleanup
-   */
-  stopAutoCleanup(intervalId: ReturnType<typeof setInterval>): void {
-    clearInterval(intervalId);
-    console.log('Stopped auto-cleanup');
   }
 
   async updateRegion(region: OfflineRegionOptions): Promise<void> {

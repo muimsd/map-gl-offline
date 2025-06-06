@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Tile Key Format</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        button {
+            margin: 10px;
+            padding: 10px 20px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .output {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 15px;
+            margin: 10px 0;
+            font-family: monospace;
+            white-space: pre-wrap;
+        }
+        .key-example {
+            background: #e7f3ff;
+            border: 1px solid #b3d7ff;
+            border-radius: 4px;
+            padding: 10px;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>Tile Key Format Test</h1>
+    
+    <div class="key-example">
+        <h3>New Tile Key Format:</h3>
+        <p><strong>Before:</strong> <code>voyager::https://tiles-a.basemaps.cartocdn.com/vectortiles/carto.streets/v1/0/0/0.mvt</code></p>
+        <p><strong>After:</strong> <code>voyager::0/0/0.mvt</code></p>
+    </div>
+    
+    <div>
+        <button onclick="testTileKeyExtraction()">Test Tile Key Extraction</button>
+        <button onclick="downloadTestRegion()">Download Test Region</button>
+        <button onclick="listTileKeys()">List Stored Tile Keys</button>
+        <button onclick="clearTiles()">Clear All Tiles</button>
+    </div>
+    
+    <div id="output" class="output">Ready to test tile key format...</div>
+
+    <script type="module">
+        // Test the tile key extraction function
+        function extractTileKey(url) {
+            // Match z/x/y pattern with optional file extension
+            const match = url.match(/\/(\d+)\/(\d+)\/(\d+)\.(\w+)$/);
+            if (match) {
+                const [, z, x, y, ext] = match;
+                return `${z}/${x}/${y}.${ext}`;
+            }
+            
+            // Fallback: try to extract just the filename part
+            const urlParts = url.split('/');
+            const filename = urlParts[urlParts.length - 1];
+            if (filename.includes('.')) {
+                return filename;
+            }
+            
+            // Last resort: use the full URL
+            return url;
+        }
+        
+        const output = document.getElementById('output');
+        
+        function log(message) {
+            output.textContent += new Date().toISOString() + ': ' + message + '\n';
+            output.scrollTop = output.scrollHeight;
+        }
+        
+        window.testTileKeyExtraction = function() {
+            const testUrls = [
+                'https://tiles-a.basemaps.cartocdn.com/vectortiles/carto.streets/v1/0/0/0.mvt',
+                'https://tiles.example.com/v1/5/16/10.pbf',
+                'https://api.mapbox.com/styles/v1/mapbox/streets-v11/tiles/256/10/512/384.png',
+                'https://example.com/tiles/14/8192/6144.mvt'
+            ];
+            
+            log('Testing tile key extraction:');
+            testUrls.forEach(url => {
+                const key = extractTileKey(url);
+                log(`URL: ${url}`);
+                log(`Key: ${key}`);
+                log('---');
+            });
+        };
+        
+        // Import the offline manager for testing
+        let offlineManager;
+        
+        import('./dist/assets/index-CdaLDpsr.js').then(module => {
+            offlineManager = new module.OfflineMapManager();
+            log('OfflineMapManager loaded successfully');
+        }).catch(error => {
+            log('Error loading OfflineMapManager: ' + error.message);
+        });
+        
+        window.downloadTestRegion = async function() {
+            if (!offlineManager) {
+                log('OfflineMapManager not loaded yet');
+                return;
+            }
+            
+            try {
+                log('Downloading test region with new tile key format...');
+                await offlineManager.addRegion({
+                    id: 'test-tile-format',
+                    name: 'Test Tile Format',
+                    bounds: [[0, 0], [1, 1]],
+                    minZoom: 1,
+                    maxZoom: 3,
+                    styleUrl: 'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json',
+                    deleteOnExpiry: true
+                });
+                log('Test region downloaded successfully!');
+            } catch (error) {
+                log('Error downloading region: ' + error.message);
+            }
+        };
+        
+        window.listTileKeys = async function() {
+            try {
+                // Access IndexedDB directly to check tile keys
+                const request = indexedDB.open('offline-map-db', 1);
+                request.onsuccess = function(event) {
+                    const db = event.target.result;
+                    const transaction = db.transaction(['tiles'], 'readonly');
+                    const store = transaction.objectStore('tiles');
+                    const getAllRequest = store.getAll();
+                    
+                    getAllRequest.onsuccess = function() {
+                        const tiles = getAllRequest.result;
+                        log(`Found ${tiles.length} tiles in storage:`);
+                        tiles.forEach(tile => {
+                            log(`Key: ${tile.key}`);
+                        });
+                        if (tiles.length === 0) {
+                            log('No tiles found. Try downloading a test region first.');
+                        }
+                    };
+                };
+            } catch (error) {
+                log('Error listing tiles: ' + error.message);
+            }
+        };
+        
+        window.clearTiles = async function() {
+            try {
+                const request = indexedDB.open('offline-map-db', 1);
+                request.onsuccess = function(event) {
+                    const db = event.target.result;
+                    const transaction = db.transaction(['tiles'], 'readwrite');
+                    const store = transaction.objectStore('tiles');
+                    const clearRequest = store.clear();
+                    
+                    clearRequest.onsuccess = function() {
+                        log('All tiles cleared from storage');
+                    };
+                };
+            } catch (error) {
+                log('Error clearing tiles: ' + error.message);
+            }
+        };
+        
+        log('Test page loaded. You can now test the new tile key format!');
+    </script>
+</body>
+</html>

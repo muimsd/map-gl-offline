@@ -53,3 +53,26 @@ export function generateGlyphUrlsFromStyle(style: any, glyphsUrlTemplate: string
   }
   return urls;
 }
+/**
+ * Extract tile coordinates from a tile URL
+ * e.g., "https://tiles-a.basemaps.cartocdn.com/vectortiles/carto.streets/v1/0/0/0.mvt" -> "0/0/0.mvt"
+ */
+export function extractTileKey(url: string): string {
+  // Match z/x/y pattern with optional file extension
+  const match = url.match(/\/(\d+)\/(\d+)\/(\d+)\.(\w+)$/);
+  if (match) {
+    const [, z, x, y, ext] = match;
+    return `${z}/${x}/${y}.${ext}`;
+  }
+  
+  // Fallback: try to extract just the filename part
+  const urlParts = url.split('/');
+  const filename = urlParts[urlParts.length - 1];
+  if (filename.includes('.')) {
+    return filename;
+  }
+  
+  // Last resort: use the full URL
+  console.warn(`Could not extract tile key from URL: ${url}`);
+  return url;
+}

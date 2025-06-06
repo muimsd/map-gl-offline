@@ -15,6 +15,18 @@ export async function downloadStyles(
     }
     const style = await response.json();
 
+    // Check if style already exists in the database
+    const db = await dbPromise;
+    const existingStyle = await db.get('styles', style.id);
+    
+    if (existingStyle && typeof existingStyle === 'object' && 'style' in existingStyle) {
+      console.log(`Style ${style.id} already exists in database, using existing version`);
+      return existingStyle.style;
+    }
+
+    // Style doesn't exist, proceed with download and processing
+    console.log(`Downloading new style: ${style.id}`);
+
     // Fetch and store sources inside the style object
     for (const sourceKey of Object.keys(style.sources)) {
       const source = style.sources[sourceKey];
@@ -35,7 +47,6 @@ export async function downloadStyles(
     }
 
     // Save the style with embedded sources
-    const db = await dbPromise;
     const tx = db.transaction('styles', 'readwrite');
     const store = tx.objectStore('styles');
     await store.put({ ...style, key: style.id }); // Use in-line key for compatibility
@@ -43,13 +54,13 @@ export async function downloadStyles(
 
     console.log('Downloaded style with sources saved successfully');
 
-    // Download fonts (glyphs) for the style
+    // Download fonts (glyphs) for the style (only for new styles)
     if (style && style.glyphs) {
       const fontUrls = generateGlyphUrlsFromStyle(style, style.glyphs);
       await downloadFonts(fontUrls, style.id);
       style.fonts = fontUrls;
     }
-    // Download sprites for the style
+    // Download sprites for the style (only for new styles)
     if (style && style.sprite) {
       const spriteBase = style.sprite;
       const spriteVariants = [
