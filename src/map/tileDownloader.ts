@@ -1,5 +1,5 @@
 import { dbPromise } from '../storage/indexedDbManager';
-import { OfflineRegionOptions } from '../types';
+import { OfflineRegionOptions, MapboxStyle } from '../types';
 import * as tilebelt from '@mapbox/tilebelt';
 import { 
   fetchResourceWithRetry, 
@@ -47,7 +47,7 @@ export interface TileStats {
 
 export async function downloadTiles(
   region: OfflineRegionOptions,
-  style: Record<string, unknown>,
+  style: MapboxStyle,
   styleId: string,
   options: TileDownloadOptions = {}
 ): Promise<TileDownloadResult> {
@@ -95,13 +95,15 @@ export async function downloadTiles(
   }
 
   for (const sourceKey of Object.keys(style.sources)) {
-    const source = style.sources[sourceKey];
-    if (!source.url) {
+    const source = style.sources[sourceKey] as Record<string, unknown>;
+    const sourceUrl = source.url as { tiles?: string | string[] };
+    
+    if (!sourceUrl || !sourceUrl.tiles) {
       console.warn(`No tiles URL found for source ${sourceKey}`);
       continue;
     }
 
-    const tilesArr = Array.isArray(source.url.tiles) ? source.url.tiles : [source.url.tiles];
+    const tilesArr = Array.isArray(sourceUrl.tiles) ? sourceUrl.tiles : [sourceUrl.tiles];
     
     for (const tilesURL of tilesArr) {
       let tileUrls = generateTileUrls(tilesURL, bounds, minZoom, maxZoom);
