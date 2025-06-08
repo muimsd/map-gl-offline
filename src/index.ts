@@ -14,6 +14,7 @@ export * from './services/regionService';
 export * from './services/resourceService';
 export * from './services/analyticsService';
 export * from './services/maintenanceService';
+export * from './services/importExportService';
 
 // Export storage utilities
 export * from './storage/indexedDbManager';
