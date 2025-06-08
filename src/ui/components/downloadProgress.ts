@@ -2,9 +2,9 @@
  * Download progress section for the offline manager
  */
 
-import { icons } from '../utils/icons';
-import { Theme, themeManager } from './themes';
-import { createCard, createProgress } from './components';
+import { icons } from '../../utils/icons';
+import { Theme } from '../themes';
+import { createCard, createProgress } from '../components';
 
 export interface DownloadProgress {
   regionId: string;
@@ -22,7 +22,7 @@ export interface DownloadProgressSectionProps {
 export function createDownloadProgressSection(props: DownloadProgressSectionProps): HTMLDivElement {
   const {
     downloads,
-    theme = themeManager.getTheme(),
+    theme,
   } = props;
 
   const container = document.createElement('div');
@@ -33,61 +33,30 @@ export function createDownloadProgressSection(props: DownloadProgressSectionProp
   }
 
   const header = document.createElement('div');
-  header.style.cssText = `
-    display: flex;
-    align-items: center;
-    gap: var(--theme-spacing-sm);
-    margin-bottom: var(--theme-spacing-md);
-    color: var(--theme-primary);
-    font-family: var(--theme-font-family);
-    font-size: var(--theme-font-size-md);
-    font-weight: var(--theme-font-weight-semibold);
-  `;
+  header.className = 'flex items-center gap-2 mb-3 text-blue-600 dark:text-blue-400 text-sm font-semibold';
   header.innerHTML = `
-    ${icons.download({ size: 14, color: 'var(--theme-primary)' })}
+    ${icons.download({ size: 14, color: 'currentColor' })}
     Active Downloads
   `;
 
   const progressList = document.createElement('div');
-  progressList.style.cssText = `
-    display: grid;
-    gap: var(--theme-spacing-sm);
-  `;
+  progressList.className = 'grid gap-2';
 
   for (const [regionId, progress] of downloads) {
     const progressCard = createCard({
       padding: 'sm',
       shadow: 'sm',
       children: `
-        <div style="
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          margin-bottom: var(--theme-spacing-sm);
-          font-family: var(--theme-font-family);
-        ">
-          <span style="
-            font-weight: var(--theme-font-weight-semibold);
-            color: var(--theme-text);
-            font-size: var(--theme-font-size-sm);
-          ">
+        <div class="flex justify-between items-center mb-2">
+          <span class="font-semibold text-gray-900 dark:text-white text-sm">
             ${regionId}
           </span>
-          <span style="
-            font-weight: var(--theme-font-weight-bold);
-            color: ${progress.percentage >= 100 ? 'var(--theme-success)' : 'var(--theme-primary)'};
-            font-size: var(--theme-font-size-sm);
-          ">
+          <span class="font-bold text-sm ${progress.percentage >= 100 ? 'text-green-600 dark:text-green-400' : 'text-blue-600 dark:text-blue-400'}">
             ${progress.percentage}%
           </span>
         </div>
         <div id="progress-${regionId}"></div>
-        <div style="
-          font-size: var(--theme-font-size-xs);
-          color: var(--theme-text-muted);
-          margin-top: var(--theme-spacing-xs);
-          font-family: var(--theme-font-family);
-        ">
+        <div class="text-xs text-gray-600 dark:text-gray-400 mt-1">
           ${progress.currentResource}
         </div>
       `,
@@ -115,11 +84,7 @@ export function createDownloadProgressSection(props: DownloadProgressSectionProp
     shadow: 'sm',
     children: '',
     theme,
-    style: {
-      background: `linear-gradient(135deg, var(--theme-primary-light), var(--theme-background))`,
-      borderColor: 'var(--theme-primary)',
-      marginBottom: 'var(--theme-spacing-xl)',
-    },
+    className: 'bg-gradient-to-br from-blue-50 to-white dark:from-blue-900/20 dark:to-gray-800 border-blue-200 dark:border-blue-700 mb-6',
   });
 
   sectionCard.appendChild(header);

@@ -9,3 +9,5 @@ export interface DownloadProgress {
   message?: string;
   errors: string[];
 }
+
+

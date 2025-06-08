@@ -1,0 +1,197 @@
+@import "tailwindcss";
+
+/* CSS custom properties for theming */
+:root {
+  --color-primary: #8B5CF6;
+  --color-primary-hover: #7C3AED;
+  --color-success: #10B981;
+  --color-success-hover: #059669;
+  --color-warning: #F59E0B;
+  --color-error: #EF4444;
+  --color-surface: #F8FAFC;
+  --color-text: #1E293B;
+  --color-border: #E2E8F0;
+}
+
+/* Custom component styles using regular CSS */
+@layer components {
+  .offline-manager-control {
+    font-family: system-ui, sans-serif;
+  }
+  
+  /* Button Components */
+  .btn-primary {
+    background-color: var(--color-primary);
+    color: white;
+    padding: 8px 16px;
+    border-radius: 6px;
+    transition: all 0.2s;
+    border: none;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    text-align: center;
+    white-space: nowrap;
+    user-select: none;
+    outline: none;
+    box-sizing: border-box;
+    font-size: 14px;
+    font-weight: 500;
+    min-height: 40px;
+  }
+  
+  .btn-primary:hover {
+    background-color: var(--color-primary-hover);
+  }
+  
+  .btn-secondary {
+    background-color: #F9FAFB;
+    color: #374151;
+    border: 1px solid #D1D5DB;
+    padding: 8px 16px;
+    border-radius: 6px;
+    transition: all 0.2s;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    text-align: center;
+    white-space: nowrap;
+    user-select: none;
+    outline: none;
+    box-sizing: border-box;
+    font-size: 14px;
+    font-weight: 500;
+    min-height: 40px;
+  }
+  
+  .btn-secondary:hover {
+    background-color: #F3F4F6;
+  }
+  
+  .btn-success {
+    background-color: var(--color-success);
+    color: white;
+    padding: 8px 16px;
+    border-radius: 6px;
+    transition: all 0.2s;
+    border: none;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    text-align: center;
+    white-space: nowrap;
+    user-select: none;
+    outline: none;
+    box-sizing: border-box;
+    font-size: 14px;
+    font-weight: 500;
+    min-height: 40px;
+  }
+  
+  .btn-success:hover {
+    background-color: var(--color-success-hover);
+  }
+  
+  .btn-error {
+    background-color: var(--color-error);
+    color: white;
+    padding: 8px 16px;
+    border-radius: 6px;
+    transition: all 0.2s;
+    border: none;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    text-align: center;
+    white-space: nowrap;
+    user-select: none;
+    outline: none;
+    box-sizing: border-box;
+    font-size: 14px;
+    font-weight: 500;
+    min-height: 40px;
+  }
+  
+  .btn-error:hover {
+    background-color: #DC2626;
+  }
+  
+  .btn-warning {
+    background-color: var(--color-warning);
+    color: white;
+    padding: 8px 16px;
+    border-radius: 6px;
+    transition: all 0.2s;
+    border: none;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    text-align: center;
+    white-space: nowrap;
+    user-select: none;
+    outline: none;
+    box-sizing: border-box;
+    font-size: 14px;
+    font-weight: 500;
+    min-height: 40px;
+  }
+  
+  .btn-warning:hover {
+    background-color: #D97706;
+  }
+  
+  .btn-ghost {
+    background-color: transparent;
+    color: #374151;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 6px;
+    transition: all 0.2s;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    text-align: center;
+    white-space: nowrap;
+    user-select: none;
+    outline: none;
+    box-sizing: border-box;
+    font-size: 14px;
+    font-weight: 500;
+    min-height: 40px;
+  }
+  
+  .btn-ghost:hover {
+    background-color: #F3F4F6;
+  }
+  
+  /* Button sizes */
+  .btn-sm {
+    font-size: 12px;
+    padding: 6px 12px;
+    min-height: 32px;
+  }
+  
+  .btn-md {
+    font-size: 14px;
+    padding: 8px 16px;
+    min-height: 40px;
+  }
+  
+  .btn-lg {
+    font-size: 16px;
+    padding: 12px 24px;
+    min-height: 48px;
+  }
+}

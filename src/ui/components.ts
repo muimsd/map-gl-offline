@@ -4,7 +4,7 @@
  */
 
 import { icons } from '../utils/icons';
-import { Theme, themeManager } from './themes';
+import { Theme } from './themes';
 
 export interface ComponentProps {
   theme?: Theme;
@@ -99,144 +99,68 @@ export function createButton(props: ButtonProps): HTMLButtonElement {
     style = {},
   } = props;
 
-  const theme = props.theme || themeManager.getTheme();
   const button = document.createElement('button');
   button.type = 'button';
   button.disabled = disabled || loading;
 
-  // Base styles
-  const baseStyles: Partial<CSSStyleDeclaration> = {
-    fontFamily: theme.typography.fontFamily,
-    fontWeight: theme.typography.fontWeight.medium,
-    borderRadius: theme.radii.md,
-    border: 'none',
-    cursor: disabled || loading ? 'not-allowed' : 'pointer',
-    transition: 'all 0.2s ease',
-    display: 'inline-flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: theme.spacing.sm,
-    textAlign: 'center',
-    whiteSpace: 'nowrap',
-    userSelect: 'none',
-    outline: 'none',
-    boxSizing: 'border-box',
+  // Build Tailwind classes
+  const baseClasses = 'inline-flex items-center justify-center gap-2 font-medium rounded-md border-0 transition-all duration-200 text-center whitespace-nowrap select-none outline-none box-border';
+  
+  const sizeClasses = {
+    sm: 'text-xs px-3 py-1.5 min-h-8 btn-sm',
+    md: 'text-sm px-4 py-2 min-h-10 btn-md', 
+    lg: 'text-base px-6 py-3 min-h-12 btn-lg'
   };
 
-  // Size styles
-  const sizeStyles = {
-    sm: {
-      fontSize: theme.typography.fontSize.xs,
-      padding: `${theme.spacing.xs} ${theme.spacing.sm}`,
-      minHeight: '32px',
-    },
-    md: {
-      fontSize: theme.typography.fontSize.sm,
-      padding: `${theme.spacing.sm} ${theme.spacing.md}`,
-      minHeight: '40px',
-    },
-    lg: {
-      fontSize: theme.typography.fontSize.md,
-      padding: `${theme.spacing.md} ${theme.spacing.lg}`,
-      minHeight: '48px',
-    },
+  const variantClasses = {
+    primary: disabled ? 'bg-gray-400 text-white cursor-not-allowed' : 'btn-primary',
+    secondary: disabled ? 'bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed' : 'btn-secondary',
+    success: disabled ? 'bg-gray-400 text-white cursor-not-allowed' : 'btn-success',
+    warning: disabled ? 'bg-gray-400 text-white cursor-not-allowed' : 'btn-warning',
+    error: disabled ? 'bg-gray-400 text-white cursor-not-allowed' : 'btn-error',
+    ghost: disabled ? 'bg-transparent text-gray-400 cursor-not-allowed' : 'btn-ghost'
   };
 
-  // Variant styles
-  const variantStyles = {
-    primary: {
-      backgroundColor: disabled ? theme.colors.textMuted : theme.colors.primary,
-      color: theme.colors.textInverse,
-      boxShadow: disabled ? 'none' : theme.shadows.sm,
-    },
-    secondary: {
-      backgroundColor: disabled ? theme.colors.borderLight : theme.colors.surface,
-      color: disabled ? theme.colors.textMuted : theme.colors.text,
-      border: `1px solid ${disabled ? theme.colors.borderLight : theme.colors.border}`,
-      boxShadow: disabled ? 'none' : theme.shadows.sm,
-    },
-    success: {
-      backgroundColor: disabled ? theme.colors.textMuted : theme.colors.success,
-      color: theme.colors.textInverse,
-      boxShadow: disabled ? 'none' : theme.shadows.sm,
-    },
-    warning: {
-      backgroundColor: disabled ? theme.colors.textMuted : theme.colors.warning,
-      color: theme.colors.textInverse,
-      boxShadow: disabled ? 'none' : theme.shadows.sm,
-    },
-    error: {
-      backgroundColor: disabled ? theme.colors.textMuted : theme.colors.error,
-      color: theme.colors.textInverse,
-      boxShadow: disabled ? 'none' : theme.shadows.sm,
-    },
-    ghost: {
-      backgroundColor: 'transparent',
-      color: disabled ? theme.colors.textMuted : theme.colors.text,
-      border: 'none',
-    },
-  };
+  const cursorClass = disabled || loading ? 'cursor-not-allowed' : 'cursor-pointer';
 
-  // Apply styles
-  Object.assign(button.style, baseStyles, sizeStyles[size], variantStyles[variant], style);
+  // Combine all classes
+  const buttonClasses = [
+    baseClasses,
+    sizeClasses[size],
+    variantClasses[variant],
+    cursorClass,
+    className
+  ].filter(Boolean).join(' ');
 
-  // Add hover effects
-  if (!disabled && !loading) {
-    const hoverColors = {
-      primary: theme.colors.primaryHover,
-      secondary: theme.colors.surfaceHover,
-      success: theme.colors.successHover,
-      warning: theme.colors.warningHover,
-      error: theme.colors.errorHover,
-      ghost: theme.colors.surfaceHover,
-    };
+  button.className = buttonClasses;
 
-    button.addEventListener('mouseenter', () => {
-      if (variant === 'secondary' || variant === 'ghost') {
-        button.style.backgroundColor = hoverColors[variant];
-      } else {
-        button.style.backgroundColor = hoverColors[variant];
-      }
-    });
-
-    button.addEventListener('mouseleave', () => {
-      button.style.backgroundColor = variantStyles[variant].backgroundColor as string;
-    });
+  // Apply any additional inline styles
+  if (Object.keys(style).length > 0) {
+    Object.assign(button.style, style);
   }
 
   // Content
   let content = '';
   if (loading) {
-    content = `<span style="display: inline-flex; align-items: center; gap: ${theme.spacing.xs};">
-      <div style="width: 16px; height: 16px; border: 2px solid currentColor; border-top-color: transparent; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+    content = `<span class="inline-flex items-center gap-1">
+      <div class="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin"></div>
       Loading...
     </span>`;
   } else if (icon) {
-    const iconHtml = icons[icon as keyof typeof icons]?.({ size: size === 'sm' ? 14 : size === 'lg' ? 18 : 16, color: 'currentColor' }) || '';
-    content = iconPosition === 'left' 
-      ? `${iconHtml}${children}`
-      : `${children}${iconHtml}`;
+    const iconHtml =
+      icons[icon as keyof typeof icons]?.({
+        size: size === 'sm' ? 14 : size === 'lg' ? 18 : 16,
+        color: 'currentColor',
+      }) || '';
+    content = iconPosition === 'left' ? `${iconHtml}${children}` : `${children}${iconHtml}`;
   } else {
     content = children;
   }
 
   button.innerHTML = content;
-  button.className = className;
 
   if (onClick) {
     button.addEventListener('click', onClick);
-  }
-
-  // Add keyframe animation for loading spinner
-  if (loading && !document.getElementById('button-spinner-styles')) {
-    const style = document.createElement('style');
-    style.id = 'button-spinner-styles';
-    style.textContent = `
-      @keyframes spin {
-        to { transform: rotate(360deg); }
-      }
-    `;
-    document.head.appendChild(style);
   }
 
   return button;
@@ -262,7 +186,6 @@ export function createInput(props: InputProps): HTMLDivElement {
     style = {},
   } = props;
 
-  const theme = props.theme || themeManager.getTheme();
   const container = document.createElement('div');
   container.className = className;
   Object.assign(container.style, style);
@@ -272,21 +195,23 @@ export function createInput(props: InputProps): HTMLDivElement {
   // Label
   if (label) {
     html += `
-      <label style="
-        display: block;
-        margin-bottom: ${theme.spacing.xs};
-        font-size: ${theme.typography.fontSize.sm};
-        font-weight: ${theme.typography.fontWeight.medium};
-        color: ${theme.colors.text};
-        font-family: ${theme.typography.fontFamily};
-      ">
-        ${label} ${required ? '<span style="color: ' + theme.colors.error + ';">*</span>' : ''}
+      <label class="block mb-1 text-sm font-medium text-gray-900 dark:text-white">
+        ${label} ${required ? '<span class="text-red-500">*</span>' : ''}
       </label>
     `;
   }
 
   // Input
   const inputId = `input-${Math.random().toString(36).substr(2, 9)}`;
+  const inputClasses = [
+    'w-full px-4 py-2 text-sm border rounded-md transition-all duration-200 outline-none',
+    error ? 'border-red-500' : 'border-gray-300 dark:border-gray-600',
+    disabled 
+      ? 'bg-gray-100 text-gray-500 cursor-not-allowed dark:bg-gray-800 dark:text-gray-400' 
+      : 'bg-white text-gray-900 dark:bg-gray-700 dark:text-white',
+    'focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20'
+  ].join(' ');
+
   html += `
     <input
       id="${inputId}"
@@ -295,31 +220,14 @@ export function createInput(props: InputProps): HTMLDivElement {
       value="${value}"
       ${disabled ? 'disabled' : ''}
       ${required ? 'required' : ''}
-      style="
-        width: 100%;
-        padding: ${theme.spacing.sm} ${theme.spacing.md};
-        font-size: ${theme.typography.fontSize.sm};
-        font-family: ${theme.typography.fontFamily};
-        border: 1px solid ${error ? theme.colors.error : theme.colors.border};
-        border-radius: ${theme.radii.md};
-        background-color: ${disabled ? theme.colors.backgroundTertiary : theme.colors.surface};
-        color: ${disabled ? theme.colors.textMuted : theme.colors.text};
-        box-sizing: border-box;
-        transition: all 0.2s ease;
-        outline: none;
-      "
+      class="${inputClasses}"
     />
   `;
 
   // Description or error
   if (description && !error) {
     html += `
-      <div style="
-        margin-top: ${theme.spacing.xs};
-        font-size: ${theme.typography.fontSize.xs};
-        color: ${theme.colors.textMuted};
-        font-family: ${theme.typography.fontFamily};
-      ">
+      <div class="mt-1 text-xs text-gray-600 dark:text-gray-400">
         ${description}
       </div>
     `;
@@ -327,13 +235,7 @@ export function createInput(props: InputProps): HTMLDivElement {
 
   if (error) {
     html += `
-      <div style="
-        margin-top: ${theme.spacing.xs};
-        font-size: ${theme.typography.fontSize.xs};
-        color: ${theme.colors.error};
-        font-family: ${theme.typography.fontFamily};
-        font-weight: ${theme.typography.fontWeight.medium};
-      ">
+      <div class="mt-1 text-xs text-red-500 font-medium">
         ${error}
       </div>
     `;
@@ -343,23 +245,19 @@ export function createInput(props: InputProps): HTMLDivElement {
 
   const input = container.querySelector('input') as HTMLInputElement;
 
-  // Add focus/blur styles
+  // Add focus/blur handlers for custom focus styling if needed
   if (!disabled) {
     input.addEventListener('focus', () => {
-      input.style.borderColor = theme.colors.borderFocus;
-      input.style.boxShadow = `0 0 0 2px ${theme.colors.primary}20`;
       onFocus?.();
     });
 
     input.addEventListener('blur', () => {
-      input.style.borderColor = error ? theme.colors.error : theme.colors.border;
-      input.style.boxShadow = 'none';
       onBlur?.();
     });
   }
 
   if (onChange) {
-    input.addEventListener('input', (e) => {
+    input.addEventListener('input', e => {
       onChange((e.target as HTMLInputElement).value);
     });
   }
@@ -380,34 +278,34 @@ export function createCard(props: CardProps): HTMLDivElement {
     style = {},
   } = props;
 
-  const theme = props.theme || themeManager.getTheme();
   const card = document.createElement('div');
-  card.className = className;
 
-  const paddingValues = {
-    sm: theme.spacing.md,
-    md: theme.spacing.lg,
-    lg: theme.spacing.xl,
+  const paddingClasses = {
+    sm: 'p-4',
+    md: 'p-6',
+    lg: 'p-8',
   };
 
-  const shadowValues = {
-    sm: theme.shadows.sm,
-    md: theme.shadows.md,
-    lg: theme.shadows.lg,
-    xl: theme.shadows.xl,
+  const shadowClasses = {
+    sm: 'shadow-sm',
+    md: 'shadow-md',
+    lg: 'shadow-lg',
+    xl: 'shadow-xl',
   };
 
-  const cardStyles: Partial<CSSStyleDeclaration> = {
-    backgroundColor: theme.colors.surface,
-    borderRadius: theme.radii.lg,
-    padding: paddingValues[padding],
-    boxShadow: shadowValues[shadow],
-    border: border ? `1px solid ${theme.colors.border}` : 'none',
-    fontFamily: theme.typography.fontFamily,
-    ...style,
-  };
+  const baseClasses = 'bg-white dark:bg-gray-800 rounded-lg';
+  const borderClass = border ? 'border border-gray-200 dark:border-gray-700' : '';
 
-  Object.assign(card.style, cardStyles);
+  const cardClasses = [
+    baseClasses,
+    paddingClasses[padding],
+    shadowClasses[shadow],
+    borderClass,
+    className
+  ].filter(Boolean).join(' ');
+
+  card.className = cardClasses;
+  Object.assign(card.style, style);
   card.innerHTML = children;
 
   return card;
@@ -431,111 +329,65 @@ export function createModal(props: ModalProps): HTMLDivElement {
     style = {},
   } = props;
 
-  const theme = props.theme || themeManager.getTheme();
   const modal = document.createElement('div');
-  modal.className = className;
 
-  const sizeStyles = {
-    sm: { maxWidth: '400px' },
-    md: { maxWidth: '500px' },
-    lg: { maxWidth: '700px' },
-    xl: { maxWidth: '900px' },
+  const sizeClasses = {
+    sm: 'max-w-sm',
+    md: 'max-w-md',
+    lg: 'max-w-2xl',
+    xl: 'max-w-4xl',
   };
 
-  const modalStyles: Partial<CSSStyleDeclaration> = {
-    position: 'fixed',
-    top: '0',
-    left: '0',
-    right: '0',
-    bottom: '0',
-    zIndex: '10000',
-    display: isOpen ? 'flex' : 'none',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: theme.colors.overlay,
-    fontFamily: theme.typography.fontFamily,
-    ...style,
-  };
+  const modalClasses = [
+    'fixed inset-0 z-[10000] flex items-center justify-center bg-black/50',
+    isOpen ? 'flex' : 'hidden',
+    className
+  ].filter(Boolean).join(' ');
 
-  Object.assign(modal.style, modalStyles);
+  modal.className = modalClasses;
+  Object.assign(modal.style, style);
 
   // Create modal content container
   const content = document.createElement('div');
-  const contentStyles: Partial<CSSStyleDeclaration> = {
-    background: theme.colors.surface,
-    borderRadius: theme.radii.xl,
-    boxShadow: theme.shadows.xl,
-    maxWidth: sizeStyles[size].maxWidth,
-    maxHeight: '40vh',
-    width: '90%',
-    overflowY: 'auto',
-    margin: theme.spacing.lg,
-  };
-  Object.assign(content.style, contentStyles);
+  const contentClasses = [
+    'bg-white dark:bg-gray-800 rounded-xl shadow-xl w-11/12 max-h-[80vh] overflow-y-auto m-6',
+    sizeClasses[size]
+  ].join(' ');
+  content.className = contentClasses;
 
   // Create header section
   const header = document.createElement('div');
-  const headerStyles: Partial<CSSStyleDeclaration> = {
-    padding: theme.spacing.xl,
-    borderBottom: `1px solid ${theme.colors.border}`,
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    gap: theme.spacing.lg,
-  };
-  Object.assign(header.style, headerStyles);
+  header.className = 'px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex justify-between gap-6';
 
   // Create title section
   const titleSection = document.createElement('div');
-  titleSection.style.flex = '1';
-  
-  const titleElement = document.createElement('h3');
-  Object.assign(titleElement.style, {
-    margin: `0 0 ${subtitle ? theme.spacing.xs : '0'} 0`,
-    fontSize: theme.typography.fontSize.xl,
-    fontWeight: theme.typography.fontWeight.semibold,
-    color: theme.colors.text,
-    lineHeight: theme.typography.lineHeight.tight,
-  });
+  titleSection.className = 'flex flex-col justify-center m-0 p-0';
+
+  const titleElement = document.createElement('h2');
+  titleElement.className = 'm-0 p-0 text-xl font-semibold text-gray-900 dark:text-white leading-tight';
   titleElement.textContent = title;
   titleSection.appendChild(titleElement);
 
   if (subtitle) {
     const subtitleElement = document.createElement('p');
-    Object.assign(subtitleElement.style, {
-      margin: '0',
-      fontSize: theme.typography.fontSize.sm,
-      color: theme.colors.textSecondary,
-      lineHeight: theme.typography.lineHeight.normal,
-    });
+    subtitleElement.className = 'm-0 text-sm text-gray-600 dark:text-gray-400 leading-normal';
     subtitleElement.textContent = subtitle;
     titleSection.appendChild(subtitleElement);
   }
 
   // Create actions section
   const actionsSection = document.createElement('div');
-  Object.assign(actionsSection.style, {
-    display: 'flex',
-    gap: theme.spacing.xs,
-    alignItems: 'center',
-  });
+  actionsSection.className = 'flex gap-1 items-center';
 
   // Theme toggle button
   if (showThemeToggle && onThemeToggle) {
     const themeButton = createButton({
       variant: 'ghost',
       size: 'sm',
-      icon: theme.mode === 'light' ? 'moon' : 'sun',
+      icon: 'moon', // Note: you might want to make this dynamic based on current theme
       children: '',
       onClick: onThemeToggle,
-      style: {
-        backgroundColor: 'rgba(0, 0, 0, 0.05)',
-        color: theme.colors.textMuted,
-        width: '32px',
-        height: '32px',
-        padding: '0',
-        borderRadius: theme.radii.md,
-      },
+      className: 'w-8 h-8 p-0 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded-md',
     });
     actionsSection.appendChild(themeButton);
   }
@@ -548,21 +400,14 @@ export function createModal(props: ModalProps): HTMLDivElement {
       icon: 'x',
       children: '',
       onClick: onClose,
-      style: {
-        backgroundColor: 'rgba(0, 0, 0, 0.05)',
-        color: theme.colors.textMuted,
-        width: '32px',
-        height: '32px',
-        padding: '0',
-        borderRadius: theme.radii.md,
-      },
+      className: 'w-8 h-8 p-0 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded-md',
     });
     actionsSection.appendChild(closeButton);
   }
 
   // Create body section
   const body = document.createElement('div');
-  body.style.padding = theme.spacing.xl;
+  body.className = 'p-6';
   body.innerHTML = children;
 
   // Assemble modal
@@ -574,7 +419,7 @@ export function createModal(props: ModalProps): HTMLDivElement {
 
   // Handle backdrop clicks
   if (onClose) {
-    modal.addEventListener('click', (e) => {
+    modal.addEventListener('click', e => {
       if (e.target === modal) {
         onClose();
       }
@@ -588,73 +433,35 @@ export function createModal(props: ModalProps): HTMLDivElement {
  * Badge component
  */
 export function createBadge(props: BadgeProps): HTMLSpanElement {
-  const {
-    variant = 'neutral',
-    size = 'md',
-    children,
-    className = '',
-    style = {},
-  } = props;
+  const { variant = 'neutral', size = 'md', children, className = '', style = {} } = props;
 
-  const theme = props.theme || themeManager.getTheme();
   const badge = document.createElement('span');
-  badge.className = className;
 
-  const sizeStyles = {
-    sm: {
-      fontSize: theme.typography.fontSize.xs,
-      padding: `2px ${theme.spacing.xs}`,
-      minHeight: '20px',
-    },
-    md: {
-      fontSize: theme.typography.fontSize.xs,
-      padding: `${theme.spacing.xs} ${theme.spacing.sm}`,
-      minHeight: '24px',
-    },
+  const sizeClasses = {
+    sm: 'text-xs px-2 py-0.5 min-h-5',
+    md: 'text-xs px-3 py-1 min-h-6',
   };
 
-  const variantStyles = {
-    primary: {
-      backgroundColor: `${theme.colors.primary}15`,
-      color: theme.colors.primary,
-    },
-    success: {
-      backgroundColor: `${theme.colors.success}15`,
-      color: theme.colors.success,
-    },
-    warning: {
-      backgroundColor: `${theme.colors.warning}15`,
-      color: theme.colors.warning,
-    },
-    error: {
-      backgroundColor: `${theme.colors.error}15`,
-      color: theme.colors.error,
-    },
-    info: {
-      backgroundColor: `${theme.colors.info}15`,
-      color: theme.colors.info,
-    },
-    neutral: {
-      backgroundColor: theme.colors.backgroundTertiary,
-      color: theme.colors.textSecondary,
-    },
+  const variantClasses = {
+    primary: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400',
+    success: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400',
+    warning: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400',
+    error: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400',
+    info: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400',
+    neutral: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400',
   };
 
-  const badgeStyles: Partial<CSSStyleDeclaration> = {
-    display: 'inline-flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    fontFamily: theme.typography.fontFamily,
-    fontWeight: theme.typography.fontWeight.medium,
-    borderRadius: theme.radii.full,
-    textAlign: 'center',
-    whiteSpace: 'nowrap',
-    ...sizeStyles[size],
-    ...variantStyles[variant],
-    ...style,
-  };
+  const baseClasses = 'inline-flex items-center justify-center font-medium rounded-full text-center whitespace-nowrap';
 
-  Object.assign(badge.style, badgeStyles);
+  const badgeClasses = [
+    baseClasses,
+    sizeClasses[size],
+    variantClasses[variant],
+    className
+  ].filter(Boolean).join(' ');
+
+  badge.className = badgeClasses;
+  Object.assign(badge.style, style);
   badge.textContent = children;
 
   return badge;
@@ -675,64 +482,50 @@ export function createProgress(props: ProgressProps): HTMLDivElement {
     style = {},
   } = props;
 
-  const theme = props.theme || themeManager.getTheme();
   const container = document.createElement('div');
   container.className = className;
   Object.assign(container.style, style);
 
   const percentage = Math.min(Math.max((value / max) * 100, 0), 100);
 
-  const sizeStyles = {
-    sm: { height: '4px' },
-    md: { height: '8px' },
-    lg: { height: '12px' },
+  const sizeClasses = {
+    sm: 'h-1',
+    md: 'h-2',
+    lg: 'h-3',
   };
 
-  const variantColors = {
-    primary: theme.colors.primary,
-    success: theme.colors.success,
-    warning: theme.colors.warning,
-    error: theme.colors.error,
+  const variantClasses = {
+    primary: 'bg-blue-600',
+    success: 'bg-green-600',
+    warning: 'bg-yellow-600',
+    error: 'bg-red-600',
   };
 
   let html = '';
 
   if (showLabel || label) {
     html += `
-      <div style="
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: ${theme.spacing.xs};
-        font-size: ${theme.typography.fontSize.sm};
-        color: ${theme.colors.text};
-        font-family: ${theme.typography.fontFamily};
-      ">
+      <div class="flex justify-between items-center mb-1 text-sm text-gray-900 dark:text-white">
         <span>${label || ''}</span>
-        <span style="font-weight: ${theme.typography.fontWeight.medium};">${percentage.toFixed(0)}%</span>
+        <span class="font-medium">${percentage.toFixed(0)}%</span>
       </div>
     `;
   }
 
   html += `
-    <div style="
-      width: 100%;
-      height: ${sizeStyles[size].height};
-      background-color: ${theme.colors.backgroundTertiary};
-      border-radius: ${theme.radii.full};
-      overflow: hidden;
-    ">
-      <div style="
-        height: 100%;
-        width: ${percentage}%;
-        background-color: ${variantColors[variant]};
-        border-radius: ${theme.radii.full};
-        transition: width 0.3s ease;
-      "></div>
+    <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden ${sizeClasses[size]}">
+      <div class="${sizeClasses[size]} ${variantClasses[variant]} rounded-full transition-all duration-300 ease-out" data-progress="${percentage}"></div>
     </div>
   `;
 
   container.innerHTML = html;
+  
+  // Set progress width using CSS custom property to avoid inline styles
+  const progressBar = container.querySelector('[data-progress]') as HTMLElement;
+  if (progressBar) {
+    progressBar.style.width = `${percentage}%`;
+  }
+  
   return container;
 }
 
@@ -750,75 +543,60 @@ export function createAlert(props: AlertProps): HTMLDivElement {
     style = {},
   } = props;
 
-  const theme = props.theme || themeManager.getTheme();
   const alert = document.createElement('div');
-  alert.className = className;
 
-  const variantStyles = {
+  const variantClasses = {
     success: {
-      backgroundColor: `${theme.colors.success}10`,
-      borderColor: `${theme.colors.success}30`,
-      color: theme.colors.success,
+      containerClass: 'bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800',
+      iconColor: 'text-green-600 dark:text-green-400',
       icon: 'checkCircle',
     },
     warning: {
-      backgroundColor: `${theme.colors.warning}10`,
-      borderColor: `${theme.colors.warning}30`,
-      color: theme.colors.warning,
+      containerClass: 'bg-yellow-50 border-yellow-200 dark:bg-yellow-900/20 dark:border-yellow-800',
+      iconColor: 'text-yellow-600 dark:text-yellow-400',
       icon: 'alertTriangle',
     },
     error: {
-      backgroundColor: `${theme.colors.error}10`,
-      borderColor: `${theme.colors.error}30`,
-      color: theme.colors.error,
+      containerClass: 'bg-red-50 border-red-200 dark:bg-red-900/20 dark:border-red-800',
+      iconColor: 'text-red-600 dark:text-red-400',
       icon: 'x',
     },
     info: {
-      backgroundColor: `${theme.colors.info}10`,
-      borderColor: `${theme.colors.info}30`,
-      color: theme.colors.info,
+      containerClass: 'bg-blue-50 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800',
+      iconColor: 'text-blue-600 dark:text-blue-400',
       icon: 'infoCircle',
     },
   };
 
-  const currentVariant = variantStyles[variant];
+  const currentVariant = variantClasses[variant];
 
-  const alertStyles: Partial<CSSStyleDeclaration> = {
-    display: 'flex',
-    alignItems: 'flex-start',
-    gap: theme.spacing.sm,
-    padding: theme.spacing.md,
-    backgroundColor: currentVariant.backgroundColor,
-    border: `1px solid ${currentVariant.borderColor}`,
-    borderRadius: theme.radii.md,
-    fontFamily: theme.typography.fontFamily,
-    ...style,
-  };
+  const alertClasses = [
+    'flex items-start gap-3 p-4 border rounded-md',
+    currentVariant.containerClass,
+    className
+  ].filter(Boolean).join(' ');
 
-  Object.assign(alert.style, alertStyles);
+  alert.className = alertClasses;
+  Object.assign(alert.style, style);
 
-  const iconHtml = icons[currentVariant.icon as keyof typeof icons]?.({ size: 16, color: currentVariant.color }) || '';
+  const iconHtml =
+    icons[currentVariant.icon as keyof typeof icons]?.({ size: 16, color: 'currentColor' }) || '';
 
   let html = `
-    <div style="flex-shrink: 0; margin-top: 2px;">
+    <div class="flex-shrink-0 mt-0.5 ${currentVariant.iconColor}">
       ${iconHtml}
     </div>
-    <div style="flex: 1; min-width: 0;">
-      ${title ? `
-        <div style="
-          font-weight: ${theme.typography.fontWeight.medium};
-          color: ${theme.colors.text};
-          margin-bottom: ${theme.spacing.xs};
-          font-size: ${theme.typography.fontSize.sm};
-        ">
+    <div class="flex-1 min-w-0">
+      ${
+        title
+          ? `
+        <div class="font-medium text-gray-900 dark:text-white mb-1 text-sm">
           ${title}
         </div>
-      ` : ''}
-      <div style="
-        color: ${theme.colors.textSecondary};
-        font-size: ${theme.typography.fontSize.sm};
-        line-height: ${theme.typography.lineHeight.normal};
-      ">
+      `
+          : ''
+      }
+      <div class="text-gray-700 dark:text-gray-300 text-sm leading-normal">
         ${children}
       </div>
     </div>
@@ -826,19 +604,7 @@ export function createAlert(props: AlertProps): HTMLDivElement {
 
   if (dismissible) {
     html += `
-      <button
-        style="
-          background: transparent;
-          border: none;
-          color: ${theme.colors.textMuted};
-          cursor: pointer;
-          padding: 0;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          flex-shrink: 0;
-        "
-      >
+      <button class="bg-transparent border-0 text-gray-500 dark:text-gray-400 cursor-pointer p-0 flex items-center justify-center flex-shrink-0 hover:text-gray-700 dark:hover:text-gray-200">
         ${icons.x({ size: 16, color: 'currentColor' })}
       </button>
     `;
