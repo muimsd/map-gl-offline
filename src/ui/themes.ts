@@ -21,8 +21,12 @@ export interface Theme {
     warningHover: string;
     error: string;
     errorHover: string;
+    errorLight: string;
+    errorBg: string;
     info: string;
     infoHover: string;
+    infoLight: string;
+    infoBg: string;
     
     // Background colors
     background: string;
@@ -107,8 +111,12 @@ export const lightTheme: Theme = {
     warningHover: '#ff9f1a',
     error: '#df1b41',
     errorHover: '#c51838',
+    errorLight: '#fef2f2',
+    errorBg: '#fecaca',
     info: '#0099ff',
     infoHover: '#0086e6',
+    infoLight: '#e6f3ff',
+    infoBg: '#bfdbfe',
     
     // Background colors
     background: '#ffffff',
@@ -146,22 +154,22 @@ export const lightTheme: Theme = {
     full: '9999px',
   },
   spacing: {
-    xs: '4px',
-    sm: '8px',
-    md: '12px',
-    lg: '16px',
-    xl: '24px',
-    xxl: '32px',
+    xs: '3px',
+    sm: '6px',
+    md: '9px',
+    lg: '12px',
+    xl: '18px',
+    xxl: '24px',
   },
   typography: {
-    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Inter, "Helvetica Neue", Arial, sans-serif',
     fontSize: {
-      xs: '12px',
-      sm: '14px',
-      md: '16px',
-      lg: '18px',
-      xl: '20px',
-      xxl: '24px',
+      xs: '9px',
+      sm: '10.5px',
+      md: '12px',
+      lg: '13.5px',
+      xl: '15px',
+      xxl: '18px',
     },
     fontWeight: {
       normal: '400',
@@ -194,8 +202,12 @@ export const darkTheme: Theme = {
     warningHover: '#ffcc70',
     error: '#ff4757',
     errorHover: '#ff6b7a',
+    errorLight: '#fef2f2',
+    errorBg: '#dc2626',
     info: '#3b82f6',
     infoHover: '#60a5fa',
+    infoLight: '#1e3a8a',
+    infoBg: '#3b82f6',
     
     // Background colors - dark mode
     background: '#0a0e27',
@@ -299,8 +311,12 @@ export function generateCSSCustomProperties(theme: Theme): string {
     --theme-warning-hover: ${theme.colors.warningHover};
     --theme-error: ${theme.colors.error};
     --theme-error-hover: ${theme.colors.errorHover};
+    --theme-error-light: ${theme.colors.errorLight};
+    --theme-error-bg: ${theme.colors.errorBg};
     --theme-info: ${theme.colors.info};
     --theme-info-hover: ${theme.colors.infoHover};
+    --theme-info-light: ${theme.colors.infoLight};
+    --theme-info-bg: ${theme.colors.infoBg};
     
     --theme-background: ${theme.colors.background};
     --theme-background-secondary: ${theme.colors.backgroundSecondary};

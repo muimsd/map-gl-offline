@@ -32,14 +32,16 @@ export function createHeader(props: HeaderProps): HTMLDivElement {
   const header = document.createElement('div');
   
   const headerStyles: Partial<CSSStyleDeclaration> = {
-    background: `linear-gradient(135deg, ${theme.colors.primary} 0%, ${theme.colors.primaryDark} 100%)`,
-    color: theme.colors.textInverse,
-    padding: theme.spacing.xl,
-    borderRadius: `${theme.radii.xl} ${theme.radii.xl} 0 0`,
+    background: `linear-gradient(135deg, var(--theme-primary) 0%, var(--theme-primary-dark) 100%)`,
+    color: 'var(--theme-text-inverse)',
+    padding: 'var(--theme-spacing-xl)',
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    gap: theme.spacing.lg,
+    gap: 'var(--theme-spacing-sm)',
+    position: 'relative',
+    overflow: 'hidden',
+    minHeight: '80px',
   };
 
   Object.assign(header.style, headerStyles);
@@ -48,22 +50,22 @@ export function createHeader(props: HeaderProps): HTMLDivElement {
   titleSection.style.flex = '1';
   titleSection.innerHTML = `
     <h2 style="
-      margin: 0 0 ${theme.spacing.xs} 0;
-      font-size: ${theme.typography.fontSize.xl};
-      font-weight: ${theme.typography.fontWeight.bold};
-      color: ${theme.colors.textInverse};
-      line-height: ${theme.typography.lineHeight.tight};
-      font-family: ${theme.typography.fontFamily};
+      margin: 0 0 var(--theme-spacing-xs) 0;
+      font-size: var(--theme-font-size-lg);
+      font-weight: var(--theme-font-weight-semibold);
+      color: var(--theme-text-inverse);
+      line-height: var(--theme-line-height-tight);
+      font-family: var(--theme-font-family);
     ">
       ${title}
     </h2>
     <p style="
       margin: 0;
       opacity: 0.9;
-      font-size: ${theme.typography.fontSize.sm};
-      color: ${theme.colors.textInverse};
-      line-height: ${theme.typography.lineHeight.normal};
-      font-family: ${theme.typography.fontFamily};
+      font-size: var(--theme-font-size-xs);
+      color: var(--theme-text-inverse);
+      line-height: var(--theme-line-height-normal);
+      font-family: var(--theme-font-family);
     ">
       ${subtitle}
     </p>
@@ -71,7 +73,7 @@ export function createHeader(props: HeaderProps): HTMLDivElement {
 
   const actionsSection = document.createElement('div');
   actionsSection.style.display = 'flex';
-  actionsSection.style.gap = theme.spacing.sm;
+  actionsSection.style.gap = 'var(--theme-spacing-xs)';
   actionsSection.style.alignItems = 'center';
 
   // Theme toggle button

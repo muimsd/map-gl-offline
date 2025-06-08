@@ -1,12 +1,16 @@
-import { useRef, useEffect, useState } from 'react';
+import { useRef, useEffect } from 'react';
 import { Map, NavigationControl } from 'maplibre-gl';
-import { updatePolygons } from './utils';
+import { OfflineMapManager } from '../../../src/managers/offlineMapManager';
+import { OfflineManagerControl } from '../../../src/ui/offlineManagerControl';
+// import { updatePolygons } from './utils';
 //@ts-ignore
 import 'maplibre-gl/dist/maplibre-gl.css';
 
 function App() {
   const mapContainer = useRef<HTMLDivElement | null>(null);
   const map = useRef<Map | null>(null);
+  const offlineManager = useRef<OfflineMapManager | null>(null);
+
   useEffect(() => {
     if (map.current || !mapContainer.current) return; // stops map from initializing more than once
     const lng = 35;
@@ -18,6 +22,10 @@ function App() {
       center: [lng, lat],
       zoom: zoom,
     });
+
+    // Initialize offline manager
+    offlineManager.current = new OfflineMapManager();
+
     // Add zoom and rotation controls to the map.
     map.current.addControl(
       new NavigationControl({
@@ -26,6 +34,12 @@ function App() {
         showZoom: true,
         showCompass: true,
       })
+    );
+
+    // Add the offline manager control with dark theme
+    map.current.addControl(
+      new OfflineManagerControl(offlineManager.current, { theme: 'dark' }) as any, 
+      'top-right'
     );
 
     // Add the polygons to the map

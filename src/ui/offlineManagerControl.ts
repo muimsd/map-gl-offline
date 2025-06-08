@@ -43,15 +43,25 @@ export class OfflineManagerControl implements IControl {
   private isOpen = false;
   private currentDownloads: Map<string, DownloadProgress> = new Map();
   private offlineManager: OfflineMapManager;
+  private activeModal: HTMLDivElement | undefined;
 
-  constructor(offlineManager: OfflineMapManager) {
+  constructor(
+    offlineManager: OfflineMapManager,
+    options: { theme?: 'light' | 'dark' } = { theme: 'dark' }
+  ) {
     this.offlineManager = offlineManager;
+
+    // Set initial theme if provided
+    if (options?.theme) {
+      themeManager.setTheme(options.theme);
+    }
+
     this.applyGlobalStyles();
   }
 
   private applyGlobalStyles(): void {
     const theme = themeManager.getTheme();
-    
+
     let styleElement = document.getElementById('offline-manager-theme-styles') as HTMLStyleElement;
     if (!styleElement) {
       styleElement = document.createElement('style');
@@ -59,19 +69,52 @@ export class OfflineManagerControl implements IControl {
       document.head.appendChild(styleElement);
     }
 
-    styleElement.textContent = generateCSSCustomProperties(theme);
+    // Generate CSS custom properties and wrap them in :root selector
+    const cssProperties = generateCSSCustomProperties(theme);
+    styleElement.textContent = `
+      :root {
+        ${cssProperties}
+      }
+      
+      /* Ensure the offline manager control inherits theme variables */
+      .offline-manager-control {
+        ${cssProperties}
+      }
+      
+      /* Apply theme variables to all children */
+      .offline-manager-control * {
+        --theme-spacing-xs: ${theme.spacing.xs};
+        --theme-spacing-sm: ${theme.spacing.sm};
+        --theme-spacing-md: ${theme.spacing.md};
+        --theme-spacing-lg: ${theme.spacing.lg};
+        --theme-spacing-xl: ${theme.spacing.xl};
+        --theme-spacing-xxl: ${theme.spacing.xxl};
+      }
+    `;
+
+    // Debug: Log to console to verify CSS variables are being applied
+    console.log(
+      'Applied theme:',
+      theme.mode,
+      'with properties:',
+      cssProperties.substring(0, 200) + '...'
+    );
   }
 
   onAdd(map: MaplibreMap): HTMLElement {
     this.map = map;
+
+    // Apply global styles first before creating any elements
+    this.applyGlobalStyles();
+
     this.container = document.createElement('div');
-    this.container.className = 'maplibregl-ctrl maplibregl-ctrl-group';
+    this.container.className = 'maplibregl-ctrl maplibregl-ctrl-group offline-manager-control';
 
     this.button = document.createElement('button');
     this.button.type = 'button';
     this.button.className = 'maplibregl-ctrl-icon';
     this.button.style.position = 'relative';
-    this.button.innerHTML = icons.mapPin({ size: 20, color: '#333' });
+    this.button.innerHTML = icons.cloud({ size: 20, color: 'black' });
     this.button.title = 'Offline Map Manager';
 
     this.progressBadge = document.createElement('span');
@@ -79,39 +122,42 @@ export class OfflineManagerControl implements IControl {
       position: absolute;
       top: -5px;
       right: -5px;
-      background: #007bff;
-      color: white;
-      border-radius: 10px;
-      padding: 2px 6px;
-      font-size: 11px;
-      font-weight: bold;
+      background: var(--theme-info);
+      color: var(--theme-text-inverse);
+      border-radius: var(--theme-radius-full);
+      padding: var(--theme-spacing-xs) var(--theme-spacing-sm);
+      font-size: var(--theme-font-size-xs);
+      font-weight: var(--theme-font-weight-bold);
       display: none;
       min-width: 16px;
       text-align: center;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+      box-shadow: var(--theme-shadow-md);
     `;
     this.button.appendChild(this.progressBadge);
 
     this.panel = document.createElement('div');
     this.panel.style.cssText = `
-      position: absolute;
-      top: 40px;
-      right: 0;
-      width: 400px;
-      max-height: 600px;
-      background: var(--color-background);
-      border: 1px solid var(--color-border);
-      border-radius: var(--radius-lg);
-      box-shadow: var(--shadow-xl);
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: min(90vw, 800px);
+      height: min(80vh, 700px);
+      background: var(--theme-surface);
+      border: 1px solid var(--theme-border);
+      border-radius: var(--theme-radius-xl);
+      box-shadow: var(--theme-shadow-xl);
       display: none;
       z-index: 1000;
       overflow: hidden;
-      font-family: var(--font-family);
+      font-family: var(--theme-font-family);
+      font-size: var(--theme-font-size-sm);
     `;
 
     this.button.addEventListener('click', this.togglePanel.bind(this));
     this.container.appendChild(this.button);
-    this.container.appendChild(this.panel);
+    // Append panel to document body for proper centering
+    document.body.appendChild(this.panel);
 
     // Make methods available globally for onclick handlers
     (window as any).offlineManagerControl = this;
@@ -123,16 +169,35 @@ export class OfflineManagerControl implements IControl {
     if (this.container && this.container.parentNode) {
       this.container.parentNode.removeChild(this.container);
     }
+    if (this.panel && this.panel.parentNode) {
+      this.panel.parentNode.removeChild(this.panel);
+    }
+    this.closeModal();
     this.map = undefined;
     delete (window as any).offlineManagerControl;
+  }
+
+  public closeModal(): void {
+    if (this.activeModal && this.activeModal.parentNode) {
+      this.activeModal.parentNode.removeChild(this.activeModal);
+      this.activeModal = undefined;
+    }
+  }
+
+  private showModal(modal: HTMLDivElement): void {
+    this.closeModal();
+    this.activeModal = modal;
+    document.body.appendChild(modal);
   }
 
   private togglePanel(): void {
     this.isOpen = !this.isOpen;
     if (this.panel) {
-      this.panel.style.display = this.isOpen ? 'block' : 'none';
       if (this.isOpen) {
+        this.panel.style.display = 'block';
         this.renderPanel();
+      } else {
+        this.panel.style.display = 'none';
       }
     }
   }
@@ -150,10 +215,10 @@ export class OfflineManagerControl implements IControl {
     try {
       const [regions, analytics] = await Promise.all([
         this.offlineManager.listStoredRegions(),
-        this.offlineManager.getComprehensiveStorageAnalytics()
+        this.offlineManager.getComprehensiveStorageAnalytics(),
       ]);
 
-      const header = createHeader({
+      const headerElement = createHeader({
         title: 'Offline Regions',
         subtitle: `${regions.length} regions • ${formatBytes(analytics.totalStorageSize)} total`,
         onClose: () => this.closePanel(),
@@ -161,10 +226,10 @@ export class OfflineManagerControl implements IControl {
           themeManager.toggleTheme();
           this.applyGlobalStyles();
           this.renderPanel();
-        }
+        },
       });
 
-      const actionButtons = createActionButtons({
+      const actionButtonsElement = createActionButtons({
         onAddRegion: () => this.showSimpleAddForm(),
         onRefresh: () => this.renderPanel(),
       });
@@ -172,12 +237,12 @@ export class OfflineManagerControl implements IControl {
       let downloadProgressSection = '';
       if (this.currentDownloads.size > 0) {
         const progressElement = createDownloadProgressSection({
-          downloads: this.currentDownloads
+          downloads: this.currentDownloads,
         });
         downloadProgressSection = progressElement.outerHTML;
       }
 
-      const regionsList = createRegionsList({
+      const regionsListElement = createRegionsList({
         regions,
         onFocusRegion: (regionId: string) => this.focusRegion(regionId),
         onDeleteRegion: (regionId: string) => this.deleteRegion(regionId),
@@ -186,65 +251,148 @@ export class OfflineManagerControl implements IControl {
       });
 
       this.panel.innerHTML = `
-        ${header}
-        ${actionButtons}
-        ${downloadProgressSection}
-        ${regionsList}
+        <div style="
+          height: 100%;
+          display: flex;
+          flex-direction: column;
+          background: var(--theme-surface);
+          border-radius: var(--theme-radius-xl);
+          overflow: hidden;
+        ">
+          ${headerElement.outerHTML}
+          <div style="
+            flex: 1;
+            padding: var(--theme-spacing-lg);
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: var(--theme-spacing-lg);
+          ">
+            ${actionButtonsElement.outerHTML}
+            ${downloadProgressSection}
+            ${regionsListElement.outerHTML}
+          </div>
+        </div>
       `;
-
     } catch (error) {
       console.error('Error rendering panel:', error);
       this.panel.innerHTML = `
-        <div style="padding: var(--spacing-md); text-align: center; color: var(--color-danger);">
-          <p>Error loading offline regions</p>
-          <button onclick="offlineManagerControl.renderPanel()" style="margin-top: var(--spacing-sm);">
-            Retry
-          </button>
+        <div style="
+          height: 100%;
+          display: flex;
+          flex-direction: column;
+          background: var(--theme-surface);
+          border-radius: var(--theme-radius-xl);
+          overflow: hidden;
+        ">
+          <div style="
+            background: linear-gradient(135deg, var(--theme-error) 0%, var(--theme-error-hover) 100%);
+            color: var(--theme-text-inverse);
+            padding: var(--theme-spacing-lg);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+          ">
+            <div>
+              <h2 style="margin: 0; font-size: var(--theme-font-size-lg); font-weight: var(--theme-font-weight-bold);">
+                Error Loading Regions
+              </h2>
+              <p style="margin: var(--theme-spacing-xs) 0 0 0; opacity: 0.9; font-size: var(--theme-font-size-sm);">
+                Unable to load offline regions data
+              </p>
+            </div>
+            <button onclick="offlineManagerControl.closePanel()" style="
+              background: rgba(255, 255, 255, 0.2);
+              border: none;
+              color: var(--theme-text-inverse);
+              padding: var(--theme-spacing-sm);
+              border-radius: var(--theme-radius-md);
+              cursor: pointer;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+            ">
+              ${icons.x({ size: 20 })}
+            </button>
+          </div>
+          <div style="
+            flex: 1;
+            padding: var(--theme-spacing-lg);
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: var(--theme-spacing-lg);
+          ">
+            <p style="color: var(--theme-error); font-size: var(--theme-font-size-md); margin: 0;">
+              Error loading offline regions
+            </p>
+            <button onclick="offlineManagerControl.renderPanel()" style="
+              background: var(--theme-primary);
+              color: var(--theme-text-inverse);
+              border: none;
+              padding: var(--theme-spacing-md) var(--theme-spacing-lg);
+              border-radius: var(--theme-radius-md);
+              cursor: pointer;
+              font-size: var(--theme-font-size-md);
+              font-weight: var(--theme-font-weight-semibold);
+            ">
+              Retry
+            </button>
+          </div>
         </div>
       `;
     }
   }
 
   private showSimpleAddForm(): void {
-    if (!this.map || !this.panel) return;
+    if (!this.map) return;
 
     const bounds = this.map.getBounds();
-    
-    this.panel.innerHTML = `
-      <div style="padding: var(--spacing-lg);">
-        <h3 style="margin: 0 0 var(--spacing-md) 0;">Add New Region</h3>
-        
-        <div style="margin-bottom: var(--spacing-md);">
-          <label style="display: block; margin-bottom: var(--spacing-xs);">Region Name:</label>
-          <input type="text" id="region-name" placeholder="Enter region name..." 
-                 style="width: 100%; padding: var(--spacing-sm); border: 1px solid var(--color-border); border-radius: var(--radius-sm);">
+
+    const modalContent = `
+      <div style="margin-bottom: var(--theme-spacing-md);">
+        <label style="display: block; margin-bottom: var(--theme-spacing-xs); font-weight: var(--theme-font-weight-semibold);">Region Name:</label>
+        <input type="text" id="region-name" placeholder="Enter region name..." 
+               style="width: 100%; padding: var(--theme-spacing-sm); border: 1px solid var(--theme-border); border-radius: var(--theme-radius-sm); font-size: var(--theme-font-size-sm);">
+      </div>
+      
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--theme-spacing-sm); margin-bottom: var(--theme-spacing-lg);">
+        <div>
+          <label style="display: block; margin-bottom: var(--theme-spacing-xs); font-weight: var(--theme-font-weight-semibold);">Min Zoom:</label>
+          <input type="number" id="min-zoom" value="1" min="0" max="22" 
+                 style="width: 100%; padding: var(--theme-spacing-sm); border: 1px solid var(--theme-border); border-radius: var(--theme-radius-sm); font-size: var(--theme-font-size-sm);">
         </div>
-        
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--spacing-sm); margin-bottom: var(--spacing-md);">
-          <div>
-            <label style="display: block; margin-bottom: var(--spacing-xs);">Min Zoom:</label>
-            <input type="number" id="min-zoom" value="1" min="0" max="22" 
-                   style="width: 100%; padding: var(--spacing-sm); border: 1px solid var(--color-border); border-radius: var(--radius-sm);">
-          </div>
-          <div>
-            <label style="display: block; margin-bottom: var(--spacing-xs);">Max Zoom:</label>
-            <input type="number" id="max-zoom" value="14" min="0" max="22" 
-                   style="width: 100%; padding: var(--spacing-sm); border: 1px solid var(--color-border); border-radius: var(--radius-sm);">
-          </div>
-        </div>
-        
-        <div style="display: flex; gap: var(--spacing-sm);">
-          <button onclick="offlineManagerControl.renderPanel()" 
-                  style="flex: 1; padding: var(--spacing-sm) var(--spacing-md); background: var(--color-secondary); color: white; border: none; border-radius: var(--radius-sm); cursor: pointer;">
-            Cancel
-          </button>
-          <button onclick="offlineManagerControl.handleRegionSave()" 
-                  style="flex: 1; padding: var(--spacing-sm) var(--spacing-md); background: var(--color-primary); color: white; border: none; border-radius: var(--radius-sm); cursor: pointer;">
-            Download
-          </button>
+        <div>
+          <label style="display: block; margin-bottom: var(--theme-spacing-xs); font-weight: var(--theme-font-weight-semibold);">Max Zoom:</label>
+          <input type="number" id="max-zoom" value="14" min="0" max="22" 
+                 style="width: 100%; padding: var(--theme-spacing-sm); border: 1px solid var(--theme-border); border-radius: var(--theme-radius-sm); font-size: var(--theme-font-size-sm);">
         </div>
       </div>
+      
+      <div style="display: flex; gap: var(--theme-spacing-sm); justify-content: flex-end;">
+        <button onclick="offlineManagerControl.closeModal()" 
+                style="padding: var(--theme-spacing-sm) var(--theme-spacing-md); background: var(--theme-text-muted); color: var(--theme-text-inverse); border: none; border-radius: var(--theme-radius-sm); cursor: pointer; font-size: var(--theme-font-size-sm);">
+          Cancel
+        </button>
+        <button onclick="offlineManagerControl.handleRegionSave()" 
+                style="padding: var(--theme-spacing-sm) var(--theme-spacing-md); background: var(--theme-primary); color: var(--theme-text-inverse); border: none; border-radius: var(--theme-radius-sm); cursor: pointer; font-size: var(--theme-font-size-sm);">
+          Download Region
+        </button>
+      </div>
     `;
+
+    const modal = createModal({
+      title: 'Add New Offline Region',
+      subtitle: 'Define the area and zoom levels to download for offline use',
+      isOpen: true,
+      size: 'md',
+      onClose: () => this.closeModal(),
+      children: modalContent,
+    });
+
+    this.showModal(modal);
   }
 
   public async handleRegionSave(): Promise<void> {
@@ -260,23 +408,74 @@ export class OfflineManagerControl implements IControl {
     const regionName = nameInput.value.trim();
     const minZoom = parseInt(minZoomInput?.value || '1');
     const maxZoom = parseInt(maxZoomInput?.value || '14');
-    
+
     // Convert LngLatBounds to the expected tuple format
     const bounds = this.map.getBounds();
     const boundsArray: [number, number, number, number] = [
       bounds.getWest(),
       bounds.getSouth(),
       bounds.getEast(),
-      bounds.getNorth()
+      bounds.getNorth(),
     ];
 
     try {
-      // Show loading state
+      // Close modal and show loading state
+      this.closeModal();
+
       if (this.panel) {
         this.panel.innerHTML = `
-          <div style="padding: var(--spacing-lg); text-align: center;">
-            <p>Starting download...</p>
+          <div style="
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            background: var(--theme-surface);
+            border-radius: var(--theme-radius-xl);
+            overflow: hidden;
+          ">
+            <div style="
+              background: linear-gradient(135deg, var(--theme-info) 0%, var(--theme-info-hover) 100%);
+              color: var(--theme-text-inverse);
+              padding: var(--theme-spacing-lg);
+              display: flex;
+              align-items: center;
+              justify-content: center;
+            ">
+              <div style="text-align: center;">
+                <h2 style="margin: 0; font-size: var(--theme-font-size-lg); font-weight: var(--theme-font-weight-bold);">
+                  Downloading Region...
+                </h2>
+                <p style="margin: var(--theme-spacing-xs) 0 0 0; opacity: 0.9; font-size: var(--theme-font-size-sm);">
+                  Please wait while we download the map tiles
+                </p>
+              </div>
+            </div>
+            <div style="
+              flex: 1;
+              padding: var(--theme-spacing-lg);
+              display: flex;
+              align-items: center;
+              justify-content: center;
+            ">
+              <div style="text-align: center;">
+                <div style="
+                  width: 40px;
+                  height: 40px;
+                  border: 3px solid var(--theme-border-light);
+                  border-top: 3px solid var(--theme-primary);
+                  border-radius: 50%;
+                  animation: spin 1s linear infinite;
+                  margin: 0 auto var(--theme-spacing-lg) auto;
+                "></div>
+                <p style="color: var(--theme-text-secondary); margin: 0;">Starting download...</p>
+              </div>
+            </div>
           </div>
+          <style>
+            @keyframes spin {
+              0% { transform: rotate(0deg); }
+              100% { transform: rotate(360deg); }
+            }
+          </style>
         `;
       }
 
@@ -286,14 +485,14 @@ export class OfflineManagerControl implements IControl {
         name: regionName,
         bounds: [
           [boundsArray[0], boundsArray[1]], // [west, south]
-          [boundsArray[2], boundsArray[3]]  // [east, north]
+          [boundsArray[2], boundsArray[3]], // [east, north]
         ],
         minZoom,
         maxZoom,
-        styleUrl: this.map.getStyle().sources ? 
-          (this.map.getStyle() as any).metadata?.['mapbox:origin'] || 
-          'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json' :
-          'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json'
+        styleUrl: this.map.getStyle().sources
+          ? (this.map.getStyle() as any).metadata?.['mapbox:origin'] ||
+            'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json'
+          : 'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json',
       });
 
       // Initialize progress tracking (simulated for now)
@@ -303,11 +502,11 @@ export class OfflineManagerControl implements IControl {
         completed: 0,
         total: 100,
         percentage: 0,
-        currentResource: 'Download started...'
+        currentResource: 'Download started...',
       });
 
       this.updateProgressBadge();
-      
+
       // Simulate completion after a delay
       setTimeout(() => {
         this.currentDownloads.delete(regionId);
@@ -318,7 +517,6 @@ export class OfflineManagerControl implements IControl {
       }, 3000);
 
       this.renderPanel();
-
     } catch (error) {
       console.error('Error downloading region:', error);
       alert('Error downloading region: ' + (error as Error).message);
@@ -332,7 +530,7 @@ export class OfflineManagerControl implements IControl {
       completed: progress.completed || 0,
       total: progress.total || 0,
       percentage: progress.percentage || 0,
-      currentResource: progress.currentResource || 'Processing...'
+      currentResource: progress.currentResource || 'Processing...',
     };
 
     this.currentDownloads.set(regionId, downloadProgress);
@@ -358,7 +556,7 @@ export class OfflineManagerControl implements IControl {
     if (!this.progressBadge) return;
 
     const activeDownloads = this.currentDownloads.size;
-    
+
     if (activeDownloads > 0) {
       this.progressBadge.textContent = activeDownloads.toString();
       this.progressBadge.style.display = 'block';
@@ -373,20 +571,20 @@ export class OfflineManagerControl implements IControl {
     try {
       const regions = await this.offlineManager.listStoredRegions();
       const region = regions.find(r => r.id === regionId);
-      
+
       if (region && region.bounds) {
         // Create LngLatBounds from the stored bounds
         // bounds format: [[west, south], [east, north]]
         const lngLatBounds = new (window as any).maplibregl.LngLatBounds(
           [region.bounds[0][0], region.bounds[0][1]], // southwest
-          [region.bounds[1][0], region.bounds[1][1]]  // northeast
+          [region.bounds[1][0], region.bounds[1][1]] // northeast
         );
-        
+
         this.map.fitBounds(lngLatBounds, {
           padding: 50,
-          duration: 1000
+          duration: 1000,
         });
-        
+
         this.closePanel();
       }
     } catch (error) {
@@ -412,57 +610,66 @@ export class OfflineManagerControl implements IControl {
     try {
       const regions = await this.offlineManager.listStoredRegions();
       const region = regions.find(r => r.id === regionId);
-      
-      if (!region || !this.panel) {
+
+      if (!region) {
         alert('Region not found');
         return;
       }
 
       const regionSize = await this.offlineManager.getRegionSize(regionId);
-      
-      this.panel.innerHTML = `
-        <div style="padding: var(--spacing-lg);">
-          <h3 style="margin: 0 0 var(--spacing-md) 0;">${region.name || 'Unnamed Region'}</h3>
-          
-          <div style="margin-bottom: var(--spacing-md);">
-            <strong>Storage Size:</strong> ${formatBytes(regionSize)}
+
+      const modalContent = `
+        <div style="margin-bottom: var(--theme-spacing-md);">
+          <strong style="color: var(--theme-text);">Storage Size:</strong> 
+          <span style="color: var(--theme-text-secondary);">${formatBytes(regionSize)}</span>
+        </div>
+        
+        <div style="margin-bottom: var(--theme-spacing-md);">
+          <strong style="color: var(--theme-text);">Zoom Levels:</strong> 
+          <span style="color: var(--theme-text-secondary);">${region.minZoom || 'N/A'} - ${region.maxZoom || 'N/A'}</span>
+        </div>
+        
+        <div style="margin-bottom: var(--theme-spacing-md);">
+          <strong style="color: var(--theme-text);">Created:</strong> 
+          <span style="color: var(--theme-text-secondary);">${region.created ? formatDate(region.created) : 'Unknown'}</span>
+        </div>
+        
+        ${
+          region.bounds
+            ? `
+          <div style="margin-bottom: var(--theme-spacing-lg);">
+            <strong style="color: var(--theme-text);">Bounds:</strong><br>
+            <small style="font-family: monospace; color: var(--theme-text-secondary); margin-top: var(--theme-spacing-xs); display: block;">
+              SW: [${region.bounds[0][0].toFixed(6)}, ${region.bounds[0][1].toFixed(6)}]<br>
+              NE: [${region.bounds[1][0].toFixed(6)}, ${region.bounds[1][1].toFixed(6)}]
+            </small>
           </div>
-          
-          <div style="margin-bottom: var(--spacing-md);">
-            <strong>Zoom Levels:</strong> ${region.minZoom || 'N/A'} - ${region.maxZoom || 'N/A'}
-          </div>
-          
-          <div style="margin-bottom: var(--spacing-md);">
-            <strong>Created:</strong> ${region.created ? formatDate(region.created) : 'Unknown'}
-          </div>
-          
-          ${region.bounds ? `
-            <div style="margin-bottom: var(--spacing-md);">
-              <strong>Bounds:</strong><br>
-              <small style="font-family: monospace;">
-                SW: [${region.bounds[0][0].toFixed(6)}, ${region.bounds[0][1].toFixed(6)}]<br>
-                NE: [${region.bounds[1][0].toFixed(6)}, ${region.bounds[1][1].toFixed(6)}]
-              </small>
-            </div>
-          ` : ''}
-          
-          <div style="display: flex; gap: var(--spacing-sm);">
-            <button onclick="offlineManagerControl.renderPanel()" 
-                    style="flex: 1; padding: var(--spacing-sm) var(--spacing-md); background: var(--color-secondary); color: white; border: none; border-radius: var(--radius-sm); cursor: pointer;">
-              Back
-            </button>
-            <button onclick="offlineManagerControl.focusRegion('${regionId}')" 
-                    style="flex: 1; padding: var(--spacing-sm) var(--spacing-md); background: var(--color-primary); color: white; border: none; border-radius: var(--radius-sm); cursor: pointer;">
-              Focus
-            </button>
-            <button onclick="offlineManagerControl.deleteRegion('${regionId}')" 
-                    style="padding: var(--spacing-sm) var(--spacing-md); background: var(--color-danger); color: white; border: none; border-radius: var(--radius-sm); cursor: pointer;">
-              Delete
-            </button>
-          </div>
+        `
+            : ''
+        }
+        
+        <div style="display: flex; gap: var(--theme-spacing-sm); justify-content: flex-end;">
+          <button onclick="offlineManagerControl.focusRegion('${regionId}')" 
+                  style="padding: var(--theme-spacing-sm) var(--theme-spacing-md); background: var(--theme-primary); color: var(--theme-text-inverse); border: none; border-radius: var(--theme-radius-sm); cursor: pointer; font-size: var(--theme-font-size-sm);">
+            Focus on Map
+          </button>
+          <button onclick="offlineManagerControl.deleteRegion('${regionId}')" 
+                  style="padding: var(--theme-spacing-sm) var(--theme-spacing-md); background: var(--theme-error); color: var(--theme-text-inverse); border: none; border-radius: var(--theme-radius-sm); cursor: pointer; font-size: var(--theme-font-size-sm);">
+            Delete Region
+          </button>
         </div>
       `;
 
+      const modal = createModal({
+        title: region.name || 'Unnamed Region',
+        subtitle: `Region details and management options`,
+        isOpen: true,
+        size: 'md',
+        onClose: () => this.closeModal(),
+        children: modalContent,
+      });
+
+      this.showModal(modal);
     } catch (error) {
       console.error('Error showing region details:', error);
       alert('Error loading region details: ' + (error as Error).message);

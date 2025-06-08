@@ -22,10 +22,11 @@ export function createActionButtons(props: ActionButtonsProps): HTMLDivElement {
   const container = document.createElement('div');
   
   const containerStyles: Partial<CSSStyleDeclaration> = {
-    display: 'grid',
-    gridTemplateColumns: '1fr 1fr',
-    gap: theme.spacing.md,
-    marginBottom: theme.spacing.xl,
+    display: 'flex',
+    gap: 'var(--theme-spacing-md)',
+    marginBottom: 'var(--theme-spacing-xl)',
+    flexWrap: 'wrap',
+    alignItems: 'center',
   };
 
   Object.assign(container.style, containerStyles);
@@ -34,30 +35,46 @@ export function createActionButtons(props: ActionButtonsProps): HTMLDivElement {
   const addButton = createButton({
     variant: 'primary',
     size: 'md',
-    icon: 'mapPin',
+    icon: 'plus',
     children: 'Add New Region',
     onClick: onAddRegion,
     style: {
-      background: `linear-gradient(135deg, ${theme.colors.success} 0%, ${theme.colors.successHover} 100%)`,
-      boxShadow: `0 4px 12px ${theme.colors.success}30`,
+      background: `var(--theme-success)`,
+      color: 'white',
+      border: 'none',
+      fontSize: 'var(--theme-font-size-md)',
+      padding: 'var(--theme-spacing-md) var(--theme-spacing-lg)',
+      borderRadius: 'var(--theme-radius-md)',
+      fontWeight: 'var(--theme-font-weight-semibold)',
+      boxShadow: 'var(--theme-shadow-md)',
+      transition: 'all 0.2s ease',
+      minWidth: '160px',
     },
   });
 
-  // Cleanup button
-  const cleanupButton = createButton({
-    variant: 'warning',
+  // Refresh button
+  const refreshButton = createButton({
+    variant: 'secondary',
     size: 'md',
-    icon: 'cleaning',
-    children: 'Cleanup',
-    onClick: onCleanup,
+    icon: 'refresh',
+    children: 'Refresh',
+    onClick: props.onRefresh,
     style: {
-      background: `linear-gradient(135deg, ${theme.colors.warning} 0%, ${theme.colors.warningHover} 100%)`,
-      boxShadow: `0 4px 12px ${theme.colors.warning}30`,
+      background: 'var(--theme-surface)',
+      color: 'var(--theme-text-secondary)',
+      border: '1px solid var(--theme-border)',
+      fontSize: 'var(--theme-font-size-md)',
+      padding: 'var(--theme-spacing-md) var(--theme-spacing-lg)',
+      borderRadius: 'var(--theme-radius-md)',
+      fontWeight: 'var(--theme-font-weight-semibold)',
+      boxShadow: 'var(--theme-shadow-md)',
+      transition: 'all 0.2s ease',
+      minWidth: '120px',
     },
   });
 
   container.appendChild(addButton);
-  container.appendChild(cleanupButton);
+  container.appendChild(refreshButton);
 
   return container;
 }
