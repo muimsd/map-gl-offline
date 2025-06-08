@@ -1,5 +1,5 @@
 import { dbPromise } from '../storage/indexedDbManager';
-import { downloadStyles, loadStyleById } from '../map/styleManager';
+import { downloadStyles, loadStyleById } from '../managers/styleManager';
 import { downloadTiles } from './tileService';
 // import { deleteTiles } from './tileService'; // Will need to be implemented in tileService
 // import { deleteFontsByStyleId } from './fontService'; // Will need to be implemented in fontService

@@ -62,6 +62,20 @@ export class OfflineMapManager {
     return this.regionService.listRegions();
   }
 
+  async listStoredRegions(): Promise<StoredRegion[]> {
+    // Get StoredRegion data directly from the database
+    return this.cleanupService['getAllRegions']();
+  }
+
+  async getStoredRegion(regionId: string): Promise<StoredRegion | null> {
+    const regions = await this.listStoredRegions();
+    return regions.find(region => region.id === regionId) || null;
+  }
+
+  async getRegionSize(regionId: string): Promise<number> {
+    return this.cleanupService['getRegionSize'](regionId);
+  }
+
   // Cleanup Management (delegated to CleanupService)
   async cleanupExpiredRegions(): Promise<number> {
     const result = await this.cleanupService.performCleanup({ maxAge: 30 });

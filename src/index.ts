@@ -7,7 +7,7 @@ export * from './services/fontService';
 export * from './services/glyphService';
 export * from './services/spriteService';
 export * from './services/cleanupService';
-export * from './map/styleManager'; // Keep style manager as it's already refactored
+export * from './managers/styleManager'; // Keep style manager as it's already refactored
 
 // Export services
 export * from './services/regionService';
