@@ -52,7 +52,9 @@ export interface ModalProps extends ComponentProps {
   isOpen: boolean;
   size?: 'sm' | 'md' | 'lg' | 'xl';
   showCloseButton?: boolean;
+  showThemeToggle?: boolean;
   onClose?: () => void;
+  onThemeToggle?: () => void;
   content?: string;
   children: string;
 }
@@ -421,7 +423,9 @@ export function createModal(props: ModalProps): HTMLDivElement {
     isOpen,
     size = 'md',
     showCloseButton = true,
+    showThemeToggle = false,
     onClose,
+    onThemeToggle,
     children,
     className = '',
     style = {},
@@ -455,92 +459,126 @@ export function createModal(props: ModalProps): HTMLDivElement {
 
   Object.assign(modal.style, modalStyles);
 
-  const contentStyles = `
-    background: ${theme.colors.surface};
-    border-radius: ${theme.radii.xl};
-    box-shadow: ${theme.shadows.xl};
-    max-width: ${sizeStyles[size].maxWidth};
-    max-height: 90vh;
-    width: 90%;
-    overflow-y: auto;
-    margin: ${theme.spacing.lg};
-  `;
+  // Create modal content container
+  const content = document.createElement('div');
+  const contentStyles: Partial<CSSStyleDeclaration> = {
+    background: theme.colors.surface,
+    borderRadius: theme.radii.xl,
+    boxShadow: theme.shadows.xl,
+    maxWidth: sizeStyles[size].maxWidth,
+    maxHeight: '40vh',
+    width: '90%',
+    overflowY: 'auto',
+    margin: theme.spacing.lg,
+  };
+  Object.assign(content.style, contentStyles);
 
-  let html = `
-    <div style="${contentStyles}">
-      <div style="
-        padding: ${theme.spacing.xl};
-        border-bottom: 1px solid ${theme.colors.border};
-        display: flex;
-        justify-content: space-between;
-        align-items: flex-start;
-        gap: ${theme.spacing.lg};
-      ">
-        <div style="flex: 1;">
-          <h2 style="
-            margin: 0 0 ${subtitle ? theme.spacing.xs : '0'} 0;
-            font-size: ${theme.typography.fontSize.xl};
-            font-weight: ${theme.typography.fontWeight.semibold};
-            color: ${theme.colors.text};
-            line-height: ${theme.typography.lineHeight.tight};
-          ">
-            ${title}
-          </h2>
-          ${subtitle ? `
-            <p style="
-              margin: 0;
-              font-size: ${theme.typography.fontSize.sm};
-              color: ${theme.colors.textSecondary};
-              line-height: ${theme.typography.lineHeight.normal};
-            ">
-              ${subtitle}
-            </p>
-          ` : ''}
-        </div>
-        ${showCloseButton ? `
-          <button
-            onclick="this.closest('[style*=\"position: fixed\"]').style.display = 'none'"
-            style="
-              background: transparent;
-              border: none;
-              color: ${theme.colors.textMuted};
-              cursor: pointer;
-              padding: ${theme.spacing.xs};
-              border-radius: ${theme.radii.md};
-              display: flex;
-              align-items: center;
-              justify-content: center;
-              transition: all 0.2s ease;
-            "
-            onmouseover="this.style.backgroundColor = '${theme.colors.surfaceHover}'; this.style.color = '${theme.colors.text}';"
-            onmouseout="this.style.backgroundColor = 'transparent'; this.style.color = '${theme.colors.textMuted}';"
-          >
-            ${icons.x({ size: 20, color: 'currentColor' })}
-          </button>
-        ` : ''}
-      </div>
-      <div style="padding: ${theme.spacing.xl};">
-        ${children}
-      </div>
-    </div>
-  `;
+  // Create header section
+  const header = document.createElement('div');
+  const headerStyles: Partial<CSSStyleDeclaration> = {
+    padding: theme.spacing.xl,
+    borderBottom: `1px solid ${theme.colors.border}`,
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    gap: theme.spacing.lg,
+  };
+  Object.assign(header.style, headerStyles);
 
-  modal.innerHTML = html;
+  // Create title section
+  const titleSection = document.createElement('div');
+  titleSection.style.flex = '1';
+  
+  const titleElement = document.createElement('h3');
+  Object.assign(titleElement.style, {
+    margin: `0 0 ${subtitle ? theme.spacing.xs : '0'} 0`,
+    fontSize: theme.typography.fontSize.xl,
+    fontWeight: theme.typography.fontWeight.semibold,
+    color: theme.colors.text,
+    lineHeight: theme.typography.lineHeight.tight,
+  });
+  titleElement.textContent = title;
+  titleSection.appendChild(titleElement);
 
-  // Handle close button and backdrop clicks
+  if (subtitle) {
+    const subtitleElement = document.createElement('p');
+    Object.assign(subtitleElement.style, {
+      margin: '0',
+      fontSize: theme.typography.fontSize.sm,
+      color: theme.colors.textSecondary,
+      lineHeight: theme.typography.lineHeight.normal,
+    });
+    subtitleElement.textContent = subtitle;
+    titleSection.appendChild(subtitleElement);
+  }
+
+  // Create actions section
+  const actionsSection = document.createElement('div');
+  Object.assign(actionsSection.style, {
+    display: 'flex',
+    gap: theme.spacing.xs,
+    alignItems: 'center',
+  });
+
+  // Theme toggle button
+  if (showThemeToggle && onThemeToggle) {
+    const themeButton = createButton({
+      variant: 'ghost',
+      size: 'sm',
+      icon: theme.mode === 'light' ? 'moon' : 'sun',
+      children: '',
+      onClick: onThemeToggle,
+      style: {
+        backgroundColor: 'rgba(0, 0, 0, 0.05)',
+        color: theme.colors.textMuted,
+        width: '32px',
+        height: '32px',
+        padding: '0',
+        borderRadius: theme.radii.md,
+      },
+    });
+    actionsSection.appendChild(themeButton);
+  }
+
+  // Close button
+  if (showCloseButton && onClose) {
+    const closeButton = createButton({
+      variant: 'ghost',
+      size: 'sm',
+      icon: 'x',
+      children: '',
+      onClick: onClose,
+      style: {
+        backgroundColor: 'rgba(0, 0, 0, 0.05)',
+        color: theme.colors.textMuted,
+        width: '32px',
+        height: '32px',
+        padding: '0',
+        borderRadius: theme.radii.md,
+      },
+    });
+    actionsSection.appendChild(closeButton);
+  }
+
+  // Create body section
+  const body = document.createElement('div');
+  body.style.padding = theme.spacing.xl;
+  body.innerHTML = children;
+
+  // Assemble modal
+  header.appendChild(titleSection);
+  header.appendChild(actionsSection);
+  content.appendChild(header);
+  content.appendChild(body);
+  modal.appendChild(content);
+
+  // Handle backdrop clicks
   if (onClose) {
     modal.addEventListener('click', (e) => {
       if (e.target === modal) {
         onClose();
       }
     });
-
-    if (showCloseButton) {
-      const closeButton = modal.querySelector('button');
-      if (closeButton) {
-        closeButton.addEventListener('click', onClose);
-      }
-    }
   }
 
   return modal;

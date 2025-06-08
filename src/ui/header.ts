@@ -30,7 +30,7 @@ export function createHeader(props: HeaderProps): HTMLDivElement {
   const themeToggleHandler = onThemeToggle || onToggleTheme;
 
   const header = document.createElement('div');
-  
+
   const headerStyles: Partial<CSSStyleDeclaration> = {
     background: `linear-gradient(135deg, var(--theme-primary) 0%, var(--theme-primary-dark) 100%)`,
     color: 'var(--theme-text-inverse)',
@@ -84,8 +84,9 @@ export function createHeader(props: HeaderProps): HTMLDivElement {
       icon: theme.mode === 'light' ? 'moon' : 'sun',
       children: '',
       onClick: () => {
-        themeManager.toggleTheme();
-        onThemeToggle?.();
+        // Only call the callback, don't toggle theme directly here
+        // The callback should handle the theme toggle
+        themeToggleHandler?.();
       },
       style: {
         backgroundColor: 'rgba(255, 255, 255, 0.1)',

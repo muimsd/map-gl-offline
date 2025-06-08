@@ -31,7 +31,7 @@ export function createActionButtons(props: ActionButtonsProps): HTMLDivElement {
 
   Object.assign(container.style, containerStyles);
 
-  // Add new region button
+  // Add new region button - using green accent color
   const addButton = createButton({
     variant: 'primary',
     size: 'md',
@@ -39,7 +39,7 @@ export function createActionButtons(props: ActionButtonsProps): HTMLDivElement {
     children: 'Add New Region',
     onClick: onAddRegion,
     style: {
-      background: `var(--theme-success)`,
+      background: `linear-gradient(135deg, var(--theme-success), var(--theme-success-hover))`,
       color: 'white',
       border: 'none',
       fontSize: 'var(--theme-font-size-md)',
@@ -52,7 +52,7 @@ export function createActionButtons(props: ActionButtonsProps): HTMLDivElement {
     },
   });
 
-  // Refresh button
+  // Refresh button - with purple accent
   const refreshButton = createButton({
     variant: 'secondary',
     size: 'md',
@@ -61,8 +61,8 @@ export function createActionButtons(props: ActionButtonsProps): HTMLDivElement {
     onClick: props.onRefresh,
     style: {
       background: 'var(--theme-surface)',
-      color: 'var(--theme-text-secondary)',
-      border: '1px solid var(--theme-border)',
+      color: 'var(--theme-primary)',
+      border: '1px solid var(--theme-primary)',
       fontSize: 'var(--theme-font-size-md)',
       padding: 'var(--theme-spacing-md) var(--theme-spacing-lg)',
       borderRadius: 'var(--theme-radius-md)',

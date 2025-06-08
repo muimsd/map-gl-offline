@@ -98,53 +98,53 @@ export interface Theme {
 export const lightTheme: Theme = {
   mode: 'light',
   colors: {
-    // Primary colors - Stripe-inspired blue/purple
-    primary: '#635bff',
-    primaryHover: '#4c44ff',
-    primaryLight: '#7c7cff',
-    primaryDark: '#4b4acf',
+    // Primary colors - JobRight.ai purple/violet theme
+    primary: '#8B5CF6',
+    primaryHover: '#7C3AED',
+    primaryLight: '#A78BFA',
+    primaryDark: '#6D28D9',
     
-    // Semantic colors
-    success: '#00d924',
-    successHover: '#00c221',
-    warning: '#ffb547',
-    warningHover: '#ff9f1a',
-    error: '#df1b41',
-    errorHover: '#c51838',
-    errorLight: '#fef2f2',
-    errorBg: '#fecaca',
-    info: '#0099ff',
-    infoHover: '#0086e6',
-    infoLight: '#e6f3ff',
-    infoBg: '#bfdbfe',
+    // Semantic colors - featuring green tones
+    success: '#10B981',
+    successHover: '#059669',
+    warning: '#F59E0B',
+    warningHover: '#D97706',
+    error: '#EF4444',
+    errorHover: '#DC2626',
+    errorLight: '#FEF2F2',
+    errorBg: '#FECACA',
+    info: '#8B5CF6',
+    infoHover: '#7C3AED',
+    infoLight: '#F3E8FF',
+    infoBg: '#DDD6FE',
     
-    // Background colors
-    background: '#ffffff',
-    backgroundSecondary: '#fafbfc',
-    backgroundTertiary: '#f6f9fc',
-    surface: '#ffffff',
-    surfaceHover: '#f8f9fa',
+    // Background colors - light theme with subtle purple tints
+    background: '#FFFFFF',
+    backgroundSecondary: '#FAFBFC',
+    backgroundTertiary: '#F8FAFC',
+    surface: '#FFFFFF',
+    surfaceHover: '#F9FAFB',
     
     // Text colors
-    text: '#0a2540',
-    textSecondary: '#425466',
-    textMuted: '#8898aa',
-    textInverse: '#ffffff',
+    text: '#1F2937',
+    textSecondary: '#4B5563',
+    textMuted: '#9CA3AF',
+    textInverse: '#FFFFFF',
     
-    // Border colors
-    border: '#e3e8ee',
-    borderLight: '#f0f4f8',
-    borderFocus: '#635bff',
+    // Border colors - subtle purple accents
+    border: '#E5E7EB',
+    borderLight: '#F3F4F6',
+    borderFocus: '#8B5CF6',
     
     // Overlay colors
-    overlay: 'rgba(10, 37, 64, 0.35)',
-    overlayLight: 'rgba(10, 37, 64, 0.15)',
+    overlay: 'rgba(31, 41, 55, 0.4)',
+    overlayLight: 'rgba(31, 41, 55, 0.2)',
   },
   shadows: {
-    sm: '0 1px 3px rgba(50, 50, 93, 0.15), 0 1px 0 rgba(0, 0, 0, 0.02)',
-    md: '0 4px 6px rgba(50, 50, 93, 0.11), 0 1px 3px rgba(0, 0, 0, 0.08)',
-    lg: '0 15px 35px rgba(50, 50, 93, 0.1), 0 5px 15px rgba(0, 0, 0, 0.07)',
-    xl: '0 25px 50px rgba(50, 50, 93, 0.25), 0 10px 20px rgba(0, 0, 0, 0.15)',
+    sm: '0 1px 2px rgba(139, 92, 246, 0.1), 0 1px 3px rgba(0, 0, 0, 0.1)',
+    md: '0 4px 6px rgba(139, 92, 246, 0.1), 0 2px 4px rgba(0, 0, 0, 0.06)',
+    lg: '0 10px 15px rgba(139, 92, 246, 0.1), 0 4px 6px rgba(0, 0, 0, 0.05)',
+    xl: '0 20px 25px rgba(139, 92, 246, 0.1), 0 8px 10px rgba(0, 0, 0, 0.04)',
   },
   radii: {
     sm: '4px',
@@ -189,53 +189,53 @@ export const darkTheme: Theme = {
   ...lightTheme,
   mode: 'dark',
   colors: {
-    // Primary colors remain similar but adjusted for dark mode
-    primary: '#7c7cff',
-    primaryHover: '#9999ff',
-    primaryLight: '#b3b3ff',
-    primaryDark: '#6666ff',
+    // Primary colors - brighter purple/violet for dark mode
+    primary: '#A78BFA',
+    primaryHover: '#C4B5FD',
+    primaryLight: '#DDD6FE',
+    primaryDark: '#8B5CF6',
     
-    // Semantic colors - adjusted for dark mode
-    success: '#00d924',
-    successHover: '#33e047',
-    warning: '#ffb547',
-    warningHover: '#ffcc70',
-    error: '#ff4757',
-    errorHover: '#ff6b7a',
-    errorLight: '#fef2f2',
-    errorBg: '#dc2626',
-    info: '#3b82f6',
-    infoHover: '#60a5fa',
-    infoLight: '#1e3a8a',
-    infoBg: '#3b82f6',
+    // Semantic colors - vibrant green and accent colors for dark mode
+    success: '#34D399',
+    successHover: '#6EE7B7',
+    warning: '#FBBF24',
+    warningHover: '#FCD34D',
+    error: '#F87171',
+    errorHover: '#FCA5A5',
+    errorLight: '#451A1A',
+    errorBg: '#7F1D1D',
+    info: '#A78BFA',
+    infoHover: '#C4B5FD',
+    infoLight: '#2D1B69',
+    infoBg: '#5B21B6',
     
-    // Background colors - dark mode
-    background: '#0a0e27',
-    backgroundSecondary: '#1a1f36',
-    backgroundTertiary: '#252a41',
-    surface: '#1a1f36',
-    surfaceHover: '#252a41',
+    // Background colors - dark theme with deep purple undertones
+    background: '#0F0B1F',
+    backgroundSecondary: '#1A1625',
+    backgroundTertiary: '#252032',
+    surface: '#1A1625',
+    surfaceHover: '#252032',
     
-    // Text colors - inverted for dark mode
-    text: '#ffffff',
-    textSecondary: '#cbd5e1',
-    textMuted: '#94a3b8',
-    textInverse: '#0a2540',
+    // Text colors - high contrast for dark mode
+    text: '#F9FAFB',
+    textSecondary: '#D1D5DB',
+    textMuted: '#9CA3AF',
+    textInverse: '#1F2937',
     
-    // Border colors - dark mode
-    border: '#334155',
-    borderLight: '#475569',
-    borderFocus: '#7c7cff',
+    // Border colors - subtle purple borders for dark mode
+    border: '#374151',
+    borderLight: '#4B5563',
+    borderFocus: '#A78BFA',
     
     // Overlay colors
-    overlay: 'rgba(0, 0, 0, 0.5)',
-    overlayLight: 'rgba(0, 0, 0, 0.25)',
+    overlay: 'rgba(15, 11, 31, 0.8)',
+    overlayLight: 'rgba(15, 11, 31, 0.6)',
   },
   shadows: {
-    sm: '0 1px 3px rgba(0, 0, 0, 0.2), 0 1px 0 rgba(255, 255, 255, 0.05)',
-    md: '0 4px 6px rgba(0, 0, 0, 0.3), 0 1px 3px rgba(255, 255, 255, 0.05)',
-    lg: '0 15px 35px rgba(0, 0, 0, 0.4), 0 5px 15px rgba(255, 255, 255, 0.05)',
-    xl: '0 25px 50px rgba(0, 0, 0, 0.5), 0 10px 20px rgba(255, 255, 255, 0.1)',
+    sm: '0 1px 2px rgba(167, 139, 250, 0.3), 0 1px 3px rgba(0, 0, 0, 0.4)',
+    md: '0 4px 6px rgba(167, 139, 250, 0.2), 0 2px 4px rgba(0, 0, 0, 0.3)',
+    lg: '0 10px 15px rgba(167, 139, 250, 0.2), 0 4px 6px rgba(0, 0, 0, 0.3)',
+    xl: '0 20px 25px rgba(167, 139, 250, 0.2), 0 8px 10px rgba(0, 0, 0, 0.4)',
   },
 };
 

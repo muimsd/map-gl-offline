@@ -93,12 +93,7 @@ export class OfflineManagerControl implements IControl {
     `;
 
     // Debug: Log to console to verify CSS variables are being applied
-    console.log(
-      'Applied theme:',
-      theme.mode,
-      'with properties:',
-      cssProperties.substring(0, 200) + '...'
-    );
+    // console.log('Applied theme:', theme.mode, 'with properties:', cssProperties);
   }
 
   onAdd(map: MaplibreMap): HTMLElement {
@@ -136,13 +131,14 @@ export class OfflineManagerControl implements IControl {
     this.button.appendChild(this.progressBadge);
 
     this.panel = document.createElement('div');
+    this.panel.className = 'offline-manager-control';
     this.panel.style.cssText = `
       position: fixed;
       top: 50%;
       left: 50%;
       transform: translate(-50%, -50%);
-      width: min(90vw, 800px);
-      height: min(80vh, 700px);
+      width: min(90vw, 600px);
+      height: min(80vh, 500px);
       background: var(--theme-surface);
       border: 1px solid var(--theme-border);
       border-radius: var(--theme-radius-xl);
@@ -156,8 +152,11 @@ export class OfflineManagerControl implements IControl {
 
     this.button.addEventListener('click', this.togglePanel.bind(this));
     this.container.appendChild(this.button);
-    // Append panel to document body for proper centering
+    // Append panel to document body for proper centering and full-screen modal behavior
     document.body.appendChild(this.panel);
+
+    // Add event delegation for better event handling
+    this.panel.addEventListener('click', this.handlePanelClick.bind(this));
 
     // Make methods available globally for onclick handlers
     (window as any).offlineManagerControl = this;
@@ -187,6 +186,8 @@ export class OfflineManagerControl implements IControl {
   private showModal(modal: HTMLDivElement): void {
     this.closeModal();
     this.activeModal = modal;
+    // Ensure modal has proper theme class
+    modal.classList.add('offline-manager-control');
     document.body.appendChild(modal);
   }
 
@@ -223,6 +224,7 @@ export class OfflineManagerControl implements IControl {
         subtitle: `${regions.length} regions • ${formatBytes(analytics.totalStorageSize)} total`,
         onClose: () => this.closePanel(),
         onToggleTheme: () => {
+          console.log('Toggling theme');
           themeManager.toggleTheme();
           this.applyGlobalStyles();
           this.renderPanel();
@@ -250,99 +252,148 @@ export class OfflineManagerControl implements IControl {
         formatBytes,
       });
 
-      this.panel.innerHTML = `
-        <div style="
-          height: 100%;
-          display: flex;
-          flex-direction: column;
-          background: var(--theme-surface);
-          border-radius: var(--theme-radius-xl);
-          overflow: hidden;
-        ">
-          ${headerElement.outerHTML}
-          <div style="
-            flex: 1;
-            padding: var(--theme-spacing-lg);
-            overflow-y: auto;
-            display: flex;
-            flex-direction: column;
-            gap: var(--theme-spacing-lg);
-          ">
-            ${actionButtonsElement.outerHTML}
-            ${downloadProgressSection}
-            ${regionsListElement.outerHTML}
-          </div>
-        </div>
+      // Clear panel and rebuild with proper event handling
+      this.panel.innerHTML = '';
+      
+      // Create main container
+      const mainContainer = document.createElement('div');
+      mainContainer.style.cssText = `
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        background: var(--theme-surface);
+        border-radius: var(--theme-radius-xl);
+        overflow: hidden;
       `;
+
+      // Create content container
+      const contentContainer = document.createElement('div');
+      contentContainer.style.cssText = `
+        flex: 1;
+        padding: var(--theme-spacing-lg);
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+        gap: var(--theme-spacing-lg);
+      `;
+
+      // Append header (with working event listeners)
+      mainContainer.appendChild(headerElement);
+
+      // Append action buttons
+      contentContainer.appendChild(actionButtonsElement);
+
+      // Append download progress if exists
+      if (downloadProgressSection) {
+        const progressDiv = document.createElement('div');
+        progressDiv.innerHTML = downloadProgressSection;
+        contentContainer.appendChild(progressDiv.firstElementChild as HTMLElement);
+      }
+
+      // Append regions list
+      contentContainer.appendChild(regionsListElement);
+
+      // Append content to main container
+      mainContainer.appendChild(contentContainer);
+
+      // Append main container to panel
+      this.panel.appendChild(mainContainer);
     } catch (error) {
       console.error('Error rendering panel:', error);
-      this.panel.innerHTML = `
-        <div style="
-          height: 100%;
-          display: flex;
-          flex-direction: column;
-          background: var(--theme-surface);
-          border-radius: var(--theme-radius-xl);
-          overflow: hidden;
-        ">
-          <div style="
-            background: linear-gradient(135deg, var(--theme-error) 0%, var(--theme-error-hover) 100%);
-            color: var(--theme-text-inverse);
-            padding: var(--theme-spacing-lg);
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-          ">
-            <div>
-              <h2 style="margin: 0; font-size: var(--theme-font-size-lg); font-weight: var(--theme-font-weight-bold);">
-                Error Loading Regions
-              </h2>
-              <p style="margin: var(--theme-spacing-xs) 0 0 0; opacity: 0.9; font-size: var(--theme-font-size-sm);">
-                Unable to load offline regions data
-              </p>
-            </div>
-            <button onclick="offlineManagerControl.closePanel()" style="
-              background: rgba(255, 255, 255, 0.2);
-              border: none;
-              color: var(--theme-text-inverse);
-              padding: var(--theme-spacing-sm);
-              border-radius: var(--theme-radius-md);
-              cursor: pointer;
-              display: flex;
-              align-items: center;
-              justify-content: center;
-            ">
-              ${icons.x({ size: 20 })}
-            </button>
-          </div>
-          <div style="
-            flex: 1;
-            padding: var(--theme-spacing-lg);
-            text-align: center;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            gap: var(--theme-spacing-lg);
-          ">
-            <p style="color: var(--theme-error); font-size: var(--theme-font-size-md); margin: 0;">
-              Error loading offline regions
-            </p>
-            <button onclick="offlineManagerControl.renderPanel()" style="
-              background: var(--theme-primary);
-              color: var(--theme-text-inverse);
-              border: none;
-              padding: var(--theme-spacing-md) var(--theme-spacing-lg);
-              border-radius: var(--theme-radius-md);
-              cursor: pointer;
-              font-size: var(--theme-font-size-md);
-              font-weight: var(--theme-font-weight-semibold);
-            ">
-              Retry
-            </button>
-          </div>
-        </div>
+      
+      // Clear panel and create error state with working event handlers
+      this.panel.innerHTML = '';
+      
+      // Create main container
+      const errorContainer = document.createElement('div');
+      errorContainer.style.cssText = `
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        background: var(--theme-surface);
+        border-radius: var(--theme-radius-xl);
+        overflow: hidden;
       `;
+
+      // Create error header
+      const errorHeader = document.createElement('div');
+      errorHeader.style.cssText = `
+        background: linear-gradient(135deg, var(--theme-error) 0%, var(--theme-error-hover) 100%);
+        color: var(--theme-text-inverse);
+        padding: var(--theme-spacing-lg);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      `;
+
+      const headerContent = document.createElement('div');
+      headerContent.innerHTML = `
+        <h2 style="margin: 0; font-size: var(--theme-font-size-lg); font-weight: var(--theme-font-weight-bold);">
+          Error Loading Regions
+        </h2>
+        <p style="margin: var(--theme-spacing-xs) 0 0 0; opacity: 0.9; font-size: var(--theme-font-size-sm);">
+          Unable to load offline regions data
+        </p>
+      `;
+
+      const closeButton = createButton({
+        variant: 'ghost',
+        size: 'sm',
+        icon: 'x',
+        children: '',
+        onClick: () => this.closePanel(),
+        style: {
+          backgroundColor: 'rgba(255, 255, 255, 0.2)',
+          color: 'var(--theme-text-inverse)',
+          width: '36px',
+          height: '36px',
+          padding: '0',
+          borderRadius: '50%',
+        },
+      });
+
+      errorHeader.appendChild(headerContent);
+      errorHeader.appendChild(closeButton);
+
+      // Create error content
+      const errorContent = document.createElement('div');
+      errorContent.style.cssText = `
+        flex: 1;
+        padding: var(--theme-spacing-lg);
+        text-align: center;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: var(--theme-spacing-lg);
+      `;
+
+      const errorMessage = document.createElement('p');
+      errorMessage.style.cssText = `
+        color: var(--theme-error);
+        font-size: var(--theme-font-size-md);
+        margin: 0;
+      `;
+      errorMessage.textContent = 'Error loading offline regions';
+
+      const retryButton = createButton({
+        variant: 'primary',
+        size: 'md',
+        children: 'Retry',
+        onClick: () => this.renderPanel(),
+        style: {
+          fontSize: 'var(--theme-font-size-md)',
+          fontWeight: 'var(--theme-font-weight-semibold)',
+        },
+      });
+
+      errorContent.appendChild(errorMessage);
+      errorContent.appendChild(retryButton);
+
+      errorContainer.appendChild(errorHeader);
+      errorContainer.appendChild(errorContent);
+
+      this.panel.appendChild(errorContainer);
     }
   }
 
@@ -388,7 +439,12 @@ export class OfflineManagerControl implements IControl {
       subtitle: 'Define the area and zoom levels to download for offline use',
       isOpen: true,
       size: 'md',
+      showThemeToggle: true,
       onClose: () => this.closeModal(),
+      onThemeToggle: () => {
+        themeManager.toggleTheme();
+        this.renderPanel(); // Re-render panel to reflect theme change
+      },
       children: modalContent,
     });
 
@@ -665,7 +721,12 @@ export class OfflineManagerControl implements IControl {
         subtitle: `Region details and management options`,
         isOpen: true,
         size: 'md',
+        showThemeToggle: true,
         onClose: () => this.closeModal(),
+        onThemeToggle: () => {
+          themeManager.toggleTheme();
+          this.renderPanel(); // Re-render panel to reflect theme change
+        },
         children: modalContent,
       });
 
@@ -673,6 +734,20 @@ export class OfflineManagerControl implements IControl {
     } catch (error) {
       console.error('Error showing region details:', error);
       alert('Error loading region details: ' + (error as Error).message);
+    }
+  }
+
+  private handlePanelClick(event: Event): void {
+    // Event delegation for panel clicks - prevent event bubbling issues
+    const target = event.target as HTMLElement;
+    
+    // Handle button clicks based on data attributes or classes
+    if (target.tagName === 'BUTTON' || target.closest('button')) {
+      const button = target.tagName === 'BUTTON' ? target : target.closest('button');
+      if (button) {
+        // Let the onclick handlers work as they are
+        return;
+      }
     }
   }
 }

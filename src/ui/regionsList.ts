@@ -85,6 +85,7 @@ export function createRegionsList(props: RegionsListProps): HTMLDivElement {
 
   for (const region of regions) {
     const isExpired = region.expiry && Date.now() > region.expiry;
+    const isDownloaded = true; // Assuming all regions in this list are downloaded
     
     const regionCard = document.createElement('div');
     regionCard.style.cssText = `
@@ -100,11 +101,31 @@ export function createRegionsList(props: RegionsListProps): HTMLDivElement {
       overflow: hidden;
     `;
 
-    // Add hover effect
+    // Add download status indicator
+    if (isDownloaded) {
+      const statusIndicator = document.createElement('div');
+      statusIndicator.style.cssText = `
+        position: absolute;
+        top: var(--theme-spacing-sm);
+        right: var(--theme-spacing-sm);
+        width: 8px;
+        height: 8px;
+        background: var(--theme-success);
+        border-radius: 50%;
+        box-shadow: 0 0 0 2px var(--theme-surface);
+      `;
+      regionCard.appendChild(statusIndicator);
+    }
+
+    // Add hover effect with color-coded borders
     regionCard.addEventListener('mouseenter', () => {
       regionCard.style.transform = 'translateY(-1px)';
       regionCard.style.boxShadow = 'var(--theme-shadow-md)';
-      regionCard.style.borderColor = 'var(--theme-primary)';
+      if (isExpired) {
+        regionCard.style.borderColor = 'var(--theme-error)';
+      } else {
+        regionCard.style.borderColor = 'var(--theme-success)';
+      }
     });
 
     regionCard.addEventListener('mouseleave', () => {

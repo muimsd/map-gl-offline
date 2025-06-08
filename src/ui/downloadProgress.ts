@@ -38,13 +38,13 @@ export function createDownloadProgressSection(props: DownloadProgressSectionProp
     align-items: center;
     gap: var(--theme-spacing-sm);
     margin-bottom: var(--theme-spacing-md);
-    color: var(--theme-info);
+    color: var(--theme-primary);
     font-family: var(--theme-font-family);
     font-size: var(--theme-font-size-md);
     font-weight: var(--theme-font-weight-semibold);
   `;
   header.innerHTML = `
-    ${icons.download({ size: 14, color: 'var(--theme-info)' })}
+    ${icons.download({ size: 14, color: 'var(--theme-primary)' })}
     Active Downloads
   `;
 
@@ -75,7 +75,7 @@ export function createDownloadProgressSection(props: DownloadProgressSectionProp
           </span>
           <span style="
             font-weight: var(--theme-font-weight-bold);
-            color: var(--theme-info);
+            color: ${progress.percentage >= 100 ? 'var(--theme-success)' : 'var(--theme-primary)'};
             font-size: var(--theme-font-size-sm);
           ">
             ${progress.percentage}%
@@ -94,10 +94,10 @@ export function createDownloadProgressSection(props: DownloadProgressSectionProp
       theme,
     });
 
-    // Add progress bar
+    // Add progress bar with dynamic color based on completion
     const progressElement = createProgress({
       value: progress.percentage,
-      variant: 'primary',
+      variant: progress.percentage >= 100 ? 'success' : 'primary',
       size: 'sm',
       theme,
     });
@@ -116,8 +116,8 @@ export function createDownloadProgressSection(props: DownloadProgressSectionProp
     children: '',
     theme,
     style: {
-      backgroundColor: 'var(--theme-info-bg)',
-      borderColor: 'var(--theme-info-light)',
+      background: `linear-gradient(135deg, var(--theme-primary-light), var(--theme-background))`,
+      borderColor: 'var(--theme-primary)',
       marginBottom: 'var(--theme-spacing-xl)',
     },
   });
