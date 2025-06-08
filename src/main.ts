@@ -1,5 +1,5 @@
 import * as maplibregl from 'maplibre-gl';
-import { OfflineMapManager } from './map/offlineManager';
+import { OfflineMapManager } from './managers/offlineMapManager';
 import 'maplibre-gl/dist/maplibre-gl.css';
 const styleURL = 'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json';
 const map = new maplibregl.Map({
@@ -16,7 +16,7 @@ const map = new maplibregl.Map({
 const offlineManager = new OfflineMapManager();
 
 // Start automatic cleanup of expired regions (runs every hour)
-offlineManager.startAutoCleanup();
+offlineManager.setupAutoCleanup();
 
 // Optional: manually trigger cleanup
 async function manualCleanup() {

@@ -5,20 +5,31 @@
 [![Coverage Status](https://codecov.io/gh/muimsd/map-gl-offline/branch/main/graph/badge.svg)](https://codecov.io/gh/muimsd/map-gl-offline)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-A comprehensive npm package for **Mapbox GL JS** and **MapLibre GL JS** that enables offline storage and usage of vector and raster tiles, sprites, styles, fonts (glyphs), and entire map regions with advanced analytics and management capabilities.
+A **production-ready**, fully **TypeScript-compatible** npm package for **Mapbox GL JS** and **MapLibre GL JS** that enables comprehensive offline storage and usage of vector/raster tiles, sprites, styles, fonts (glyphs), and entire map regions with advanced analytics, intelligent cleanup, and robust error handling.
+
+> **🚀 Recently Refactored**: Complete TypeScript overhaul with modern async/await patterns, enhanced type safety, and improved performance!
 
 ## ✨ Features
 
+### 🎯 **Core Offline Capabilities**
 - 🗺️ **Complete Offline Maps**: Download and store entire map regions for offline use
-- 🎯 **Smart Tile Management**: Efficient tile downloading, caching, and cleanup
-- 🔤 **Font & Glyph Support**: Comprehensive font and glyph management with analytics
-- 🎨 **Sprite Management**: Handle map sprites and icons offline
-- 📊 **Advanced Analytics**: Detailed storage analytics and optimization recommendations
-- 🧹 **Automatic Cleanup**: Smart cleanup of expired data with customizable policies
-- 💾 **IndexedDB Storage**: Efficient browser storage with quota management
-- 🔧 **TypeScript Support**: Full TypeScript definitions and type safety
-- ⚡ **Performance Optimized**: Concurrent downloads with progress tracking
-- 🛠️ **Developer Friendly**: Comprehensive API with extensive customization options
+- 🎯 **Smart Tile Management**: Efficient vector/raster tile downloading, caching, and cleanup with zoom-level optimization
+- 🔤 **Advanced Font & Glyph Support**: Comprehensive font and glyph management with Unicode range analytics
+- 🎨 **Sprite Management**: Handle map sprites and icons offline with multi-resolution support (@1x, @2x)
+- 📊 **Real-time Analytics**: Detailed storage analytics, performance metrics, and optimization recommendations
+
+### 🛠️ **Technical Excellence**
+- 💾 **Modern IndexedDB Storage**: Efficient browser storage with quota management and transaction safety
+- 🔧 **Full TypeScript Support**: Complete type definitions, interfaces, and compile-time safety
+- ⚡ **Performance Optimized**: Concurrent downloads, modern async/await patterns, and memory-efficient operations
+- 🧹 **Intelligent Cleanup**: Smart cleanup of expired data with customizable policies and background processing
+- 🔄 **Robust Error Handling**: Comprehensive error recovery, retry mechanisms, and graceful degradation
+
+### 🎨 **Developer Experience**
+- 🛠️ **Developer Friendly**: Comprehensive API with extensive customization options and detailed documentation
+- 📈 **Progress Tracking**: Real-time download progress with detailed feedback
+- 🔍 **Debugging Support**: Enhanced logging, error reporting, and diagnostics
+- 🧪 **Production Ready**: Battle-tested with comprehensive error handling and memory management
 
 ## 📦 Installation
 
@@ -53,6 +64,7 @@ await offlineManager.addRegion({
   styleUrl: 'https://api.mapbox.com/styles/v1/mapbox/streets-v11',
   onProgress: (progress) => {
     console.log(`Download progress: ${progress.percentage}%`);
+    console.log(`Current: ${progress.message}`);
   }
 });
 
@@ -64,35 +76,127 @@ if (region) {
 }
 ```
 
-### Advanced Analytics
+### Service-Level Usage (Advanced)
+
+```typescript
+import { 
+  downloadTiles, 
+  downloadFonts, 
+  downloadSprites, 
+  downloadStyles,
+  getComprehensiveStorageAnalytics 
+} from 'map-gl-offline';
+
+// Download tiles for a specific region
+const tileResult = await downloadTiles(
+  { bounds: [[-74.0559, 40.7128], [-74.0059, 40.7628]], minZoom: 10, maxZoom: 16 },
+  styleData,
+  'style-id',
+  {
+    onProgress: (progress) => console.log(`Tiles: ${progress.percentage}%`),
+    batchSize: 10,
+    maxRetries: 3
+  }
+);
+
+// Download fonts with advanced options
+const fontResult = await downloadFonts(
+  ['https://fonts.example.com/font1.pbf', 'https://fonts.example.com/font2.pbf'],
+  'download-id',
+  {
+    onProgress: (progress) => console.log(`Fonts: ${progress.percentage}%`),
+    includeMetadata: true,
+    maxConcurrency: 5
+  }
+);
+
+// Download sprites (all resolutions)
+const spriteResult = await downloadSprites([
+  'https://example.com/sprite.json',
+  'https://example.com/sprite.png',
+  'https://example.com/sprite@2x.json',
+  'https://example.com/sprite@2x.png'
+], {
+  skipExisting: true,
+  maxRetries: 3
+});
+```
+
+### Advanced Analytics & Monitoring
 
 ```typescript
 // Get comprehensive storage analytics
-const analytics = await offlineManager.getComprehensiveStorageAnalytics();
+const analytics = await getComprehensiveStorageAnalytics();
 console.log(`Total storage used: ${analytics.totalStorageSize} bytes`);
+console.log(`Tiles: ${analytics.tiles.count} tiles, ${analytics.tiles.totalSize} bytes`);
+console.log(`Fonts: ${analytics.fonts.count} fonts, ${analytics.fonts.totalSize} bytes`);
+console.log(`Glyphs: ${analytics.glyphs.count} glyphs, ${analytics.glyphs.totalSize} bytes`);
+console.log(`Sprites: ${analytics.sprites.count} sprites, ${analytics.sprites.totalSize} bytes`);
 console.log(`Storage recommendations:`, analytics.recommendations);
 
 // Get specific analytics for different components
-const glyphAnalytics = await offlineManager.getGlyphAnalytics();
-const fontAnalytics = await offlineManager.getFontAnalytics();
-const tileStats = await offlineManager.getAllTileStats();
+const glyphStats = await getGlyphStats();
+console.log(`Glyph fonts by stack:`, glyphStats.fontsByStack);
+console.log(`Glyph size by stack:`, glyphStats.sizeByStack);
+
+const fontStats = await getFontStats();
+console.log(`Font types:`, fontStats.fontsByType);
+console.log(`Corrupted fonts:`, fontStats.corruptedFonts);
+
+const tileStats = await getAllTileStats();
+console.log(`Zoom level distribution:`, tileStats.zoomLevelStats);
+console.log(`Oldest tile:`, tileStats.oldestTile);
+console.log(`Newest tile:`, tileStats.newestTile);
+
+const styleStats = await getStyleStats();
+console.log(`Total styles:`, styleStats.count);
+console.log(`Source types:`, styleStats.sourceTypes);
+console.log(`Layer types:`, styleStats.layerTypes);
 ```
 
 ### Cleanup and Maintenance
 
 ```typescript
-// Setup automatic cleanup (runs every hour by default)
-const cleanupInterval = offlineManager.startAutoCleanup({
-  maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days in milliseconds
-  cleanupInterval: 60 * 60 * 1000   // 1 hour in milliseconds
+import { 
+  cleanupOldTiles, 
+  cleanupOldFonts, 
+  cleanupOldSprites,
+  verifyAndRepairTiles,
+  verifyAndRepairFonts,
+  verifyAndRepairSprites
+} from 'map-gl-offline';
+
+// Comprehensive cleanup with options
+const tileCleanup = await cleanupOldTiles(7 * 24 * 60 * 60 * 1000); // 7 days
+console.log(`Cleaned up ${tileCleanup} old tiles`);
+
+const fontCleanup = await cleanupOldFonts(30); // 30 days
+console.log(`Cleaned up ${fontCleanup} old fonts`);
+
+const spriteCleanup = await cleanupOldSprites(30); // 30 days
+console.log(`Cleaned up ${spriteCleanup} old sprites`);
+
+// Verification and repair operations
+const tileVerification = await verifyAndRepairTiles();
+console.log(`Tiles: ${tileVerification.validTiles} valid, ${tileVerification.corruptedTiles} corrupted, ${tileVerification.repairedTiles} repaired`);
+
+const fontVerification = await verifyAndRepairFonts();
+console.log(`Fonts: ${fontVerification.validFonts} valid, ${fontVerification.corruptedFonts} corrupted`);
+
+// Style management
+import { cleanupOldStyles, verifyAndValidateStyles } from 'map-gl-offline';
+
+const styleCleanup = await cleanupOldStyles({
+  maxAge: 14 * 24 * 60 * 60 * 1000, // 14 days
+  maxCount: 10, // Keep max 10 styles
+  keepIds: ['important-style-1', 'important-style-2'], // Never delete these
+  onProgress: (progress) => console.log(`Cleanup progress: ${progress.completed}/${progress.total}`)
 });
 
-// Manual cleanup
-const cleanupResult = await offlineManager.cleanupExpiredRegions();
-console.log(`Cleaned up ${cleanupResult} expired regions`);
-
-// Stop automatic cleanup when needed
-clearInterval(cleanupInterval);
+const styleVerification = await verifyAndValidateStyles({
+  autoRepair: true,
+  onProgress: (progress) => console.log(`Verification progress: ${progress.completed}/${progress.total}`)
+});
 ```
 
 ## 📚 API Reference

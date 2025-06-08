@@ -1,8 +1,17 @@
-import { TileStats } from '../map/tileDownloader';
-import { EnhancedFontStats } from '../map/fontManager';
-import { EnhancedSpriteStats } from '../map/spriteManager';
-import { EnhancedGlyphStats } from '../map/glyphManager';
-import { RegionAnalytics, CleanupResult } from '../map/regionCleanup';
+import { TileStats } from '../services/tileService';
+import { EnhancedFontStats } from '../services/fontService';
+import { EnhancedSpriteStats } from '../services/spriteService';
+import { EnhancedGlyphStats } from '../services/glyphService';
+import { RegionAnalytics, CleanupResult } from '../services/cleanupService';
+
+// Maintenance Options Type
+export interface MaintenanceOptions {
+  cleanupExpired?: boolean;
+  verifyIntegrity?: boolean;
+  optimizeStorage?: boolean;
+  generateReport?: boolean;
+  onProgress?: (stage: string, progress: number) => void;
+}
 
 // Analytics Report Type
 export interface StorageAnalyticsReport {

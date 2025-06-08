@@ -1,7 +1,8 @@
 import { dbPromise } from '../storage/indexedDbManager';
-import { downloadFonts, FontDownloadOptions, FontDownloadResult } from './fontManager';
-import { downloadSprites, SpriteDownloadOptions, SpriteDownloadResult } from './spriteManager';
+import { downloadFonts, FontDownloadOptions, FontDownloadResult } from '../services/fontService';
+import { downloadSprites, SpriteDownloadOptions, SpriteDownloadResult } from '../services/spriteService';
 import { generateGlyphUrlsFromStyle, fetchWithRetry, DownloadProgress } from '../utils';
+import type { StyleEntry, MapboxStyle } from '../types/style';
 
 export interface StyleDownloadOptions {
   onProgress?: (progress: DownloadProgress) => void;
@@ -59,25 +60,39 @@ export interface EnhancedStyleStats {
   storageRecommendations: string[];
 }
 
-export interface StyleStorageItem {
-  key?: string;
-  id: string;
-  name?: string;
-  version?: number;
-  sources: Record<string, unknown>;
-  layers: unknown[];
-  glyphs?: string;
-  sprite?: string;
-  // Enhanced metadata
-  lastModified?: number;
-  downloadedAt?: number;
-  originalUrl?: string;
-  validated?: boolean;
-  size?: number;
-  sourceCount?: number;
-  layerCount?: number;
-  fonts?: string[];
-  sprites?: string[];
+// Style storage types - aligning with database schema
+export type StyleStorageItem = StyleEntry;
+
+// Helper functions to work with StyleEntry structure
+function createStyleEntry(
+  key: string,
+  style: MapboxStyle,
+  metadata: {
+    lastModified?: number;
+    downloadedAt?: number;
+    originalUrl?: string;
+    validated?: boolean;
+    size?: number;
+    sourceCount?: number;
+    layerCount?: number;
+  } = {}
+): StyleEntry {
+  return {
+    key,
+    style,
+    regions: [],
+    fonts: [],
+    glyphs: [],
+    sprites: [],
+    ...metadata
+  } as StyleEntry & typeof metadata;
+}
+
+function getStyleData(entry: StyleEntry): MapboxStyle & { id?: string } {
+  return {
+    ...entry.style,
+    id: entry.key
+  };
 }
 
 export async function downloadStyles(
@@ -246,10 +261,10 @@ export async function downloadStyles(
     }
 
     // Create enhanced style storage item
-    const styleStorageItem: StyleStorageItem = {
-      ...style,
-      key: style.id,
-      ...(includeMetadata && {
+    const styleStorageItem = createStyleEntry(
+      style.id,
+      style,
+      includeMetadata ? {
         lastModified: Date.now(),
         downloadedAt: Date.now(),
         originalUrl: stylesUrl,
@@ -257,8 +272,8 @@ export async function downloadStyles(
         size: styleSize,
         sourceCount: sourcesProcessed,
         layerCount: style.layers ? style.layers.length : 0
-      })
-    };
+      } : {}
+    );
 
     // Save the style
     await db.put('styles', styleStorageItem);
@@ -337,9 +352,9 @@ export async function downloadStyles(
           `${spriteBase}@2x.png`,
         ];
         
-        spriteResult = await downloadSprites(style.id, spriteVariants, {
+        spriteResult = await downloadSprites(spriteVariants, {
           ...spriteOptions,
-          onProgress: (spriteProgress) => {
+          onProgress: (spriteProgress: DownloadProgress) => {
             onProgress?.({ 
               completed: 85 + spriteProgress.percentage * 0.1, 
               total: 100, 
@@ -509,17 +524,21 @@ export async function getStyleStats(): Promise<EnhancedStyleStats> {
     let largestStyle: { id: string; size: number } | undefined;
     let smallestStyle: { id: string; size: number } | undefined;
     
-    const styles = allStyles.map(style => {
-      // Handle both old and new style storage formats
-      const size = isEnhancedStyleFormat(style) && style.size ? 
-        style.size : 
-        JSON.stringify(style).length;
-      const lastModified = isEnhancedStyleFormat(style) ? style.lastModified : undefined;
-      const sourceCount = isEnhancedStyleFormat(style) && style.sourceCount ? 
-        style.sourceCount : 
+    const styles = allStyles.map(styleEntry => {
+      // Extract style data from StyleEntry
+      const style = getStyleData(styleEntry);
+      
+      // Handle both old and new style storage formats - check if enhanced metadata exists
+      const hasEnhancedMetadata = 'lastModified' in styleEntry || 'size' in styleEntry;
+      const size = hasEnhancedMetadata && (styleEntry as any).size ? 
+        (styleEntry as any).size : 
+        JSON.stringify(styleEntry).length;
+      const lastModified = hasEnhancedMetadata ? (styleEntry as any).lastModified : undefined;
+      const sourceCount = hasEnhancedMetadata && (styleEntry as any).sourceCount ? 
+        (styleEntry as any).sourceCount : 
         (style.sources ? Object.keys(style.sources).length : 0);
-      const layerCount = isEnhancedStyleFormat(style) && style.layerCount ? 
-        style.layerCount : 
+      const layerCount = hasEnhancedMetadata && (styleEntry as any).layerCount ? 
+        (styleEntry as any).layerCount : 
         (style.layers ? style.layers.length : 0);
       
       totalSize += size;
@@ -547,23 +566,23 @@ export async function getStyleStats(): Promise<EnhancedStyleStats> {
       // Track oldest and newest styles
       if (lastModified) {
         if (!oldestStyle || lastModified < oldestStyle.lastModified) {
-          oldestStyle = { id: style.id, lastModified };
+          oldestStyle = { id: style.id!, lastModified };
         }
         if (!newestStyle || lastModified > newestStyle.lastModified) {
-          newestStyle = { id: style.id, lastModified };
+          newestStyle = { id: style.id!, lastModified };
         }
       }
       
       // Track largest and smallest styles
       if (!largestStyle || size > largestStyle.size) {
-        largestStyle = { id: style.id, size };
+        largestStyle = { id: style.id!, size };
       }
       if (!smallestStyle || size < smallestStyle.size) {
-        smallestStyle = { id: style.id, size };
+        smallestStyle = { id: style.id!, size };
       }
       
       return {
-        id: style.id,
+        id: style.id!,
         name: style.name,
         size,
         lastModified,
@@ -571,10 +590,10 @@ export async function getStyleStats(): Promise<EnhancedStyleStats> {
         layerCount,
         hasGlyphs: !!style.glyphs,
         hasSprites: !!style.sprite,
-        metadata: isEnhancedStyleFormat(style) ? {
-          downloadedAt: style.downloadedAt,
-          originalUrl: style.originalUrl,
-          validated: style.validated
+        metadata: hasEnhancedMetadata ? {
+          downloadedAt: (styleEntry as any).downloadedAt,
+          originalUrl: (styleEntry as any).originalUrl,
+          validated: (styleEntry as any).validated
         } : undefined
       };
     });
@@ -623,9 +642,9 @@ export async function getStyleStats(): Promise<EnhancedStyleStats> {
   }
 }
 
-// Type guard for enhanced style format
-function isEnhancedStyleFormat(style: unknown): style is StyleStorageItem {
-  return style !== null && typeof style === 'object' && 'id' in style && (
+// Type guard for enhanced style format (deprecated - now all styles are StyleEntry)
+function isEnhancedStyleFormat(style: unknown): boolean {
+  return style !== null && typeof style === 'object' && (
     'lastModified' in style || 
     'downloadedAt' in style || 
     'size' in style ||
@@ -755,7 +774,8 @@ export async function verifyAndValidateStyles(
     console.warn(`Verifying ${allStyles.length} styles`);
     
     for (let i = 0; i < allStyles.length; i++) {
-      const style = allStyles[i];
+      const styleEntry = allStyles[i];
+      const style = getStyleData(styleEntry);
       
       try {
         const isValid = isValidStyleData(style);
@@ -765,7 +785,7 @@ export async function verifyAndValidateStyles(
         } else {
           invalidCount++;
           const errorMsg = 'Invalid style data detected';
-          errors.push({ id: style.id, error: errorMsg });
+          errors.push({ id: style.id!, error: errorMsg });
           
           if (autoRepair) {
             // Basic repair attempts
@@ -776,7 +796,9 @@ export async function verifyAndValidateStyles(
               
               // Re-validate after repair
               if (isValidStyleData(style)) {
-                await db.put('styles', style);
+                // Update the style in the StyleEntry
+                styleEntry.style = style;
+                await db.put('styles', styleEntry);
                 repairedCount++;
                 console.warn(`Repaired style: ${style.id}`);
               }
@@ -795,7 +817,7 @@ export async function verifyAndValidateStyles(
       } catch (error) {
         invalidCount++;
         const errorMsg = error instanceof Error ? error.message : 'Unknown error';
-        errors.push({ id: style.id, error: errorMsg });
+        errors.push({ id: style.id!, error: errorMsg });
         
         onProgress?.({
           completed: i + 1,

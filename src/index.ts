@@ -1,13 +1,19 @@
 // Main library exports for npm package
-export { OfflineMapManager } from './map/offlineManager';
+export { OfflineMapManager } from './managers/offlineMapManager';
 
-// Export all managers
-export * from './map/tileDownloader';
-export * from './map/fontManager';
-export * from './map/glyphManager';
-export * from './map/spriteManager';
-export * from './map/styleManager';
-export * from './map/regionCleanup';
+// Export all services (replacing old managers)
+export * from './services/tileService';
+export * from './services/fontService';
+export * from './services/glyphService';
+export * from './services/spriteService';
+export * from './services/cleanupService';
+export * from './map/styleManager'; // Keep style manager as it's already refactored
+
+// Export services
+export * from './services/regionService';
+export * from './services/resourceService';
+export * from './services/analyticsService';
+export * from './services/maintenanceService';
 
 // Export storage utilities
 export * from './storage/indexedDbManager';
@@ -19,4 +25,4 @@ export * from './types';
 export * from './utils';
 
 // Default export for convenience
-export { OfflineMapManager as default } from './map/offlineManager';
+export { OfflineMapManager as default } from './managers/offlineMapManager';

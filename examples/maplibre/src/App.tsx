@@ -4,7 +4,7 @@ import { updatePolygons } from './utils';
 //@ts-ignore
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { DisplayArea } from './DisplayArea';
-import { OfflineMapManager } from '../../../src/map/offlineManager';
+import { OfflineMapManager } from '../../../src/managers/offlineMapManager';
 
 function App() {
   const mapContainer = useRef<HTMLDivElement | null>(null);
@@ -65,7 +65,7 @@ function App() {
     });
     
     // Start auto-cleanup (in real apps, do this once at app startup)
-    const cleanupInterval = offlineManager.startAutoCleanup();
+    const cleanupInterval = offlineManager.setupAutoCleanup();
     
     // For demo purposes, stop cleanup after 10 seconds
     setTimeout(() => {

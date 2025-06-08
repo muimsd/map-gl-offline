@@ -1,4 +1,4 @@
-import { OfflineMapManager } from '../src/map/offlineManager';
+import { OfflineMapManager } from '../src/managers/offlineMapManager';
 
 test('OfflineMapManager should be defined', () => {
   expect(OfflineMapManager).toBeDefined();
