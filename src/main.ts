@@ -46,43 +46,43 @@ async function manualCleanup() {
   console.warn(`Manual cleanup removed ${cleanedCount} expired regions`);
 }
 
-async function handleOffline() {
-  //   Example usage of OfflineMapManager
-  await offlineManager.addRegion({
-    id: 'world',
-    name: 'World',
-    multipleRegions: true,
-    styleUrl: styleURL,
-    bounds: [
-      [34.97256123524991, 40.996721656078336],
-      [34.981376429930464, 41.00112029961136],
-    ],
-    minZoom: 0,
-    maxZoom: 6,
-    deleteOnExpiry: true, // This region will be auto-deleted when expired
-  });
+// async function handleOffline() {
+//   //   Example usage of OfflineMapManager
+//   await offlineManager.addRegion({
+//     id: 'world',
+//     name: 'World',
+//     multipleRegions: true,
+//     styleUrl: styleURL,
+//     bounds: [
+//       [34.97256123524991, 40.996721656078336],
+//       [34.981376429930464, 41.00112029961136],
+//     ],
+//     minZoom: 0,
+//     maxZoom: 6,
+//     deleteOnExpiry: true, // This region will be auto-deleted when expired
+//   });
 
-  console.warn('Style URL:', styleURL);
+//   console.warn('Style URL:', styleURL);
 
-  // Refresh the offline manager control to show the new region
-  await offlineManagerControl.refresh();
+//   // Refresh the offline manager control to show the new region
+//   await offlineManagerControl.refresh();
 
-  // // Example: check region expiry
-  // const expiryInfo = await offlineManager.getRegionExpiry('world');
-  // if (expiryInfo) {
-  //   console.warn(`Region expires: ${new Date(expiryInfo.expiry).toISOString()}`);
-  //   console.warn(`Is expired: ${expiryInfo.expired}`);
+//   // // Example: check region expiry
+//   // const expiryInfo = await offlineManager.getRegionExpiry('world');
+//   // if (expiryInfo) {
+//   //   console.warn(`Region expires: ${new Date(expiryInfo.expiry).toISOString()}`);
+//   //   console.warn(`Is expired: ${expiryInfo.expired}`);
 
-  //   // Example: extend expiry if needed
-  //   if (expiryInfo.expired) {
-  //     // await offlineManager.extendRegionExpiry('world');
-  //     console.warn('Extended region expiry');
-  //   }
-  // }
-}
-map.on('load', async () => {
-  console.log('Map loaded');
-  // Get the style URL from the map instance
-  // const styleURL = map.getStyle()?.styleUrl;
-  handleOffline();
-});
+//   //   // Example: extend expiry if needed
+//   //   if (expiryInfo.expired) {
+//   //     // await offlineManager.extendRegionExpiry('world');
+//   //     console.warn('Extended region expiry');
+//   //   }
+//   // }
+// }
+// map.on('load', async () => {
+//   console.log('Map loaded');
+//   // Get the style URL from the map instance
+//   // const styleURL = map.getStyle()?.styleUrl;
+//   handleOffline();
+// });

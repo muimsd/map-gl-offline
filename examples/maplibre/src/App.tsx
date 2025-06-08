@@ -3,13 +3,10 @@ import { Map, NavigationControl } from 'maplibre-gl';
 import { updatePolygons } from './utils';
 //@ts-ignore
 import 'maplibre-gl/dist/maplibre-gl.css';
-import { DisplayArea } from './DisplayArea';
-import { OfflineMapManager } from '../../../src/managers/offlineMapManager';
 
 function App() {
   const mapContainer = useRef<HTMLDivElement | null>(null);
   const map = useRef<Map | null>(null);
-  const [area, setArea] = useState<number>(0);
   useEffect(() => {
     if (map.current || !mapContainer.current) return; // stops map from initializing more than once
     const lng = 35;
@@ -28,58 +25,57 @@ function App() {
         visualizeRoll: true,
         showZoom: true,
         showCompass: true,
-      }),
+      })
     );
 
     // Add the polygons to the map
-    map.current.once('load', () => {
-      updatePolygons(map, setArea);
-
-      // Update the polygon coordinates when the zoom level changes
-      map.current!.on('move', () => {
-        updatePolygons(map, setArea);
-      });
-      // map.current!.on('moveend', () => { updatePolygons(map) });
-    });
+    // map.current.once('load', () => {
+    //   // updatePolygons(map, setArea);
+    //   // // Update the polygon coordinates when the zoom level changes
+    //   // map.current!.on('move', () => {
+    //   //   updatePolygons(map, setArea);
+    //   // });
+    //   // map.current!.on('moveend', () => { updatePolygons(map) });
+    // });
   }, []);
-  const handleOffline = async () => {
-    map.current!.on('move', () => {
-      updatePolygons(map, setArea);
-    });
-  };
+  // const handleOffline = async () => {
+  //   map.current!.on('move', () => {
+  //     updatePolygons(map, setArea);
+  //   });
+  // };
   // For testing: add region on button click
   const handleAddRegion = async () => {
-    const offlineManager = new OfflineMapManager();
-    await offlineManager.addRegion({
-      id: 'test-region',
-      name: 'Test Region',
-      bounds: [
-        [34, 40],
-        [36, 42],
-      ],
-      minZoom: 8,
-      maxZoom: 12,
-      styleUrl: 'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json',
-      multipleRegions: true,
-      deleteOnExpiry: true, // This region will auto-delete when expired
-    });
-    
-    // Start auto-cleanup (in real apps, do this once at app startup)
-    const cleanupInterval = await offlineManager.setupAutoCleanup();
-    
-    // For demo purposes, stop cleanup after 10 seconds
-    setTimeout(() => {
-      offlineManager.stopAutoCleanup(cleanupInterval);
-    }, 10000);
-    
+    // const offlineManager = new OfflineMapManager();
+    // await offlineManager.addRegion({
+    //   id: 'test-region',
+    //   name: 'Test Region',
+    //   bounds: [
+    //     [34, 40],
+    //     [36, 42],
+    //   ],
+    //   minZoom: 8,
+    //   maxZoom: 12,
+    //   styleUrl: 'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json',
+    //   multipleRegions: true,
+    //   deleteOnExpiry: true, // This region will auto-delete when expired
+    // });
+
+    // // Start auto-cleanup (in real apps, do this once at app startup)
+    // const cleanupInterval = await offlineManager.setupAutoCleanup();
+
+    // // For demo purposes, stop cleanup after 10 seconds
+    // setTimeout(() => {
+    //   offlineManager.stopAutoCleanup(cleanupInterval);
+    // }, 10000);
+
     alert('Region download started! Auto-cleanup enabled for 10 seconds.');
   };
 
   // For testing: manual cleanup
   const handleCleanup = async () => {
-    const offlineManager = new OfflineMapManager();
-    const cleanedCount = await offlineManager.cleanupExpiredRegions();
-    alert(`Manual cleanup removed ${cleanedCount} expired regions`);
+    // const offlineManager = new OfflineMapManager();
+    // const cleanedCount = await offlineManager.cleanupExpiredRegions();
+    // alert(`Manual cleanup removed ${cleanedCount} expired regions`);
   };
   return (
     <div style={{ width: '100vw', height: '100vh' }} ref={mapContainer}>
@@ -95,7 +91,7 @@ function App() {
       >
         Manual Cleanup
       </button>
-      <DisplayArea area={area} handleOffline={handleOffline}></DisplayArea>
+      {/* <DisplayArea area={area} handleOffline={handleOffline}></DisplayArea> */}
     </div>
   );
 }

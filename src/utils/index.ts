@@ -4,3 +4,4 @@ export * from './formatUtils';
 export * from './asyncUtils';
 export * from './download';
 export * from './idbFetchHandler';
+export * from './icons';

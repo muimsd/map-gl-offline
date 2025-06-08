@@ -6,7 +6,7 @@ export * from './tile';
 export * from './sprite';
 export * from './glyph';
 export * from './database';
-export * from './maintenanceTypes';
+export * from './maintenance';
 export * from './progress';
 export * from './cleanup';
 export * from './ui';
