@@ -1,21 +1,17 @@
 module.exports = {
   parser: '@typescript-eslint/parser',
-  extends: [
-    'eslint:recommended',
-    '@typescript-eslint/recommended',
-    'prettier'
-  ],
+  extends: ['eslint:recommended', '@typescript-eslint/recommended', 'prettier'],
   plugins: ['@typescript-eslint', 'prettier'],
   parserOptions: {
     ecmaVersion: 2022,
     sourceType: 'module',
-    project: './tsconfig.json'
+    project: './tsconfig.json',
   },
   env: {
     node: true,
     browser: true,
     es2022: true,
-    jest: true
+    jest: true,
   },
   rules: {
     'prettier/prettier': 'error',
@@ -24,13 +20,7 @@ module.exports = {
     '@typescript-eslint/explicit-function-return-type': 'off',
     '@typescript-eslint/explicit-module-boundary-types': 'off',
     '@typescript-eslint/no-non-null-assertion': 'warn',
-    'no-console': ['warn', { allow: ['warn', 'error'] }]
+    'no-console': ['warn', { allow: ['log', 'warn', 'error'] }],
   },
-  ignorePatterns: [
-    'dist',
-    'node_modules',
-    'coverage',
-    '*.config.js',
-    'jest.config.js'
-  ]
+  ignorePatterns: ['dist', 'node_modules', 'coverage', '*.config.js', 'jest.config.js'],
 };

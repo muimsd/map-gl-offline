@@ -26,3 +26,5 @@ export * from './utils';
 
 // Default export for convenience
 export { OfflineMapManager as default } from './managers/offlineMapManager';
+
+export { RegionsControl } from './ui/regionsControl';

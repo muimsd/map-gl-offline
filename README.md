@@ -7,7 +7,7 @@
 
 A **production-ready**, fully **TypeScript-compatible** npm package for **Mapbox GL JS** and **MapLibre GL JS** that enables comprehensive offline storage and usage of vector/raster tiles, sprites, styles, fonts (glyphs), and entire map regions with advanced analytics, intelligent cleanup, and robust error handling.
 
-> **🚀 Recently Refactored**: Complete TypeScript overhaul with modern async/await patterns, enhanced type safety, and improved performance!
+
 
 ## ✨ Features
 
