@@ -5,7 +5,9 @@
 [![Coverage Status](https://codecov.io/gh/muimsd/map-gl-offline/branch/main/graph/badge.svg)](https://codecov.io/gh/muimsd/map-gl-offline)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-A **production-ready**, fully **TypeScript-compatible** npm package for **Mapbox GL JS** and **MapLibre GL JS** that enables comprehensive offline storage and usage of vector/raster tiles, sprites, styles, fonts (glyphs), and entire map regions with advanced analytics, intelligent cleanup, and robust error handling.
+> **⚠️ Development Notice**: This package is currently under active development and is only available for **MapLibre GL JS**. Mapbox GL JS support is planned for future releases.
+
+A **TypeScript-compatible** npm package for **MapLibre GL JS** that enables comprehensive offline storage and usage of vector/raster tiles, sprites, styles, fonts (glyphs), and entire map regions with advanced analytics, intelligent cleanup, and robust error handling.
 
 
 

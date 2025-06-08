@@ -44,6 +44,9 @@ pnpm-lock.yaml
 dist/
 build/
 
+# Test coverage output
+coverage/
+
 # Build directories inside examples
 examples/*/dist/
 examples/*/build/

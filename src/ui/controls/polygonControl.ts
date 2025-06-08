@@ -4,8 +4,7 @@
  */
 
 import type { Map as MaplibreMap, GeoJSONSource } from 'maplibre-gl';
-import { area, bboxPolygon, difference, convertArea } from '@turf/turf';
-import { featureCollection, polygon } from '@turf/helpers';
+import { area, bboxPolygon, difference, convertArea, featureCollection, polygon } from '@turf/turf';
 import { icons } from '../../utils/icons';
 
 export interface PolygonControlOptions {
@@ -69,7 +68,8 @@ export class PolygonControl {
   private createUI(): void {
     // Create area display at bottom center
     this.container = document.createElement('div');
-    this.container.className = 'offline-manager-control absolute bottom-5 left-1/2 transform -translate-x-1/2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg px-4 py-2 z-[1000] font-sans text-sm font-medium text-gray-900 dark:text-white whitespace-nowrap';
+    this.container.className =
+      'offline-manager-control absolute bottom-5 left-1/2 transform -translate-x-1/2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg px-4 py-2 z-[1000] font-sans text-sm font-medium text-gray-900 dark:text-white whitespace-nowrap';
 
     this.areaDisplay = document.createElement('div');
     this.areaDisplay.textContent = 'Area: 0 km²';
@@ -87,7 +87,8 @@ export class PolygonControl {
   public createSaveButton(parentContainer: HTMLElement): void {
     this.saveButton = document.createElement('button');
     this.saveButton.type = 'button';
-    this.saveButton.className = 'maplibregl-ctrl-icon offline-manager-control mt-0.5 bg-gradient-to-br from-green-600 to-green-700 border border-green-700 rounded-sm cursor-pointer relative w-[29px] h-[29px] flex items-center justify-center hover:from-green-700 hover:to-green-800 transition-all duration-200';
+    this.saveButton.className =
+      'maplibregl-ctrl-icon offline-manager-control mt-0.5 bg-gradient-to-br from-green-600 to-green-700 border border-green-700 rounded-sm cursor-pointer relative w-[29px] h-[29px] flex items-center justify-center hover:from-green-700 hover:to-green-800 transition-all duration-200';
     this.saveButton.innerHTML = icons.check({ size: 16, color: 'white' });
     this.saveButton.title = 'Save Selected Region';
     this.saveButton.addEventListener('click', () => this.handleSave());
