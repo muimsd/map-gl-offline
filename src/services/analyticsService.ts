@@ -1,11 +1,16 @@
 import { dbPromise } from '../storage/indexedDbManager';
-import { getTileStats, TileStats } from './tileService';
-import { getFontAnalytics, EnhancedFontStats } from './fontService';
-import { getSpriteAnalytics, EnhancedSpriteStats } from './spriteService';
+import { getTileStats } from './tileService';
+import { getFontAnalytics } from './fontService';
+import { getSpriteAnalytics } from './spriteService';
 import { getGlyphStats, EnhancedGlyphStats } from './glyphService';
-import { RegionAnalytics } from './cleanupService';
-import type { StyleEntry } from '../types/style';
-import type { StorageAnalyticsReport } from '../types/maintenanceTypes';
+import type {
+  RegionAnalytics,
+  StyleEntry,
+  TileStats,
+  StorageAnalyticsReport,
+  EnhancedFontStats,
+  EnhancedSpriteStats,
+} from '../types/';
 
 export class AnalyticsService {
   async getAllTileStats(): Promise<TileStats> {
@@ -58,7 +63,7 @@ export class AnalyticsService {
     // Access the nested properties from analytics
     const basic = analytics.basic as { totalFonts: number; totalSize: number; averageSize: number };
     const distribution = analytics.distribution as Record<string, number>;
-    
+
     return {
       count: basic.totalFonts,
       totalSize: basic.totalSize,
@@ -72,9 +77,16 @@ export class AnalyticsService {
   async getAllSpriteStats(): Promise<EnhancedSpriteStats> {
     const analytics = await getSpriteAnalytics();
     // Access the nested properties from analytics
-    const basic = analytics.basic as { totalSprites: number; totalSize: number; averageSize: number };
-    const distribution = analytics.distribution as { spritesByType: Record<string, number>; sizeByType: Record<string, number> };
-    
+    const basic = analytics.basic as {
+      totalSprites: number;
+      totalSize: number;
+      averageSize: number;
+    };
+    const distribution = analytics.distribution as {
+      spritesByType: Record<string, number>;
+      sizeByType: Record<string, number>;
+    };
+
     return {
       count: basic.totalSprites,
       totalSize: basic.totalSize,

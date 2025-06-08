@@ -65,7 +65,7 @@ function App() {
     });
     
     // Start auto-cleanup (in real apps, do this once at app startup)
-    const cleanupInterval = offlineManager.setupAutoCleanup();
+    const cleanupInterval = await offlineManager.setupAutoCleanup();
     
     // For demo purposes, stop cleanup after 10 seconds
     setTimeout(() => {

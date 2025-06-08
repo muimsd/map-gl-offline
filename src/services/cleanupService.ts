@@ -1,45 +1,11 @@
 import { dbPromise } from '../storage/indexedDbManager';
-import type { StoredRegion, OfflineRegionOptions } from '../types';
-
-export interface RegionCleanupOptions {
-  maxAge?: number;           // Days
-  maxStorageSize?: number;   // Bytes
-  maxRegions?: number;       // Maximum number of regions to keep
-  priorityPatterns?: string[]; // Region ID patterns to preserve
-  onProgress?: (progress: { 
-    phase: 'scanning' | 'analyzing' | 'cleaning';
-    completed: number; 
-    total: number; 
-    message: string;
-  }) => void;
-}
-
-export interface CleanupResult {
-  scannedRegions: number;
-  expiredRegions: number;
-  deletedRegions: number;
-  preservedRegions: number;
-  freedSpace: number;
-  errors: string[];
-  recommendations: string[];
-}
-
-export interface RegionAnalytics {
-  totalRegions: number;
-  totalSize: number;
-  averageSize: number;
-  oldestRegion?: { id: string; created: number };
-  newestRegion?: { id: string; created: number };
-  largestRegion?: { id: string; size: number };
-  smallestRegion?: { id: string; size: number };
-  regionsByStyle: Record<string, number>;
-  expiryDistribution: {
-    expired: number;
-    expiringWithin24h: number;
-    expiringWithin7d: number;
-    neverExpiring: number;
-  };
-}
+import type {
+  StoredRegion,
+  OfflineRegionOptions,
+  RegionCleanupOptions,
+  CleanupResult,
+  RegionAnalytics,
+} from '../types';
 
 export class CleanupService {
   private db = dbPromise;
@@ -56,7 +22,7 @@ export class CleanupService {
       maxStorageSize,
       maxRegions,
       priorityPatterns = [],
-      onProgress
+      onProgress,
     } = options;
 
     const result: CleanupResult = {
@@ -66,7 +32,7 @@ export class CleanupService {
       preservedRegions: 0,
       freedSpace: 0,
       errors: [],
-      recommendations: []
+      recommendations: [],
     };
 
     try {
@@ -75,7 +41,7 @@ export class CleanupService {
         phase: 'scanning',
         completed: 0,
         total: 100,
-        message: 'Scanning offline regions...'
+        message: 'Scanning offline regions...',
       });
 
       const regions = await this.getAllRegions();
@@ -90,12 +56,12 @@ export class CleanupService {
         phase: 'analyzing',
         completed: 30,
         total: 100,
-        message: 'Analyzing region data...'
+        message: 'Analyzing region data...',
       });
 
       const currentTime = Date.now();
-      const cutoffTime = currentTime - (maxAge * 24 * 60 * 60 * 1000);
-      
+      const cutoffTime = currentTime - maxAge * 24 * 60 * 60 * 1000;
+
       // Categorize regions
       const expiredRegions: StoredRegion[] = [];
       const priorityRegions: StoredRegion[] = [];
@@ -103,8 +69,8 @@ export class CleanupService {
 
       for (const region of regions) {
         const isExpired = region.lastModified < cutoffTime;
-        const isPriority = priorityPatterns.some(pattern => 
-          region.id.includes(pattern) || region.name?.includes(pattern)
+        const isPriority = priorityPatterns.some(
+          pattern => region.id.includes(pattern) || region.name?.includes(pattern)
         );
 
         if (isExpired) {
@@ -128,7 +94,7 @@ export class CleanupService {
         phase: 'cleaning',
         completed: 60,
         total: 100,
-        message: 'Cleaning up regions...'
+        message: 'Cleaning up regions...',
       });
 
       let regionsToDelete: StoredRegion[] = [...expiredRegions];
@@ -169,12 +135,12 @@ export class CleanupService {
           await this.deleteRegionCallback(region.id, region.styleId);
           result.freedSpace += regionSize;
           deletedCount++;
-          
+
           onProgress?.({
             phase: 'cleaning',
             completed: 60 + Math.floor((deletedCount / uniqueRegionsToDelete.length) * 30),
             total: 100,
-            message: `Deleted region: ${region.name || region.id}`
+            message: `Deleted region: ${region.name || region.id}`,
           });
         } catch (error) {
           result.errors.push(`Failed to delete region ${region.id}: ${error}`);
@@ -191,9 +157,8 @@ export class CleanupService {
         phase: 'cleaning',
         completed: 100,
         total: 100,
-        message: 'Cleanup completed'
+        message: 'Cleanup completed',
       });
-
     } catch (error) {
       result.errors.push(`Cleanup failed: ${error}`);
     }
@@ -203,7 +168,7 @@ export class CleanupService {
 
   async getRegionAnalytics(): Promise<RegionAnalytics> {
     const regions = await this.getAllRegions();
-    
+
     if (regions.length === 0) {
       return {
         totalRegions: 0,
@@ -214,8 +179,8 @@ export class CleanupService {
           expired: 0,
           expiringWithin24h: 0,
           expiringWithin7d: 0,
-          neverExpiring: 0
-        }
+          neverExpiring: 0,
+        },
       };
     }
 
@@ -233,7 +198,7 @@ export class CleanupService {
       expired: 0,
       expiringWithin24h: 0,
       expiringWithin7d: 0,
-      neverExpiring: 0
+      neverExpiring: 0,
     };
 
     for (const region of regions) {
@@ -264,9 +229,9 @@ export class CleanupService {
       const timeSinceModified = currentTime - region.lastModified;
       if (timeSinceModified > 30 * day24h) {
         expiryDistribution.expired++;
-      } else if (timeSinceModified > (30 * day24h - day24h)) {
+      } else if (timeSinceModified > 30 * day24h - day24h) {
         expiryDistribution.expiringWithin24h++;
-      } else if (timeSinceModified > (30 * day24h - day7d)) {
+      } else if (timeSinceModified > 30 * day24h - day7d) {
         expiryDistribution.expiringWithin7d++;
       } else {
         expiryDistribution.neverExpiring++;
@@ -282,25 +247,30 @@ export class CleanupService {
       largestRegion,
       smallestRegion,
       regionsByStyle,
-      expiryDistribution
+      expiryDistribution,
     };
   }
 
-  async setupAutoCleanup(options: RegionCleanupOptions & { intervalHours?: number } = {}): Promise<string> {
+  async setupAutoCleanup(
+    options: RegionCleanupOptions & { intervalHours?: number } = {}
+  ): Promise<string> {
     const { intervalHours = 24, ...cleanupOptions } = options;
-    
-    const intervalId = setInterval(async () => {
-      try {
-        console.log('Running automatic cleanup...');
-        const result = await this.performCleanup(cleanupOptions);
-        console.log('Auto cleanup completed:', result);
-      } catch (error) {
-        console.error('Auto cleanup failed:', error);
-      }
-    }, intervalHours * 60 * 60 * 1000);
+
+    const intervalId = setInterval(
+      async () => {
+        try {
+          console.log('Running automatic cleanup...');
+          const result = await this.performCleanup(cleanupOptions);
+          console.log('Auto cleanup completed:', result);
+        } catch (error) {
+          console.error('Auto cleanup failed:', error);
+        }
+      },
+      intervalHours * 60 * 60 * 1000
+    );
 
     this.autoCleanupIntervals.add(intervalId);
-    
+
     return `auto_cleanup_${Date.now()}`;
   }
 
@@ -322,7 +292,7 @@ export class CleanupService {
     // For now, return placeholder values
     return {
       compactedSize: 0,
-      freedSpace: 0
+      freedSpace: 0,
     };
   }
 
@@ -338,7 +308,7 @@ export class CleanupService {
     // Calculate size from tiles
     const tx = db.transaction(['tiles'], 'readonly');
     let cursor = await tx.objectStore('tiles').openCursor();
-    
+
     while (cursor) {
       const tile = cursor.value;
       if (tile.styleId === regionId) {
@@ -355,18 +325,25 @@ export class CleanupService {
       const estimate = await navigator.storage.estimate();
       return estimate.usage || 0;
     }
-    
+
     // Fallback: calculate from database
     const db = await this.db;
     let totalSize = 0;
-    
-    const stores: Array<'regions' | 'tiles' | 'fonts' | 'sprites' | 'glyphs' | 'styles'> = ['regions', 'tiles', 'fonts', 'sprites', 'glyphs', 'styles'];
-    
+
+    const stores: Array<'regions' | 'tiles' | 'fonts' | 'sprites' | 'glyphs' | 'styles'> = [
+      'regions',
+      'tiles',
+      'fonts',
+      'sprites',
+      'glyphs',
+      'styles',
+    ];
+
     for (const storeName of stores) {
       try {
         const tx = db.transaction([storeName], 'readonly');
         let cursor = await tx.objectStore(storeName).openCursor();
-        
+
         while (cursor) {
           const entry = cursor.value;
           // Only some entry types have size property
@@ -379,7 +356,7 @@ export class CleanupService {
         console.warn(`Could not calculate size for store ${storeName}:`, error);
       }
     }
-    
+
     return totalSize;
   }
 
@@ -392,9 +369,9 @@ export class CleanupService {
     const sortedRegions = regions
       .map(region => ({
         region,
-        isPriority: priorityPatterns.some(pattern => 
-          region.id.includes(pattern) || region.name?.includes(pattern)
-        )
+        isPriority: priorityPatterns.some(
+          pattern => region.id.includes(pattern) || region.name?.includes(pattern)
+        ),
       }))
       .sort((a, b) => {
         if (a.isPriority !== b.isPriority) {
@@ -422,33 +399,42 @@ export class CleanupService {
     options: RegionCleanupOptions
   ): Promise<string[]> {
     const recommendations: string[] = [];
-    
+
     if (regions.length === 0) {
-      recommendations.push('No offline regions found. Consider downloading some maps for offline use.');
+      recommendations.push(
+        'No offline regions found. Consider downloading some maps for offline use.'
+      );
       return recommendations;
     }
 
     const analytics = await this.getRegionAnalytics();
-    
+
     // Storage recommendations
-    if (analytics.totalSize > 1024 * 1024 * 1024) { // > 1GB
+    if (analytics.totalSize > 1024 * 1024 * 1024) {
+      // > 1GB
       recommendations.push('Consider cleaning up old regions to free up storage space.');
     }
 
     // Expiry recommendations
     if (analytics.expiryDistribution.expired > 0) {
-      recommendations.push(`${analytics.expiryDistribution.expired} regions have expired and can be safely deleted.`);
+      recommendations.push(
+        `${analytics.expiryDistribution.expired} regions have expired and can be safely deleted.`
+      );
     }
 
     if (analytics.expiryDistribution.expiringWithin7d > 0) {
-      recommendations.push(`${analytics.expiryDistribution.expiringWithin7d} regions will expire within 7 days.`);
+      recommendations.push(
+        `${analytics.expiryDistribution.expiringWithin7d} regions will expire within 7 days.`
+      );
     }
 
     // Size recommendations
     if (analytics.largestRegion && analytics.smallestRegion) {
       const sizeDiff = analytics.largestRegion.size / analytics.smallestRegion.size;
       if (sizeDiff > 100) {
-        recommendations.push('Consider reviewing large regions that may contain unnecessary detail levels.');
+        recommendations.push(
+          'Consider reviewing large regions that may contain unnecessary detail levels.'
+        );
       }
     }
 
@@ -467,7 +453,7 @@ export const cleanupService = new CleanupService(async (regionId: string, styleI
   console.warn('Delete region callback not properly configured');
 });
 
-export const performCleanup = (options?: RegionCleanupOptions) => 
+export const performCleanup = (options?: RegionCleanupOptions) =>
   cleanupService.performCleanup(options);
 
 export const getRegionAnalytics = () => cleanupService.getRegionAnalytics();

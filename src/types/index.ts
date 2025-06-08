@@ -7,3 +7,5 @@ export * from './sprite';
 export * from './glyph';
 export * from './database';
 export * from './maintenanceTypes';
+export * from './progress';
+export * from './cleanup';

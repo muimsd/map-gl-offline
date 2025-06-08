@@ -1,13 +1,10 @@
-import type { 
-  RegionCleanupOptions, 
+import type {
+  StorageAnalyticsReport,
+  MaintenanceOptions,
+  MaintenanceResults,
+  RegionCleanupOptions,
   CleanupResult,
-  RegionAnalytics 
-} from './cleanupService';
-import type { 
-  StorageAnalyticsReport, 
-  MaintenanceOptions, 
-  MaintenanceResults 
-} from '../types/maintenanceTypes';
+} from '../types';
 
 // Re-export types for convenience
 export type { MaintenanceOptions, MaintenanceResults } from '../types/maintenanceTypes';
@@ -104,7 +101,7 @@ export class MaintenanceService {
       if (options.generateReport) {
         options.onProgress?.('Generating analytics report', currentProgress / totalStages);
         const analytics = await this.getComprehensiveStorageAnalytics();
-        
+
         results.analyticsReport = analytics;
         currentProgress++;
       }

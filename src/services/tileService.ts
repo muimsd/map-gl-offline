@@ -1,50 +1,19 @@
 import { dbPromise } from '../storage/indexedDbManager';
-import type { OfflineRegionOptions, MapboxStyle, TileEntry } from '../types';
 import * as tilebelt from '@mapbox/tilebelt';
-import { 
-  fetchResourceWithRetry, 
-  extractTileKey, 
-  processBatch, 
+import {
+  fetchResourceWithRetry,
+  processBatch,
   createProgressTracker,
   validateResource,
-  DownloadProgress 
 } from '../utils';
-
-export interface TileDownloadOptions {
-  onProgress?: (progress: DownloadProgress) => void;
-  batchSize?: number;
-  maxRetries?: number;
-  skipExisting?: boolean;
-  maxConcurrency?: number;
-  retryDelay?: number;
-  timeout?: number;
-  validateTiles?: boolean;
-  compressTiles?: boolean;
-  priorityZoomLevels?: number[];
-  bandwidthLimit?: number; // KB/s
-  storageQuotaCheck?: boolean;
-}
-
-export interface TileDownloadResult {
-  totalTiles: number;
-  downloadedTiles: number;
-  skippedTiles: number;
-  failedTiles: number;
-  totalSize: number;
-  downloadTime: number;
-  averageSpeed: number; // KB/s
-  errors: Array<{ url: string; error: string }>;
-}
-
-export interface TileStats {
-  count: number;
-  totalSize: number;
-  averageSize: number;
-  oldestTile?: Date;
-  newestTile?: Date;
-  zoomLevelStats: Map<number, { count: number; size: number }>;
-}
-
+import type {
+  TileDownloadOptions,
+  TileDownloadResult,
+  TileStats,
+  OfflineRegionOptions,
+  MapboxStyle,
+  TileEntry,
+} from '../types';
 export class TileService {
   private db = dbPromise;
 
@@ -67,7 +36,7 @@ export class TileService {
       compressTiles = false,
       priorityZoomLevels = [],
       bandwidthLimit,
-      storageQuotaCheck = true
+      storageQuotaCheck = true,
     } = options;
 
     const startTime = Date.now();
@@ -79,7 +48,7 @@ export class TileService {
 
     // Generate tile coordinates
     const tileCoords = this.generateTileCoordinates(region);
-    
+
     // Create progress tracker
     const progressTracker = createProgressTracker(tileCoords.length);
 
@@ -99,8 +68,9 @@ export class TileService {
       const estimate = await navigator.storage.estimate();
       const usedSpace = estimate.usage || 0;
       const availableSpace = (estimate.quota || 0) - usedSpace;
-      
-      if (availableSpace < 500 * 1024 * 1024) { // Less than 500MB
+
+      if (availableSpace < 500 * 1024 * 1024) {
+        // Less than 500MB
         throw new Error('Insufficient storage space for tile download');
       }
     }
@@ -113,7 +83,7 @@ export class TileService {
       if (!sourceConfig.tiles || sourceConfig.tiles.length === 0) continue;
 
       const tileUrlTemplate = sourceConfig.tiles[0];
-      
+
       // Filter existing tiles if skipExisting is true
       let coordsToDownload = tileCoords;
       if (skipExisting) {
@@ -128,7 +98,7 @@ export class TileService {
       // Process tiles in batches with concurrency control
       await processBatch(
         coordsToDownload,
-        async (coord) => {
+        async coord => {
           try {
             const { x, y, z } = coord;
             const tileUrl = tileUrlTemplate
@@ -137,7 +107,7 @@ export class TileService {
               .replace('{z}', z.toString());
 
             const tileKey = this.createTileKey(x, y, z, styleId, sourceId);
-            
+
             progressTracker.update(1, `Downloading tile ${z}/${x}/${y}`);
 
             // Apply bandwidth limiting if specified
@@ -148,13 +118,16 @@ export class TileService {
             const response = await fetchResourceWithRetry(tileUrl, {
               retries: maxRetries,
               retryDelay,
-              timeout
+              timeout,
             });
 
             let tileData = response.data;
-            const contentType = response.type === 'image' ? 'image/png' : 
-                               response.type === 'pbf' ? 'application/x-protobuf' : 
-                               'application/octet-stream';
+            const contentType =
+              response.type === 'image'
+                ? 'image/png'
+                : response.type === 'pbf'
+                  ? 'application/x-protobuf'
+                  : 'application/octet-stream';
 
             // Validate tile if enabled
             if (validateTiles) {
@@ -180,7 +153,7 @@ export class TileService {
               y,
               z,
               styleId,
-              sourceId
+              sourceId,
             };
 
             // Store tile in database
@@ -188,17 +161,16 @@ export class TileService {
 
             totalSize += tileData.byteLength;
             downloadedTiles++;
-
           } catch (error) {
             failedTiles++;
             const tileUrl = tileUrlTemplate
               .replace('{x}', coord.x.toString())
               .replace('{y}', coord.y.toString())
               .replace('{z}', coord.z.toString());
-            
+
             errors.push({
               url: tileUrl,
-              error: error instanceof Error ? error.message : String(error)
+              error: error instanceof Error ? error.message : String(error),
             });
             console.error(`Failed to download tile ${coord.z}/${coord.x}/${coord.y}:`, error);
           }
@@ -208,7 +180,7 @@ export class TileService {
     }
 
     const downloadTime = Date.now() - startTime;
-    const averageSpeed = downloadTime > 0 ? ((totalSize / 1024) / downloadTime) * 1000 : 0;
+    const averageSpeed = downloadTime > 0 ? (totalSize / 1024 / downloadTime) * 1000 : 0;
 
     return {
       totalTiles: tileCoords.length * tileSources.size,
@@ -218,7 +190,7 @@ export class TileService {
       totalSize,
       downloadTime,
       averageSpeed,
-      errors
+      errors,
     };
   }
 
@@ -234,7 +206,7 @@ export class TileService {
     const tx = db.transaction('tiles', 'readonly');
     for await (const cursor of tx.store) {
       const tileEntry: TileEntry = cursor.value;
-      
+
       // Filter by styleId if provided
       if (styleId && tileEntry.styleId !== styleId) {
         continue;
@@ -266,20 +238,20 @@ export class TileService {
       averageSize: count > 0 ? totalSize / count : 0,
       oldestTile,
       newestTile,
-      zoomLevelStats
+      zoomLevelStats,
     };
   }
 
   async cleanupOldTiles(maxAge: number = 30, styleId?: string): Promise<number> {
     const db = await this.db;
-    const cutoffTime = Date.now() - (maxAge * 24 * 60 * 60 * 1000);
-    
+    const cutoffTime = Date.now() - maxAge * 24 * 60 * 60 * 1000;
+
     let deletedCount = 0;
 
     const tx = db.transaction('tiles', 'readwrite');
     for await (const cursor of tx.store) {
       const tileEntry: TileEntry = cursor.value;
-      
+
       // Filter by styleId if provided
       if (styleId && tileEntry.styleId !== styleId) {
         continue;
@@ -296,10 +268,10 @@ export class TileService {
 
   async getTileAnalytics(styleId?: string): Promise<Record<string, unknown>> {
     const stats = await this.getTileStats(styleId);
-    
+
     const zoomDistribution: Record<string, number> = {};
     const sizeByZoom: Record<string, number> = {};
-    
+
     for (const [zoom, zoomStats] of stats.zoomLevelStats) {
       zoomDistribution[zoom.toString()] = zoomStats.count;
       sizeByZoom[zoom.toString()] = zoomStats.size;
@@ -309,43 +281,46 @@ export class TileService {
       basic: {
         totalTiles: stats.count,
         totalSize: stats.totalSize,
-        averageSize: stats.averageSize
+        averageSize: stats.averageSize,
       },
       distribution: {
         tilesByZoom: zoomDistribution,
-        sizeByZoom
+        sizeByZoom,
       },
       temporal: {
         oldestTile: stats.oldestTile?.getTime(),
         newestTile: stats.newestTile?.getTime(),
-        ageSpan: stats.oldestTile && stats.newestTile 
-          ? stats.newestTile.getTime() - stats.oldestTile.getTime() 
-          : 0
-      }
+        ageSpan:
+          stats.oldestTile && stats.newestTile
+            ? stats.newestTile.getTime() - stats.oldestTile.getTime()
+            : 0,
+      },
     };
   }
 
-  private generateTileCoordinates(region: OfflineRegionOptions): Array<{ x: number; y: number; z: number }> {
+  private generateTileCoordinates(
+    region: OfflineRegionOptions
+  ): Array<{ x: number; y: number; z: number }> {
     const tiles: Array<{ x: number; y: number; z: number }> = [];
-    
+
     for (let z = region.minZoom; z <= region.maxZoom; z++) {
       const bounds = region.bounds;
       const minTile = tilebelt.pointToTile(bounds[0][0], bounds[0][1], z);
       const maxTile = tilebelt.pointToTile(bounds[1][0], bounds[1][1], z);
-      
+
       for (let x = Math.min(minTile[0], maxTile[0]); x <= Math.max(minTile[0], maxTile[0]); x++) {
         for (let y = Math.min(minTile[1], maxTile[1]); y <= Math.max(minTile[1], maxTile[1]); y++) {
           tiles.push({ x, y, z });
         }
       }
     }
-    
+
     return tiles;
   }
 
   private extractTileSources(style: MapboxStyle): Map<string, any> {
     const tileSources = new Map();
-    
+
     if (style.sources) {
       for (const [sourceId, sourceConfig] of Object.entries(style.sources)) {
         const config = sourceConfig as any;
@@ -354,11 +329,17 @@ export class TileService {
         }
       }
     }
-    
+
     return tileSources;
   }
 
-  private createTileKey(x: number, y: number, z: number, styleId: string, sourceId: string): string {
+  private createTileKey(
+    x: number,
+    y: number,
+    z: number,
+    styleId: string,
+    sourceId: string
+  ): string {
     return `${styleId}:${sourceId}:${z}:${x}:${y}`;
   }
 
@@ -404,5 +385,5 @@ export const downloadTiles = (
 
 export const getTileStats = (styleId?: string) => tileService.getTileStats(styleId);
 export const getTileAnalytics = (styleId?: string) => tileService.getTileAnalytics(styleId);
-export const cleanupOldTiles = (maxAge?: number, styleId?: string) => 
+export const cleanupOldTiles = (maxAge?: number, styleId?: string) =>
   tileService.cleanupOldTiles(maxAge, styleId);

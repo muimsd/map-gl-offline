@@ -1,10 +1,20 @@
-import { CleanupService, RegionCleanupOptions, CleanupResult, RegionAnalytics } from '../services/cleanupService';
+import { CleanupService } from '../services/cleanupService';
 import { RegionService } from '../services/regionService';
 import { ResourceService } from '../services/resourceService';
 import { AnalyticsService } from '../services/analyticsService';
-import { MaintenanceService, MaintenanceOptions, MaintenanceResults } from '../services/maintenanceService';
-import type { OfflineRegionOptions, StoredRegion } from '../types/region';
-import type { StorageAnalyticsReport } from '../types/maintenanceTypes';
+import {
+  MaintenanceService,
+  MaintenanceOptions,
+  MaintenanceResults,
+} from '../services/maintenanceService';
+import type {
+  OfflineRegionOptions,
+  StoredRegion,
+  StorageAnalyticsReport,
+  RegionCleanupOptions,
+  CleanupResult,
+  RegionAnalytics,
+} from '../types';
 
 export class OfflineMapManager {
   private cleanupService: CleanupService;
@@ -15,10 +25,12 @@ export class OfflineMapManager {
 
   constructor() {
     this.regionService = new RegionService();
-    this.cleanupService = new CleanupService(this.regionService.deleteRegion.bind(this.regionService));
+    this.cleanupService = new CleanupService(
+      this.regionService.deleteRegion.bind(this.regionService)
+    );
     this.resourceService = new ResourceService();
     this.analyticsService = new AnalyticsService();
-    
+
     // Initialize maintenance service with required dependencies
     this.maintenanceService = new MaintenanceService(
       this.performSmartCleanup.bind(this),
@@ -78,7 +90,9 @@ export class OfflineMapManager {
     // This would need to be implemented in CleanupService if needed
   }
 
-  async setupAutoCleanup(options: RegionCleanupOptions & { intervalHours?: number } = {}): Promise<string> {
+  async setupAutoCleanup(
+    options: RegionCleanupOptions & { intervalHours?: number } = {}
+  ): Promise<string> {
     return this.cleanupService.setupAutoCleanup(options);
   }
 
@@ -110,7 +124,7 @@ export class OfflineMapManager {
   async downloadTilesWithOptions(...args: Parameters<ResourceService['downloadTilesWithOptions']>) {
     return this.resourceService.downloadTilesWithOptions(...args);
   }
-  
+
   async getTileStatistics(...args: Parameters<ResourceService['getTileStatistics']>) {
     return this.resourceService.getTileStatistics(...args);
   }
@@ -119,65 +133,69 @@ export class OfflineMapManager {
   async downloadFontsWithOptions(...args: Parameters<ResourceService['downloadFontsWithOptions']>) {
     return this.resourceService.downloadFontsWithOptions(...args);
   }
-  
+
   async getFontStatistics(...args: Parameters<ResourceService['getFontStatistics']>) {
     return this.resourceService.getFontStatistics(...args);
   }
-  
+
   async getFontAnalytics(...args: Parameters<ResourceService['getFontAnalytics']>) {
     return this.resourceService.getFontAnalytics(...args);
   }
-  
+
   async cleanupOldFonts(...args: Parameters<ResourceService['cleanupOldFonts']>) {
     return this.resourceService.cleanupOldFonts(...args);
   }
-  
+
   async verifyAndRepairFonts(...args: Parameters<ResourceService['verifyAndRepairFonts']>) {
     return this.resourceService.verifyAndRepairFonts(...args);
   }
 
   // Sprite methods
-  async downloadSpritesWithOptions(...args: Parameters<ResourceService['downloadSpritesWithOptions']>) {
+  async downloadSpritesWithOptions(
+    ...args: Parameters<ResourceService['downloadSpritesWithOptions']>
+  ) {
     return this.resourceService.downloadSpritesWithOptions(...args);
   }
-  
+
   async getSpriteStatistics(...args: Parameters<ResourceService['getSpriteStatistics']>) {
     return this.resourceService.getSpriteStatistics(...args);
   }
-  
+
   async cleanupOldSprites(...args: Parameters<ResourceService['cleanupOldSprites']>) {
     return this.resourceService.cleanupOldSprites(...args);
   }
-  
+
   async verifyAndRepairSprites(...args: Parameters<ResourceService['verifyAndRepairSprites']>) {
     return this.resourceService.verifyAndRepairSprites(...args);
   }
-  
+
   async getSpriteAnalytics(...args: Parameters<ResourceService['getSpriteAnalytics']>) {
     return this.resourceService.getSpriteAnalytics(...args);
   }
 
   // Glyph methods
-  async downloadGlyphsWithOptions(...args: Parameters<ResourceService['downloadGlyphsWithOptions']>) {
+  async downloadGlyphsWithOptions(
+    ...args: Parameters<ResourceService['downloadGlyphsWithOptions']>
+  ) {
     return this.resourceService.downloadGlyphsWithOptions(...args);
   }
-  
+
   async getGlyphStatistics(...args: Parameters<ResourceService['getGlyphStatistics']>) {
     return this.resourceService.getGlyphStatistics(...args);
   }
-  
+
   async getGlyphAnalytics(...args: Parameters<ResourceService['getGlyphAnalytics']>) {
     return this.resourceService.getGlyphAnalytics(...args);
   }
-  
+
   async loadGlyphsForStyle(...args: Parameters<ResourceService['loadGlyphsForStyle']>) {
     return this.resourceService.loadGlyphsForStyle(...args);
   }
-  
+
   async cleanupOldGlyphs(...args: Parameters<ResourceService['cleanupOldGlyphs']>) {
     return this.resourceService.cleanupOldGlyphs(...args);
   }
-  
+
   async verifyAndRepairGlyphs(...args: Parameters<ResourceService['verifyAndRepairGlyphs']>) {
     return this.resourceService.verifyAndRepairGlyphs(...args);
   }

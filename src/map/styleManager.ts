@@ -1,67 +1,9 @@
 import { dbPromise } from '../storage/indexedDbManager';
-import { downloadFonts, FontDownloadOptions, FontDownloadResult } from '../services/fontService';
-import { downloadSprites, SpriteDownloadOptions, SpriteDownloadResult } from '../services/spriteService';
-import { generateGlyphUrlsFromStyle, fetchWithRetry, DownloadProgress } from '../utils';
-import type { StyleEntry, MapboxStyle } from '../types/style';
+import { downloadFonts } from '../services/fontService';
+import { downloadSprites } from '../services/spriteService';
+import { generateGlyphUrlsFromStyle, fetchWithRetry } from '../utils';
+import type { StyleEntry, MapboxStyle, StyleDownloadOptions, StyleDownloadResult, DownloadProgress, StyleStorageItem, EnhancedStyleStats, FontDownloadResult, SpriteDownloadResult } from '../types';
 
-export interface StyleDownloadOptions {
-  onProgress?: (progress: DownloadProgress) => void;
-  fontOptions?: FontDownloadOptions;
-  spriteOptions?: SpriteDownloadOptions;
-  skipExisting?: boolean;
-  validateStyle?: boolean;
-  maxRetries?: number;
-  timeoutMs?: number;
-  enableSourceEmbedding?: boolean;
-  storageQuotaCheck?: boolean;
-  includeMetadata?: boolean;
-}
-
-export interface StyleDownloadResult {
-  styleId: string;
-  success: boolean;
-  downloadTime: number;
-  styleSize: number;
-  sourcesProcessed: number;
-  sourcesEmbedded: number;
-  fontResult?: FontDownloadResult;
-  spriteResult?: SpriteDownloadResult;
-  errors: string[];
-  analytics: {
-    sourceTypes: Record<string, number>;
-    layerTypes: Record<string, number>;
-    totalLayers: number;
-    hasGlyphs: boolean;
-    hasSprites: boolean;
-  };
-}
-
-export interface EnhancedStyleStats {
-  count: number;
-  totalSize: number;
-  averageSize: number;
-  styles: Array<{
-    id: string;
-    name?: string;
-    size: number;
-    lastModified?: number;
-    sourceCount: number;
-    layerCount: number;
-    hasGlyphs: boolean;
-    hasSprites: boolean;
-    metadata?: Record<string, unknown>;
-  }>;
-  sourceTypes: Record<string, number>;
-  layerTypes: Record<string, number>;
-  oldestStyle?: { id: string; lastModified: number };
-  newestStyle?: { id: string; lastModified: number };
-  largestStyle?: { id: string; size: number };
-  smallestStyle?: { id: string; size: number };
-  storageRecommendations: string[];
-}
-
-// Style storage types - aligning with database schema
-export type StyleStorageItem = StyleEntry;
 
 // Helper functions to work with StyleEntry structure
 function createStyleEntry(

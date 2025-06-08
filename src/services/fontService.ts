@@ -1,47 +1,11 @@
 import { dbPromise } from '../storage/indexedDbManager';
-import { 
-  fetchResourceWithRetry, 
-  processBatch, 
-  createProgressTracker,
-  DownloadProgress 
-} from '../utils';
-import type { FontEntry } from '../types';
-
-export interface FontDownloadOptions {
-  onProgress?: (progress: DownloadProgress) => void;
-  batchSize?: number;
-  maxRetries?: number;
-  corsProxy?: string;
-  skipExisting?: boolean;
-  retryDelay?: number;
-  timeout?: number;
-  validateFonts?: boolean;
-  maxConcurrency?: number;
-  storageQuotaCheck?: boolean;
-}
-
-export interface FontDownloadResult {
-  totalFonts: number;
-  downloadedFonts: number;
-  skippedFonts: number;
-  failedFonts: number;
-  totalSize: number;
-  downloadTime: number;
-  averageSpeed: number; // bytes per second
-  errors: Array<{ url: string; error: string }>;
-  fontsByType: Record<string, number>;
-}
-
-export interface EnhancedFontStats {
-  count: number;
-  totalSize: number;
-  averageSize: number;
-  fonts: string[];
-  fontsByType: Record<string, number>;
-  oldestFont?: { key: string; timestamp: number };
-  newestFont?: { key: string; timestamp: number };
-  corruptedFonts: string[];
-}
+import { fetchResourceWithRetry, processBatch, createProgressTracker } from '../utils';
+import type {
+  EnhancedFontStats,
+  FontDownloadOptions,
+  FontDownloadResult,
+  FontEntry,
+} from '../types';
 
 export class FontService {
   private db = dbPromise;
@@ -62,7 +26,7 @@ export class FontService {
       timeout = 30000,
       validateFonts = true,
       maxConcurrency = 5,
-      storageQuotaCheck = true
+      storageQuotaCheck = true,
     } = options;
 
     const startTime = Date.now();
@@ -81,7 +45,7 @@ export class FontService {
     if (skipExisting) {
       const existingFonts = new Set();
       const tx = db.transaction(['fonts'], 'readonly');
-      
+
       let cursor = await tx.objectStore('fonts').openCursor();
       while (cursor) {
         existingFonts.add(cursor.value.key);
@@ -92,7 +56,7 @@ export class FontService {
         const key = this.createFontKey(url);
         return !existingFonts.has(key);
       });
-      
+
       skippedFonts = fontUrls.length - urlsToDownload.length;
     }
 
@@ -101,8 +65,9 @@ export class FontService {
       const estimate = await navigator.storage.estimate();
       const usedSpace = estimate.usage || 0;
       const availableSpace = (estimate.quota || 0) - usedSpace;
-      
-      if (availableSpace < 50 * 1024 * 1024) { // Less than 50MB
+
+      if (availableSpace < 50 * 1024 * 1024) {
+        // Less than 50MB
         throw new Error('Insufficient storage space for font download');
       }
     }
@@ -110,16 +75,16 @@ export class FontService {
     // Process fonts in batches with concurrency control
     await processBatch(
       urlsToDownload,
-      async (fontUrl) => {
+      async fontUrl => {
         try {
           const fontKey = this.createFontKey(fontUrl);
-          
+
           progressTracker.update(1, fontKey);
 
           const response = await fetchResourceWithRetry(fontUrl, {
             retries: maxRetries,
             retryDelay,
-            timeout
+            timeout,
           });
 
           const fontData = response.data;
@@ -144,8 +109,8 @@ export class FontService {
             downloadId,
             metadata: {
               userAgent: navigator.userAgent,
-              downloadTimestamp: Date.now()
-            }
+              downloadTimestamp: Date.now(),
+            },
           };
 
           await db.put('fonts', fontEntry);
@@ -156,12 +121,11 @@ export class FontService {
           // Track font types
           const fontType = this.detectFontType(contentType, fontUrl);
           fontsByType[fontType] = (fontsByType[fontType] || 0) + 1;
-
         } catch (error) {
           failedFonts++;
           errors.push({
             url: fontUrl,
-            error: error instanceof Error ? error.message : String(error)
+            error: error instanceof Error ? error.message : String(error),
           });
           console.error(`Failed to download font ${fontUrl}:`, error);
         }
@@ -181,7 +145,7 @@ export class FontService {
       downloadTime,
       averageSpeed,
       errors,
-      fontsByType
+      fontsByType,
     };
   }
 
@@ -220,7 +184,7 @@ export class FontService {
       if (fontEntry.size === 0 || !fontEntry.data) {
         corruptedFonts.push(fontEntry.key);
       }
-      
+
       cursor = await cursor.continue();
     }
 
@@ -232,38 +196,39 @@ export class FontService {
       fontsByType,
       oldestFont,
       newestFont,
-      corruptedFonts
+      corruptedFonts,
     };
   }
 
   async getFontAnalytics(): Promise<Record<string, unknown>> {
     const stats = await this.getFontStats();
-    
+
     return {
       basic: {
         totalFonts: stats.count,
         totalSize: stats.totalSize,
-        averageSize: stats.averageSize
+        averageSize: stats.averageSize,
       },
       distribution: stats.fontsByType,
       health: {
         corruptedFonts: stats.corruptedFonts.length,
-        corruptionRate: stats.count > 0 ? (stats.corruptedFonts.length / stats.count) * 100 : 0
+        corruptionRate: stats.count > 0 ? (stats.corruptedFonts.length / stats.count) * 100 : 0,
       },
       temporal: {
         oldestFont: stats.oldestFont,
         newestFont: stats.newestFont,
-        ageSpan: stats.oldestFont && stats.newestFont 
-          ? stats.newestFont.timestamp - stats.oldestFont.timestamp 
-          : 0
-      }
+        ageSpan:
+          stats.oldestFont && stats.newestFont
+            ? stats.newestFont.timestamp - stats.oldestFont.timestamp
+            : 0,
+      },
     };
   }
 
   async cleanupOldFonts(maxAge: number = 30): Promise<number> {
     const db = await this.db;
-    const cutoffTime = Date.now() - (maxAge * 24 * 60 * 60 * 1000);
-    
+    const cutoffTime = Date.now() - maxAge * 24 * 60 * 60 * 1000;
+
     const tx = db.transaction(['fonts'], 'readwrite');
     let deletedCount = 0;
 
@@ -283,7 +248,7 @@ export class FontService {
   async verifyAndRepairFonts(): Promise<{ verified: number; repaired: number; removed: number }> {
     const db = await this.db;
     const tx = db.transaction(['fonts'], 'readwrite');
-    
+
     let verified = 0;
     let repaired = 0;
     let removed = 0;
@@ -291,7 +256,7 @@ export class FontService {
     let cursor = await tx.objectStore('fonts').openCursor();
     while (cursor) {
       const fontEntry: FontEntry = cursor.value;
-      
+
       try {
         // Basic validation
         if (!fontEntry.data || fontEntry.size === 0) {
@@ -312,7 +277,7 @@ export class FontService {
               ...fontEntry,
               data: newData,
               size: newData.byteLength,
-              lastModified: Date.now()
+              lastModified: Date.now(),
             };
             await cursor.update(repairedEntry);
             repaired++;
@@ -325,7 +290,7 @@ export class FontService {
           removed++;
         }
       }
-      
+
       cursor = await cursor.continue();
     }
 
@@ -342,21 +307,21 @@ export class FontService {
     if (contentType.includes('woff')) return 'woff';
     if (contentType.includes('ttf') || contentType.includes('truetype')) return 'ttf';
     if (contentType.includes('otf') || contentType.includes('opentype')) return 'otf';
-    
+
     // Fallback to URL extension
     const extension = url.split('.').pop()?.toLowerCase();
     if (extension === 'woff2') return 'woff2';
     if (extension === 'woff') return 'woff';
     if (extension === 'ttf') return 'ttf';
     if (extension === 'otf') return 'otf';
-    
+
     return 'unknown';
   }
 
   private async validateFont(data: ArrayBuffer, contentType: string): Promise<void> {
     // Basic validation - check for font signature
     const view = new Uint8Array(data);
-    
+
     if (view.length < 4) {
       throw new Error('Font data too short');
     }
@@ -372,7 +337,7 @@ export class FontService {
       '00010000', // TTF/OTF
       '4f54544f', // OTTO (OpenType)
       '74727565', // true (TrueType)
-      '74797031'  // typ1 (Type 1)
+      '74797031', // typ1 (Type 1)
     ];
 
     if (!validSignatures.includes(signature)) {

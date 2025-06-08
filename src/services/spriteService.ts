@@ -1,75 +1,11 @@
 import { dbPromise } from '../storage/indexedDbManager';
-import type { SpriteEntry } from '../types';
-import { 
-  fetchWithRetry,
-  processBatch, 
-  createProgressTracker,
-  DownloadProgress 
-} from '../utils';
-
-export interface SpriteDownloadOptions {
-  onProgress?: (progress: DownloadProgress) => void;
-  batchSize?: number;
-  maxRetries?: number;
-  skipExisting?: boolean;
-  bandwidthLimit?: number; // bytes per second
-  prioritySprites?: string[]; // sprites to download first
-  storageQuotaCheck?: boolean;
-  enableValidation?: boolean;
-  timeoutMs?: number;
-  includeMetadata?: boolean;
-}
-
-export interface SpriteDownloadResult {
-  totalSprites: number;
-  downloadedSprites: number;
-  skippedSprites: number;
-  failedSprites: number;
-  totalSize: number;
-  downloadSpeed: number; // bytes per second
-  duration: number; // milliseconds
-  errors: Array<{ url: string; error: string }>;
-  analytics: {
-    spritesByType: Record<string, number>;
-    averageSpriteSize: number;
-    largestSprite: { name: string; size: number };
-    smallestSprite: { name: string; size: number };
-  };
-}
-
-export interface EnhancedSpriteStats {
-  count: number;
-  totalSize: number;
-  averageSize: number;
-  sprites: Array<{
-    name: string; 
-    size: number; 
-    type: string; 
-    lastModified?: number;
-    metadata?: Record<string, unknown>;
-  }>;
-  spritesByType: Record<string, number>;
-  sizeByType: Record<string, number>;
-  oldestSprite?: { name: string; lastModified: number };
-  newestSprite?: { name: string; lastModified: number };
-  corruptedSprites: string[];
-}
-
-export interface LocalSpriteEntry {
-  key: string;
-  name: string;
-  url: string;
-  data: ArrayBuffer;
-  contentType: string;
-  size: number;
-  lastModified: number;
-  metadata?: {
-    dimensions?: { width: number; height: number };
-    format?: string;
-    compressionRatio?: number;
-    spritesheet?: boolean;
-  };
-}
+import type {
+  EnhancedSpriteStats,
+  SpriteDownloadOptions,
+  SpriteDownloadResult,
+  SpriteEntry,
+} from '../types';
+import { fetchWithRetry, processBatch, createProgressTracker } from '../utils';
 
 export class SpriteService {
   private db = dbPromise;
@@ -89,7 +25,7 @@ export class SpriteService {
       storageQuotaCheck = true,
       enableValidation = true,
       timeoutMs = 15000,
-      includeMetadata = false
+      includeMetadata = false,
     } = options;
 
     const startTime = Date.now();
@@ -111,7 +47,7 @@ export class SpriteService {
       const bName = this.extractSpriteName(b);
       const aPriority = prioritySprites.includes(aName);
       const bPriority = prioritySprites.includes(bName);
-      
+
       if (aPriority && !bPriority) return -1;
       if (!aPriority && bPriority) return 1;
       return 0;
@@ -122,9 +58,9 @@ export class SpriteService {
     if (skipExisting) {
       const existingSprites = new Set();
       const tx = db.transaction(['sprites'], 'readonly');
-      
+
       let cursor = await tx.objectStore('sprites').openCursor();
-      
+
       while (cursor) {
         existingSprites.add(cursor.value.key);
         cursor = await cursor.continue();
@@ -134,7 +70,7 @@ export class SpriteService {
         const key = this.createSpriteKey(url);
         return !existingSprites.has(key);
       });
-      
+
       skippedSprites = spriteUrls.length - urlsToDownload.length;
     }
 
@@ -143,8 +79,9 @@ export class SpriteService {
       const estimate = await navigator.storage.estimate();
       const usedSpace = estimate.usage || 0;
       const availableSpace = (estimate.quota || 0) - usedSpace;
-      
-      if (availableSpace < 100 * 1024 * 1024) { // Less than 100MB
+
+      if (availableSpace < 100 * 1024 * 1024) {
+        // Less than 100MB
         throw new Error('Insufficient storage space for sprite download');
       }
     }
@@ -152,11 +89,11 @@ export class SpriteService {
     // Process sprites in batches
     await processBatch(
       urlsToDownload,
-      async (spriteUrl) => {
+      async spriteUrl => {
         try {
           const spriteName = this.extractSpriteName(spriteUrl);
           const spriteKey = this.createSpriteKey(spriteUrl);
-          
+
           progressTracker.update(1, spriteName);
 
           // Apply bandwidth limiting if specified
@@ -166,7 +103,7 @@ export class SpriteService {
 
           const response = await fetchWithRetry(spriteUrl, {
             retries: maxRetries,
-            timeout: timeoutMs
+            timeout: timeoutMs,
           });
 
           if (!response.ok) {
@@ -189,7 +126,7 @@ export class SpriteService {
             contentType,
             size: spriteData.byteLength,
             lastModified: Date.now(),
-            downloadedAt: new Date().toISOString()
+            downloadedAt: new Date().toISOString(),
           };
 
           // Store sprite in database
@@ -208,12 +145,11 @@ export class SpriteService {
           if (spriteData.byteLength < smallestSprite.size) {
             smallestSprite = { name: spriteName, size: spriteData.byteLength };
           }
-
         } catch (error) {
           failedSprites++;
           errors.push({
             url: spriteUrl,
-            error: error instanceof Error ? error.message : String(error)
+            error: error instanceof Error ? error.message : String(error),
           });
           console.error(`Failed to download sprite ${spriteUrl}:`, error);
         }
@@ -237,8 +173,8 @@ export class SpriteService {
         spritesByType,
         averageSpriteSize: downloadedSprites > 0 ? totalSize / downloadedSprites : 0,
         largestSprite: largestSprite.size > 0 ? largestSprite : { name: '', size: 0 },
-        smallestSprite: smallestSprite.size < Infinity ? smallestSprite : { name: '', size: 0 }
-      }
+        smallestSprite: smallestSprite.size < Infinity ? smallestSprite : { name: '', size: 0 },
+      },
     };
   }
 
@@ -248,9 +184,9 @@ export class SpriteService {
     let count = 0;
     let totalSize = 0;
     const sprites: Array<{
-      name: string; 
-      size: number; 
-      type: string; 
+      name: string;
+      size: number;
+      type: string;
       lastModified?: number;
       metadata?: Record<string, unknown>;
     }> = [];
@@ -262,20 +198,23 @@ export class SpriteService {
 
     const tx = db.transaction(['sprites'], 'readonly');
     let cursor = await tx.objectStore('sprites').openCursor();
-    
+
     while (cursor) {
       const spriteEntry: SpriteEntry = cursor.value;
       count++;
       totalSize += spriteEntry.size;
 
-      const spriteType = this.detectSpriteType(spriteEntry.contentType || 'image/png', spriteEntry.url);
+      const spriteType = this.detectSpriteType(
+        spriteEntry.contentType || 'image/png',
+        spriteEntry.url
+      );
       const spriteName = this.extractSpriteName(spriteEntry.url);
-      
+
       sprites.push({
         name: spriteName,
         size: spriteEntry.size,
         type: spriteType,
-        lastModified: spriteEntry.lastModified
+        lastModified: spriteEntry.lastModified,
       });
 
       // Track by type
@@ -307,46 +246,47 @@ export class SpriteService {
       sizeByType,
       oldestSprite,
       newestSprite,
-      corruptedSprites
+      corruptedSprites,
     };
   }
 
   async getSpriteAnalytics(): Promise<Record<string, unknown>> {
     const stats = await this.getSpriteStats();
-    
+
     return {
       basic: {
         totalSprites: stats.count,
         totalSize: stats.totalSize,
-        averageSize: stats.averageSize
+        averageSize: stats.averageSize,
       },
       distribution: {
         spritesByType: stats.spritesByType,
-        sizeByType: stats.sizeByType
+        sizeByType: stats.sizeByType,
       },
       health: {
         corruptedSprites: stats.corruptedSprites.length,
-        corruptionRate: stats.count > 0 ? (stats.corruptedSprites.length / stats.count) * 100 : 0
+        corruptionRate: stats.count > 0 ? (stats.corruptedSprites.length / stats.count) * 100 : 0,
       },
       temporal: {
         oldestSprite: stats.oldestSprite,
         newestSprite: stats.newestSprite,
-        ageSpan: stats.oldestSprite && stats.newestSprite 
-          ? stats.newestSprite.lastModified - stats.oldestSprite.lastModified 
-          : 0
-      }
+        ageSpan:
+          stats.oldestSprite && stats.newestSprite
+            ? stats.newestSprite.lastModified - stats.oldestSprite.lastModified
+            : 0,
+      },
     };
   }
 
   async cleanupOldSprites(maxAge: number = 30): Promise<number> {
     const db = await this.db;
-    const cutoffTime = Date.now() - (maxAge * 24 * 60 * 60 * 1000);
-    
+    const cutoffTime = Date.now() - maxAge * 24 * 60 * 60 * 1000;
+
     const tx = db.transaction(['sprites'], 'readwrite');
     let deletedCount = 0;
 
     let cursor = await tx.objectStore('sprites').openCursor();
-    
+
     while (cursor) {
       const spriteEntry: SpriteEntry = cursor.value;
       if (spriteEntry.lastModified < cutoffTime) {
@@ -362,16 +302,16 @@ export class SpriteService {
   async verifyAndRepairSprites(): Promise<{ verified: number; repaired: number; removed: number }> {
     const db = await this.db;
     const tx = db.transaction(['sprites'], 'readwrite');
-    
+
     let verified = 0;
     let repaired = 0;
     let removed = 0;
 
     let cursor = await tx.objectStore('sprites').openCursor();
-    
+
     while (cursor) {
       const spriteEntry: SpriteEntry = cursor.value;
-      
+
       try {
         // Basic validation
         if (!spriteEntry.data || spriteEntry.size === 0) {
@@ -391,7 +331,7 @@ export class SpriteService {
               ...spriteEntry,
               data: newData,
               size: newData.byteLength,
-              lastModified: Date.now()
+              lastModified: Date.now(),
             };
             await cursor.update(repairedEntry);
             repaired++;
@@ -404,7 +344,7 @@ export class SpriteService {
           removed++;
         }
       }
-      
+
       cursor = await cursor.continue();
     }
 
@@ -428,20 +368,20 @@ export class SpriteService {
     if (contentType.includes('jpeg') || contentType.includes('jpg')) return 'jpeg';
     if (contentType.includes('webp')) return 'webp';
     if (contentType.includes('svg')) return 'svg';
-    
+
     // Fallback to URL extension
     const extension = url.split('.').pop()?.toLowerCase();
     if (extension === 'png') return 'png';
     if (extension === 'jpg' || extension === 'jpeg') return 'jpeg';
     if (extension === 'webp') return 'webp';
     if (extension === 'svg') return 'svg';
-    
+
     return 'unknown';
   }
 
   private async validateSprite(data: ArrayBuffer, contentType: string): Promise<void> {
     const view = new Uint8Array(data);
-    
+
     if (view.length < 8) {
       throw new Error('Sprite data too short');
     }
@@ -449,12 +389,12 @@ export class SpriteService {
     // Check for valid image signatures
     if (contentType.includes('png')) {
       // PNG signature: 89 50 4E 47 0D 0A 1A 0A
-      if (view[0] !== 0x89 || view[1] !== 0x50 || view[2] !== 0x4E || view[3] !== 0x47) {
+      if (view[0] !== 0x89 || view[1] !== 0x50 || view[2] !== 0x4e || view[3] !== 0x47) {
         throw new Error('Invalid PNG signature');
       }
     } else if (contentType.includes('jpeg')) {
       // JPEG signature: FF D8 FF
-      if (view[0] !== 0xFF || view[1] !== 0xD8 || view[2] !== 0xFF) {
+      if (view[0] !== 0xff || view[1] !== 0xd8 || view[2] !== 0xff) {
         throw new Error('Invalid JPEG signature');
       }
     } else if (contentType.includes('webp')) {
@@ -465,10 +405,13 @@ export class SpriteService {
     }
   }
 
-  private async extractSpriteMetadata(data: ArrayBuffer, contentType: string): Promise<Record<string, unknown>> {
+  private async extractSpriteMetadata(
+    data: ArrayBuffer,
+    contentType: string
+  ): Promise<Record<string, unknown>> {
     const metadata: Record<string, unknown> = {
       format: this.detectSpriteType(contentType, ''),
-      compressionRatio: 0.8 // Estimated
+      compressionRatio: 0.8, // Estimated
     };
 
     // For PNG files, we could extract more detailed metadata

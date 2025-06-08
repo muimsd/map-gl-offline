@@ -1,21 +1,10 @@
-import {
-  downloadTiles,
-  getTileStats,
-  TileDownloadOptions,
-  TileDownloadResult,
-  TileStats,
-  getTileAnalytics,
-  cleanupOldTiles,
-} from './tileService';
+import { downloadTiles, getTileStats, getTileAnalytics, cleanupOldTiles } from './tileService';
 import {
   downloadSprites,
   getSpriteStats,
   cleanupOldSprites,
   verifyAndRepairSprites,
   getSpriteAnalytics,
-  SpriteDownloadOptions,
-  SpriteDownloadResult,
-  EnhancedSpriteStats,
 } from './spriteService';
 import {
   downloadFonts,
@@ -23,9 +12,6 @@ import {
   getFontAnalytics,
   cleanupOldFonts,
   verifyAndRepairFonts,
-  FontDownloadOptions,
-  FontDownloadResult,
-  EnhancedFontStats,
 } from './fontService';
 import {
   downloadGlyphs,
@@ -34,12 +20,23 @@ import {
   getGlyphAnalytics,
   cleanupOldGlyphs,
   verifyAndRepairGlyphs,
-  GlyphDownloadOptions,
-  GlyphDownloadResult,
   EnhancedGlyphStats,
 } from './glyphService';
-import type { OfflineRegionOptions } from '../types/region';
-import type { MapboxStyle } from '../types/style';
+import type {
+  OfflineRegionOptions,
+  MapboxStyle,
+  TileDownloadOptions,
+  TileDownloadResult,
+  TileStats,
+  SpriteDownloadOptions,
+  SpriteDownloadResult,
+  EnhancedSpriteStats,
+  FontDownloadOptions,
+  FontDownloadResult,
+  EnhancedFontStats,
+  GlyphDownloadOptions,
+  GlyphDownloadResult,
+} from '../types';
 
 export class ResourceService {
   // Tile Management Methods

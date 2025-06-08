@@ -1,8 +1,8 @@
-import { TileStats } from '../services/tileService';
-import { EnhancedFontStats } from '../services/fontService';
-import { EnhancedSpriteStats } from '../services/spriteService';
 import { EnhancedGlyphStats } from '../services/glyphService';
-import { RegionAnalytics, CleanupResult } from '../services/cleanupService';
+import { TileStats } from './tile';
+import { EnhancedFontStats } from './font';
+import { EnhancedSpriteStats } from './sprite';
+import { CleanupResult, RegionAnalytics } from './cleanup';
 
 // Maintenance Options Type
 export interface MaintenanceOptions {
