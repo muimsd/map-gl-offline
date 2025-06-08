@@ -1,5 +1,5 @@
 import * as maplibregl from 'maplibre-gl';
-import { OfflineMapManager, RegionsControl } from './index';
+import { OfflineMapManager, OfflineManagerControl } from './index';
 import 'maplibre-gl/dist/maplibre-gl.css';
 
 const styleURL = 'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json';
@@ -33,9 +33,9 @@ map.addControl(
   'top-right'
 );
 
-// Add our custom regions control
-const regionsControl = new RegionsControl(offlineManager);
-map.addControl(regionsControl, 'top-right');
+// Add our custom offline manager control
+const offlineManagerControl = new OfflineManagerControl(offlineManager);
+map.addControl(offlineManagerControl, 'top-right');
 
 // Start automatic cleanup of expired regions (runs every hour)
 // offlineManager.setupAutoCleanup();
@@ -64,8 +64,8 @@ async function handleOffline() {
 
   console.warn('Style URL:', styleURL);
 
-  // Refresh the regions control to show the new region
-  await regionsControl.refresh();
+  // Refresh the offline manager control to show the new region
+  await offlineManagerControl.refresh();
 
   // // Example: check region expiry
   // const expiryInfo = await offlineManager.getRegionExpiry('world');

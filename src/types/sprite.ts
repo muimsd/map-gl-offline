@@ -1,4 +1,4 @@
-import { DownloadProgress } from "./progress";
+import { DownloadProgress } from './progress';
 
 // Sprite entry stored in the sprites table
 export interface SpriteEntry {
@@ -10,7 +10,6 @@ export interface SpriteEntry {
   size: number;
   url: string;
 }
-
 
 export interface SpriteDownloadOptions {
   onProgress?: (progress: DownloadProgress) => void;
@@ -47,9 +46,9 @@ export interface EnhancedSpriteStats {
   totalSize: number;
   averageSize: number;
   sprites: Array<{
-    name: string; 
-    size: number; 
-    type: string; 
+    name: string;
+    size: number;
+    type: string;
     lastModified?: number;
     metadata?: Record<string, unknown>;
   }>;

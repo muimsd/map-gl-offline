@@ -8,7 +8,6 @@ export interface GlyphEntry {
   url: string;
 }
 
-
 // Enhanced glyph interfaces
 export interface GlyphRange {
   start: number;

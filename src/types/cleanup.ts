@@ -1,13 +1,12 @@
-
 export interface RegionCleanupOptions {
-  maxAge?: number;           // Days
-  maxStorageSize?: number;   // Bytes
-  maxRegions?: number;       // Maximum number of regions to keep
+  maxAge?: number; // Days
+  maxStorageSize?: number; // Bytes
+  maxRegions?: number; // Maximum number of regions to keep
   priorityPatterns?: string[]; // Region ID patterns to preserve
-  onProgress?: (progress: { 
+  onProgress?: (progress: {
     phase: 'scanning' | 'analyzing' | 'cleaning';
-    completed: number; 
-    total: number; 
+    completed: number;
+    total: number;
     message: string;
   }) => void;
 }

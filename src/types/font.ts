@@ -1,4 +1,4 @@
-import { DownloadProgress } from "./progress";
+import { DownloadProgress } from './progress';
 
 // Font entry stored in the fonts table
 export interface FontEntry {

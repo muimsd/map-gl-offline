@@ -24,8 +24,6 @@ export type StyleEntry = {
   sprites: string[];
 };
 
-
-
 export interface StyleDownloadOptions {
   onProgress?: (progress: DownloadProgress) => void;
   fontOptions?: FontDownloadOptions;
