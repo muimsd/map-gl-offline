@@ -303,10 +303,13 @@ export class FontService {
   }
 
   private detectFontType(contentType: string, url: string): string {
-    if (contentType.includes('woff2')) return 'woff2';
-    if (contentType.includes('woff')) return 'woff';
-    if (contentType.includes('ttf') || contentType.includes('truetype')) return 'ttf';
-    if (contentType.includes('otf') || contentType.includes('opentype')) return 'otf';
+    // Handle undefined or null contentType
+    if (contentType && typeof contentType === 'string') {
+      if (contentType.includes('woff2')) return 'woff2';
+      if (contentType.includes('woff')) return 'woff';
+      if (contentType.includes('ttf') || contentType.includes('truetype')) return 'ttf';
+      if (contentType.includes('otf') || contentType.includes('opentype')) return 'otf';
+    }
 
     // Fallback to URL extension
     const extension = url.split('.').pop()?.toLowerCase();

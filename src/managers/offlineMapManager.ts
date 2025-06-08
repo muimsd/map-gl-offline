@@ -64,7 +64,7 @@ export class OfflineMapManager {
 
   async listStoredRegions(): Promise<StoredRegion[]> {
     // Get StoredRegion data directly from the database
-    return this.cleanupService['getAllRegions']();
+    return this.cleanupService.getAllRegions();
   }
 
   async getStoredRegion(regionId: string): Promise<StoredRegion | null> {
@@ -73,7 +73,7 @@ export class OfflineMapManager {
   }
 
   async getRegionSize(regionId: string): Promise<number> {
-    return this.cleanupService['getRegionSize'](regionId);
+    return this.cleanupService.getRegionSize(regionId);
   }
 
   // Cleanup Management (delegated to CleanupService)

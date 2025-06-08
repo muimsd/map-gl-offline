@@ -1,12 +1,13 @@
 import type { IControl, Map as MaplibreMap } from 'maplibre-gl';
 import { OfflineMapManager } from '../managers/offlineMapManager';
-import type { StoredRegion } from '../types/region';
+import type { StoredRegion } from '../types';
 
 export class RegionsControl implements IControl {
   private map: MaplibreMap | undefined;
   private container: HTMLDivElement | undefined;
   private button: HTMLButtonElement | undefined;
   private panel: HTMLDivElement | undefined;
+  private backdrop: HTMLDivElement | undefined;
   private isOpen = false;
   private offlineManager: OfflineMapManager;
 
@@ -36,39 +37,56 @@ export class RegionsControl implements IControl {
     this.button.style.alignItems = 'center';
     this.button.style.justifyContent = 'center';
 
-    // Create the panel
+    // Create the panel as a centered modal
     this.panel = document.createElement('div');
     this.panel.className = 'regions-panel';
-    this.panel.style.position = 'absolute';
-    this.panel.style.top = '0';
-    this.panel.style.right = '35px';
+    this.panel.style.position = 'fixed';
+    this.panel.style.top = '50%';
+    this.panel.style.left = '50%';
+    this.panel.style.transform = 'translate(-50%, -50%)';
     this.panel.style.background = 'white';
     this.panel.style.border = '1px solid #ccc';
-    this.panel.style.borderRadius = '4px';
-    this.panel.style.boxShadow = '0 2px 10px rgba(0,0,0,0.1)';
-    this.panel.style.padding = '10px';
-    this.panel.style.minWidth = '300px';
-    this.panel.style.maxWidth = '400px';
-    this.panel.style.maxHeight = '400px';
+    this.panel.style.borderRadius = '8px';
+    this.panel.style.boxShadow = '0 8px 32px rgba(0,0,0,0.3)';
+    this.panel.style.padding = '20px';
+    this.panel.style.minWidth = '400px';
+    this.panel.style.maxWidth = '500px';
+    this.panel.style.maxHeight = '70vh';
     this.panel.style.overflowY = 'auto';
     this.panel.style.display = 'none';
-    this.panel.style.zIndex = '1000';
+    this.panel.style.zIndex = '10000';
+    this.panel.style.backdropFilter = 'blur(5px)';
 
-    this.button.addEventListener('click', (e) => {
+    // Create backdrop overlay
+    const backdrop = document.createElement('div');
+    backdrop.className = 'regions-modal-backdrop';
+    backdrop.style.position = 'fixed';
+    backdrop.style.top = '0';
+    backdrop.style.left = '0';
+    backdrop.style.width = '100%';
+    backdrop.style.height = '100%';
+    backdrop.style.backgroundColor = 'rgba(0,0,0,0.5)';
+    backdrop.style.zIndex = '9999';
+    backdrop.style.display = 'none';
+
+    // Close modal when clicking backdrop
+    backdrop.addEventListener('click', () => {
+      this.closePanel();
+    });
+
+    this.backdrop = backdrop;
+
+    this.button.addEventListener('click', e => {
       e.preventDefault();
       e.stopPropagation();
       this.togglePanel();
     });
 
-    // Close panel when clicking outside
-    document.addEventListener('click', (e) => {
-      if (this.isOpen && this.container && !this.container.contains(e.target as Node)) {
-        this.closePanel();
-      }
-    });
-
     this.container.appendChild(this.button);
-    this.container.appendChild(this.panel);
+
+    // Append backdrop and panel to document body for modal behavior
+    document.body.appendChild(backdrop);
+    document.body.appendChild(this.panel);
 
     return this.container;
   }
@@ -76,6 +94,12 @@ export class RegionsControl implements IControl {
   onRemove(): void {
     if (this.container && this.container.parentNode) {
       this.container.parentNode.removeChild(this.container);
+    }
+    if (this.panel && this.panel.parentNode) {
+      this.panel.parentNode.removeChild(this.panel);
+    }
+    if (this.backdrop && this.backdrop.parentNode) {
+      this.backdrop.parentNode.removeChild(this.backdrop);
     }
     this.map = undefined;
   }
@@ -89,19 +113,21 @@ export class RegionsControl implements IControl {
   }
 
   private async openPanel(): Promise<void> {
-    if (!this.panel) return;
-    
+    if (!this.panel || !this.backdrop) return;
+
     this.isOpen = true;
+    this.backdrop.style.display = 'block';
     this.panel.style.display = 'block';
-    
+
     // Load and display regions
     await this.loadRegions();
   }
 
-  private closePanel(): void {
-    if (!this.panel) return;
-    
+  public closePanel(): void {
+    if (!this.panel || !this.backdrop) return;
+
     this.isOpen = false;
+    this.backdrop.style.display = 'none';
     this.panel.style.display = 'none';
   }
 
@@ -109,33 +135,48 @@ export class RegionsControl implements IControl {
     if (!this.panel) return;
 
     try {
-      this.panel.innerHTML = '<div style="text-align: center; padding: 10px;">Loading regions...</div>';
-      
+      this.panel.innerHTML =
+        '<div style="text-align: center; padding: 10px;">Loading regions...</div>';
+
       const regions = await this.offlineManager.listStoredRegions();
       const analytics = await this.offlineManager.getComprehensiveStorageAnalytics();
-      
+
       if (regions.length === 0) {
         this.panel.innerHTML = `
-          <div style="text-align: center; color: #666;">
-            <h3 style="margin: 0 0 10px 0; font-size: 14px;">No Downloaded Regions</h3>
-            <p style="margin: 0; font-size: 12px;">Download a region to see it here</p>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 2px solid #e0e0e0;">
+            <h3 style="margin: 0; font-size: 18px; color: #333; font-weight: 600;">Downloaded Regions</h3>
+            <button onclick="regionsControl.closePanel()" 
+                    style="background: #dc3545; color: white; border: none; border-radius: 50%; width: 30px; height: 30px; font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-weight: bold;">
+              ×
+            </button>
+          </div>
+          <div style="text-align: center; color: #666; padding: 40px 20px;">
+            <div style="font-size: 48px; margin-bottom: 15px;">📱</div>
+            <h4 style="margin: 0 0 10px 0; font-size: 16px; color: #333;">No Downloaded Regions</h4>
+            <p style="margin: 0; font-size: 14px;">Download a region to see it here</p>
           </div>
         `;
         return;
       }
 
       let html = `
-        <div style="margin-bottom: 15px;">
-          <h3 style="margin: 0 0 10px 0; font-size: 14px; color: #333;">Downloaded Regions (${regions.length})</h3>
-          <div style="font-size: 11px; color: #666; margin-bottom: 10px;">
-            Total Storage: ${this.formatBytes(analytics.totalStorageSize)}
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 2px solid #e0e0e0;">
+          <div>
+            <h3 style="margin: 0 0 5px 0; font-size: 18px; color: #333; font-weight: 600;">Downloaded Regions (${regions.length})</h3>
+            <div style="font-size: 13px; color: #666;">
+              Total Storage: ${this.formatBytes(analytics.totalStorageSize)}
+            </div>
           </div>
+          <button onclick="regionsControl.closePanel()" 
+                  style="background: #dc3545; color: white; border: none; border-radius: 50%; width: 30px; height: 30px; font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-weight: bold;">
+            ×
+          </button>
         </div>
       `;
 
       for (const region of regions) {
         const isExpired = region.expiry && Date.now() > region.expiry;
-        const expiryText = region.expiry 
+        const expiryText = region.expiry
           ? `Expires: ${new Date(region.expiry).toLocaleDateString()}`
           : 'No expiry';
 
@@ -143,27 +184,27 @@ export class RegionsControl implements IControl {
         const regionSize = await this.offlineManager.getRegionSize(region.id);
 
         html += `
-          <div style="border: 1px solid #e0e0e0; border-radius: 4px; margin-bottom: 8px; padding: 8px; background: ${isExpired ? '#fff5f5' : '#f9f9f9'};">
-            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 5px;">
-              <strong style="font-size: 12px; color: #333;">${region.name || region.id}</strong>
+          <div style="border: 1px solid #e0e0e0; border-radius: 8px; margin-bottom: 12px; padding: 15px; background: ${isExpired ? '#fff5f5' : '#f9f9f9'}; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
+              <strong style="font-size: 14px; color: #333; font-weight: 600;">${region.name || region.id}</strong>
               <button onclick="regionsControl.focusRegion('${region.id}')" 
-                      style="background: #007bff; color: white; border: none; border-radius: 3px; padding: 2px 6px; font-size: 10px; cursor: pointer;">
+                      style="background: #007bff; color: white; border: none; border-radius: 5px; padding: 5px 10px; font-size: 11px; cursor: pointer; font-weight: 500;">
                 Focus
               </button>
             </div>
-            <div style="font-size: 10px; color: #666; line-height: 1.3;">
-              <div>Zoom: ${region.minZoom}-${region.maxZoom}</div>
-              <div>Size: ${this.formatBytes(regionSize)}</div>
-              <div style="color: ${isExpired ? '#d63384' : '#666'}">${expiryText}</div>
-              ${isExpired ? '<div style="color: #d63384; font-weight: bold;">EXPIRED</div>' : ''}
+            <div style="font-size: 12px; color: #666; line-height: 1.4; margin-bottom: 10px;">
+              <div style="margin-bottom: 3px;">📍 Zoom: ${region.minZoom}-${region.maxZoom}</div>
+              <div style="margin-bottom: 3px;">💾 Size: ${this.formatBytes(regionSize)}</div>
+              <div style="color: ${isExpired ? '#d63384' : '#666'}">⏰ ${expiryText}</div>
+              ${isExpired ? '<div style="color: #d63384; font-weight: bold; margin-top: 5px;">⚠️ EXPIRED</div>' : ''}
             </div>
-            <div style="margin-top: 5px;">
+            <div style="display: flex; gap: 8px;">
               <button onclick="regionsControl.deleteRegion('${region.id}')" 
-                      style="background: #dc3545; color: white; border: none; border-radius: 3px; padding: 2px 6px; font-size: 10px; cursor: pointer; margin-right: 5px;">
+                      style="background: #dc3545; color: white; border: none; border-radius: 5px; padding: 5px 12px; font-size: 11px; cursor: pointer; font-weight: 500;">
                 Delete
               </button>
               <button onclick="regionsControl.showRegionDetails('${region.id}')" 
-                      style="background: #6c757d; color: white; border: none; border-radius: 3px; padding: 2px 6px; font-size: 10px; cursor: pointer;">
+                      style="background: #6c757d; color: white; border: none; border-radius: 5px; padding: 5px 12px; font-size: 11px; cursor: pointer; font-weight: 500;">
                 Details
               </button>
             </div>
@@ -173,10 +214,10 @@ export class RegionsControl implements IControl {
 
       // Add cleanup button
       html += `
-        <div style="margin-top: 15px; padding-top: 10px; border-top: 1px solid #e0e0e0;">
+        <div style="margin-top: 20px; padding-top: 15px; border-top: 2px solid #e0e0e0;">
           <button onclick="regionsControl.cleanupExpired()" 
-                  style="background: #fd7e14; color: white; border: none; border-radius: 3px; padding: 5px 10px; font-size: 11px; cursor: pointer; width: 100%;">
-            Cleanup Expired Regions
+                  style="background: #fd7e14; color: white; border: none; border-radius: 6px; padding: 10px 15px; font-size: 13px; cursor: pointer; width: 100%; font-weight: 600; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+            🧹 Cleanup Expired Regions
           </button>
         </div>
       `;
@@ -185,9 +226,17 @@ export class RegionsControl implements IControl {
     } catch (error) {
       console.error('Error loading regions:', error);
       this.panel.innerHTML = `
-        <div style="text-align: center; color: #d63384;">
-          <h3 style="margin: 0 0 10px 0; font-size: 14px;">Error Loading Regions</h3>
-          <p style="margin: 0; font-size: 12px;">${error instanceof Error ? error.message : 'Unknown error'}</p>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 2px solid #e0e0e0;">
+          <h3 style="margin: 0; font-size: 18px; color: #333; font-weight: 600;">Error</h3>
+          <button onclick="regionsControl.closePanel()" 
+                  style="background: #dc3545; color: white; border: none; border-radius: 50%; width: 30px; height: 30px; font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-weight: bold;">
+            ×
+          </button>
+        </div>
+        <div style="text-align: center; color: #d63384; padding: 40px 20px;">
+          <div style="font-size: 48px; margin-bottom: 15px;">⚠️</div>
+          <h4 style="margin: 0 0 10px 0; font-size: 16px;">Error Loading Regions</h4>
+          <p style="margin: 0; font-size: 14px;">${error instanceof Error ? error.message : 'Unknown error'}</p>
         </div>
       `;
     }
@@ -204,7 +253,7 @@ export class RegionsControl implements IControl {
   // Public methods for button callbacks
   public async focusRegion(regionId: string): Promise<void> {
     if (!this.map) return;
-    
+
     try {
       const region = await this.offlineManager.getStoredRegion(regionId);
       if (region && region.bounds) {
@@ -256,7 +305,9 @@ Region Details:
       alert(details);
     } catch (error) {
       console.error('Error showing region details:', error);
-      alert(`Error loading region details: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      alert(
+        `Error loading region details: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
 

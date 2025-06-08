@@ -20,9 +20,6 @@ const offlineManager = new OfflineMapManager();
 // Add navigation controls (zoom in/out, compass, pitch/rotate)
 map.addControl(new maplibregl.NavigationControl(), 'top-right');
 
-// Add fullscreen control
-map.addControl(new maplibregl.FullscreenControl(), 'top-right');
-
 // Add scale control
 map.addControl(new maplibregl.ScaleControl(), 'bottom-left');
 
@@ -37,7 +34,7 @@ map.addControl(new maplibregl.GeolocateControl({
 
 // Add our custom regions control
 const regionsControl = new RegionsControl(offlineManager);
-map.addControl(regionsControl, 'top-left');
+map.addControl(regionsControl, 'top-right');
 
 // Make regionsControl available globally for button callbacks
 (window as any).regionsControl = regionsControl;

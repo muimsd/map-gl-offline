@@ -364,10 +364,13 @@ export class SpriteService {
   }
 
   private detectSpriteType(contentType: string, url: string): string {
-    if (contentType.includes('png')) return 'png';
-    if (contentType.includes('jpeg') || contentType.includes('jpg')) return 'jpeg';
-    if (contentType.includes('webp')) return 'webp';
-    if (contentType.includes('svg')) return 'svg';
+    // Handle undefined or null contentType
+    if (contentType && typeof contentType === 'string') {
+      if (contentType.includes('png')) return 'png';
+      if (contentType.includes('jpeg') || contentType.includes('jpg')) return 'jpeg';
+      if (contentType.includes('webp')) return 'webp';
+      if (contentType.includes('svg')) return 'svg';
+    }
 
     // Fallback to URL extension
     const extension = url.split('.').pop()?.toLowerCase();

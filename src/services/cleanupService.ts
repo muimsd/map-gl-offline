@@ -70,7 +70,7 @@ export class CleanupService {
       for (const region of regions) {
         const isExpired = region.lastModified < cutoffTime;
         const isPriority = priorityPatterns.some(
-          pattern => region.id.includes(pattern) || region.name?.includes(pattern)
+          pattern => region.id.includes(pattern) || (region.name && region.name.includes(pattern))
         );
 
         if (isExpired) {
@@ -296,12 +296,12 @@ export class CleanupService {
     };
   }
 
-  private async getAllRegions(): Promise<StoredRegion[]> {
+  async getAllRegions(): Promise<StoredRegion[]> {
     const db = await this.db;
     return await db.getAll('regions');
   }
 
-  private async getRegionSize(regionId: string): Promise<number> {
+  async getRegionSize(regionId: string): Promise<number> {
     const db = await this.db;
     let totalSize = 0;
 
@@ -370,7 +370,7 @@ export class CleanupService {
       .map(region => ({
         region,
         isPriority: priorityPatterns.some(
-          pattern => region.id.includes(pattern) || region.name?.includes(pattern)
+          pattern => region.id.includes(pattern) || (region.name && region.name.includes(pattern))
         ),
       }))
       .sort((a, b) => {
