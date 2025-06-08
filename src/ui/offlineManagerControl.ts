@@ -1,4 +1,4 @@
-import type { IControl, Map as MaplibreMap } from 'maplibre-gl';
+import type { IControl, Map as MaplibreMap, GeoJSONSource } from 'maplibre-gl';
 import { OfflineMapManager } from '../managers/offlineMapManager';
 import { icons } from '../utils/icons';
 import { themeManager, generateCSSCustomProperties } from './themes';
@@ -7,6 +7,8 @@ import { createActionButtons } from './actionButtons';
 import { createDownloadProgressSection } from './downloadProgress';
 import { createRegionsList } from './regionsList';
 import { createButton, createInput, createModal } from './components';
+import { area, bboxPolygon, difference, convertArea } from '@turf/turf';
+import { featureCollection, polygon } from '@turf/helpers';
 // import { formatBytes, formatDate } from '../utils/formatting';
 import type { StoredRegion } from '../types';
 
@@ -44,6 +46,12 @@ export class OfflineManagerControl implements IControl {
   private currentDownloads: Map<string, DownloadProgress> = new Map();
   private offlineManager: OfflineMapManager;
   private activeModal: HTMLDivElement | undefined;
+
+  // Polygon selection state
+  private isPolygonMode = false;
+  private polygonControl: HTMLDivElement | undefined;
+  private currentPolygonArea = 0;
+  private currentBounds: [number, number, number, number] | null = null;
 
   constructor(
     offlineManager: OfflineMapManager,
@@ -220,7 +228,7 @@ export class OfflineManagerControl implements IControl {
       ]);
 
       const headerElement = createHeader({
-        title: 'Offline Regions',
+        title: 'Offline Manager',
         subtitle: `${regions.length} regions • ${formatBytes(analytics.totalStorageSize)} total`,
         onClose: () => this.closePanel(),
         onToggleTheme: () => {
@@ -254,7 +262,7 @@ export class OfflineManagerControl implements IControl {
 
       // Clear panel and rebuild with proper event handling
       this.panel.innerHTML = '';
-      
+
       // Create main container
       const mainContainer = document.createElement('div');
       mainContainer.style.cssText = `
@@ -300,10 +308,10 @@ export class OfflineManagerControl implements IControl {
       this.panel.appendChild(mainContainer);
     } catch (error) {
       console.error('Error rendering panel:', error);
-      
+
       // Clear panel and create error state with working event handlers
       this.panel.innerHTML = '';
-      
+
       // Create main container
       const errorContainer = document.createElement('div');
       errorContainer.style.cssText = `
@@ -398,49 +406,368 @@ export class OfflineManagerControl implements IControl {
   }
 
   private showSimpleAddForm(): void {
+    // Enter polygon selection mode
+    this.enterPolygonMode();
+  }
+
+  /**
+   * Enter polygon selection mode
+   */
+  private enterPolygonMode(): void {
     if (!this.map) return;
 
-    const bounds = this.map.getBounds();
+    this.isPolygonMode = true;
+    this.closePanel(); // Close the main panel
+
+    // Create polygon control UI
+    this.createPolygonControl();
+
+    // Add polygon visualization
+    this.updatePolygonVisualization();
+
+    // Add map event listeners
+    this.map.on('moveend', this.handleMapMoveEnd.bind(this));
+    this.map.on('zoomend', this.handleMapMoveEnd.bind(this));
+  }
+
+  /**
+   * Exit polygon selection mode
+   */
+  private exitPolygonMode(): void {
+    if (!this.map) return;
+
+    this.isPolygonMode = false;
+
+    // Remove polygon control UI
+    if (this.polygonControl && this.polygonControl.parentNode) {
+      this.polygonControl.parentNode.removeChild(this.polygonControl);
+      this.polygonControl = undefined;
+    }
+
+    // Remove polygon visualization
+    this.removePolygonVisualization();
+
+    // Remove map event listeners
+    this.map.off('moveend', this.handleMapMoveEnd.bind(this));
+    this.map.off('zoomend', this.handleMapMoveEnd.bind(this));
+
+    this.currentBounds = null;
+    this.currentPolygonArea = 0;
+  }
+
+  /**
+   * Create the polygon control UI
+   */
+  private createPolygonControl(): void {
+    if (!this.map) return;
+
+    this.polygonControl = document.createElement('div');
+    this.polygonControl.className = 'offline-manager-control';
+    this.polygonControl.style.cssText = `
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      background: var(--theme-surface);
+      border: 1px solid var(--theme-border);
+      border-radius: var(--theme-radius-lg);
+      box-shadow: var(--theme-shadow-lg);
+      padding: var(--theme-spacing-md);
+      z-index: 1000;
+      font-family: var(--theme-font-family);
+      min-width: 250px;
+    `;
+
+    // Create header
+    const header = document.createElement('div');
+    header.style.cssText = `
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: var(--theme-spacing-sm);
+      padding-bottom: var(--theme-spacing-sm);
+      border-bottom: 1px solid var(--theme-border);
+    `;
+
+    const title = document.createElement('h3');
+    title.style.cssText = `
+      margin: 0;
+      font-size: var(--theme-font-size-md);
+      font-weight: var(--theme-font-weight-semibold);
+      color: var(--theme-text);
+    `;
+    title.textContent = 'Select Region';
+
+    const closeButton = createButton({
+      variant: 'ghost',
+      size: 'sm',
+      icon: 'x',
+      children: '',
+      onClick: () => this.exitPolygonMode(),
+      style: {
+        width: '24px',
+        height: '24px',
+        padding: '0',
+      },
+    });
+
+    header.appendChild(title);
+    header.appendChild(closeButton);
+
+    // Create info section
+    const infoSection = document.createElement('div');
+    infoSection.style.cssText = `
+      margin-bottom: var(--theme-spacing-md);
+      font-size: var(--theme-font-size-sm);
+      color: var(--theme-text-secondary);
+    `;
+
+    const areaInfo = document.createElement('div');
+    areaInfo.id = 'polygon-area-info';
+    areaInfo.style.cssText = `
+      margin-bottom: var(--theme-spacing-xs);
+      font-weight: var(--theme-font-weight-medium);
+      color: var(--theme-text);
+    `;
+
+    const instruction = document.createElement('div');
+    instruction.textContent = 'Move and zoom the map to adjust the selection area';
+    instruction.style.cssText = `
+      font-size: var(--theme-font-size-xs);
+      color: var(--theme-text-muted);
+    `;
+
+    infoSection.appendChild(areaInfo);
+    infoSection.appendChild(instruction);
+
+    // Create save button
+    const saveButton = createButton({
+      variant: 'primary',
+      size: 'md',
+      children: 'Save Polygon',
+      onClick: () => this.showRegionForm(),
+      style: {
+        width: '100%',
+        background:
+          'linear-gradient(135deg, var(--theme-success) 0%, var(--theme-success-hover) 100%)',
+      },
+    });
+
+    this.polygonControl.appendChild(header);
+    this.polygonControl.appendChild(infoSection);
+    this.polygonControl.appendChild(saveButton);
+
+    // Add to map container
+    const mapContainer = this.map.getContainer();
+    mapContainer.appendChild(this.polygonControl);
+  }
+
+  /**
+   * Handle map move/zoom events
+   */
+  private handleMapMoveEnd(): void {
+    if (this.isPolygonMode) {
+      this.updatePolygonVisualization();
+    }
+  }
+
+  /**
+   * Update polygon visualization based on current map bounds
+   */
+  private updatePolygonVisualization(): void {
+    if (!this.map) return;
+
+    const bboxArray = this.map.getBounds().toArray() as [number, number][];
+    if (!bboxArray) return;
+
+    const [minLng, minLat] = bboxArray[0];
+    const [maxLng, maxLat] = bboxArray[1];
+
+    const lngDiff = (maxLng - minLng) * 0.2;
+    const latDiff = (maxLat - minLat) * 0.2;
+
+    const clippedBbox = [minLng + lngDiff, minLat + latDiff, maxLng - lngDiff, maxLat - latDiff];
+
+    // Store current bounds for later use
+    this.currentBounds = clippedBbox as [number, number, number, number];
+
+    const clippedPolygon = bboxPolygon([
+      clippedBbox[0],
+      clippedBbox[1],
+      clippedBbox[2],
+      clippedBbox[3],
+    ]);
+
+    const originalPolygon = polygon([
+      [
+        [minLng, minLat],
+        [maxLng, minLat],
+        [maxLng, maxLat],
+        [minLng, maxLat],
+        [minLng, minLat],
+      ],
+    ]);
+
+    // Calculate area
+    const clippedPolygonAreaM2 = area(clippedPolygon);
+    const clippedPolygonAreaKM2 = convertArea(clippedPolygonAreaM2, 'meters', 'kilometers');
+    this.currentPolygonArea = parseFloat(clippedPolygonAreaKM2.toFixed(2));
+
+    // Update area info in UI
+    const areaInfo = document.getElementById('polygon-area-info');
+    if (areaInfo) {
+      areaInfo.textContent = `Area: ${this.currentPolygonArea} km²`;
+    }
+
+    const leftoverPolygon = difference(featureCollection([originalPolygon, clippedPolygon]));
+
+    if (!leftoverPolygon) {
+      console.error('Failed to compute the difference between polygons');
+      return;
+    }
+
+    // Update map visualization
+    if (this.map.getSource('leftoverPolygon')) {
+      (this.map.getSource('leftoverPolygon') as GeoJSONSource).setData(leftoverPolygon);
+    } else {
+      this.map.addSource('leftoverPolygon', {
+        type: 'geojson',
+        data: leftoverPolygon,
+      });
+
+      this.map.addLayer({
+        id: 'leftoverPolygon',
+        type: 'fill',
+        source: 'leftoverPolygon',
+        layout: {},
+        paint: {
+          'fill-color': '#000000',
+          'fill-opacity': 0.7,
+        },
+      });
+    }
+
+    // Add selection polygon visualization
+    if (this.map.getSource('selectionPolygon')) {
+      (this.map.getSource('selectionPolygon') as GeoJSONSource).setData(clippedPolygon);
+    } else {
+      this.map.addSource('selectionPolygon', {
+        type: 'geojson',
+        data: clippedPolygon,
+      });
+
+      this.map.addLayer({
+        id: 'selectionPolygon',
+        type: 'line',
+        source: 'selectionPolygon',
+        layout: {},
+        paint: {
+          'line-color': 'var(--theme-primary)',
+          'line-width': 3,
+          'line-dasharray': [2, 2],
+        },
+      });
+    }
+  }
+
+  /**
+   * Remove polygon visualization from map
+   */
+  private removePolygonVisualization(): void {
+    if (!this.map) return;
+
+    // Remove layers and sources
+    if (this.map.getLayer('leftoverPolygon')) {
+      this.map.removeLayer('leftoverPolygon');
+    }
+    if (this.map.getLayer('selectionPolygon')) {
+      this.map.removeLayer('selectionPolygon');
+    }
+    if (this.map.getSource('leftoverPolygon')) {
+      this.map.removeSource('leftoverPolygon');
+    }
+    if (this.map.getSource('selectionPolygon')) {
+      this.map.removeSource('selectionPolygon');
+    }
+  }
+
+  /**
+   * Show the region form with calculated bounds and area
+   */
+  private showRegionForm(): void {
+    if (!this.map || !this.currentBounds) return;
+
+    const [west, south, east, north] = this.currentBounds;
+    const styleUrl = this.getCurrentStyleUrl();
 
     const modalContent = `
-      <div style="margin-bottom: var(--theme-spacing-md);">
-        <label style="display: block; margin-bottom: var(--theme-spacing-xs); font-weight: var(--theme-font-weight-semibold);">Region Name:</label>
-        <input type="text" id="region-name" placeholder="Enter region name..." 
-               style="width: 100%; padding: var(--theme-spacing-sm); border: 1px solid var(--theme-border); border-radius: var(--theme-radius-sm); font-size: var(--theme-font-size-sm);">
-      </div>
-      
-      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--theme-spacing-sm); margin-bottom: var(--theme-spacing-lg);">
+      <div style="display: flex; flex-direction: column; gap: var(--theme-spacing-md); height: '100%'">
         <div>
-          <label style="display: block; margin-bottom: var(--theme-spacing-xs); font-weight: var(--theme-font-weight-semibold);">Min Zoom:</label>
-          <input type="number" id="min-zoom" value="1" min="0" max="22" 
-                 style="width: 100%; padding: var(--theme-spacing-sm); border: 1px solid var(--theme-border); border-radius: var(--theme-radius-sm); font-size: var(--theme-font-size-sm);">
+          <label style="display: block; margin-bottom: var(--theme-spacing-xs); font-weight: var(--theme-font-weight-semibold); color: var(--theme-text);">
+            Region Name:
+          </label>
+          <input type="text" id="region-name" placeholder="Enter region name..." 
+                 style="width: 100%; padding: var(--theme-spacing-sm); border: 1px solid var(--theme-border); border-radius: var(--theme-radius-sm); font-size: var(--theme-font-size-sm); color: var(--theme-text); background: var(--theme-surface);">
         </div>
+        
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--theme-spacing-sm);">
+          <div>
+            <label style="display: block; margin-bottom: var(--theme-spacing-xs); font-weight: var(--theme-font-weight-semibold); color: var(--theme-text);">
+              Min Zoom:
+            </label>
+            <input type="number" id="min-zoom" value="1" min="0" max="20"
+                   style="width: 100%; padding: var(--theme-spacing-sm); border: 1px solid var(--theme-border); border-radius: var(--theme-radius-sm); font-size: var(--theme-font-size-sm); color: var(--theme-text); background: var(--theme-surface);">
+          </div>
+          <div>
+            <label style="display: block; margin-bottom: var(--theme-spacing-xs); font-weight: var(--theme-font-weight-semibold); color: var(--theme-text);">
+              Max Zoom:
+            </label>
+            <input type="number" id="max-zoom" value="14" min="0" max="20"
+                   style="width: 100%; padding: var(--theme-spacing-sm); border: 1px solid var(--theme-border); border-radius: var(--theme-radius-sm); font-size: var(--theme-font-size-sm); color: var(--theme-text); background: var(--theme-surface);">
+          </div>
+        </div>
+
         <div>
-          <label style="display: block; margin-bottom: var(--theme-spacing-xs); font-weight: var(--theme-font-weight-semibold);">Max Zoom:</label>
-          <input type="number" id="max-zoom" value="14" min="0" max="22" 
-                 style="width: 100%; padding: var(--theme-spacing-sm); border: 1px solid var(--theme-border); border-radius: var(--theme-radius-sm); font-size: var(--theme-font-size-sm);">
+          <label style="display: block; margin-bottom: var(--theme-spacing-xs); font-weight: var(--theme-font-weight-semibold); color: var(--theme-text);">
+            Style URL:
+          </label>
+          <input type="text" id="style-url" value="${styleUrl}" 
+                 style="width: 100%; padding: var(--theme-spacing-sm); border: 1px solid var(--theme-border); border-radius: var(--theme-radius-sm); font-size: var(--theme-font-size-sm); color: var(--theme-text); background: var(--theme-surface);">
         </div>
-      </div>
-      
-      <div style="display: flex; gap: var(--theme-spacing-sm); justify-content: flex-end;">
-        <button onclick="offlineManagerControl.closeModal()" 
-                style="padding: var(--theme-spacing-sm) var(--theme-spacing-md); background: var(--theme-text-muted); color: var(--theme-text-inverse); border: none; border-radius: var(--theme-radius-sm); cursor: pointer; font-size: var(--theme-font-size-sm);">
-          Cancel
-        </button>
-        <button onclick="offlineManagerControl.handleRegionSave()" 
-                style="padding: var(--theme-spacing-sm) var(--theme-spacing-md); background: var(--theme-primary); color: var(--theme-text-inverse); border: none; border-radius: var(--theme-radius-sm); cursor: pointer; font-size: var(--theme-font-size-sm);">
-          Download Region
-        </button>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--theme-spacing-sm); padding: var(--theme-spacing-sm); background: var(--theme-background-secondary); border-radius: var(--theme-radius-sm); border: 1px solid var(--theme-border);">
+          <div>
+            <strong style="color: var(--theme-text);">Area:</strong>
+            <div style="color: var(--theme-text-secondary); font-size: var(--theme-font-size-sm);">${this.currentPolygonArea} km²</div>
+          </div>
+          <div>
+            <strong style="color: var(--theme-text);">Bounds:</strong>
+            <div style="color: var(--theme-text-secondary); font-size: var(--theme-font-size-xs);">
+              ${west.toFixed(4)}, ${south.toFixed(4)}<br>
+              ${east.toFixed(4)}, ${north.toFixed(4)}
+            </div>
+          </div>
+        </div>
+        
+        <div style="display: flex; gap: var(--theme-spacing-sm); justify-content: flex-end; margin-top: var(--theme-spacing-md);">
+          <button onclick="offlineManagerControl.cancelRegionForm()" 
+                  style="padding: var(--theme-spacing-sm) var(--theme-spacing-md); background: var(--theme-text-muted); color: var(--theme-text-inverse); border: none; border-radius: var(--theme-radius-sm); cursor: pointer; font-size: var(--theme-font-size-sm);">
+            Cancel
+          </button>
+          <button onclick="offlineManagerControl.handleRegionSave()" 
+                  style="padding: var(--theme-spacing-sm) var(--theme-spacing-md); background: linear-gradient(135deg, var(--theme-primary) 0%, var(--theme-primary-hover) 100%); color: var(--theme-text-inverse); border: none; border-radius: var(--theme-radius-sm); cursor: pointer; font-size: var(--theme-font-size-sm);">
+            Download Region
+          </button>
+        </div>
       </div>
     `;
 
     const modal = createModal({
-      title: 'Add New Offline Region',
-      subtitle: 'Define the area and zoom levels to download for offline use',
+      title: 'Download Offline Region',
+      subtitle: `Selected area: ${this.currentPolygonArea} km²`,
       isOpen: true,
-      size: 'md',
+      size: 'lg',
       showThemeToggle: true,
-      onClose: () => this.closeModal(),
+      onClose: () => this.cancelRegionForm(),
       onThemeToggle: () => {
         themeManager.toggleTheme();
         this.renderPanel(); // Re-render panel to reflect theme change
@@ -451,303 +778,337 @@ export class OfflineManagerControl implements IControl {
     this.showModal(modal);
   }
 
-  public async handleRegionSave(): Promise<void> {
-    const nameInput = document.getElementById('region-name') as HTMLInputElement;
-    const minZoomInput = document.getElementById('min-zoom') as HTMLInputElement;
-    const maxZoomInput = document.getElementById('max-zoom') as HTMLInputElement;
+  /**
+   * Cancel region form and return to polygon mode
+   */
+  public cancelRegionForm(): void {
+    this.closeModal();
+    // Stay in polygon mode for further adjustments
+  }
 
-    if (!nameInput?.value.trim() || !this.map) {
-      alert('Please enter a region name');
-      return;
-    }
-
-    const regionName = nameInput.value.trim();
-    const minZoom = parseInt(minZoomInput?.value || '1');
-    const maxZoom = parseInt(maxZoomInput?.value || '14');
-
-    // Convert LngLatBounds to the expected tuple format
-    const bounds = this.map.getBounds();
-    const boundsArray: [number, number, number, number] = [
-      bounds.getWest(),
-      bounds.getSouth(),
-      bounds.getEast(),
-      bounds.getNorth(),
-    ];
+  /**
+   * Get current style URL from map
+   */
+  private getCurrentStyleUrl(): string {
+    if (!this.map) return 'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json';
 
     try {
-      // Close modal and show loading state
-      this.closeModal();
+      const style = this.map.getStyle();
+      return (
+        (style as any).metadata?.['mapbox:origin'] ||
+        style.metadata?.styleUrl ||
+        'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json'
+      );
+    } catch (error) {
+      return 'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json';
+    }
+  }
 
-      if (this.panel) {
-        this.panel.innerHTML = `
-          <div style="
-            height: 100%;
-            display: flex;
-            flex-direction: column;
-            background: var(--theme-surface);
-            border-radius: var(--theme-radius-xl);
-            overflow: hidden;
-          ">
-            <div style="
-              background: linear-gradient(135deg, var(--theme-info) 0%, var(--theme-info-hover) 100%);
-              color: var(--theme-text-inverse);
-              padding: var(--theme-spacing-lg);
-              display: flex;
-              align-items: center;
-              justify-content: center;
-            ">
-              <div style="text-align: center;">
-                <h2 style="margin: 0; font-size: var(--theme-font-size-lg); font-weight: var(--theme-font-weight-bold);">
-                  Downloading Region...
-                </h2>
-                <p style="margin: var(--theme-spacing-xs) 0 0 0; opacity: 0.9; font-size: var(--theme-font-size-sm);">
-                  Please wait while we download the map tiles
-                </p>
-              </div>
-            </div>
-            <div style="
-              flex: 1;
-              padding: var(--theme-spacing-lg);
-              display: flex;
-              align-items: center;
-              justify-content: center;
-            ">
-              <div style="text-align: center;">
-                <div style="
-                  width: 40px;
-                  height: 40px;
-                  border: 3px solid var(--theme-border-light);
-                  border-top: 3px solid var(--theme-primary);
-                  border-radius: 50%;
-                  animation: spin 1s linear infinite;
-                  margin: 0 auto var(--theme-spacing-lg) auto;
-                "></div>
-                <p style="color: var(--theme-text-secondary); margin: 0;">Starting download...</p>
-              </div>
-            </div>
-          </div>
-          <style>
-            @keyframes spin {
-              0% { transform: rotate(0deg); }
-              100% { transform: rotate(360deg); }
-            }
-          </style>
-        `;
+  /**
+   * Handle region save from form
+   */
+  public async handleRegionSave(): Promise<void> {
+    if (!this.currentBounds) return;
+
+    try {
+      const nameInput = document.getElementById('region-name') as HTMLInputElement;
+      const minZoomInput = document.getElementById('min-zoom') as HTMLInputElement;
+      const maxZoomInput = document.getElementById('max-zoom') as HTMLInputElement;
+      const styleUrlInput = document.getElementById('style-url') as HTMLInputElement;
+
+      const [west, south, east, north] = this.currentBounds;
+      const regionConfig = {
+        id: `region`,
+        name: nameInput?.value || `Region ${Date.now()}`,
+        bounds: [
+          [west, south],
+          [east, north],
+        ] as [[number, number], [number, number]],
+        minZoom: parseInt(minZoomInput?.value || '1'),
+        maxZoom: parseInt(maxZoomInput?.value || '14'),
+        styleUrl: styleUrlInput?.value || this.getCurrentStyleUrl(),
+      };
+
+      // Close form and exit polygon mode
+      this.closeModal();
+      this.exitPolygonMode();
+
+      // Start download with progress tracking
+      await this.downloadRegionWithProgress(regionConfig);
+    } catch (error) {
+      console.error('Error saving region:', error);
+      // TODO: Show error modal
+    }
+  }
+
+  /**
+   * Download region with progress tracking
+   */
+  private async downloadRegionWithProgress(regionConfig: any): Promise<void> {
+    const regionId = regionConfig.id;
+
+    try {
+      // Show progress in button
+      if (this.button) {
+        this.button.textContent = 'Downloading...';
+        this.button.disabled = true;
       }
 
-      // Start the download
-      await this.offlineManager.addRegion({
-        id: Date.now().toString(), // Generate unique ID
-        name: regionName,
-        bounds: [
-          [boundsArray[0], boundsArray[1]], // [west, south]
-          [boundsArray[2], boundsArray[3]], // [east, north]
-        ],
-        minZoom,
-        maxZoom,
-        styleUrl: this.map.getStyle().sources
-          ? (this.map.getStyle() as any).metadata?.['mapbox:origin'] ||
-            'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json'
-          : 'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json',
-      });
+      // Setup progress tracking
+      const progressHandler = (progress: any) => {
+        const percentage = Math.round((progress.completed / progress.total) * 100);
 
-      // Initialize progress tracking (simulated for now)
-      const regionId = Date.now().toString();
-      this.currentDownloads.set(regionId, {
-        regionId,
-        completed: 0,
-        total: 100,
-        percentage: 0,
-        currentResource: 'Download started...',
-      });
-
-      this.updateProgressBadge();
-
-      // Simulate completion after a delay
-      setTimeout(() => {
-        this.currentDownloads.delete(regionId);
-        this.updateProgressBadge();
-        if (this.isOpen) {
-          this.renderPanel();
+        // Update progress badge
+        if (this.progressBadge) {
+          this.progressBadge.textContent = `${percentage}%`;
+          this.progressBadge.style.display = 'block';
         }
-      }, 3000);
 
-      this.renderPanel();
+        // Update button text
+        if (this.button) {
+          this.button.textContent = `Downloading... ${percentage}%`;
+        }
+
+        // Store progress for modal display
+        this.currentDownloads.set(regionId, {
+          regionId,
+          completed: progress.completed,
+          total: progress.total,
+          percentage,
+          currentResource: progress.currentResource || '',
+        });
+      };
+
+      // Add region (note: addRegion only takes one parameter)
+      await this.offlineManager.addRegion(regionConfig);
+
+      // Download complete
+      this.currentDownloads.delete(regionId);
+
+      // Reset UI
+      if (this.button) {
+        this.button.textContent = 'Offline Maps';
+        this.button.disabled = false;
+      }
+
+      if (this.progressBadge) {
+        this.progressBadge.style.display = 'none';
+      }
+
+      // Refresh panel to show new region
+      await this.renderPanel();
     } catch (error) {
       console.error('Error downloading region:', error);
-      alert('Error downloading region: ' + (error as Error).message);
-      this.renderPanel();
+
+      // Reset UI on error
+      this.currentDownloads.delete(regionId);
+      if (this.button) {
+        this.button.textContent = 'Offline Maps';
+        this.button.disabled = false;
+      }
+      if (this.progressBadge) {
+        this.progressBadge.style.display = 'none';
+      }
     }
   }
 
-  private updateDownloadProgress(regionId: string, progress: any): void {
-    const downloadProgress: DownloadProgress = {
-      regionId,
-      completed: progress.completed || 0,
-      total: progress.total || 0,
-      percentage: progress.percentage || 0,
-      currentResource: progress.currentResource || 'Processing...',
-    };
-
-    this.currentDownloads.set(regionId, downloadProgress);
-    this.updateProgressBadge();
-
-    if (this.isOpen) {
-      this.renderPanel();
-    }
-
-    // Remove from tracking when complete
-    if (progress.percentage >= 100) {
-      setTimeout(() => {
-        this.currentDownloads.delete(regionId);
-        this.updateProgressBadge();
-        if (this.isOpen) {
-          this.renderPanel();
-        }
-      }, 2000);
-    }
+  /**
+   * Handle panel click events
+   */
+  private handlePanelClick(event: Event): void {
+    // Prevent panel from closing when clicking inside
+    event.stopPropagation();
   }
 
-  private updateProgressBadge(): void {
-    if (!this.progressBadge) return;
-
-    const activeDownloads = this.currentDownloads.size;
-
-    if (activeDownloads > 0) {
-      this.progressBadge.textContent = activeDownloads.toString();
-      this.progressBadge.style.display = 'block';
-    } else {
-      this.progressBadge.style.display = 'none';
-    }
-  }
-
-  public async focusRegion(regionId: string): Promise<void> {
+  /**
+   * Focus on a specific region on the map
+   */
+  private focusRegion(regionId: string): void {
     if (!this.map) return;
 
-    try {
-      const regions = await this.offlineManager.listStoredRegions();
-      const region = regions.find(r => r.id === regionId);
-
-      if (region && region.bounds) {
-        // Create LngLatBounds from the stored bounds
-        // bounds format: [[west, south], [east, north]]
-        const lngLatBounds = new (window as any).maplibregl.LngLatBounds(
-          [region.bounds[0][0], region.bounds[0][1]], // southwest
-          [region.bounds[1][0], region.bounds[1][1]] // northeast
-        );
-
-        this.map.fitBounds(lngLatBounds, {
-          padding: 50,
-          duration: 1000,
-        });
-
-        this.closePanel();
-      }
-    } catch (error) {
-      console.error('Error focusing region:', error);
-    }
-  }
-
-  public async deleteRegion(regionId: string): Promise<void> {
-    if (!confirm('Are you sure you want to delete this region? This cannot be undone.')) {
-      return;
-    }
-
-    try {
-      await this.offlineManager.deleteRegion(regionId);
-      this.renderPanel();
-    } catch (error) {
-      console.error('Error deleting region:', error);
-      alert('Error deleting region: ' + (error as Error).message);
-    }
-  }
-
-  public async showRegionDetails(regionId: string): Promise<void> {
-    try {
-      const regions = await this.offlineManager.listStoredRegions();
-      const region = regions.find(r => r.id === regionId);
-
-      if (!region) {
-        alert('Region not found');
-        return;
-      }
-
-      const regionSize = await this.offlineManager.getRegionSize(regionId);
-
-      const modalContent = `
-        <div style="margin-bottom: var(--theme-spacing-md);">
-          <strong style="color: var(--theme-text);">Storage Size:</strong> 
-          <span style="color: var(--theme-text-secondary);">${formatBytes(regionSize)}</span>
-        </div>
-        
-        <div style="margin-bottom: var(--theme-spacing-md);">
-          <strong style="color: var(--theme-text);">Zoom Levels:</strong> 
-          <span style="color: var(--theme-text-secondary);">${region.minZoom || 'N/A'} - ${region.maxZoom || 'N/A'}</span>
-        </div>
-        
-        <div style="margin-bottom: var(--theme-spacing-md);">
-          <strong style="color: var(--theme-text);">Created:</strong> 
-          <span style="color: var(--theme-text-secondary);">${region.created ? formatDate(region.created) : 'Unknown'}</span>
-        </div>
-        
-        ${
-          region.bounds
-            ? `
-          <div style="margin-bottom: var(--theme-spacing-lg);">
-            <strong style="color: var(--theme-text);">Bounds:</strong><br>
-            <small style="font-family: monospace; color: var(--theme-text-secondary); margin-top: var(--theme-spacing-xs); display: block;">
-              SW: [${region.bounds[0][0].toFixed(6)}, ${region.bounds[0][1].toFixed(6)}]<br>
-              NE: [${region.bounds[1][0].toFixed(6)}, ${region.bounds[1][1].toFixed(6)}]
-            </small>
-          </div>
-        `
-            : ''
+    this.offlineManager
+      .listRegions()
+      .then((regions: any[]) => {
+        const region = regions.find((r: any) => r.id === regionId);
+        if (region && region.bounds) {
+          // Fit map to region bounds
+          this.map!.fitBounds(region.bounds, {
+            padding: 20,
+            duration: 1000,
+          });
         }
-        
-        <div style="display: flex; gap: var(--theme-spacing-sm); justify-content: flex-end;">
-          <button onclick="offlineManagerControl.focusRegion('${regionId}')" 
-                  style="padding: var(--theme-spacing-sm) var(--theme-spacing-md); background: var(--theme-primary); color: var(--theme-text-inverse); border: none; border-radius: var(--theme-radius-sm); cursor: pointer; font-size: var(--theme-font-size-sm);">
-            Focus on Map
-          </button>
-          <button onclick="offlineManagerControl.deleteRegion('${regionId}')" 
-                  style="padding: var(--theme-spacing-sm) var(--theme-spacing-md); background: var(--theme-error); color: var(--theme-text-inverse); border: none; border-radius: var(--theme-radius-sm); cursor: pointer; font-size: var(--theme-font-size-sm);">
-            Delete Region
-          </button>
+      })
+      .catch((error: any) => {
+        console.error('Error focusing region:', error);
+      });
+  }
+
+  /**
+   * Delete a region
+   */
+  private async deleteRegion(regionId: string): Promise<void> {
+    try {
+      // Show confirmation modal
+      const confirmed = await this.showConfirmationModal(
+        'Delete Region',
+        'Are you sure you want to delete this region? This will remove all downloaded map data for this area.',
+        'Delete',
+        'Cancel'
+      );
+
+      if (confirmed) {
+        await this.offlineManager.deleteRegion(regionId);
+        await this.renderPanel(); // Refresh the panel
+      }
+    } catch (error: any) {
+      console.error('Error deleting region:', error);
+    }
+  }
+
+  /**
+   * Show region details in a modal
+   */
+  private showRegionDetails(regionId: string): void {
+    this.offlineManager
+      .listRegions()
+      .then((regions: any[]) => {
+        const region = regions.find((r: any) => r.id === regionId);
+        if (!region) return;
+
+        const modalContent = `
+        <div style="display: flex; flex-direction: column; gap: var(--theme-spacing-md);">
+          <div>
+            <h3 style="margin: 0 0 var(--theme-spacing-sm) 0; color: var(--theme-text); font-size: var(--theme-font-size-lg);">
+              ${region.name}
+            </h3>
+          </div>
+          
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--theme-spacing-md);">
+            <div>
+              <label style="display: block; margin-bottom: var(--theme-spacing-xs); font-weight: var(--theme-font-weight-semibold); color: var(--theme-text);">
+                Bounds:
+              </label>
+              <div style="font-size: var(--theme-font-size-sm); color: var(--theme-text-secondary);">
+                ${region.bounds[0][1].toFixed(4)}, ${region.bounds[0][0].toFixed(4)}<br>
+                ${region.bounds[1][1].toFixed(4)}, ${region.bounds[1][0].toFixed(4)}
+              </div>
+            </div>
+            
+            <div>
+              <label style="display: block; margin-bottom: var(--theme-spacing-xs); font-weight: var(--theme-font-weight-semibold); color: var(--theme-text);">
+                Zoom Range:
+              </label>
+              <div style="font-size: var(--theme-font-size-sm); color: var(--theme-text-secondary);">
+                ${region.minZoom} - ${region.maxZoom}
+              </div>
+            </div>
+          </div>
+          
+          ${
+            region.downloadedAt
+              ? `
+            <div>
+              <label style="display: block; margin-bottom: var(--theme-spacing-xs); font-weight: var(--theme-font-weight-semibold); color: var(--theme-text);">
+                Downloaded:
+              </label>
+              <div style="font-size: var(--theme-font-size-sm); color: var(--theme-text-secondary);">
+                ${formatDate(region.downloadedAt)}
+              </div>
+            </div>
+          `
+              : ''
+          }
+          
+          <div style="display: flex; gap: var(--theme-spacing-sm); justify-content: flex-end; margin-top: var(--theme-spacing-md);">
+            <button onclick="offlineManagerControl.closeModal(); offlineManagerControl.focusRegion('${region.id}')" 
+                    style="padding: var(--theme-spacing-sm) var(--theme-spacing-md); background: var(--theme-text-muted); color: var(--theme-text-inverse); border: none; border-radius: var(--theme-radius-sm); cursor: pointer; font-size: var(--theme-font-size-sm);">
+              Focus on Map
+            </button>
+            <button onclick="offlineManagerControl.closeModal()" 
+                    style="padding: var(--theme-spacing-sm) var(--theme-spacing-md); background: linear-gradient(135deg, var(--theme-primary) 0%, var(--theme-primary-hover) 100%); color: var(--theme-text-inverse); border: none; border-radius: var(--theme-radius-sm); cursor: pointer; font-size: var(--theme-font-size-sm);">
+              Close
+            </button>
+          </div>
         </div>
       `;
 
+        const modal = createModal({
+          title: 'Region Details',
+          isOpen: true,
+          size: 'md',
+          showThemeToggle: true,
+          onClose: () => this.closeModal(),
+          onThemeToggle: () => {
+            themeManager.toggleTheme();
+            this.renderPanel();
+          },
+          children: modalContent,
+        });
+
+        this.showModal(modal);
+      })
+      .catch((error: any) => {
+        console.error('Error showing region details:', error);
+      });
+  }
+
+  /**
+   * Show confirmation modal
+   */
+  private showConfirmationModal(
+    title: string,
+    message: string,
+    confirmText: string,
+    cancelText: string
+  ): Promise<boolean> {
+    return new Promise(resolve => {
+      const modalContent = `
+        <div style="display: flex; flex-direction: column; gap: var(--theme-spacing-lg);">
+          <p style="margin: 0; color: var(--theme-text); line-height: 1.5;">
+            ${message}
+          </p>
+          
+          <div style="display: flex; gap: var(--theme-spacing-sm); justify-content: flex-end;">
+            <button onclick="offlineManagerControl.closeModal(); offlineManagerControl.resolveConfirmation(false)" 
+                    style="padding: var(--theme-spacing-sm) var(--theme-spacing-md); background: var(--theme-text-muted); color: var(--theme-text-inverse); border: none; border-radius: var(--theme-radius-sm); cursor: pointer; font-size: var(--theme-font-size-sm);">
+              ${cancelText}
+            </button>
+            <button onclick="offlineManagerControl.closeModal(); offlineManagerControl.resolveConfirmation(true)" 
+                    style="padding: var(--theme-spacing-sm) var(--theme-spacing-md); background: linear-gradient(135deg, var(--theme-danger) 0%, var(--theme-danger-hover) 100%); color: var(--theme-text-inverse); border: none; border-radius: var(--theme-radius-sm); cursor: pointer; font-size: var(--theme-font-size-sm);">
+              ${confirmText}
+            </button>
+          </div>
+        </div>
+      `;
+
+      // Store resolver for confirmation
+      this.confirmationResolver = resolve;
+
       const modal = createModal({
-        title: region.name || 'Unnamed Region',
-        subtitle: `Region details and management options`,
+        title,
         isOpen: true,
-        size: 'md',
-        showThemeToggle: true,
-        onClose: () => this.closeModal(),
-        onThemeToggle: () => {
-          themeManager.toggleTheme();
-          this.renderPanel(); // Re-render panel to reflect theme change
+        size: 'sm',
+        showThemeToggle: false,
+        onClose: () => {
+          this.closeModal();
+          resolve(false);
         },
         children: modalContent,
       });
 
       this.showModal(modal);
-    } catch (error) {
-      console.error('Error showing region details:', error);
-      alert('Error loading region details: ' + (error as Error).message);
-    }
+    });
   }
 
-  private handlePanelClick(event: Event): void {
-    // Event delegation for panel clicks - prevent event bubbling issues
-    const target = event.target as HTMLElement;
-    
-    // Handle button clicks based on data attributes or classes
-    if (target.tagName === 'BUTTON' || target.closest('button')) {
-      const button = target.tagName === 'BUTTON' ? target : target.closest('button');
-      if (button) {
-        // Let the onclick handlers work as they are
-        return;
-      }
+  private confirmationResolver?: (value: boolean) => void;
+
+  /**
+   * Resolve confirmation modal
+   */
+  public resolveConfirmation(result: boolean): void {
+    if (this.confirmationResolver) {
+      this.confirmationResolver(result);
+      this.confirmationResolver = undefined;
     }
   }
 }

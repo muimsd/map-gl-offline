@@ -62,7 +62,7 @@ export class RegionService {
     );
 
     if (!bboxExists) {
-      const expiryTime = region.expiry || 7 * 24 * 60 * 60 * 1000; // Default to 7 days if not specified
+      const expiryTime = region.expiry || 30 * 24 * 60 * 60 * 1000; // Default to 30 days if not specified
       const expiry = Date.now() + expiryTime;
       const regionWithMeta = {
         ...region,

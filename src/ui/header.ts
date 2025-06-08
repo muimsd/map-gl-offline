@@ -34,31 +34,31 @@ export function createHeader(props: HeaderProps): HTMLDivElement {
   const headerStyles: Partial<CSSStyleDeclaration> = {
     background: `linear-gradient(135deg, var(--theme-primary) 0%, var(--theme-primary-dark) 100%)`,
     color: 'var(--theme-text-inverse)',
-    padding: 'var(--theme-spacing-xl)',
+    padding: 'var(--theme-spacing-md)',
     display: 'flex',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    gap: 'var(--theme-spacing-sm)',
+    // alignItems: 'flex-start',
+    // gap: 'var(--theme-spacing-sm)',
     position: 'relative',
     overflow: 'hidden',
-    minHeight: '80px',
+    minHeight: '30px',
+    paddingLeft: 'var(--theme-spacing-lg)',
   };
 
   Object.assign(header.style, headerStyles);
 
   const titleSection = document.createElement('div');
-  titleSection.style.flex = '1';
+  //   titleSection.style.flex = '1';
   titleSection.innerHTML = `
-    <h2 style="
-      margin: 0 0 var(--theme-spacing-xs) 0;
-      font-size: var(--theme-font-size-lg);
+    <h1 style="
+      margin: 0,
       font-weight: var(--theme-font-weight-semibold);
       color: var(--theme-text-inverse);
-      line-height: var(--theme-line-height-tight);
+      line-height: var(--theme-line-height-normal);
       font-family: var(--theme-font-family);
     ">
       ${title}
-    </h2>
+    </h1>
     <p style="
       margin: 0;
       opacity: 0.9;
@@ -98,6 +98,19 @@ export function createHeader(props: HeaderProps): HTMLDivElement {
         backdropFilter: 'blur(10px)',
       },
     });
+
+    // Add hover effects based on theme
+    const originalBg = 'rgba(255, 255, 255, 0.1)';
+    const hoverBg = theme.mode === 'light' ? 'rgba(0, 0, 0, 0.8)' : 'rgba(255, 255, 255, 0.9)';
+
+    themeButton.addEventListener('mouseenter', () => {
+      themeButton.style.backgroundColor = hoverBg;
+    });
+
+    themeButton.addEventListener('mouseleave', () => {
+      themeButton.style.backgroundColor = originalBg;
+    });
+
     actionsSection.appendChild(themeButton);
   }
 
@@ -119,6 +132,19 @@ export function createHeader(props: HeaderProps): HTMLDivElement {
         backdropFilter: 'blur(10px)',
       },
     });
+
+    // Add hover effects based on theme
+    const originalBg = 'rgba(255, 255, 255, 0.1)';
+    const hoverBg = theme.mode === 'light' ? 'rgba(0, 0, 0, 0.8)' : 'rgba(255, 255, 255, 0.9)';
+
+    closeButton.addEventListener('mouseenter', () => {
+      closeButton.style.backgroundColor = hoverBg;
+    });
+
+    closeButton.addEventListener('mouseleave', () => {
+      closeButton.style.backgroundColor = originalBg;
+    });
+
     actionsSection.appendChild(closeButton);
   }
 
