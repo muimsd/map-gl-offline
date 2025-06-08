@@ -356,14 +356,17 @@ export class SpriteService {
     return btoa(url).replace(/[+/=]/g, '').substring(0, 32);
   }
 
-  private extractSpriteName(url: string): string {
+  private extractSpriteName(url?: string): string {
     // Extract sprite name from URL
+    if (!url || typeof url !== 'string') {
+      return 'unknown';
+    }
     const parts = url.split('/');
     const filename = parts[parts.length - 1];
     return filename.split('.')[0] || 'unknown';
   }
 
-  private detectSpriteType(contentType: string, url: string): string {
+  private detectSpriteType(contentType: string, url?: string): string {
     // Handle undefined or null contentType
     if (contentType && typeof contentType === 'string') {
       if (contentType.includes('png')) return 'png';
@@ -372,8 +375,8 @@ export class SpriteService {
       if (contentType.includes('svg')) return 'svg';
     }
 
-    // Fallback to URL extension
-    const extension = url.split('.').pop()?.toLowerCase();
+    // Fallback to URL extension if url is provided
+    const extension = url ? url.split('.').pop()?.toLowerCase() : undefined;
     if (extension === 'png') return 'png';
     if (extension === 'jpg' || extension === 'jpeg') return 'jpeg';
     if (extension === 'webp') return 'webp';
