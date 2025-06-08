@@ -2,6 +2,7 @@ import { CleanupService } from '../services/cleanupService';
 import { RegionService } from '../services/regionService';
 import { ResourceService } from '../services/resourceService';
 import { AnalyticsService } from '../services/analyticsService';
+import { ImportExportService } from '../services/importExportService';
 import {
   MaintenanceService,
   MaintenanceOptions,
@@ -14,6 +15,12 @@ import type {
   RegionCleanupOptions,
   CleanupResult,
   RegionAnalytics,
+  ImportExportOptions,
+  RegionImportData,
+  ImportResult,
+  ExportResult,
+  PMTilesExportOptions,
+  MBTilesExportOptions,
 } from '../types';
 
 export class OfflineMapManager {
@@ -22,6 +29,7 @@ export class OfflineMapManager {
   private resourceService: ResourceService;
   private analyticsService: AnalyticsService;
   private maintenanceService: MaintenanceService;
+  private importExportService: ImportExportService;
 
   constructor() {
     this.regionService = new RegionService();
@@ -30,6 +38,7 @@ export class OfflineMapManager {
     );
     this.resourceService = new ResourceService();
     this.analyticsService = new AnalyticsService();
+    this.importExportService = new ImportExportService();
 
     // Initialize maintenance service with required dependencies
     this.maintenanceService = new MaintenanceService(
@@ -224,5 +233,54 @@ export class OfflineMapManager {
   // Maintenance (delegated to MaintenanceService)
   async performCompleteMaintenance(options: MaintenanceOptions = {}): Promise<MaintenanceResults> {
     return this.maintenanceService.performCompleteMaintenance(options);
+  }
+
+  // Import/Export Management (delegated to ImportExportService)
+  /**
+   * Export a region as JSON format
+   */
+  async exportRegionAsJSON(regionId: string, options: ImportExportOptions = {}): Promise<ExportResult> {
+    return this.importExportService.exportRegionAsJSON(regionId, options);
+  }
+
+  /**
+   * Export a region as PMTiles format
+   */
+  async exportRegionAsPMTiles(
+    regionId: string, 
+    options: ImportExportOptions & PMTilesExportOptions = {}
+  ): Promise<ExportResult> {
+    return this.importExportService.exportRegionAsPMTiles(regionId, options);
+  }
+
+  /**
+   * Export a region as MBTiles format
+   */
+  async exportRegionAsMBTiles(
+    regionId: string,
+    options: ImportExportOptions & MBTilesExportOptions = {}
+  ): Promise<ExportResult> {
+    return this.importExportService.exportRegionAsMBTiles(regionId, options);
+  }
+
+  /**
+   * Import a region from file
+   */
+  async importRegion(importData: RegionImportData): Promise<ImportResult> {
+    return this.importExportService.importRegion(importData);
+  }
+
+  /**
+   * Download exported region file
+   */
+  downloadExportedRegion(exportResult: ExportResult): void {
+    const url = URL.createObjectURL(exportResult.blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = exportResult.filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   }
 }

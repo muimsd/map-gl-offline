@@ -8,6 +8,7 @@ import { DownloadManager } from './downloadManager';
 import { ModalManager } from '../modals/modalManager';
 import { RegionDetailsModal } from '../modals/regionDetailsModal';
 import { ConfirmationModal } from '../modals/confirmationModal';
+import { ImportExportModal } from '../modals/importExportModal';
 import { createHeader } from '../components/header';
 import { createActionButtons } from '../components/actionButtons';
 import { createRegionsList } from '../components/regionsList';
@@ -66,6 +67,7 @@ export class PanelRenderer {
         onFocusRegion: this.options.onFocusRegion,
         onDeleteRegion: (regionId: string) => this.handleDeleteRegion(regionId),
         onShowRegionDetails: (regionId: string) => this.handleShowRegionDetails(regionId),
+        onImportExport: (regionId: string) => this.handleImportExport(regionId),
         formatBytes,
       });
 
@@ -167,6 +169,64 @@ export class PanelRenderer {
       this.modalManager.show(modal);
     } catch (error) {
       console.error('Error showing region details:', error);
+    }
+  }
+
+  /**
+   * Handle import/export for a region
+   */
+  private async handleImportExport(regionId: string): Promise<void> {
+    try {
+      const regions = await this.offlineManager.listStoredRegions();
+      const region = regions.find((r: any) => r.id === regionId);
+      
+      if (!region) return;
+
+      const importExportModal = new ImportExportModal({
+        region,
+        exportRegion: async (regionId: string, format: 'json' | 'pmtiles' | 'mbtiles', options?: any) => {
+          switch (format) {
+            case 'json':
+              return await this.offlineManager.exportRegionAsJSON(regionId, options);
+            case 'pmtiles':
+              return await this.offlineManager.exportRegionAsPMTiles(regionId, options);
+            case 'mbtiles':
+              return await this.offlineManager.exportRegionAsMBTiles(regionId, options);
+            default:
+              throw new Error(`Unsupported export format: ${format}`);
+          }
+        },
+        importRegion: async (data: any) => {
+          return await this.offlineManager.importRegion(data);
+        },
+        onClose: () => {
+          this.modalManager.close();
+        },
+        onExport: (result: any) => {
+          console.log('Export completed:', result);
+          // Re-render panel to reflect any changes
+          this.renderAfterUpdate();
+        },
+        onImport: (result: any) => {
+          console.log('Import completed:', result);
+          // Re-render panel to reflect any changes
+          this.renderAfterUpdate();
+        },
+      });
+
+      this.modalManager.show(importExportModal.show());
+    } catch (error) {
+      console.error('Error handling import/export:', error);
+    }
+  }
+
+  /**
+   * Re-render panel after updates
+   */
+  private renderAfterUpdate(): void {
+    const panelElement = document.querySelector('.offline-manager-panel') as HTMLDivElement;
+    if (panelElement) {
+      this.render(panelElement);
     }
   }
 

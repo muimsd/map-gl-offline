@@ -11,6 +11,7 @@ export interface RegionsListProps {
   onDeleteRegion?: (regionId: string) => void;
   onShowRegionDetails?: (regionId: string) => void;
   onFocusRegion?: (regionId: string) => void;
+  onImportExport?: (regionId: string) => void;
   formatBytes?: (bytes: number) => string;
   theme?: Theme;
 }
@@ -21,6 +22,7 @@ export function createRegionsList(props: RegionsListProps): HTMLDivElement {
     onDeleteRegion,
     onShowRegionDetails,
     onFocusRegion,
+    onImportExport,
   } = props;
 
   const container = document.createElement('div');
@@ -154,6 +156,16 @@ export function createRegionsList(props: RegionsListProps): HTMLDivElement {
       onFocusRegion?.(region.id);
     };
 
+    // Import/Export button
+    const importExportButton = document.createElement('button');
+    importExportButton.className = 'px-2 py-1 bg-green-600 hover:bg-green-700 text-white border-0 rounded-sm text-xs font-medium cursor-pointer flex items-center gap-1 transition-colors duration-200';
+    importExportButton.innerHTML = `${icons.deviceFloppy({ size: 10 })} <span>I/E</span>`;
+    importExportButton.title = 'Import/Export Region';
+    importExportButton.onclick = (e) => {
+      e.stopPropagation();
+      onImportExport?.(region.id);
+    };
+
     // Delete button
     const deleteButton = document.createElement('button');
     deleteButton.className = 'px-2 py-1 bg-red-600 hover:bg-red-700 text-white border-0 rounded-sm text-xs font-medium cursor-pointer flex items-center gap-1 transition-colors duration-200';
@@ -164,6 +176,7 @@ export function createRegionsList(props: RegionsListProps): HTMLDivElement {
     };
 
     actionButtons.appendChild(focusButton);
+    actionButtons.appendChild(importExportButton);
     actionButtons.appendChild(deleteButton);
 
     cardHeader.appendChild(regionInfo);
