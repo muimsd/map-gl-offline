@@ -79,6 +79,16 @@ export class TileService {
     // Get tile sources from style
     const tileSources = this.extractTileSources(style);
     console.warn(`Found ${tileSources.size} tile sources:`, Array.from(tileSources.keys()));
+    
+    // Debug: Log all sources in the style
+    if (style.sources) {
+      console.warn('All sources in style:', Object.keys(style.sources));
+      for (const [sourceId, sourceConfig] of Object.entries(style.sources)) {
+        console.warn(`Source ${sourceId}:`, sourceConfig);
+      }
+    } else {
+      console.warn('No sources found in style');
+    }
 
     // Process tiles for each source
     for (const [sourceId, sourceConfig] of tileSources) {

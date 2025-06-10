@@ -277,6 +277,70 @@ export async function downloadStyles(
         console.warn(errorMsg);
       }
     }
+
+    // Download glyphs for the style
+    if (style.glyphs) {
+      onProgress?.({ 
+        completed: 70, 
+        total: 100, 
+        percentage: 70, 
+        message: 'Downloading glyphs', 
+        errors: [...errors] 
+      });
+      
+      console.warn('Starting glyph download for style:', style.id);
+      
+      try {
+        // Extract font stacks from style layers
+        const fontstacks = new Set<string>();
+        if (style.layers && Array.isArray(style.layers)) {
+          for (const layer of style.layers) {
+            if (layer.layout && layer.layout['text-font']) {
+              const fonts = Array.isArray(layer.layout['text-font'])
+                ? layer.layout['text-font']
+                : [layer.layout['text-font']];
+              fonts.forEach(f => fontstacks.add(f));
+            }
+          }
+        }
+        
+        const fontStackArray = Array.from(fontstacks);
+        console.warn(`Found ${fontStackArray.length} font stacks for glyph download:`, fontStackArray);
+        
+        if (fontStackArray.length > 0) {
+          const { downloadGlyphs } = await import('../services/glyphService');
+          const glyphResult = await downloadGlyphs(
+            style.glyphs,
+            fontStackArray,
+            ['0-255', '256-511'], // Common glyph ranges
+            {
+              maxConcurrency: 3,
+              retries: 1,
+              timeout: 10000,
+              onProgress: (glyphProgress) => {
+                onProgress?.({ 
+                  completed: 70 + glyphProgress.completed / glyphProgress.total * 10, 
+                  total: 100, 
+                  percentage: 70 + glyphProgress.completed / glyphProgress.total * 10, 
+                  message: `Downloading glyphs (${glyphProgress.completed}/${glyphProgress.total})`, 
+                  errors: [...errors]
+                });
+              }
+            }
+          );
+          
+          console.warn('Glyph download completed:', glyphResult);
+          
+          if (includeMetadata) {
+            styleStorageItem.glyphs = fontStackArray.map(stack => `${style.glyphs}/${stack}/0-255.pbf`);
+          }
+        }
+      } catch (error) {
+        const errorMsg = `Glyph download failed: ${error instanceof Error ? error.message : 'Unknown error'}`;
+        errors.push(errorMsg);
+        console.warn(errorMsg);
+      }
+    }
     
     onProgress?.({ 
       completed: 80, 
