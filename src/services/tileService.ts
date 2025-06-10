@@ -48,6 +48,7 @@ export class TileService {
 
     // Generate tile coordinates
     const tileCoords = this.generateTileCoordinates(region);
+    console.warn(`Generated ${tileCoords.length} tile coordinates for region:`, region.id);
 
     // Create progress tracker
     const progressTracker = createProgressTracker(tileCoords.length);
@@ -77,6 +78,7 @@ export class TileService {
 
     // Get tile sources from style
     const tileSources = this.extractTileSources(style);
+    console.warn(`Found ${tileSources.size} tile sources:`, Array.from(tileSources.keys()));
 
     // Process tiles for each source
     for (const [sourceId, sourceConfig] of tileSources) {

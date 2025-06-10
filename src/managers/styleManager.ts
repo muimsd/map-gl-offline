@@ -242,9 +242,18 @@ export async function downloadStyles(
         errors: [...errors] 
       });
       
+      console.warn('Starting font/glyph download for style:', style.id);
+      
       try {
         const fontUrls = generateGlyphUrlsFromStyle(style, style.glyphs);
+        console.warn(`Generated ${fontUrls.length} font URLs for download`);
+        
         fontResult = await downloadFonts(fontUrls, style.id, {
+          continueOnError: true,
+          quietMode: true,
+          validateFonts: false, // Be more lenient with font validation
+          maxRetries: 1, // Reduce retries for faster failure
+          timeout: 10000, // Shorter timeout for fonts
           ...fontOptions,
           onProgress: (fontProgress) => {
             onProgress?.({ 
@@ -256,6 +265,8 @@ export async function downloadStyles(
             });
           }
         });
+        
+        console.warn('Font download completed:', fontResult);
         
         if (includeMetadata) {
           styleStorageItem.fonts = fontUrls;

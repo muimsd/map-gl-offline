@@ -91,7 +91,9 @@ export class RegionService {
     const style = getStyleData(styleEntry);
 
     // Download and store tiles for this region
-    await downloadTiles(region, patchedStyle, styleEntry.key);
+    console.warn('Starting tile download for region:', region.id);
+    const tileResult = await downloadTiles(region, patchedStyle, styleEntry.key);
+    console.warn('Tile download completed:', tileResult);
 
     // Save the updated style entry
     await db.put('styles', styleEntry);

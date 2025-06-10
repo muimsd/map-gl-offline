@@ -20,6 +20,11 @@ map.addControl(new maplibregl.NavigationControl(), 'top-right');
 map.addControl(new maplibregl.ScaleControl(), 'bottom-left');
 
 const offlineManager = new OfflineMapManager();
+const offlineManagerControl = new OfflineManagerControl(offlineManager);
+
+// Expose for debugging
+(window as any).offlineManager = offlineManager;
+(window as any).offlineManagerControl = offlineManagerControl;
 
 // Add geolocate control
 map.addControl(
@@ -34,7 +39,6 @@ map.addControl(
 );
 
 // Add our custom offline manager control
-const offlineManagerControl = new OfflineManagerControl(offlineManager);
 map.addControl(offlineManagerControl, 'top-right');
 
 // Start automatic cleanup of expired regions (runs every hour)
@@ -46,26 +50,27 @@ async function manualCleanup() {
   console.warn(`Manual cleanup removed ${cleanedCount} expired regions`);
 }
 
-// async function handleOffline() {
-//   //   Example usage of OfflineMapManager
-//   await offlineManager.addRegion({
-//     id: 'world',
-//     name: 'World',
-//     multipleRegions: true,
-//     styleUrl: styleURL,
-//     bounds: [
-//       [34.97256123524991, 40.996721656078336],
-//       [34.981376429930464, 41.00112029961136],
-//     ],
-//     minZoom: 0,
-//     maxZoom: 6,
-//     deleteOnExpiry: true, // This region will be auto-deleted when expired
-//   });
+async function handleOffline() {
+  // Example usage of OfflineMapManager
+  await offlineManager.addRegion({
+    id: 'test-region',
+    name: 'Test Downtown Area',
+    multipleRegions: true,
+    styleUrl: styleURL,
+    bounds: [
+      [34.97256123524991, 40.996721656078336],
+      [34.981376429930464, 41.00112029961136],
+    ],
+    minZoom: 0,
+    maxZoom: 6,
+    deleteOnExpiry: true, // This region will be auto-deleted when expired
+  });
 
-//   console.warn('Style URL:', styleURL);
+  console.warn('Region download initiated');
 
-//   // Refresh the offline manager control to show the new region
-//   await offlineManagerControl.refresh();
+  // Refresh the offline manager control to show the new region
+  // await offlineManagerControl.refresh(); // Method doesn't exist
+}
 
 //   // // Example: check region expiry
 //   // const expiryInfo = await offlineManager.getRegionExpiry('world');

@@ -1,4 +1,11 @@
-import type { StoredRegion, ImportExportOptions, ExportResult, ImportResult, RegionImportData } from '../../types';
+import { icons } from '../../utils/icons';
+import type { 
+  StoredRegion, 
+  ImportExportOptions, 
+  ExportResult, 
+  ImportResult, 
+  RegionImportData 
+} from '../../types';
 
 export interface ImportExportModalOptions {
   region: StoredRegion;
@@ -47,131 +54,188 @@ export class ImportExportModal {
     modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4';
     
     modal.innerHTML = `
-      <div class="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-        <div class="flex items-center justify-between p-6 border-b border-gray-200">
-          <h2 class="text-xl font-semibold text-gray-900">
-            Import/Export: ${this.options.region.name || this.options.region.id}
-          </h2>
-          <button type="button" class="close-btn text-gray-400 hover:text-gray-600 transition-colors">
-            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-            </svg>
+      <div class="bg-white dark:bg-gray-900 rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto shadow-xl">
+        <!-- Header -->
+        <div class="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
+          <div class="flex items-center gap-3">
+            ${icons.deviceFloppy({ size: 24, color: 'currentColor' })}
+            <div>
+              <h2 class="text-xl font-semibold text-gray-900 dark:text-white">
+                Import/Export Region
+              </h2>
+              <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                ${this.options.region.name || this.options.region.id}
+              </p>
+            </div>
+          </div>
+          <button type="button" class="close-btn text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors">
+            ${icons.x({ size: 24, color: 'currentColor' })}
           </button>
         </div>
 
         <div class="p-6">
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <!-- Region Info Card -->
+          <div class="mb-6 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+            <h4 class="text-sm font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
+              ${icons.mapPin({ size: 16, color: 'currentColor' })}
+              Region Information
+            </h4>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+              <div>
+                <span class="font-medium text-gray-700 dark:text-gray-300">ID:</span>
+                <div class="text-gray-600 dark:text-gray-400 break-all">${this.options.region.id}</div>
+              </div>
+              <div>
+                <span class="font-medium text-gray-700 dark:text-gray-300">Name:</span>
+                <div class="text-gray-600 dark:text-gray-400">${this.options.region.name || 'Unnamed'}</div>
+              </div>
+              <div>
+                <span class="font-medium text-gray-700 dark:text-gray-300">Zoom:</span>
+                <div class="text-gray-600 dark:text-gray-400">Z${this.options.region.minZoom}-${this.options.region.maxZoom}</div>
+              </div>
+              <div>
+                <span class="font-medium text-gray-700 dark:text-gray-300">Created:</span>
+                <div class="text-gray-600 dark:text-gray-400">${new Date(this.options.region.created).toLocaleDateString()}</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Export/Import Grid -->
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <!-- Export Section -->
-            <div class="space-y-4">
-              <h3 class="text-lg font-medium text-gray-900 flex items-center">
-                <svg class="w-5 h-5 mr-2 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10"></path>
-                </svg>
+            <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6">
+              <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                ${icons.upload({ size: 20, color: 'rgb(59 130 246)' })}
                 Export Region
               </h3>
               
-              <div class="space-y-3">
+              <div class="space-y-4">
+                <!-- Format Selection -->
                 <div>
-                  <label class="block text-sm font-medium text-gray-700 mb-2">Export Format</label>
-                  <select class="export-format w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                    <option value="json">JSON (Complete)</option>
-                    <option value="pmtiles">PMTiles (Tiles Only)</option>
-                    <option value="mbtiles">MBTiles (Tiles Only)</option>
+                  <label class="block text-sm font-medium text-gray-900 dark:text-white mb-2">
+                    Export Format
+                  </label>
+                  <select class="export-format w-full p-2 border border-gray-300 dark:border-gray-600 rounded-sm text-sm text-gray-900 dark:text-white bg-white dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                    <option value="json">JSON - Complete data (recommended)</option>
+                    <option value="pmtiles">PMTiles - Web optimized tiles</option>
+                    <option value="mbtiles">MBTiles - Industry standard</option>
                   </select>
+                  <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Choose format based on your use case</p>
                 </div>
 
-                <div class="space-y-2">
-                  <label class="block text-sm font-medium text-gray-700">Include Components</label>
+                <!-- Export Options -->
+                <div class="export-options">
+                  <label class="block text-sm font-medium text-gray-900 dark:text-white mb-2">
+                    Include Components
+                  </label>
                   <div class="space-y-2">
-                    <label class="flex items-center">
-                      <input type="checkbox" class="include-style mr-2" checked>
-                      <span class="text-sm text-gray-700">Style Configuration</span>
+                    <label class="flex items-center gap-2">
+                      <input type="checkbox" class="include-style rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 dark:bg-gray-800" checked>
+                      <span class="text-sm text-gray-700 dark:text-gray-300">Style Configuration</span>
                     </label>
-                    <label class="flex items-center">
-                      <input type="checkbox" class="include-tiles mr-2" checked>
-                      <span class="text-sm text-gray-700">Tiles</span>
+                    <label class="flex items-center gap-2">
+                      <input type="checkbox" class="include-tiles rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 dark:bg-gray-800" checked>
+                      <span class="text-sm text-gray-700 dark:text-gray-300">Map Tiles</span>
                     </label>
-                    <label class="flex items-center">
-                      <input type="checkbox" class="include-sprites mr-2" checked>
-                      <span class="text-sm text-gray-700">Sprites & Icons</span>
+                    <label class="flex items-center gap-2">
+                      <input type="checkbox" class="include-sprites rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 dark:bg-gray-800" checked>
+                      <span class="text-sm text-gray-700 dark:text-gray-300">Sprites & Icons</span>
                     </label>
-                    <label class="flex items-center">
-                      <input type="checkbox" class="include-fonts mr-2" checked>
-                      <span class="text-sm text-gray-700">Fonts & Glyphs</span>
+                    <label class="flex items-center gap-2">
+                      <input type="checkbox" class="include-fonts rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 dark:bg-gray-800" checked>
+                      <span class="text-sm text-gray-700 dark:text-gray-300">Fonts & Glyphs</span>
                     </label>
                   </div>
                 </div>
 
+                <!-- Export Progress -->
                 <div class="export-progress hidden">
-                  <div class="bg-gray-200 rounded-full h-2 mb-2">
+                  <div class="bg-gray-200 dark:bg-gray-700 rounded-full h-2 mb-2 overflow-hidden">
                     <div class="export-progress-bar bg-blue-600 h-2 rounded-full transition-all duration-300" style="width: 0%"></div>
                   </div>
-                  <p class="export-progress-text text-sm text-gray-600">Preparing export...</p>
+                  <p class="export-progress-text text-sm text-gray-600 dark:text-gray-400">Preparing export...</p>
                 </div>
 
-                <button class="export-btn w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors">
+                <!-- Export Button -->
+                <button class="export-btn w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white border-0 rounded-sm text-sm font-medium cursor-pointer flex items-center justify-center gap-2 transition-colors duration-200">
+                  ${icons.download({ size: 16, color: 'white' })}
                   Export Region
                 </button>
               </div>
             </div>
 
             <!-- Import Section -->
-            <div class="space-y-4">
-              <h3 class="text-lg font-medium text-gray-900 flex items-center">
-                <svg class="w-5 h-5 mr-2 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
-                </svg>
+            <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6">
+              <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                ${icons.upload({ size: 20, color: 'rgb(34 197 94)' })}
                 Import Region
               </h3>
 
-              <div class="space-y-3">
+              <div class="space-y-4">
+                <!-- File Selection -->
                 <div>
-                  <label class="block text-sm font-medium text-gray-700 mb-2">Select File</label>
-                  <input type="file" class="import-file w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500" 
+                  <label class="block text-sm font-medium text-gray-900 dark:text-white mb-2">
+                    Select File
+                  </label>
+                  <input type="file" class="import-file w-full p-2 border border-gray-300 dark:border-gray-600 rounded-sm text-sm text-gray-900 dark:text-white bg-white dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent file:mr-4 file:py-1 file:px-2 file:rounded-sm file:border-0 file:text-sm file:font-medium file:bg-green-50 file:text-green-700 hover:file:bg-green-100 dark:file:bg-green-900 dark:file:text-green-400" 
                          accept=".json,.pmtiles,.mbtiles">
-                  <p class="mt-1 text-xs text-gray-500">Supports JSON, PMTiles, and MBTiles formats</p>
+                  <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    Supports JSON, PMTiles, and MBTiles formats
+                  </p>
                 </div>
 
+                <!-- New Name -->
                 <div>
-                  <label class="block text-sm font-medium text-gray-700 mb-2">New Region Name (Optional)</label>
-                  <input type="text" class="import-name w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500" 
+                  <label class="block text-sm font-medium text-gray-900 dark:text-white mb-2">
+                    New Region Name (Optional)
+                  </label>
+                  <input type="text" class="import-name w-full p-2 border border-gray-300 dark:border-gray-600 rounded-sm text-sm text-gray-900 dark:text-white bg-white dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent" 
                          placeholder="Leave empty to use original name">
                 </div>
 
-                <div class="flex items-center">
-                  <input type="checkbox" class="import-overwrite mr-2">
-                  <label class="text-sm text-gray-700">Overwrite if region exists</label>
+                <!-- Import Options -->
+                <div>
+                  <label class="flex items-center gap-2">
+                    <input type="checkbox" class="import-overwrite rounded border-gray-300 dark:border-gray-600 text-green-600 focus:ring-green-500 dark:bg-gray-800">
+                    <span class="text-sm text-gray-700 dark:text-gray-300">Overwrite if region exists</span>
+                  </label>
                 </div>
 
+                <!-- Import Progress -->
                 <div class="import-progress hidden">
-                  <div class="bg-gray-200 rounded-full h-2 mb-2">
+                  <div class="bg-gray-200 dark:bg-gray-700 rounded-full h-2 mb-2 overflow-hidden">
                     <div class="import-progress-bar bg-green-600 h-2 rounded-full transition-all duration-300" style="width: 0%"></div>
                   </div>
-                  <p class="import-progress-text text-sm text-gray-600">Preparing import...</p>
+                  <p class="import-progress-text text-sm text-gray-600 dark:text-gray-400">Preparing import...</p>
                 </div>
 
-                <button class="import-btn w-full bg-green-600 text-white py-2 px-4 rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition-colors" disabled>
+                <!-- Import Button -->
+                <button class="import-btn w-full px-4 py-2 bg-green-600 hover:bg-green-700 text-white border-0 rounded-sm text-sm font-medium cursor-pointer flex items-center justify-center gap-2 transition-colors duration-200 disabled:bg-gray-400 disabled:cursor-not-allowed" disabled>
+                  ${icons.upload({ size: 16, color: 'white' })}
                   Import Region
                 </button>
               </div>
             </div>
           </div>
 
-          <!-- Region Info -->
-          <div class="mt-6 p-4 bg-gray-50 rounded-lg">
-            <h4 class="text-sm font-medium text-gray-900 mb-2">Current Region Info</h4>
-            <div class="grid grid-cols-2 gap-4 text-sm text-gray-600">
+          <!-- Format Guide -->
+          <div class="mt-6 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+            <h4 class="text-sm font-semibold text-blue-900 dark:text-blue-300 mb-2 flex items-center gap-2">
+              ${icons.infoCircle({ size: 16, color: 'currentColor' })}
+              Format Guide
+            </h4>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
               <div>
-                <span class="font-medium">ID:</span> ${this.options.region.id}
+                <div class="font-medium text-blue-800 dark:text-blue-300">JSON</div>
+                <div class="text-blue-700 dark:text-blue-400">Complete data, human-readable, best for development</div>
               </div>
               <div>
-                <span class="font-medium">Name:</span> ${this.options.region.name || 'Unnamed'}
+                <div class="font-medium text-blue-800 dark:text-blue-300">PMTiles</div>
+                <div class="text-blue-700 dark:text-blue-400">Web-optimized, efficient serving, cloud-friendly</div>
               </div>
               <div>
-                <span class="font-medium">Zoom:</span> ${this.options.region.minZoom}-${this.options.region.maxZoom}
-              </div>
-              <div>
-                <span class="font-medium">Created:</span> ${new Date(this.options.region.created).toLocaleDateString()}
+                <div class="font-medium text-blue-800 dark:text-blue-300">MBTiles</div>
+                <div class="text-blue-700 dark:text-blue-400">Industry standard, SQLite-based, cross-platform</div>
               </div>
             </div>
           </div>

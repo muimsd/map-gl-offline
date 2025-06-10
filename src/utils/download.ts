@@ -44,6 +44,13 @@ export async function fetchResourceWithRetry(
       clearTimeout(timeoutId);
 
       if (!response.ok) {
+        // Provide more specific error messages
+        if (response.status === 404) {
+          throw new Error(`Font not found (404): ${url}`);
+        }
+        if (response.status === 403 || response.status === 401) {
+          throw new Error(`Access denied (${response.status}): ${url}`);
+        }
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
 

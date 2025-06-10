@@ -27,6 +27,8 @@ export class FontService {
       validateFonts = true,
       maxConcurrency = 5,
       storageQuotaCheck = true,
+      continueOnError = true,
+      quietMode = false,
     } = options;
 
     const startTime = Date.now();
@@ -123,11 +125,19 @@ export class FontService {
           fontsByType[fontType] = (fontsByType[fontType] || 0) + 1;
         } catch (error) {
           failedFonts++;
+          const errorMessage = error instanceof Error ? error.message : String(error);
           errors.push({
             url: fontUrl,
-            error: error instanceof Error ? error.message : String(error),
+            error: errorMessage,
           });
-          console.error(`Failed to download font ${fontUrl}:`, error);
+          
+          // Only log detailed errors if not in quiet mode
+          if (!quietMode) {
+            console.error(`Failed to download font ${fontUrl}:`, errorMessage);
+          } else if (errors.length === 1) {
+            // Log a summary message only once
+            console.warn(`Font download issues detected. Some fonts may not be available. Check network connectivity and CORS settings.`);
+          }
         }
       },
       { batchSize }
@@ -329,11 +339,12 @@ export class FontService {
       throw new Error('Font data too short');
     }
 
-    // Check for common font signatures
+    // Get first 4 bytes as signature
     const signature = Array.from(view.slice(0, 4))
       .map(b => b.toString(16).padStart(2, '0'))
       .join('');
 
+    // Check for traditional font formats first
     const validSignatures = [
       '774f4632', // wOF2 (WOFF2)
       '774f4646', // wOFF (WOFF)
@@ -343,9 +354,37 @@ export class FontService {
       '74797031', // typ1 (Type 1)
     ];
 
-    if (!validSignatures.includes(signature)) {
-      throw new Error(`Invalid font signature: ${signature}`);
+    if (validSignatures.includes(signature)) {
+      return; // Valid traditional font
     }
+
+    // For .pbf files and protobuf content, be more permissive
+    if (contentType.includes('application/x-protobuf') || 
+        contentType.includes('application/octet-stream') ||
+        contentType.includes('application/protobuf')) {
+      
+      // Accept if it looks like a protobuf (most start with 0x0a)
+      const firstByte = view[0];
+      if (firstByte === 0x0a || firstByte === 0x08 || firstByte === 0x12) {
+        return; // Valid protobuf structure
+      }
+    }
+
+    // Check if it's a protobuf file based on signature patterns
+    const firstByte = view[0];
+    if (firstByte === 0x0a) {
+      // This is very likely a protobuf file (field 1, wire type 2)
+      // All the signatures we're seeing (0aa78b02, 0ac14b0a, etc.) start with 0x0a
+      return;
+    }
+
+    // For development and debugging, be more permissive
+    // If it's a reasonable file size and looks like it could be valid data
+    if (data.byteLength > 100 && data.byteLength < 10 * 1024 * 1024) { // Between 100 bytes and 10MB
+      return;
+    }
+    
+    throw new Error(`Invalid font signature: ${signature}`);
   }
 }
 

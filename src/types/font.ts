@@ -29,6 +29,8 @@ export interface FontDownloadOptions {
   validateFonts?: boolean;
   maxConcurrency?: number;
   storageQuotaCheck?: boolean;
+  continueOnError?: boolean; // Continue downloading even if some fonts fail
+  quietMode?: boolean; // Reduce console logging for failed fonts
 }
 
 export interface FontDownloadResult {
