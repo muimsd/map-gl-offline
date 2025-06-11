@@ -2,12 +2,12 @@ import type { IControl, Map as MaplibreMap } from 'maplibre-gl';
 import { OfflineMapManager } from '../managers/offlineMapManager';
 import { themeManager } from './themes';
 
-// Import new modular components
-import { ButtonManager } from './managers/buttonManager';
-import { PanelRenderer } from './managers/panelRenderer';
-import { RegionControl } from './controls/regionControl';
-import { DownloadManager } from './managers/downloadManager';
-import { ModalManager } from './modals/modalManager';
+// Import refactored modular components
+import { ButtonManager } from './managers/ControlButtonManager';
+import { PanelRenderer } from './managers/PanelManager';
+import { RegionControl } from './controls/RegionControl';
+import { DownloadManager } from './managers/DownloadManager';
+import { ModalManager } from './modals/ModalManager';
 
 export interface OfflineManagerControlOptions {
   theme?: 'light' | 'dark';
@@ -19,7 +19,7 @@ export class OfflineManagerControl implements IControl {
   private isOpen = false;
   private offlineManager: OfflineMapManager;
 
-  // Component managers
+  // Refactored component managers
   private buttonManager: ButtonManager | undefined;
   private panelRenderer: PanelRenderer | undefined;
   private regionControl: RegionControl | undefined;

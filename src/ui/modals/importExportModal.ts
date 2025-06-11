@@ -1,3 +1,8 @@
+/**
+ * Import/Export Modal Component
+ * Handles import/export operations for regions
+ */
+
 import { icons } from '../../utils/icons';
 import type { 
   StoredRegion, 

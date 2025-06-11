@@ -1,10 +1,11 @@
 /**
  * Header component for the offline manager
+ * Refactored to use modular components
  */
 
 import { icons } from '../../utils/icons';
-import { Theme } from '../themes';
-import { createButton } from '../components';
+import { Theme } from '../ThemeManager';
+import { Button } from './shared/Button';
 
 export interface HeaderProps {
   title: string;
@@ -45,33 +46,27 @@ export function createHeader(props: HeaderProps): HTMLDivElement {
   actionsSection.className = 'flex gap-1 items-center';
 
   // Theme toggle button
-  if (showThemeToggle) {
-    const themeButton = createButton({
-      variant: 'ghost',
-      size: 'sm',
-      icon: 'moon', // Note: You might want to make this dynamic based on current theme
-      children: '',
-      onClick: () => {
-        themeToggleHandler?.();
-      },
+  if (showThemeToggle && themeToggleHandler) {
+    const themeButton = new Button({
       className: 'w-9 h-9 p-0 bg-white/10 text-white rounded-full backdrop-blur-sm hover:bg-black/20 dark:hover:bg-white/20 transition-colors',
+      icon: icons.moon({ size: 16, color: 'white' }),
+      title: 'Toggle theme',
+      onClick: themeToggleHandler
     });
 
-    actionsSection.appendChild(themeButton);
+    actionsSection.appendChild(themeButton.getElement());
   }
 
   // Close button
   if (onClose) {
-    const closeButton = createButton({
-      variant: 'ghost',
-      size: 'sm',
-      icon: 'x',
-      children: '',
-      onClick: onClose,
+    const closeButton = new Button({
       className: 'w-9 h-9 p-0 bg-white/10 text-white rounded-full backdrop-blur-sm hover:bg-black/20 dark:hover:bg-white/20 transition-colors',
+      icon: icons.x({ size: 16, color: 'white' }),
+      title: 'Close',
+      onClick: onClose
     });
 
-    actionsSection.appendChild(closeButton);
+    actionsSection.appendChild(closeButton.getElement());
   }
 
   header.appendChild(titleSection);

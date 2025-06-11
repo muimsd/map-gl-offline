@@ -1,9 +1,11 @@
 /**
  * Confirmation Modal Component
  * Handles confirmation dialogs with customizable actions
+ * Refactored to use modular components
  */
 
-import { createModal } from '../components';
+import { Modal, ModalConfig } from '../components/shared/Modal';
+import { Button } from '../components/shared/Button';
 
 export interface ConfirmationModalOptions {
   title: string;
@@ -16,8 +18,7 @@ export interface ConfirmationModalOptions {
 
 export class ConfirmationModal {
   private options: ConfirmationModalOptions;
-  private modal: HTMLDivElement | undefined;
-  private resolver?: (value: boolean) => void;
+  private modal?: Modal;
 
   constructor(options: ConfirmationModalOptions) {
     this.options = options;
@@ -27,87 +28,71 @@ export class ConfirmationModal {
    * Show confirmation modal and return modal element
    */
   public show(): HTMLDivElement {
-    return this.createModal();
-  }
-
-  /**
-   * Create and display the modal
-   */
-  private createModal(): HTMLDivElement {
-    const { title, message, confirmText, cancelText } = this.options;
-
-    const modalContent = `
-      <div class="flex flex-col gap-6">
-        <p class="m-0 text-gray-900 dark:text-white leading-relaxed">
-          ${message}
-        </p>
-        
-        <div class="flex gap-2 justify-end">
-          <button onclick="confirmationModal.handleCancel()" 
-                  class="px-4 py-2 bg-gray-500 hover:bg-gray-600 text-white border-0 rounded-sm cursor-pointer text-sm transition-colors duration-200">
-            ${cancelText}
-          </button>
-          <button onclick="confirmationModal.handleConfirm()" 
-                  class="px-4 py-2 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white border-0 rounded-sm cursor-pointer text-sm transition-all duration-200">
-            ${confirmText}
-          </button>
-        </div>
-      </div>
-    `;
-
-    this.modal = createModal({
-      title,
-      isOpen: true,
+    const modalConfig: ModalConfig = {
+      title: this.options.title,
       size: 'sm',
-      showThemeToggle: false,
-      onClose: () => this.handleCancel(),
-      children: modalContent,
+      closable: true,
+      onClose: this.options.onCancel
+    };
+
+    this.modal = new Modal(modalConfig);
+
+    // Create content
+    const content = document.createElement('div');
+    content.className = 'flex flex-col gap-6';
+
+    // Message
+    const message = document.createElement('p');
+    message.className = 'm-0 text-gray-900 dark:text-white leading-relaxed';
+    message.textContent = this.options.message;
+    content.appendChild(message);
+
+    // Action buttons
+    const buttonContainer = document.createElement('div');
+    buttonContainer.className = 'flex gap-2 justify-end';
+
+    // Cancel button
+    const cancelButton = new Button({
+      text: this.options.cancelText,
+      variant: 'secondary',
+      onClick: () => {
+        this.modal?.hide();
+        this.options.onCancel();
+      }
     });
 
-    // Make this instance available globally for onclick handlers
-    (window as any).confirmationModal = this;
-    
-    return this.modal!;
+    // Confirm button
+    const confirmButton = new Button({
+      text: this.options.confirmText,
+      variant: 'danger',
+      onClick: () => {
+        this.modal?.hide();
+        this.options.onConfirm();
+      }
+    });
+
+    buttonContainer.appendChild(cancelButton.getElement());
+    buttonContainer.appendChild(confirmButton.getElement());
+    content.appendChild(buttonContainer);
+
+    // Set modal content
+    this.modal.setContent(content);
+    this.modal.show();
+
+    return this.modal.getElement() as HTMLDivElement;
   }
 
   /**
-   * Handle confirm action
+   * Hide the modal
    */
-  public handleConfirm(): void {
-    this.options.onConfirm();
-    this.resolve(true);
+  public hide(): void {
+    this.modal?.hide();
   }
 
   /**
-   * Handle cancel action
+   * Destroy the modal
    */
-  public handleCancel(): void {
-    this.options.onCancel();
-    this.resolve(false);
-  }
-
-  /**
-   * Resolve the promise and cleanup
-   */
-  private resolve(result: boolean): void {
-    if (this.resolver) {
-      this.resolver(result);
-      this.resolver = undefined;
-    }
-    this.cleanup();
-  }
-
-  /**
-   * Get the modal element
-   */
-  public getModal(): HTMLDivElement | undefined {
-    return this.modal;
-  }
-
-  /**
-   * Cleanup global references
-   */
-  private cleanup(): void {
-    delete (window as any).confirmationModal;
+  public destroy(): void {
+    this.modal?.destroy();
   }
 }
