@@ -5,17 +5,17 @@
 
 import { BaseComponent } from './BaseComponent';
 import { OfflineMapManager } from '../../../managers/offlineMapManager';
-import { DownloadManager } from '../../managers/downloadManager';
-import { ModalManager } from '../../modals/modalManager';
-import { RegionDetailsModal } from '../../modals/regionDetailsModal';
+import { DownloadManager } from '../../managers/DownloadManager';
+import { ModalManager } from '../../modals/ModalManager';
+import { RegionDetailsModal } from '../../modals/RegionDetailsModal';
 import { ConfirmationModal } from '../../modals/ConfirmationModal';
 import { ImportExportModal } from '../../modals/ImportExportModal';
 import { createHeader } from '../PanelHeader';
 import { createActionButtons } from '../PanelActions';
 import { createRegionsList } from '../RegionList';
-import { createDownloadProgressSection } from '../downloadProgress';
+import { createDownloadProgressSection } from '../DownloadProgress';
 import { formatBytes } from '../../../utils/formatting';
-import { themeManager } from '../../themes';
+import { themeManager } from '../../ThemeManager';
 
 export interface ContentRendererConfig {
   offlineManager: OfflineMapManager;

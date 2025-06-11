@@ -6,7 +6,7 @@
 export { BaseComponent, ComponentConfig } from './BaseComponent';
 export { ControlButton, ControlButtonConfig } from './ControlButton';
 export { Panel, PanelConfig } from './Panel';
-export { PanelContentRenderer, ContentRendererConfig } from './PanelContentRenderer';
+export { PanelContentRenderer, ContentRendererConfig } from './PanelContent';
 export { RegionDrawing, RegionDrawingConfig } from './RegionDrawing';
 
 // New modular components
