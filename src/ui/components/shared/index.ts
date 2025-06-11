@@ -4,10 +4,10 @@
  */
 
 export { BaseComponent, ComponentConfig } from './BaseComponent';
-export { ControlButton, ControlButtonConfig } from './ControlButton';
+export { ControlButton, ControlButtonConfig } from './MapControlButton';
 export { Panel, PanelConfig } from './Panel';
 export { PanelContentRenderer, ContentRendererConfig } from './PanelContent';
-export { RegionDrawing, RegionDrawingConfig } from './RegionDrawing';
+export { RegionDrawing, RegionDrawingConfig } from './RegionDrawingTool';
 
 // New modular components
 export { Button, ButtonConfig } from './Button';

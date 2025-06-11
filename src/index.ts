@@ -29,4 +29,4 @@ export * from './utils';
 export { OfflineMapManager as default } from './managers/offlineMapManager';
 
 // Export UI controls
-export { OfflineManagerControl } from './ui/offlineManagerControl';
+export { OfflineManagerControl } from './ui/OfflineManagerControl';
