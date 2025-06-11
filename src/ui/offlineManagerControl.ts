@@ -1,6 +1,6 @@
 import type { IControl, Map as MaplibreMap } from 'maplibre-gl';
 import { OfflineMapManager } from '../managers/offlineMapManager';
-import { themeManager } from './themes';
+import { themeManager } from './ThemeManager';
 
 // Import refactored modular components
 import { ButtonManager } from './managers/ControlButtonManager';

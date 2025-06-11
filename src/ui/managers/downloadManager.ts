@@ -4,7 +4,7 @@
  */
 
 import { OfflineMapManager } from '../../managers/offlineMapManager';
-import { RegionFormData } from '../modals/regionFormModal';
+import { RegionFormData } from '../modals/RegionFormModal';
 
 export interface DownloadProgress {
   regionId: string;

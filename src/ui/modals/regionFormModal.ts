@@ -8,7 +8,7 @@ import type { Map as MaplibreMap } from 'maplibre-gl';
 import { Modal, ModalConfig } from '../components/shared/Modal';
 import { Button } from '../components/shared/Button';
 import { icons } from '../../utils/icons';
-import { themeManager } from '../themes';
+import { themeManager } from '../ThemeManager';
 
 export interface RegionFormData {
   name: string;
