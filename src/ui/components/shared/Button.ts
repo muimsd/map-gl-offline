@@ -71,9 +71,9 @@ export class Button extends BaseComponent {
   private getVariantClasses(): string {
     switch (this.config.variant) {
       case 'primary':
-        return 'bg-blue-600 hover:bg-blue-700 text-white border border-blue-700';
+        return 'bg-blue-600 hover:bg-blue-700 text-white border border-blue-700 rounded';
       case 'secondary':
-        return 'bg-gray-500 hover:bg-gray-600 text-white border border-gray-600';
+        return 'bg-gray-500 hover:bg-gray-600 text-white border border-gray-600 rounded';
       case 'success':
         return 'bg-green-600 hover:bg-green-700 text-white border border-green-700';
       case 'danger':

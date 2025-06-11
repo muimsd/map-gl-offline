@@ -109,7 +109,7 @@ export class PanelRenderer extends BaseComponent {
 
     // Theme toggle button
     const themeButton = new Button({
-      className: 'p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300',
+      className: 'p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded-full',
       icon: this.getThemeIcon(),
       title: 'Toggle theme',
       onClick: () => this.handleThemeToggle()
@@ -117,7 +117,7 @@ export class PanelRenderer extends BaseComponent {
 
     // Close button
     const closeButton = new Button({
-      className: 'p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300',
+      className: 'p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded-full',
       icon: icons.x({ size: 16, color: 'currentColor' }),
       title: 'Close',
       onClick: this.options.onClose
