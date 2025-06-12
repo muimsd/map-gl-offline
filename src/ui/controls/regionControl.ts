@@ -8,6 +8,7 @@ import { PolygonControl, PolygonControlOptions } from './PolygonControl';
 import { RegionFormModal, RegionFormData, RegionFormOptions } from '../modals/RegionFormModal';
 import { DownloadManager } from '../managers/DownloadManager';
 import { ModalManager } from '../modals/ModalManager';
+import { icons } from '../../utils/icons';
 
 export interface RegionControlOptions {
   map: MaplibreMap;
@@ -77,11 +78,7 @@ export class RegionControl {
     this.saveButton = document.createElement('button');
     this.saveButton.type = 'button';
     this.saveButton.className = 'maplibregl-ctrl-icon offline-manager-control mt-0.5 bg-gradient-to-br from-green-600 to-green-700 border border-green-700 rounded-sm cursor-pointer relative w-[29px] h-[29px] flex items-center justify-center hover:from-green-700 hover:to-green-800 transition-all duration-200';
-    this.saveButton.innerHTML = `
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <polyline points="20,6 9,17 4,12"></polyline>
-      </svg>
-    `;
+    this.saveButton.innerHTML = icons.check({ size: 16, color: 'white' });
     this.saveButton.title = 'Save Selected Region';
     this.saveButton.addEventListener('click', () => this.handleSaveClick());
 

@@ -40,8 +40,8 @@ export class OfflineManagerControl implements IControl {
     // Initialize download manager
     this.downloadManager = new DownloadManager({
       offlineManager: this.offlineManager,
-      onProgressUpdate: (downloads) => this.handleProgressUpdate(downloads),
-      onDownloadComplete: (regionId) => this.handleDownloadComplete(regionId),
+      onProgressUpdate: downloads => this.handleProgressUpdate(downloads),
+      onDownloadComplete: regionId => this.handleDownloadComplete(regionId),
       onDownloadError: (regionId, error) => this.handleDownloadError(regionId, error),
       updateButton: (text, disabled) => this.updateButton(text, disabled),
       updateProgressBadge: (text, visible) => this.updateProgressBadge(text, visible),
@@ -105,7 +105,8 @@ export class OfflineManagerControl implements IControl {
    */
   private createPanel(): HTMLDivElement {
     const panel = document.createElement('div');
-    panel.className = 'offline-manager-control fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-[min(90vw,600px)] h-[min(80vh,500px)] bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl shadow-2xl hidden z-[1000] overflow-hidden text-sm';
+    panel.className =
+      'offline-manager-control fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-[min(90vw,600px)] h-[min(80vh,500px)] bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl shadow-2xl hidden z-[1000] overflow-hidden text-sm';
     return panel;
   }
 
@@ -235,17 +236,12 @@ export class OfflineManagerControl implements IControl {
    * Get current style URL from map
    */
   private getCurrentStyleUrl(): string {
-    if (!this.map) return 'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json';
-
+    if (!this.map) return '';
     try {
       const style = this.map.getStyle();
-      return (
-        (style as any).metadata?.['mapbox:origin'] ||
-        style.metadata?.styleUrl ||
-        'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json'
-      );
+      return (style as any).metadata?.['mapbox:origin'] || style.metadata?.styleUrl;
     } catch (error) {
-      return 'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json';
+      return '';
     }
   }
 }

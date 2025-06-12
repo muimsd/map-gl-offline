@@ -76,7 +76,8 @@ export class RegionsList extends BaseComponent {
 
   private createRegionCard(region: StoredRegion): HTMLElement {
     const regionCard = document.createElement('div');
-    regionCard.className = 'bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 hover:border-blue-500 dark:hover:border-blue-400 transition-colors cursor-pointer';
+    regionCard.className =
+      'bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 hover:border-blue-500 dark:hover:border-blue-400 transition-colors cursor-pointer';
 
     // Card header with title and actions
     const cardHeader = document.createElement('div');
@@ -136,32 +137,32 @@ export class RegionsList extends BaseComponent {
         className: 'px-2 py-1 text-xs',
         onClick: () => {
           this.props.onFocusRegion!(region.id);
-        }
+        },
       });
-      
+
       // Prevent event bubbling
-      focusButton.getElement().addEventListener('click', (e) => e.stopPropagation());
+      focusButton.getElement().addEventListener('click', e => e.stopPropagation());
       actionButtons.appendChild(focusButton.getElement());
     }
 
-    // Import/Export button
-    if (this.props.onImportExport) {
-      const importExportButton = new Button({
-        text: 'I/E',
-        variant: 'success',
-        size: 'sm',
-        icon: icons.deviceFloppy({ size: 10 }),
-        className: 'px-2 py-1 text-xs',
-        title: 'Import/Export Region',
-        onClick: () => {
-          this.props.onImportExport!(region.id);
-        }
-      });
-      
-      // Prevent event bubbling
-      importExportButton.getElement().addEventListener('click', (e) => e.stopPropagation());
-      actionButtons.appendChild(importExportButton.getElement());
-    }
+    // // Import/Export button
+    // if (this.props.onImportExport) {
+    //   const importExportButton = new Button({
+    //     text: 'I/E',
+    //     variant: 'success',
+    //     size: 'sm',
+    //     icon: icons.deviceFloppy({ size: 10 }),
+    //     className: 'px-2 py-1 text-xs',
+    //     title: 'Import/Export Region',
+    //     onClick: () => {
+    //       this.props.onImportExport!(region.id);
+    //     }
+    //   });
+
+    //   // Prevent event bubbling
+    //   importExportButton.getElement().addEventListener('click', (e) => e.stopPropagation());
+    //   actionButtons.appendChild(importExportButton.getElement());
+    // }
 
     // Delete button
     if (this.props.onDeleteRegion) {
@@ -173,11 +174,11 @@ export class RegionsList extends BaseComponent {
         className: 'px-2 py-1 text-xs',
         onClick: () => {
           this.props.onDeleteRegion!(region.id);
-        }
+        },
       });
-      
+
       // Prevent event bubbling
-      deleteButton.getElement().addEventListener('click', (e) => e.stopPropagation());
+      deleteButton.getElement().addEventListener('click', e => e.stopPropagation());
       actionButtons.appendChild(deleteButton.getElement());
     }
 

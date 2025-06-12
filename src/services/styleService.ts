@@ -1,6 +1,6 @@
 import { dbPromise } from '../storage/indexedDbManager';
-import { downloadFonts } from '../services/fontService';
-import { downloadSprites } from '../services/spriteService';
+import { downloadFonts } from './fontService';
+import { downloadSprites } from './spriteService';
 import { generateGlyphUrlsFromStyle, fetchWithRetry } from '../utils';
 import type { StyleEntry, MapboxStyle, StyleDownloadOptions, StyleDownloadResult, DownloadProgress, StyleStorageItem, EnhancedStyleStats, FontDownloadResult, SpriteDownloadResult } from '../types';
 
@@ -308,7 +308,7 @@ export async function downloadStyles(
         console.warn(`Found ${fontStackArray.length} font stacks for glyph download:`, fontStackArray);
         
         if (fontStackArray.length > 0) {
-          const { downloadGlyphs } = await import('../services/glyphService');
+          const { downloadGlyphs } = await import('./glyphService');
           const glyphResult = await downloadGlyphs(
             style.glyphs,
             fontStackArray,
