@@ -24,7 +24,7 @@ export interface RegionFormOptions {
   onSave: (formData: RegionFormData) => Promise<void>;
   onCancel: () => void;
   onThemeToggle?: () => void;
-  getCurrentStyleUrl: () => string;
+  styleUrl: string;
 }
 
 export class RegionFormModal {
@@ -74,7 +74,8 @@ export class RegionFormModal {
    */
   private createForm(bounds: [number, number, number, number], area: number): HTMLElement {
     const [west, south, east, north] = bounds;
-    const styleUrl = this.options.getCurrentStyleUrl();
+    const styleUrl = this.options.styleUrl;
+    console.log("styleURL", styleUrl)
 
     const form = document.createElement('div');
     form.className = 'flex flex-col gap-4';
@@ -204,7 +205,7 @@ export class RegionFormModal {
         name: this.nameInput?.value || `Region ${Date.now()}`,
         minZoom: parseInt(this.minZoomInput?.value || '1'),
         maxZoom: parseInt(this.maxZoomInput?.value || '14'),
-        styleUrl: this.styleUrlInput?.value || this.options.getCurrentStyleUrl(),
+        styleUrl: this.styleUrlInput?.value || this.options.styleUrl,
         bounds: this.options.bounds,
       };
 

@@ -20,12 +20,15 @@ map.addControl(new maplibregl.NavigationControl(), 'top-right');
 map.addControl(new maplibregl.ScaleControl(), 'bottom-left');
 
 const offlineManager = new OfflineMapManager();
-const offlineManagerControl = new OfflineManagerControl(offlineManager);
+console.log('main.ts loaded');
+console.log('styleURL before control:', styleURL);
 
-// Expose for debugging
-(window as any).offlineManager = offlineManager;
-(window as any).offlineManagerControl = offlineManagerControl;
+const offlineManagerControl = new OfflineManagerControl(offlineManager, {
+  styleUrl: styleURL,
+  theme: 'light',
+});
 
+console.log('offlineManagerControl created:', offlineManagerControl);
 // Add geolocate control
 map.addControl(
   new maplibregl.GeolocateControl({
@@ -40,7 +43,12 @@ map.addControl(
 
 // Add our custom offline manager control
 map.addControl(offlineManagerControl, 'top-right');
-
+// map.on('load', async () => {
+//   console.log('Map loaded');
+//   // get style url from the map instance
+// const styleUrl = map?._options?.style;
+// console.log('Style URL:', styleUrl);
+// });
 // Start automatic cleanup of expired regions (runs every hour)
 // offlineManager.setupAutoCleanup();
 

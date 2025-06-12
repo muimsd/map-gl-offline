@@ -10,6 +10,7 @@ import { DownloadManager } from './managers/DownloadManager';
 import { ModalManager } from './modals/ModalManager';
 
 export interface OfflineManagerControlOptions {
+  styleUrl: string;
   theme?: 'light' | 'dark';
 }
 
@@ -18,7 +19,7 @@ export class OfflineManagerControl implements IControl {
   private panel: HTMLDivElement | undefined;
   private isOpen = false;
   private offlineManager: OfflineMapManager;
-
+  private options: OfflineManagerControlOptions;
   // Refactored component managers
   private buttonManager: ButtonManager | undefined;
   private panelRenderer: PanelRenderer | undefined;
@@ -28,16 +29,19 @@ export class OfflineManagerControl implements IControl {
 
   constructor(
     offlineManager: OfflineMapManager,
-    options: OfflineManagerControlOptions = { theme: 'dark' }
+    options: OfflineManagerControlOptions = {
+      theme: 'dark',
+      styleUrl: 'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json',
+    } // Default style URL
   ) {
+    console.log('OfflineManagerControl options:', options); // Initialize download manager
     this.offlineManager = offlineManager;
 
     // Set initial theme if provided
     if (options?.theme) {
       themeManager.setTheme(options.theme);
     }
-
-    // Initialize download manager
+    this.options = options;
     this.downloadManager = new DownloadManager({
       offlineManager: this.offlineManager,
       onProgressUpdate: downloads => this.handleProgressUpdate(downloads),
@@ -77,7 +81,7 @@ export class OfflineManagerControl implements IControl {
       modalManager: this.modalManager,
       container: this.buttonManager.getContainer(),
       onRegionSaved: () => this.handleRegionSaved(),
-      getCurrentStyleUrl: () => this.getCurrentStyleUrl(),
+      styleUrl: this.options.styleUrl,
     });
 
     // Add event delegation for better event handling
@@ -232,16 +236,46 @@ export class OfflineManagerControl implements IControl {
       });
   }
 
-  /**
-   * Get current style URL from map
-   */
-  private getCurrentStyleUrl(): string {
-    if (!this.map) return '';
-    try {
-      const style = this.map.getStyle();
-      return (style as any).metadata?.['mapbox:origin'] || style.metadata?.styleUrl;
-    } catch (error) {
-      return '';
-    }
-  }
+  // /**
+  //  * Get current style URL from map
+  //  */
+  // private getCurrentStyleUrl(): Promise<string> {
+  //   // Await map load then return the style URL.
+  //   return new Promise<string>(resolve => {
+  //     if (!this.map?.isStyleLoaded()) {
+  //       this.map!.once('styledata', async () => {
+  //         const url = await this.getCurrentStyleUrl();
+  //         resolve(url);
+  //       });
+  //       return;
+  //     }
+  //     try {
+  //       const style = this.map!.getStyle();
+  //       // Try to get the style URL from metadata or fallback to sprite
+  //       if (style && style.metadata && typeof style.metadata['mapbox:origin'] === 'string') {
+  //         resolve(style.metadata['mapbox:origin']);
+  //         return;
+  //       }
+  //       if (style) {
+  //         // Try to use the sprite URL as a fallback, or return an empty string if not available
+  //         // If style.sprite exists and is a string, use it; otherwise, return empty string
+  //         if (typeof (style as any).sprite === 'string') {
+  //           resolve((style as any).sprite);
+  //         } else {
+  //           resolve('');
+  //         }
+  //         return;
+  //       }
+  //       // For Mapbox styles, try to get the style URL from metadata
+  //       if (style && style.metadata && typeof style.metadata['mapbox:origin'] === 'string') {
+  //         resolve(style.metadata['mapbox:origin']);
+  //         return;
+  //       }
+  //       // If no URL is available, return the style object as a JSON string
+  //       resolve(JSON.stringify(style));
+  //     } catch (error) {
+  //       resolve('');
+  //     }
+  //   });
+  // }
 }

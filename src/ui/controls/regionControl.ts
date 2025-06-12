@@ -16,7 +16,7 @@ export interface RegionControlOptions {
   modalManager: ModalManager;
   container: HTMLDivElement;
   onRegionSaved?: () => void;
-  getCurrentStyleUrl: () => string;
+  styleUrl: string;
 }
 
 export class RegionControl {
@@ -113,7 +113,7 @@ export class RegionControl {
       area,
       onSave: async (formData: RegionFormData) => this.handleRegionSave(formData),
       onCancel: () => this.handleFormCancel(),
-      getCurrentStyleUrl: this.options.getCurrentStyleUrl,
+      styleUrl: this.options.styleUrl,
       onThemeToggle: () => this.options.onRegionSaved?.(),
     };
 
