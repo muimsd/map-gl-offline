@@ -18,7 +18,8 @@ import { icons } from '../../utils/icons';
 import { List, ListItemConfig } from '../components/shared/List';
 import { Button } from '../components/shared/Button';
 import { BaseComponent } from '../components/shared/BaseComponent';
-
+// Patch the style for offline use (convert URLs to idb:// URLs)
+import { patchStyleForOffline } from '../../utils/styleUtils';
 import type { IControl, Map as MaplibreMap } from 'maplibre-gl';
 
 export interface PanelRendererOptions {
@@ -38,7 +39,7 @@ export class PanelRenderer extends BaseComponent {
   private modalManager: ModalManager;
   private options: PanelRendererOptions;
   private map?: MaplibreMap;
-  
+
   // UI Components
   private headerContainer?: HTMLElement;
   private actionButtonsContainer?: HTMLElement;
@@ -56,7 +57,8 @@ export class PanelRenderer extends BaseComponent {
 
   protected createElement(): HTMLElement {
     const container = document.createElement('div');
-    container.className = 'h-full flex flex-col bg-white dark:bg-gray-800 rounded-2xl overflow-hidden';
+    container.className =
+      'h-full flex flex-col bg-white dark:bg-gray-800 rounded-2xl overflow-hidden';
     return container;
   }
 
@@ -82,7 +84,6 @@ export class PanelRenderer extends BaseComponent {
       await this.renderActionButtons();
       await this.renderDownloadProgress();
       await this.renderRegionsList(regions);
-
     } catch (error) {
       console.error('Error rendering panel:', error);
       this.renderErrorState(panelElement);
@@ -98,7 +99,8 @@ export class PanelRenderer extends BaseComponent {
     }
 
     this.headerContainer = document.createElement('div');
-    this.headerContainer.className = 'flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700';
+    this.headerContainer.className =
+      'flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700';
 
     // Title section
     const titleSection = document.createElement('div');
@@ -118,7 +120,7 @@ export class PanelRenderer extends BaseComponent {
       className: 'p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded-full',
       icon: this.getThemeIcon(),
       title: 'Toggle theme',
-      onClick: () => this.handleThemeToggle()
+      onClick: () => this.handleThemeToggle(),
     });
 
     // Close button
@@ -126,7 +128,7 @@ export class PanelRenderer extends BaseComponent {
       className: 'p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded-full',
       icon: icons.x({ size: 16, color: 'currentColor' }),
       title: 'Close',
-      onClick: this.options.onClose
+      onClick: this.options.onClose,
     });
 
     actionsSection.appendChild(themeButton.getElement());
@@ -146,14 +148,15 @@ export class PanelRenderer extends BaseComponent {
     }
 
     this.actionButtonsContainer = document.createElement('div');
-    this.actionButtonsContainer.className = 'flex gap-3 px-6 py-4 border-b border-gray-200 dark:border-gray-700';
+    this.actionButtonsContainer.className =
+      'flex gap-3 px-6 py-4 border-b border-gray-200 dark:border-gray-700';
 
     // Add Region button
     const addRegionButton = new Button({
       text: 'Add Region',
       variant: 'primary',
       icon: icons.plus({ size: 16, color: 'white' }),
-      onClick: this.options.onAddRegion
+      onClick: this.options.onAddRegion,
     });
 
     // Refresh button
@@ -161,7 +164,7 @@ export class PanelRenderer extends BaseComponent {
       text: 'Refresh',
       variant: 'secondary',
       icon: icons.refresh({ size: 16, color: 'currentColor' }),
-      onClick: () => this.refresh()
+      onClick: () => this.refresh(),
     });
 
     this.actionButtonsContainer.appendChild(addRegionButton.getElement());
@@ -182,12 +185,13 @@ export class PanelRenderer extends BaseComponent {
     // Only show if there are active downloads
     if (this.downloadManager?.hasActiveDownloads()) {
       this.downloadProgressContainer = document.createElement('div');
-      this.downloadProgressContainer.className = 'px-6 py-4 border-b border-gray-200 dark:border-gray-700';
-      
+      this.downloadProgressContainer.className =
+        'px-6 py-4 border-b border-gray-200 dark:border-gray-700';
+
       const downloads = this.downloadManager.getCurrentDownloads();
       const progressHTML = this.createDownloadProgressHTML(downloads);
       this.downloadProgressContainer.innerHTML = progressHTML;
-      
+
       this.element.appendChild(this.downloadProgressContainer);
     }
   }
@@ -202,10 +206,15 @@ export class PanelRenderer extends BaseComponent {
     }
 
     try {
-      // Load styles from IndexedDB
-      const { loadStyles } = await import('../../services/styleService');
+      // Load styles from IndexedDB and get stats
+      const { loadStyles, getStyleStats } = await import('../../services/styleService');
       const styles = await loadStyles();
-      
+      const statsResult = await getStyleStats();
+      const sizeMap: Record<string, number> = {};
+      statsResult.styles.forEach(s => {
+        sizeMap[s.id] = s.size;
+      });
+
       // Group regions by style ID
       const regionsByStyle = this.groupRegionsByStyle(regions);
 
@@ -216,25 +225,26 @@ export class PanelRenderer extends BaseComponent {
       if (styles.length > 0) {
         for (const style of styles) {
           const styleRegions = regionsByStyle[style.key] || [];
-          
-          // Add style item with embedded regions
+          const dbSize = sizeMap[style.key] || 0;
+          // Add style item with embedded regions and DB size
+          const styleWithSize = { ...style, dbSize };
           listItems.push({
             id: `style-${style.key}`,
-            data: { ...style, isStyle: true },
-            template: this.createCompleteStyleTemplate(style, styleRegions),
+            data: { ...styleWithSize, isStyle: true },
+            template: this.createCompleteStyleTemplate(styleWithSize, styleRegions),
             actions: [
               {
                 label: 'Load Style',
                 action: 'load-style',
-                icon: icons.cloud({ size: 12, color: 'currentColor' })
+                icon: icons.cloud({ size: 12, color: 'currentColor' }),
               },
               {
                 label: 'Delete Style',
                 action: 'delete-style',
                 variant: 'danger',
-                icon: icons.trash({ size: 12, color: 'currentColor' })
-              }
-            ]
+                icon: icons.trash({ size: 12, color: 'currentColor' }),
+              },
+            ],
           });
         }
       }
@@ -247,7 +257,7 @@ export class PanelRenderer extends BaseComponent {
           id: 'orphaned-header',
           data: { isOrphanedHeader: true },
           template: this.createOrphanedRegionsHeaderTemplate(orphanedRegions),
-          actions: []
+          actions: [],
         });
 
         // Add orphaned regions
@@ -260,12 +270,12 @@ export class PanelRenderer extends BaseComponent {
               {
                 label: 'Details',
                 action: 'show-details',
-                icon: icons.infoCircle({ size: 12, color: 'currentColor' })
+                icon: icons.infoCircle({ size: 12, color: 'currentColor' }),
               },
               {
                 label: 'Focus',
                 action: 'focus-region',
-                icon: icons.focus({ size: 12, color: 'currentColor' })
+                icon: icons.focus({ size: 12, color: 'currentColor' }),
               },
               // {
               //   label: 'Import/Export',
@@ -276,9 +286,9 @@ export class PanelRenderer extends BaseComponent {
                 label: 'Delete',
                 action: 'delete-region',
                 variant: 'danger',
-                icon: icons.trash({ size: 12, color: 'currentColor' })
-              }
-            ]
+                icon: icons.trash({ size: 12, color: 'currentColor' }),
+              },
+            ],
           });
         });
       }
@@ -297,14 +307,13 @@ export class PanelRenderer extends BaseComponent {
           if (!item.isOrphanedHeader) {
             this.handleShowRegionDetails(itemId);
           }
-        }
+        },
       });
 
       this.element.appendChild(this.regionsList.getElement());
-      
+
       // Add event delegation for embedded region action buttons
       this.addRegionActionEventListeners();
-      
     } catch (error) {
       console.error('Error loading styles or rendering list:', error);
       // Fallback to simple regions list
@@ -316,10 +325,10 @@ export class PanelRenderer extends BaseComponent {
    * Create region item template
    */
   private createRegionItemTemplate(region: any, isGrouped: boolean = false): string {
-    const containerClass = isGrouped 
-      ? 'bg-slate-50 dark:bg-slate-800 px-4 py-3 border-t border-slate-200 dark:border-slate-600' 
+    const containerClass = isGrouped
+      ? 'bg-slate-50 dark:bg-slate-800 px-4 py-3 border-t border-slate-200 dark:border-slate-600'
       : 'bg-white dark:bg-slate-800 rounded-lg p-4 border border-slate-200 dark:border-slate-600 shadow-sm hover:shadow-md transition-shadow duration-150';
-    
+
     return `
       <div class="${containerClass}">
         <div class="flex items-center justify-between">
@@ -347,7 +356,7 @@ export class PanelRenderer extends BaseComponent {
   private createCompleteStyleTemplate(style: any, regions: any[]): string {
     const regionCount = regions.length;
     const totalSize = regions.reduce((sum, region) => sum + (region.size || 0), 0);
-    
+
     // Style header HTML
     const styleHeader = `
       <div class="bg-gradient-to-r from-slate-50 to-gray-50 dark:from-slate-800 dark:to-gray-800 border border-slate-200 dark:border-slate-600 rounded-xl p-0 mb-4 overflow-hidden shadow-sm">
@@ -363,6 +372,9 @@ export class PanelRenderer extends BaseComponent {
               </p>
               <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">
                 ${regionCount} region${regionCount === 1 ? '' : 's'} • ${formatBytes(totalSize)}
+              </p>
+              <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">
+                Stored Style Size: ${formatBytes(style.dbSize || 0)}
               </p>
             </div>
             <div class="flex items-center gap-2">
@@ -380,7 +392,7 @@ export class PanelRenderer extends BaseComponent {
         ${regions.map(region => this.createRegionItemForStyle(region)).join('')}
       </div>
     `;
-    
+
     return styleHeader;
   }
 
@@ -429,7 +441,7 @@ export class PanelRenderer extends BaseComponent {
   private createStyleItemTemplate(style: any, regions: any[]): string {
     const regionCount = regions.length;
     const totalSize = regions.reduce((sum, region) => sum + (region.size || 0), 0);
-    
+
     return `
       <div class="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-0 mb-4 overflow-hidden">
         <!-- Style Header -->
@@ -496,7 +508,9 @@ export class PanelRenderer extends BaseComponent {
           Active Downloads (${downloadArray.length})
         </h3>
         <div class="space-y-2">
-          ${downloadArray.map(download => `
+          ${downloadArray
+            .map(
+              download => `
             <div class="flex items-center justify-between text-sm">
               <span class="text-blue-800 dark:text-blue-200">${download.regionName || download.id}</span>
               <div class="flex items-center gap-2">
@@ -506,7 +520,9 @@ export class PanelRenderer extends BaseComponent {
                 <span class="text-blue-700 dark:text-blue-300 min-w-[3rem]">${Math.round(download.progress || 0)}%</span>
               </div>
             </div>
-          `).join('')}
+          `
+            )
+            .join('')}
         </div>
       </div>
     `;
@@ -541,7 +557,7 @@ export class PanelRenderer extends BaseComponent {
     try {
       const regions = await this.offlineManager.listStoredRegions();
       const region = regions.find((r: any) => r.id === regionId);
-      
+
       if (!region) return;
 
       const detailsModal = new RegionDetailsModal({
@@ -569,7 +585,7 @@ export class PanelRenderer extends BaseComponent {
     try {
       const regions = await this.offlineManager.listStoredRegions();
       const region = regions.find((r: any) => r.id === regionId);
-      
+
       if (!region) return;
 
       const confirmModal = new ConfirmationModal({
@@ -607,7 +623,7 @@ export class PanelRenderer extends BaseComponent {
     try {
       const regions = await this.offlineManager.listStoredRegions();
       const region = regions.find((r: any) => r.id === regionId);
-      
+
       if (!region) return;
 
       const importExportModal = new ImportExportModal({
@@ -615,17 +631,21 @@ export class PanelRenderer extends BaseComponent {
         onClose: () => {
           this.modalManager.close();
         },
-        onExport: (result) => {
+        onExport: result => {
           console.log('Export completed:', result);
           // Handle export result - could show success message
           this.offlineManager.downloadExportedRegion(result);
         },
-        onImport: (result) => {
+        onImport: result => {
           console.log('Import completed:', result);
           // Refresh the panel to show updated regions
           this.refresh();
         },
-        exportRegion: async (regionId: string, format: 'json' | 'pmtiles' | 'mbtiles', options?) => {
+        exportRegion: async (
+          regionId: string,
+          format: 'json' | 'pmtiles' | 'mbtiles',
+          options?
+        ) => {
           // Delegate to offline manager's export functionality
           switch (format) {
             case 'json':
@@ -638,10 +658,10 @@ export class PanelRenderer extends BaseComponent {
               throw new Error(`Unsupported export format: ${format}`);
           }
         },
-        importRegion: async (data) => {
+        importRegion: async data => {
           // Delegate to offline manager's import functionality
           return await this.offlineManager.importRegion(data);
-        }
+        },
       });
 
       const modal = importExportModal.show();
@@ -658,7 +678,7 @@ export class PanelRenderer extends BaseComponent {
     const currentTheme = themeManager.getTheme();
     const newTheme = currentTheme.mode === 'dark' ? 'light' : 'dark';
     themeManager.setTheme(newTheme);
-    
+
     // Refresh to update theme
     this.refresh();
   }
@@ -697,23 +717,23 @@ export class PanelRenderer extends BaseComponent {
     if (!listElement) return;
 
     // Add event delegation for region action buttons
-    listElement.addEventListener('click', (event) => {
+    listElement.addEventListener('click', event => {
       const target = event.target as HTMLElement;
       const actionButton = target.closest('.region-action-btn') as HTMLElement;
-      
+
       if (actionButton) {
         event.preventDefault();
         event.stopPropagation();
-        
+
         const action = actionButton.dataset.action;
         const regionId = actionButton.dataset.regionId;
-        
+
         if (action && regionId) {
           // Find the region data from the stored regions
           this.handleEmbeddedRegionAction(action, regionId);
         }
       }
-      
+
       // Handle region item click (for details)
       const regionItem = target.closest('.region-item') as HTMLElement;
       if (regionItem && !actionButton) {
@@ -732,7 +752,7 @@ export class PanelRenderer extends BaseComponent {
     try {
       const regions = await this.offlineManager.listStoredRegions();
       const region = regions.find((r: any) => r.id === regionId);
-      
+
       if (!region) {
         console.warn('Region not found:', regionId);
         return;
@@ -762,12 +782,12 @@ export class PanelRenderer extends BaseComponent {
         {
           label: 'Details',
           action: 'show-details',
-          icon: icons.infoCircle({ size: 12, color: 'currentColor' })
+          icon: icons.infoCircle({ size: 12, color: 'currentColor' }),
         },
         {
           label: 'Focus',
           action: 'focus-region',
-          icon: icons.focus({ size: 12, color: 'currentColor' })
+          icon: icons.focus({ size: 12, color: 'currentColor' }),
         },
         // {
         //   label: 'Import/Export',
@@ -778,9 +798,9 @@ export class PanelRenderer extends BaseComponent {
           label: 'Delete',
           action: 'delete-region',
           variant: 'danger',
-          icon: icons.trash({ size: 12, color: 'currentColor' })
-        }
-      ]
+          icon: icons.trash({ size: 12, color: 'currentColor' }),
+        },
+      ],
     }));
 
     // Create list component
@@ -791,7 +811,7 @@ export class PanelRenderer extends BaseComponent {
       onItemAction: this.handleItemAction.bind(this),
       onItemClick: (itemId: string, item: any) => {
         this.handleShowRegionDetails(itemId);
-      }
+      },
     });
 
     this.element.appendChild(this.regionsList.getElement());
@@ -823,7 +843,7 @@ export class PanelRenderer extends BaseComponent {
    */
   private groupRegionsByStyle(regions: any[]): Record<string, any[]> {
     const grouped: Record<string, any[]> = {};
-    
+
     regions.forEach(region => {
       const styleId = region.styleId || 'unknown';
       if (!grouped[styleId]) {
@@ -831,7 +851,7 @@ export class PanelRenderer extends BaseComponent {
       }
       grouped[styleId].push(region);
     });
-    
+
     return grouped;
   }
 
@@ -872,14 +892,15 @@ export class PanelRenderer extends BaseComponent {
     }
 
     try {
-      console.log('Loading style to map:', styleData.key);
-      
-      // Apply the style to the map
-      this.map.setStyle(styleData.style as any);
-      
+      console.log('Loading style to map:', styleData);
+
+      const patchedStyle = patchStyleForOffline(styleData.style, styleData.key);
+
+      // Apply the patched style to the map
+      this.map.setStyle(patchedStyle as any);
+
       // Show success feedback (you could add a toast notification here)
-      console.log('Style loaded successfully');
-      
+      console.log('Style loaded successfully with offline patches');
     } catch (error) {
       console.error('Error loading style to map:', error);
     }

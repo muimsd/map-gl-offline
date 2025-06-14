@@ -25,35 +25,31 @@ export class RegionService {
       throw new Error('Region must have a styleUrl');
     }
 
-    // First, download the style definition. This ensures we get the full style JSON 
-    // which will include fonts, sprites, and source information needed by other services
-    const styleResult = await downloadStyles(region.styleUrl, {
-      skipExisting: false, // Force style refresh to make sure we have latest
-      validateStyle: true,
-      includeMetadata: true,
-      enableSourceEmbedding: true
-    });
-    
-    if (!styleResult.success) {
-      throw new Error(`Failed to download style from ${region.styleUrl}: ${styleResult.errors.join(', ')}`);
+    // Ensure style is already downloaded
+    // Try to find style by ID or URL
+    let styleId = region.styleId;
+    let styleData: StyleEntry | undefined;
+    if (styleId) {
+      styleData = await db.get('styles', styleId);
+    } else {
+      // Try to find by styleUrl (legacy)
+      const allStyles = await db.getAll('styles');
+      styleData = allStyles.find((s: any) => s?.style?.sprite?.includes(region.styleUrl) || s?.originalUrl === region.styleUrl);
+      styleId = styleData?.key;
+    }
+    if (!styleData || !styleId) {
+      throw new Error('Style must be downloaded before adding a region.');
     }
 
-    // Log style download results for debugging
-    console.warn('Downloaded style result:', styleResult);
-    
-    // Load the style data from DB - this contains the complete style JSON object
-    let styleData = await loadStyleById(styleResult.styleId);
-    console.warn('Loaded style from DB:', styleData);
-
     // Patch style for offline use
-    const patchedStyle = patchStyleForOffline(styleData as unknown as MapboxStyle, styleResult.styleId);
+    const patchedStyle = patchStyleForOffline(styleData.style, styleId);
 
     // Get or create the style entry
-    let styleEntry = (await db.get('styles', styleResult.styleId)) as StyleEntry | undefined;
+    let styleEntry = (await db.get('styles', styleId)) as StyleEntry | undefined;
     if (!styleEntry || typeof styleEntry === 'string') {
       styleEntry = {
-        key: styleResult.styleId,
-        style: styleData as unknown as MapboxStyle, // Store original style, not patched
+        key: styleId,
+        style: styleData.style,
         regions: [],
         fonts: [],
         glyphs: [],
@@ -81,33 +77,8 @@ export class RegionService {
         expiry,
       };
       styleEntry.regions.push(regionWithMeta);
-
-      // Also add to the regions table for fast lookup
-      const storedRegion: StoredRegion = {
-        ...region,
-        key: region.id,
-        styleId: styleEntry.key,
-        created: Date.now(),
-        lastModified: Date.now(),
-        expiry,
-      };
-      await db.put('regions', storedRegion);
-    } else {
-      console.warn('Region with the same bbox already exists for this style.');
-      return;
+      await db.put('styles', styleEntry);
     }
-
-    // Get the style data for tile downloading
-    const style = getStyleData(styleEntry);
-
-    // Download and store tiles for this region.
-    // Use the original style (not patched) for downloading tiles, since patched style has idb:// URLs
-    console.warn('Starting tile download for region:', region.id);
-    const tileResult = await downloadTiles(region, style, styleEntry.key);
-    console.warn('Tile download completed:', tileResult);
-
-    // Save the updated style entry
-    await db.put('styles', styleEntry);
   }
 
   async loadRegion(region: OfflineRegionOptions): Promise<void> {

@@ -22,14 +22,15 @@ export async function idbFetchHandler(url: string): Promise<Response> {
   switch (type) {
     case 'tile': {
       // Extract tile coordinates from the resource path
-      const tileKey = extractTileKey(decodeURIComponent(resourcePath));
-      const key = `${downloadId}::${tileKey}`;
-      const tile = await db.get('tiles', key);
-      if (tile) {
-        const data = hasDataProp(tile) ? tile.data : tile;
-        return new Response(data, { status: 200 });
-      }
-      break;
+      // Resource path is now tile key including extension
+      const tileKey = decodeURIComponent(resourcePath);
+      console.warn(`Looking for tile with key: ${tileKey}`);
+       const tile = await db.get('tiles', tileKey);
+       if (tile) {
+         const data = hasDataProp(tile) ? tile.data : tile;
+         return new Response(data, { status: 200 });
+       }
+       break;
     }
     case 'glyph': {
       // For glyphs, we use the new key format: stylename:fontstack_range.pbf
@@ -69,13 +70,13 @@ export async function idbFetchHandler(url: string): Promise<Response> {
       
       // Handle different sprite file extensions for key generation
       if (spriteName === 'sprite.json') {
-        spriteKey = `${downloadId}:sprite_json`;
+        spriteKey = `${downloadId}:sprite.json`;
       } else if (spriteName === 'sprite.png') {
-        spriteKey = `${downloadId}:sprite_png`;
+        spriteKey = `${downloadId}:sprite.png`;
       } else if (spriteName === 'sprite@2x.json') {
-        spriteKey = `${downloadId}:sprite@2x_json`;
+        spriteKey = `${downloadId}:sprite@2x.json`;
       } else if (spriteName === 'sprite@2x.png') {
-        spriteKey = `${downloadId}:sprite@2x_png`;
+        spriteKey = `${downloadId}:sprite@2x.png`;
       }
       
       console.warn(`Looking for sprite with key: ${spriteKey} (from URL: ${url})`);

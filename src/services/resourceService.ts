@@ -90,9 +90,10 @@ export class ResourceService {
   // Sprite Management Methods
   async downloadSpritesWithOptions(
     spriteUrls: string[],
+    styleName: string,
     options: SpriteDownloadOptions = {}
   ): Promise<SpriteDownloadResult> {
-    return downloadSprites(spriteUrls, options);
+    return downloadSprites(spriteUrls, styleName, options);
   }
 
   async getSpriteStatistics(): Promise<EnhancedSpriteStats> {
@@ -116,10 +117,11 @@ export class ResourceService {
   async downloadGlyphsWithOptions(
     glyphUrl: string,
     fontstacks: string[],
+    styleName: string,
     ranges?: string[],
     options: GlyphDownloadOptions = {}
   ): Promise<GlyphDownloadResult> {
-    return downloadGlyphs(glyphUrl, fontstacks, ranges, options);
+    return downloadGlyphs(glyphUrl, fontstacks, styleName, ranges, options);
   }
 
   async getGlyphStatistics(): Promise<EnhancedGlyphStats> {

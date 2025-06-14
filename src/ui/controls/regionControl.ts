@@ -5,8 +5,8 @@
 
 import type { Map as MaplibreMap } from 'maplibre-gl';
 import { PolygonControl, PolygonControlOptions } from './PolygonControl';
-import { RegionFormModal, RegionFormData, RegionFormOptions } from '../modals/RegionFormModal';
-import { DownloadManager } from '../managers/DownloadManager';
+import { RegionFormModal, RegionFormData, RegionFormOptions } from '../modals/regionFormModal';
+import { DownloadManager } from '../managers/downloadManager';
 import { ModalManager } from '../modals/ModalManager';
 import { icons } from '../../utils/icons';
 

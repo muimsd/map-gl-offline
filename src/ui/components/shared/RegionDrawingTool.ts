@@ -5,9 +5,9 @@
 
 import { BaseComponent } from './BaseComponent';
 import type { Map as MaplibreMap } from 'maplibre-gl';
-import { DownloadManager } from '../../managers/DownloadManager';
+import { DownloadManager } from '../../managers/downloadManager';
 import { ModalManager } from '../../modals/ModalManager';
-import { RegionFormModal } from '../../modals/RegionFormModal';
+import { RegionFormModal } from '../../modals/regionFormModal';
 
 export interface RegionDrawingConfig {
   map: MaplibreMap;
@@ -151,7 +151,7 @@ export class RegionDrawing extends BaseComponent {
     const regionForm = new RegionFormModal({
       bounds,
       area,
-      getCurrentStyleUrl: this.drawingConfig.getCurrentStyleUrl,
+      styleUrl: this.drawingConfig.getCurrentStyleUrl(),
       onSave: async (regionData: any) => {
         try {
           // Add the region using the download manager or offline manager

@@ -12,11 +12,15 @@ const map = new maplibregl.Map({
     [34.97256123524991, 40.996721656078336],
     [34.981376429930464, 41.00112029961136],
   ],
+  attributionControl: false
 });
 // Add navigation controls (zoom in/out, compass, pitch/rotate)
 map.addControl(new maplibregl.NavigationControl(), 'top-right');
+// Add navigation controls (zoom in/out, compass, pitch/rotate)
+map.addControl(new maplibregl.NavigationControl(), 'top-right');
 
-// Add scale control
+// Add attribution control with compact mode
+map.addControl(new maplibregl.AttributionControl({ compact: true }), 'bottom-right');
 map.addControl(new maplibregl.ScaleControl(), 'bottom-left');
 
 const offlineManager = new OfflineMapManager();

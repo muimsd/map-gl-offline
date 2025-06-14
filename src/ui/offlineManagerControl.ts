@@ -278,13 +278,15 @@ export class OfflineManagerControl implements IControl {
     }
 
     const bounds = region.bounds;
-    const coordinates = [[
-      [bounds[0][0], bounds[0][1]], // SW
-      [bounds[1][0], bounds[0][1]], // SE
-      [bounds[1][0], bounds[1][1]], // NE
-      [bounds[0][0], bounds[1][1]], // NW
-      [bounds[0][0], bounds[0][1]]  // SW (close)
-    ]];
+    const coordinates = [
+      [
+        [bounds[0][0], bounds[0][1]], // SW
+        [bounds[1][0], bounds[0][1]], // SE
+        [bounds[1][0], bounds[1][1]], // NE
+        [bounds[0][0], bounds[1][1]], // NW
+        [bounds[0][0], bounds[0][1]], // SW (close)
+      ],
+    ];
 
     // Update the source with new bbox
     const source = this.map.getSource(sourceId) as any;
@@ -293,19 +295,19 @@ export class OfflineManagerControl implements IControl {
         type: 'Feature',
         properties: {
           name: region.name,
-          id: region.id
+          id: region.id,
         },
         geometry: {
           type: 'Polygon',
-          coordinates
-        }
+          coordinates,
+        },
       });
     }
 
     // Auto-hide bbox after 5 seconds
-    setTimeout(() => {
-      this.removeRegionBoundingBox();
-    }, 5000);
+    // setTimeout(() => {
+    //   this.removeRegionBoundingBox();
+    // }, 5000);
   }
 
   /**
@@ -323,8 +325,8 @@ export class OfflineManagerControl implements IControl {
         type: 'geojson',
         data: {
           type: 'FeatureCollection',
-          features: []
-        }
+          features: [],
+        },
       });
 
       // Add layer
@@ -335,8 +337,8 @@ export class OfflineManagerControl implements IControl {
         paint: {
           'line-color': '#3B82F6', // Blue color
           'line-width': 3,
-          'line-opacity': 0.8
-        }
+          'line-opacity': 0.8,
+        },
       });
 
       this.bboxLayerAdded = true;
@@ -353,11 +355,11 @@ export class OfflineManagerControl implements IControl {
 
     const sourceId = 'region-bbox-source';
     const source = this.map.getSource(sourceId) as any;
-    
+
     if (source) {
       source.setData({
         type: 'FeatureCollection',
-        features: []
+        features: [],
       });
     }
   }
@@ -374,10 +376,10 @@ export class OfflineManagerControl implements IControl {
     try {
       // Import the loadStyles function from styleService
       const { loadStyles, loadStyleById } = await import('../services/styleService');
-      
+
       // Get stored styles from IndexedDB
       const styles = await loadStyles();
-      
+
       if (styles.length === 0) {
         console.warn('No styles found in IndexedDB');
         return;
@@ -387,13 +389,12 @@ export class OfflineManagerControl implements IControl {
       // TODO: Add style selection modal if multiple styles exist
       const styleToLoad = styles[0];
       console.log('Loading style from IDB:', styleToLoad.key);
-      
+
       // Apply the offline style to the map
       this.map.setStyle(styleToLoad.style as any);
-      
+
       // Refresh panel to show updated data
       this.renderPanel();
-      
     } catch (error) {
       console.error('Error loading styles from IDB:', error);
     }

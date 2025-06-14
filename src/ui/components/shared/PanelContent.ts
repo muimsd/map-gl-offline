@@ -5,11 +5,11 @@
 
 import { BaseComponent } from './BaseComponent';
 import { OfflineMapManager } from '../../../managers/offlineMapManager';
-import { DownloadManager } from '../../managers/DownloadManager';
+import { DownloadManager } from '../../managers/downloadManager';
 import { ModalManager } from '../../modals/ModalManager';
-import { RegionDetailsModal } from '../../modals/RegionDetailsModal';
-import { ConfirmationModal } from '../../modals/ConfirmationModal';
-import { ImportExportModal } from '../../modals/ImportExportModal';
+import { RegionDetailsModal } from '../../modals/regionDetailsModal';
+import { ConfirmationModal } from '../../modals/confirmationModal';
+import { ImportExportModal } from '../../modals/importExportModal';
 import { createHeader } from '../PanelHeader';
 import { createActionButtons } from '../PanelActions';
 import { createRegionsList } from '../RegionList';

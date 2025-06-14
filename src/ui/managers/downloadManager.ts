@@ -3,8 +3,10 @@
  * Handles download operations and progress tracking
  */
 
+import { downloadStyles, isStyleDownloaded, loadStyles } from '@/services/styleService';
+import { downloadTiles } from '../../services/tileService';
 import { OfflineMapManager } from '../../managers/offlineMapManager';
-import { RegionFormData } from '../modals/RegionFormModal';
+import { RegionFormData } from '../modals/regionFormModal';
 
 export interface DownloadProgress {
   regionId: string;
@@ -52,11 +54,63 @@ export class DownloadManager {
     const regionId = regionConfig.id;
 
     try {
+      // Check if style is downloaded (by styleUrl only)
+      const styleExists = await isStyleDownloaded(undefined, regionConfig.styleUrl);
+      
+      let finalStyleId: string;
+      if (!styleExists) {
+        // Download style if not present and get the styleId from the downloaded style
+        const styleResult = await downloadStyles(regionConfig.styleUrl, { skipExisting: true });
+        finalStyleId = styleResult.styleId;
+      } else {
+        // Find the existing style to get its ID
+        const styles = await loadStyles();
+        const existingStyle = styles.find((s: any) => s?.style?.sprite?.includes(regionConfig.styleUrl) || s?.originalUrl === regionConfig.styleUrl);
+        if (!existingStyle) {
+          throw new Error('Style exists but could not be found');
+        }
+        finalStyleId = existingStyle.key;
+      }
+
+      // Update region config with the styleId from the downloaded/existing style
+      const finalRegionConfig = {
+        ...regionConfig,
+        styleId: finalStyleId,
+      };
+
       // Update UI to show download starting
       this.updateUIForDownloadStart();
 
-      // Start download - Note: Progress tracking would need to be implemented in the service layer
-      await this.offlineManager.addRegion(regionConfig);
+      // First, add the region metadata
+      await this.offlineManager.addRegion(finalRegionConfig);
+
+      // Then download tiles for the region
+      console.warn('Starting tile download for region:', regionId);
+      
+      // Get the style data for tile download
+      const styles = await loadStyles();
+      const styleData = styles.find((s: any) => s.key === finalStyleId);
+      if (!styleData) {
+        throw new Error('Style not found for tile download');
+      }
+
+      await downloadTiles(finalRegionConfig, styleData.style, finalStyleId, {
+        onProgress: (progress) => {
+          console.warn(`Tile download progress: ${progress.completed}/${progress.total} (${progress.percentage.toFixed(1)}%)`);
+          // Update progress in UI if needed
+          this.options.onProgressUpdate?.(new Map([[regionId, {
+            regionId,
+            completed: progress.completed,
+            total: progress.total,
+            percentage: progress.percentage,
+            currentResource: progress.message || 'Downloading tiles'
+          }]]));
+        },
+        skipExisting: true,
+        batchSize: 20,
+        maxConcurrency: 10,
+      });
+      console.warn('Tile download completed for region:', regionId);
 
       // Download complete
       this.handleDownloadComplete(regionId);
@@ -85,7 +139,7 @@ export class DownloadManager {
    */
   public cancelDownload(regionId: string): void {
     this.currentDownloads.delete(regionId);
-    
+
     if (this.currentDownloads.size === 0) {
       this.resetUI();
     }

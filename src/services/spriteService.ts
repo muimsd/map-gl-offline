@@ -439,10 +439,10 @@ export class SpriteService {
     // If it's just "sprite", add the file extension to differentiate JSON from PNG
     const extension = filename.split('.').pop()?.toLowerCase();
     if (nameWithExtension === 'sprite') {
-      return extension === 'json' ? 'sprite_json' : `sprite_${extension}`;
+      return extension === 'json' ? 'sprite.json' : `sprite.${extension}`;
     } else if (nameWithExtension.includes('@')) {
       // For sprite@2x, add extension to differentiate JSON from PNG
-      return extension === 'json' ? `${nameWithExtension}_json` : `${nameWithExtension}_${extension}`;
+      return extension === 'json' ? `${nameWithExtension}.json` : `${nameWithExtension}.${extension}`;
     }
     
     return nameWithExtension;
@@ -451,6 +451,7 @@ export class SpriteService {
   private detectSpriteType(contentType: string, url?: string): string {
     // Handle undefined or null contentType
     if (contentType && typeof contentType === 'string') {
+      if (contentType.includes('json')) return 'json';
       if (contentType.includes('png')) return 'png';
       if (contentType.includes('jpeg') || contentType.includes('jpg')) return 'jpeg';
       if (contentType.includes('webp')) return 'webp';
@@ -459,6 +460,7 @@ export class SpriteService {
 
     // Fallback to URL extension if url is provided
     const extension = url ? url.split('.').pop()?.toLowerCase() : undefined;
+    if (extension === 'json') return 'json';
     if (extension === 'png') return 'png';
     if (extension === 'jpg' || extension === 'jpeg') return 'jpeg';
     if (extension === 'webp') return 'webp';
