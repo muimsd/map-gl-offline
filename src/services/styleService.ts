@@ -95,6 +95,14 @@ export async function downloadStyles(
     const style = await response.json();
     styleSize = JSON.stringify(style).length;
 
+    console.warn(`Original style downloaded:`, {
+      id: style.id,
+      hasSprite: !!style.sprite,
+      spriteUrl: style.sprite,
+      hasSources: !!style.sources,
+      sourceCount: style.sources ? Object.keys(style.sources).length : 0
+    });
+
     // Generate style ID if missing
     if (!style.id) {
       style.id = stylesUrl.split('/').pop()?.split('.')[0] || `style_${Date.now()}`;
@@ -312,6 +320,7 @@ export async function downloadStyles(
           const glyphResult = await downloadGlyphs(
             style.glyphs,
             fontStackArray,
+            style.id,
             ['0-255', '256-511'], // Common glyph ranges
             {
               maxConcurrency: 3,
@@ -362,6 +371,8 @@ export async function downloadStyles(
       
       try {
         const spriteBase = style.sprite;
+        console.warn(`Processing sprites for style: ${style.id}, sprite base: ${spriteBase}`);
+        
         const spriteVariants = [
           `${spriteBase}.json`,
           `${spriteBase}.png`,
@@ -369,7 +380,16 @@ export async function downloadStyles(
           `${spriteBase}@2x.png`,
         ];
         
-        spriteResult = await downloadSprites(spriteVariants, {
+        console.warn(`Generated sprite URLs:`, spriteVariants);
+        
+        // Check if sprite URLs look like idb:// URLs (which would indicate a problem)
+        const hasIdbUrls = spriteVariants.some(url => url.startsWith('idb://'));
+        if (hasIdbUrls) {
+          console.error(`ERROR: Sprite URLs contain idb:// prefix, indicating patched style is being used for download:`, spriteVariants);
+          throw new Error('Cannot download sprites from idb:// URLs - original style should be used');
+        }
+        
+        spriteResult = await downloadSprites(spriteVariants, style.id, {
           ...spriteOptions,
           onProgress: (spriteProgress: DownloadProgress) => {
             onProgress?.({ 

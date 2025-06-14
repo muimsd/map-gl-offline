@@ -12,7 +12,7 @@ export class FontService {
 
   async downloadFonts(
     fontUrls: string[],
-    downloadId?: string,
+    styleName?: string,
     options: FontDownloadOptions = {}
   ): Promise<FontDownloadResult> {
     const db = await this.db;
@@ -55,7 +55,7 @@ export class FontService {
       }
 
       urlsToDownload = fontUrls.filter(url => {
-        const key = this.createFontKey(url);
+        const key = this.createFontKey(url, styleName);
         return !existingFonts.has(key);
       });
 
@@ -79,7 +79,7 @@ export class FontService {
       urlsToDownload,
       async fontUrl => {
         try {
-          const fontKey = this.createFontKey(fontUrl);
+          const fontKey = this.createFontKey(fontUrl, styleName);
 
           progressTracker.update(1, fontKey);
 
@@ -108,7 +108,7 @@ export class FontService {
             size: fontData.byteLength,
             lastModified: Date.now(),
             downloadedAt: new Date().toISOString(),
-            downloadId,
+            downloadId: styleName,
             metadata: {
               userAgent: navigator.userAgent,
               downloadTimestamp: Date.now(),
@@ -307,9 +307,29 @@ export class FontService {
     return { verified, repaired, removed };
   }
 
-  private createFontKey(url: string): string {
-    // Create a consistent key from the font URL
-    return btoa(url).replace(/[+/=]/g, '').substring(0, 32);
+  private createFontKey(url: string, styleName?: string): string {
+    // Create a consistent key from the style name and font URL
+    // Format: stylename:fontname.pbf (if styleName provided) or just fontIdentifier
+    
+    // Extract font name from URL (e.g., "/fonts/Arial Regular/0-255.pbf" -> "Arial Regular_0-255.pbf")
+    const parts = url.split('/');
+    let fontName = '';
+    
+    if (parts.length >= 3) {
+      // Get the last two parts: fontstack and range.pbf
+      const fontstack = parts[parts.length - 2];
+      const rangeFile = parts[parts.length - 1];
+      fontName = `${fontstack}_${rangeFile}`;
+    } else {
+      // Fallback to hash if URL structure is unexpected
+      fontName = btoa(url).replace(/[+/=]/g, '').substring(0, 32) + '.pbf';
+    }
+    
+    if (styleName) {
+      return `${styleName}:${fontName}`;
+    }
+    
+    return fontName;
   }
 
   private detectFontType(contentType: string, url: string): string {
@@ -393,9 +413,9 @@ export const fontService = new FontService();
 
 export const downloadFonts = (
   fontUrls: string[],
-  downloadId?: string,
+  styleName?: string,
   options?: FontDownloadOptions
-) => fontService.downloadFonts(fontUrls, downloadId, options);
+) => fontService.downloadFonts(fontUrls, styleName, options);
 
 export const getFontStats = () => fontService.getFontStats();
 export const getFontAnalytics = () => fontService.getFontAnalytics();

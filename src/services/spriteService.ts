@@ -12,6 +12,7 @@ export class SpriteService {
 
   async downloadSprites(
     spriteUrls: string[],
+    styleName: string,
     options: SpriteDownloadOptions = {}
   ): Promise<SpriteDownloadResult> {
     const db = await this.db;
@@ -67,7 +68,7 @@ export class SpriteService {
       }
 
       urlsToDownload = sortedUrls.filter(url => {
-        const key = this.createSpriteKey(url);
+        const key = this.createSpriteKey(url, styleName);
         return !existingSprites.has(key);
       });
 
@@ -87,14 +88,37 @@ export class SpriteService {
     }
 
     // Process sprites in batches
+    console.warn(`Starting to download ${urlsToDownload.length} sprites in batches of ${batchSize}`);
+    
+    // Debug: Show all sprite URLs and their generated keys
+    console.warn('Sprite URLs and their generated keys:');
+    urlsToDownload.forEach(url => {
+      const key = this.createSpriteKey(url, styleName);
+      console.warn(`  ${url} -> ${key}`);
+    });
+    
     await processBatch(
       urlsToDownload,
       async spriteUrl => {
         try {
           const spriteName = this.extractSpriteName(spriteUrl);
-          const spriteKey = this.createSpriteKey(spriteUrl);
+          const spriteKey = this.createSpriteKey(spriteUrl, styleName);
 
+          console.warn(`Downloading sprite: ${spriteUrl}`);
+          
           progressTracker.update(1, spriteName);
+          
+          // Call progress callback if provided
+          if (onProgress) {
+            const progress = progressTracker.getProgress();
+            onProgress({
+              completed: progress.completed,
+              total: progress.total,
+              percentage: progress.percentage,
+              message: `Downloading ${spriteName}`,
+              errors: errors.map(e => e.error)
+            });
+          }
 
           // Apply bandwidth limiting if specified
           if (bandwidthLimit) {
@@ -113,6 +137,8 @@ export class SpriteService {
           const spriteData = await response.arrayBuffer();
           const contentType = response.headers.get('content-type') || 'image/png';
 
+          console.warn(`Downloaded sprite ${spriteUrl}: ${spriteData.byteLength} bytes, type: ${contentType}`);
+
           // Validate sprite if enabled
           if (enableValidation) {
             await this.validateSprite(spriteData, contentType);
@@ -129,8 +155,22 @@ export class SpriteService {
             downloadedAt: new Date().toISOString(),
           };
 
+          console.warn(`Storing sprite with key: ${spriteKey} for URL: ${spriteUrl}`);
+
           // Store sprite in database
           await db.put('sprites', spriteEntry);
+          
+          // Verify the sprite was stored
+          const storedSprite = await db.get('sprites', spriteKey);
+          if (storedSprite) {
+            console.warn(`✓ Verified sprite stored with key: ${spriteKey}, size: ${storedSprite.size} bytes`);
+          } else {
+            console.error(`✗ Failed to verify sprite storage for key: ${spriteKey}`);
+          }
+
+          // Show total sprite count in database
+          const allSprites = await db.getAll('sprites');
+          console.warn(`Database now contains ${allSprites.length} sprites total`);
 
           totalSize += spriteData.byteLength;
           downloadedSprites++;
@@ -147,11 +187,24 @@ export class SpriteService {
           }
         } catch (error) {
           failedSprites++;
+          const errorMessage = error instanceof Error ? error.message : String(error);
           errors.push({
             url: spriteUrl,
-            error: error instanceof Error ? error.message : String(error),
+            error: errorMessage,
           });
           console.error(`Failed to download sprite ${spriteUrl}:`, error);
+          
+          // Update progress even on failure
+          if (onProgress) {
+            const progress = progressTracker.getProgress();
+            onProgress({
+              completed: progress.completed,
+              total: progress.total,
+              percentage: progress.percentage,
+              message: `Failed: ${this.extractSpriteName(spriteUrl)}`,
+              errors: errors.map(e => e.error)
+            });
+          }
         }
       },
       { batchSize }
@@ -159,6 +212,19 @@ export class SpriteService {
 
     const duration = Date.now() - startTime;
     const downloadSpeed = duration > 0 ? (totalSize / duration) * 1000 : 0;
+
+    // Final progress callback
+    if (onProgress) {
+      onProgress({
+        completed: spriteUrls.length,
+        total: spriteUrls.length,
+        percentage: 100,
+        message: `Sprite download complete: ${downloadedSprites} downloaded, ${failedSprites} failed`,
+        errors: errors.map(e => e.error)
+      });
+    }
+
+    console.warn(`Sprite download completed: ${downloadedSprites}/${spriteUrls.length} sprites downloaded in ${duration}ms`);
 
     return {
       totalSprites: spriteUrls.length,
@@ -351,19 +417,35 @@ export class SpriteService {
     return { verified, repaired, removed };
   }
 
-  private createSpriteKey(url: string): string {
-    // Create a consistent key from the sprite URL
-    return btoa(url).replace(/[+/=]/g, '').substring(0, 32);
+  private createSpriteKey(url: string, styleName: string): string {
+    // Create a consistent key from the style name and sprite URL
+    // Format: stylename:spritename.extension
+    const spriteName = this.extractSpriteName(url);
+    
+    return `${styleName}:${spriteName}`;
   }
 
   private extractSpriteName(url?: string): string {
-    // Extract sprite name from URL
+    // Extract sprite name from URL, including variants like @2x
     if (!url || typeof url !== 'string') {
       return 'unknown';
     }
+    
     const parts = url.split('/');
     const filename = parts[parts.length - 1];
-    return filename.split('.')[0] || 'unknown';
+    const nameWithExtension = filename.split('.')[0] || 'unknown';
+    
+    // Handle sprite variants (e.g., sprite, sprite@2x)
+    // If it's just "sprite", add the file extension to differentiate JSON from PNG
+    const extension = filename.split('.').pop()?.toLowerCase();
+    if (nameWithExtension === 'sprite') {
+      return extension === 'json' ? 'sprite_json' : `sprite_${extension}`;
+    } else if (nameWithExtension.includes('@')) {
+      // For sprite@2x, add extension to differentiate JSON from PNG
+      return extension === 'json' ? `${nameWithExtension}_json` : `${nameWithExtension}_${extension}`;
+    }
+    
+    return nameWithExtension;
   }
 
   private detectSpriteType(contentType: string, url?: string): string {
@@ -445,8 +527,8 @@ export class SpriteService {
 // Export singleton instance and functions for backward compatibility
 export const spriteService = new SpriteService();
 
-export const downloadSprites = (spriteUrls: string[], options?: SpriteDownloadOptions) =>
-  spriteService.downloadSprites(spriteUrls, options);
+export const downloadSprites = (spriteUrls: string[], styleName: string, options?: SpriteDownloadOptions) =>
+  spriteService.downloadSprites(spriteUrls, styleName, options);
 
 export const getSpriteStats = () => spriteService.getSpriteStats();
 export const getSpriteAnalytics = () => spriteService.getSpriteAnalytics();

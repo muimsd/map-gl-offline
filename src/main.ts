@@ -2,7 +2,7 @@ import * as maplibregl from 'maplibre-gl';
 import { OfflineMapManager, OfflineManagerControl } from './index';
 import 'maplibre-gl/dist/maplibre-gl.css';
 
-const styleURL = 'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json';
+const styleURL = 'https://raw.githubusercontent.com/go2garret/maps/main/src/assets/json/arcgis_hybrid.json';
 const map = new maplibregl.Map({
   container: 'map',
   style: styleURL, // Example style
@@ -20,15 +20,12 @@ map.addControl(new maplibregl.NavigationControl(), 'top-right');
 map.addControl(new maplibregl.ScaleControl(), 'bottom-left');
 
 const offlineManager = new OfflineMapManager();
-console.log('main.ts loaded');
-console.log('styleURL before control:', styleURL);
-
 const offlineManagerControl = new OfflineManagerControl(offlineManager, {
   styleUrl: styleURL,
   theme: 'light',
+  showBbox: true,
 });
 
-console.log('offlineManagerControl created:', offlineManagerControl);
 // Add geolocate control
 map.addControl(
   new maplibregl.GeolocateControl({

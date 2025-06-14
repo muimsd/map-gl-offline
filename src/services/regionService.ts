@@ -25,13 +25,23 @@ export class RegionService {
       throw new Error('Region must have a styleUrl');
     }
 
-    const styleResult = await downloadStyles(region.styleUrl, {});
+    // First, download the style definition. This ensures we get the full style JSON 
+    // which will include fonts, sprites, and source information needed by other services
+    const styleResult = await downloadStyles(region.styleUrl, {
+      skipExisting: false, // Force style refresh to make sure we have latest
+      validateStyle: true,
+      includeMetadata: true,
+      enableSourceEmbedding: true
+    });
+    
     if (!styleResult.success) {
-      throw new Error(`Failed to download style from ${region.styleUrl}`);
+      throw new Error(`Failed to download style from ${region.styleUrl}: ${styleResult.errors.join(', ')}`);
     }
 
-    // --- DEBUG LOGGING FOR STYLE DOWNLOAD/LOAD ---
+    // Log style download results for debugging
     console.warn('Downloaded style result:', styleResult);
+    
+    // Load the style data from DB - this contains the complete style JSON object
     let styleData = await loadStyleById(styleResult.styleId);
     console.warn('Loaded style from DB:', styleData);
 
@@ -43,7 +53,7 @@ export class RegionService {
     if (!styleEntry || typeof styleEntry === 'string') {
       styleEntry = {
         key: styleResult.styleId,
-        style: patchedStyle,
+        style: styleData as unknown as MapboxStyle, // Store original style, not patched
         regions: [],
         fonts: [],
         glyphs: [],
@@ -90,9 +100,10 @@ export class RegionService {
     // Get the style data for tile downloading
     const style = getStyleData(styleEntry);
 
-    // Download and store tiles for this region
+    // Download and store tiles for this region.
+    // Use the original style (not patched) for downloading tiles, since patched style has idb:// URLs
     console.warn('Starting tile download for region:', region.id);
-    const tileResult = await downloadTiles(region, patchedStyle, styleEntry.key);
+    const tileResult = await downloadTiles(region, style, styleEntry.key);
     console.warn('Tile download completed:', tileResult);
 
     // Save the updated style entry
@@ -130,10 +141,22 @@ export class RegionService {
     //   deleteFontsByStyleId(styleId),
     //   deleteSprites(styleId),
     // ]);
-    console.warn('Delete functions not yet implemented:', styleId);
 
-    // Remove from regions table
+    // Remove region from regions table
     await db.delete('regions', regionId);
+
+    // Remove from style's regions array
+    try {
+      const styleEntry = await db.get('styles', styleId);
+      if (styleEntry && typeof styleEntry === 'object' && Array.isArray(styleEntry.regions)) {
+        styleEntry.regions = styleEntry.regions.filter((r: any) => r.id !== regionId);
+        await db.put('styles', styleEntry);
+      }
+    } catch (error) {
+      console.warn('Could not update style entry regions:', error);
+    }
+
+    console.warn(`Region ${regionId} deleted successfully`);
   }
 
   async listRegions(): Promise<OfflineRegionOptions[]> {

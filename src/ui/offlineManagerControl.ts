@@ -6,12 +6,13 @@ import { themeManager } from './ThemeManager';
 import { ButtonManager } from './managers/ControlButtonManager';
 import { PanelRenderer } from './managers/PanelManager';
 import { RegionControl } from './controls/RegionControl';
-import { DownloadManager } from './managers/DownloadManager';
+import { DownloadManager } from './managers/downloadManager';
 import { ModalManager } from './modals/ModalManager';
 
 export interface OfflineManagerControlOptions {
   styleUrl: string;
   theme?: 'light' | 'dark';
+  showBbox?: boolean; // Optional flag to show bounding boxes on map
 }
 
 export class OfflineManagerControl implements IControl {
@@ -26,15 +27,17 @@ export class OfflineManagerControl implements IControl {
   private regionControl: RegionControl | undefined;
   private downloadManager: DownloadManager;
   private modalManager: ModalManager = new ModalManager();
+  // Bounding box layer for regions
+  private bboxLayerAdded = false;
 
   constructor(
     offlineManager: OfflineMapManager,
     options: OfflineManagerControlOptions = {
-      theme: 'dark',
-      styleUrl: 'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json',
-    } // Default style URL
+      theme: 'dark', // Default theme
+      styleUrl: 'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json', // Default style URL
+      showBbox: false, // Default to not showing bounding boxes
+    }
   ) {
-    console.log('OfflineManagerControl options:', options); // Initialize download manager
     this.offlineManager = offlineManager;
 
     // Set initial theme if provided
@@ -72,6 +75,8 @@ export class OfflineManagerControl implements IControl {
       onClose: () => this.closePanel(),
       onAddRegion: () => this.startRegionSelection(),
       onFocusRegion: (regionId: string) => this.focusRegion(regionId),
+      showBbox: this.options.showBbox || false,
+      map: this.map,
     });
 
     // Initialize region control
@@ -95,6 +100,20 @@ export class OfflineManagerControl implements IControl {
     this.buttonManager?.cleanup();
     this.regionControl?.cleanup();
     this.modalManager.close();
+
+    // Remove bbox layer if added
+    if (this.bboxLayerAdded && this.map) {
+      try {
+        if (this.map.getLayer('region-bbox-layer')) {
+          this.map.removeLayer('region-bbox-layer');
+        }
+        if (this.map.getSource('region-bbox-source')) {
+          this.map.removeSource('region-bbox-source');
+        }
+      } catch (error) {
+        console.warn('Error removing bbox layer:', error);
+      }
+    }
 
     // Remove panel from DOM
     if (this.panel && this.panel.parentNode) {
@@ -229,6 +248,11 @@ export class OfflineManagerControl implements IControl {
             padding: 20,
             duration: 1000,
           });
+
+          // Show bounding box if enabled
+          if (this.options.showBbox) {
+            this.showRegionBoundingBox(region);
+          }
         }
       })
       .catch((error: any) => {
@@ -236,46 +260,142 @@ export class OfflineManagerControl implements IControl {
       });
   }
 
-  // /**
-  //  * Get current style URL from map
-  //  */
-  // private getCurrentStyleUrl(): Promise<string> {
-  //   // Await map load then return the style URL.
-  //   return new Promise<string>(resolve => {
-  //     if (!this.map?.isStyleLoaded()) {
-  //       this.map!.once('styledata', async () => {
-  //         const url = await this.getCurrentStyleUrl();
-  //         resolve(url);
-  //       });
-  //       return;
-  //     }
-  //     try {
-  //       const style = this.map!.getStyle();
-  //       // Try to get the style URL from metadata or fallback to sprite
-  //       if (style && style.metadata && typeof style.metadata['mapbox:origin'] === 'string') {
-  //         resolve(style.metadata['mapbox:origin']);
-  //         return;
-  //       }
-  //       if (style) {
-  //         // Try to use the sprite URL as a fallback, or return an empty string if not available
-  //         // If style.sprite exists and is a string, use it; otherwise, return empty string
-  //         if (typeof (style as any).sprite === 'string') {
-  //           resolve((style as any).sprite);
-  //         } else {
-  //           resolve('');
-  //         }
-  //         return;
-  //       }
-  //       // For Mapbox styles, try to get the style URL from metadata
-  //       if (style && style.metadata && typeof style.metadata['mapbox:origin'] === 'string') {
-  //         resolve(style.metadata['mapbox:origin']);
-  //         return;
-  //       }
-  //       // If no URL is available, return the style object as a JSON string
-  //       resolve(JSON.stringify(style));
-  //     } catch (error) {
-  //       resolve('');
-  //     }
-  //   });
-  // }
+  /**
+   * Show bounding box for a region on the map
+   */
+  private showRegionBoundingBox(region: any): void {
+    if (!this.map || !region.bounds) return;
+
+    const sourceId = 'region-bbox-source';
+    const layerId = 'region-bbox-layer';
+
+    // Remove existing bbox if present
+    this.removeRegionBoundingBox();
+
+    // Add bbox layer if not already added
+    if (!this.bboxLayerAdded) {
+      this.initializeBboxLayer();
+    }
+
+    const bounds = region.bounds;
+    const coordinates = [[
+      [bounds[0][0], bounds[0][1]], // SW
+      [bounds[1][0], bounds[0][1]], // SE
+      [bounds[1][0], bounds[1][1]], // NE
+      [bounds[0][0], bounds[1][1]], // NW
+      [bounds[0][0], bounds[0][1]]  // SW (close)
+    ]];
+
+    // Update the source with new bbox
+    const source = this.map.getSource(sourceId) as any;
+    if (source) {
+      source.setData({
+        type: 'Feature',
+        properties: {
+          name: region.name,
+          id: region.id
+        },
+        geometry: {
+          type: 'Polygon',
+          coordinates
+        }
+      });
+    }
+
+    // Auto-hide bbox after 5 seconds
+    setTimeout(() => {
+      this.removeRegionBoundingBox();
+    }, 5000);
+  }
+
+  /**
+   * Initialize bounding box layer on the map
+   */
+  private initializeBboxLayer(): void {
+    if (!this.map || this.bboxLayerAdded) return;
+
+    const sourceId = 'region-bbox-source';
+    const layerId = 'region-bbox-layer';
+
+    try {
+      // Add source
+      this.map.addSource(sourceId, {
+        type: 'geojson',
+        data: {
+          type: 'FeatureCollection',
+          features: []
+        }
+      });
+
+      // Add layer
+      this.map.addLayer({
+        id: layerId,
+        type: 'line',
+        source: sourceId,
+        paint: {
+          'line-color': '#3B82F6', // Blue color
+          'line-width': 3,
+          'line-opacity': 0.8
+        }
+      });
+
+      this.bboxLayerAdded = true;
+    } catch (error) {
+      console.warn('Could not add bbox layer:', error);
+    }
+  }
+
+  /**
+   * Remove bounding box from the map
+   */
+  private removeRegionBoundingBox(): void {
+    if (!this.map) return;
+
+    const sourceId = 'region-bbox-source';
+    const source = this.map.getSource(sourceId) as any;
+    
+    if (source) {
+      source.setData({
+        type: 'FeatureCollection',
+        features: []
+      });
+    }
+  }
+
+  /**
+   * Load styles from IndexedDB and apply to map
+   */
+  private async loadStylesFromIDB(): Promise<void> {
+    if (!this.map) {
+      console.warn('Map not available for loading IDB styles');
+      return;
+    }
+
+    try {
+      // Import the loadStyles function from styleService
+      const { loadStyles, loadStyleById } = await import('../services/styleService');
+      
+      // Get stored styles from IndexedDB
+      const styles = await loadStyles();
+      
+      if (styles.length === 0) {
+        console.warn('No styles found in IndexedDB');
+        return;
+      }
+
+      // For now, load the first stored style
+      // TODO: Add style selection modal if multiple styles exist
+      const styleToLoad = styles[0];
+      console.log('Loading style from IDB:', styleToLoad.key);
+      
+      // Apply the offline style to the map
+      this.map.setStyle(styleToLoad.style as any);
+      
+      // Refresh panel to show updated data
+      this.renderPanel();
+      
+    } catch (error) {
+      console.error('Error loading styles from IDB:', error);
+    }
+  }
 }

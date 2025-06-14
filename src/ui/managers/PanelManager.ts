@@ -5,11 +5,11 @@
  */
 
 import { OfflineMapManager } from '../../managers/offlineMapManager';
-import { DownloadManager } from './DownloadManager';
+import { DownloadManager } from './downloadManager';
 import { ModalManager } from '../modals/ModalManager';
-import { RegionDetailsModal } from '../modals/RegionDetailsModal';
-import { ConfirmationModal } from '../modals/ConfirmationModal';
-import { ImportExportModal } from '../modals/ImportExportModal';
+import { RegionDetailsModal } from '../modals/regionDetailsModal';
+import { ConfirmationModal } from '../modals/confirmationModal';
+import { ImportExportModal } from '../modals/importExportModal';
 import { formatBytes } from '../../utils/formatting';
 import { themeManager } from '../ThemeManager';
 import { icons } from '../../utils/icons';
@@ -19,6 +19,8 @@ import { List, ListItemConfig } from '../components/shared/List';
 import { Button } from '../components/shared/Button';
 import { BaseComponent } from '../components/shared/BaseComponent';
 
+import type { IControl, Map as MaplibreMap } from 'maplibre-gl';
+
 export interface PanelRendererOptions {
   offlineManager: OfflineMapManager;
   downloadManager: DownloadManager;
@@ -26,6 +28,8 @@ export interface PanelRendererOptions {
   onClose: () => void;
   onAddRegion: () => void;
   onFocusRegion: (regionId: string) => void;
+  showBbox?: boolean;
+  map?: MaplibreMap;
 }
 
 export class PanelRenderer extends BaseComponent {
@@ -33,6 +37,7 @@ export class PanelRenderer extends BaseComponent {
   private downloadManager: DownloadManager;
   private modalManager: ModalManager;
   private options: PanelRendererOptions;
+  private map?: MaplibreMap;
   
   // UI Components
   private headerContainer?: HTMLElement;
@@ -46,6 +51,7 @@ export class PanelRenderer extends BaseComponent {
     this.downloadManager = options.downloadManager;
     this.modalManager = options.modalManager;
     this.options = options;
+    this.map = options.map;
   }
 
   protected createElement(): HTMLElement {
@@ -187,7 +193,7 @@ export class PanelRenderer extends BaseComponent {
   }
 
   /**
-   * Render regions list
+   * Render styles list with regions grouped under each style
    */
   private async renderRegionsList(regions: any[]): Promise<void> {
     // Remove existing list
@@ -195,63 +201,284 @@ export class PanelRenderer extends BaseComponent {
       this.regionsList.destroy();
     }
 
-    // Create regions list items
-    const listItems: ListItemConfig[] = regions.map(region => ({
-      id: region.id,
-      data: region,
-      template: this.createRegionItemTemplate(region),
-      actions: [
-        {
-          label: 'Details',
-          action: 'show-details',
-          icon: icons.infoCircle({ size: 12, color: 'currentColor' })
-        },
-        {
-          label: 'Focus',
-          action: 'focus-region',
-          icon: icons.focus({ size: 12, color: 'currentColor' })
-        },
-        {
-          label: 'Import/Export',
-          action: 'import-export',
-          icon: icons.deviceFloppy({ size: 12, color: 'currentColor' })
-        },
-        {
-          label: 'Delete',
-          action: 'delete-region',
-          variant: 'danger',
-          icon: icons.trash({ size: 12, color: 'currentColor' })
+    try {
+      // Load styles from IndexedDB
+      const { loadStyles } = await import('../../services/styleService');
+      const styles = await loadStyles();
+      
+      // Group regions by style ID
+      const regionsByStyle = this.groupRegionsByStyle(regions);
+
+      // Create styles and regions list
+      const listItems: ListItemConfig[] = [];
+
+      // If we have stored styles, show them with their regions
+      if (styles.length > 0) {
+        for (const style of styles) {
+          const styleRegions = regionsByStyle[style.key] || [];
+          
+          // Add style item with embedded regions
+          listItems.push({
+            id: `style-${style.key}`,
+            data: { ...style, isStyle: true },
+            template: this.createCompleteStyleTemplate(style, styleRegions),
+            actions: [
+              {
+                label: 'Load Style',
+                action: 'load-style',
+                icon: icons.cloud({ size: 12, color: 'currentColor' })
+              },
+              {
+                label: 'Delete Style',
+                action: 'delete-style',
+                variant: 'danger',
+                icon: icons.trash({ size: 12, color: 'currentColor' })
+              }
+            ]
+          });
         }
-      ]
-    }));
+      }
 
-    // Create list component
-    this.regionsList = new List({
-      className: 'flex-1 px-6 py-4 overflow-y-auto',
-      items: listItems,
-      emptyText: 'No offline regions found. Click "Add Region" to get started.',
-      onItemAction: this.handleRegionAction.bind(this),
-      onItemClick: (itemId: string, item: any) => this.handleShowRegionDetails(itemId)
-    });
+      // Add regions without styles (orphaned regions)
+      const orphanedRegions = regionsByStyle['unknown'] || regionsByStyle[''] || [];
+      if (orphanedRegions.length > 0) {
+        // Add header for orphaned regions
+        listItems.push({
+          id: 'orphaned-header',
+          data: { isOrphanedHeader: true },
+          template: this.createOrphanedRegionsHeaderTemplate(orphanedRegions),
+          actions: []
+        });
 
-    this.element.appendChild(this.regionsList.getElement());
+        // Add orphaned regions
+        orphanedRegions.forEach(region => {
+          listItems.push({
+            id: region.id,
+            data: region,
+            template: this.createRegionItemTemplate(region, false),
+            actions: [
+              {
+                label: 'Details',
+                action: 'show-details',
+                icon: icons.infoCircle({ size: 12, color: 'currentColor' })
+              },
+              {
+                label: 'Focus',
+                action: 'focus-region',
+                icon: icons.focus({ size: 12, color: 'currentColor' })
+              },
+              // {
+              //   label: 'Import/Export',
+              //   action: 'import-export',
+              //   icon: icons.deviceFloppy({ size: 12, color: 'currentColor' })
+              // },
+              {
+                label: 'Delete',
+                action: 'delete-region',
+                variant: 'danger',
+                icon: icons.trash({ size: 12, color: 'currentColor' })
+              }
+            ]
+          });
+        });
+      }
+
+      // Create list component
+      this.regionsList = new List({
+        className: 'flex-1 px-6 py-4 overflow-y-auto',
+        items: listItems,
+        emptyText: 'No offline styles or regions found. Click "Add Region" to get started.',
+        onItemAction: this.handleItemAction.bind(this),
+        onItemClick: (itemId: string, item: any) => {
+          if (item.isStyle) {
+            // Handle style click - could expand/collapse or other action
+            return;
+          }
+          if (!item.isOrphanedHeader) {
+            this.handleShowRegionDetails(itemId);
+          }
+        }
+      });
+
+      this.element.appendChild(this.regionsList.getElement());
+      
+      // Add event delegation for embedded region action buttons
+      this.addRegionActionEventListeners();
+      
+    } catch (error) {
+      console.error('Error loading styles or rendering list:', error);
+      // Fallback to simple regions list
+      this.renderFallbackRegionsList(regions);
+    }
   }
 
   /**
    * Create region item template
    */
-  private createRegionItemTemplate(region: any): string {
+  private createRegionItemTemplate(region: any, isGrouped: boolean = false): string {
+    const containerClass = isGrouped 
+      ? 'bg-slate-50 dark:bg-slate-800 px-4 py-3 border-t border-slate-200 dark:border-slate-600' 
+      : 'bg-white dark:bg-slate-800 rounded-lg p-4 border border-slate-200 dark:border-slate-600 shadow-sm hover:shadow-md transition-shadow duration-150';
+    
     return `
-      <div class="flex items-center justify-between">
-        <div class="flex-1">
-          <h3 class="font-medium text-gray-900 dark:text-white">${region.name}</h3>
-          <div class="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            ${region.bounds ? `${region.bounds[0][1].toFixed(4)}, ${region.bounds[0][0].toFixed(4)} to ${region.bounds[1][1].toFixed(4)}, ${region.bounds[1][0].toFixed(4)}` : 'No bounds'}
+      <div class="${containerClass}">
+        <div class="flex items-center justify-between">
+          <div class="flex-1">
+            <h4 class="font-medium text-slate-800 dark:text-slate-100 text-sm">
+              ${region.name}
+            </h4>
+            <div class="text-xs text-slate-500 dark:text-slate-400 mt-1">
+              ${region.bounds ? `${region.bounds[0][1].toFixed(4)}, ${region.bounds[0][0].toFixed(4)} to ${region.bounds[1][1].toFixed(4)}, ${region.bounds[1][0].toFixed(4)}` : 'No bounds'}
+            </div>
+            <div class="flex items-center gap-4 text-xs text-slate-400 dark:text-slate-500 mt-2">
+              <span>Zoom: ${region.minZoom}-${region.maxZoom}</span>
+              ${region.downloadedAt ? `<span>Downloaded: ${new Date(region.downloadedAt).toLocaleDateString()}</span>` : ''}
+              ${region.size ? `<span>Size: ${formatBytes(region.size)}</span>` : ''}
+            </div>
           </div>
-          <div class="flex items-center gap-4 text-xs text-gray-500 dark:text-gray-400 mt-2">
-            <span>Zoom: ${region.minZoom}-${region.maxZoom}</span>
-            ${region.downloadedAt ? `<span>Downloaded: ${new Date(region.downloadedAt).toLocaleDateString()}</span>` : ''}
-            ${region.size ? `<span>Size: ${formatBytes(region.size)}</span>` : ''}
+        </div>
+      </div>
+    `;
+  }
+
+  /**
+   * Create complete style template with header, HR, and regions
+   */
+  private createCompleteStyleTemplate(style: any, regions: any[]): string {
+    const regionCount = regions.length;
+    const totalSize = regions.reduce((sum, region) => sum + (region.size || 0), 0);
+    
+    // Style header HTML
+    const styleHeader = `
+      <div class="bg-gradient-to-r from-slate-50 to-gray-50 dark:from-slate-800 dark:to-gray-800 border border-slate-200 dark:border-slate-600 rounded-xl p-0 mb-4 overflow-hidden shadow-sm">
+        <!-- Style Header -->
+        <div class="p-4 bg-gradient-to-r from-slate-100 to-gray-100 dark:from-slate-700 dark:to-gray-700">
+          <div class="flex items-center justify-between">
+            <div class="flex-1">
+              <h3 class="font-semibold text-slate-800 dark:text-slate-100 text-base">
+                ${style.style?.name || style.key || 'Unnamed Style'}
+              </h3>
+              <p class="text-sm text-slate-600 dark:text-slate-300 mt-1">
+                Style ID: ${style.key}
+              </p>
+              <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">
+                ${regionCount} region${regionCount === 1 ? '' : 's'} • ${formatBytes(totalSize)}
+              </p>
+            </div>
+            <div class="flex items-center gap-2">
+              <div class="text-emerald-500 dark:text-emerald-400">
+                ${icons.map({ size: 24, color: 'currentColor' })}
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- HR Separator -->
+        <hr class="border-slate-200 dark:border-slate-600 border-t">
+        
+        <!-- Regions List -->
+        ${regions.map(region => this.createRegionItemForStyle(region)).join('')}
+      </div>
+    `;
+    
+    return styleHeader;
+  }
+
+  /**
+   * Create region item specifically for embedding within a style container
+   */
+  private createRegionItemForStyle(region: any): string {
+    return `
+      <div class="px-4 py-3 border-t border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700/50 cursor-pointer region-item transition-colors duration-150" data-region-id="${region.id}">
+        <div class="flex items-center justify-between">
+          <div class="flex-1">
+            <h4 class="font-medium text-slate-800 dark:text-slate-100 text-sm">
+              ${region.name}
+            </h4>
+            <div class="text-xs text-slate-500 dark:text-slate-400 mt-1">
+              ${region.bounds ? `${region.bounds[0][1].toFixed(4)}, ${region.bounds[0][0].toFixed(4)} to ${region.bounds[1][1].toFixed(4)}, ${region.bounds[1][0].toFixed(4)}` : 'No bounds'}
+            </div>
+            <div class="flex items-center gap-4 text-xs text-slate-400 dark:text-slate-500 mt-2">
+              <span>Zoom: ${region.minZoom}-${region.maxZoom}</span>
+              ${region.downloadedAt ? `<span>Downloaded: ${new Date(region.downloadedAt).toLocaleDateString()}</span>` : ''}
+              ${region.size ? `<span>Size: ${formatBytes(region.size)}</span>` : ''}
+            </div>
+          </div>
+          <div class="flex items-center gap-1 ml-2">
+            <button class="region-action-btn p-1.5 rounded-md hover:bg-indigo-100 dark:hover:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400 transition-colors duration-150" data-action="show-details" data-region-id="${region.id}" title="Details">
+              ${icons.infoCircle({ size: 14, color: 'currentColor' })}
+            </button>
+            <button class="region-action-btn p-1.5 rounded-md hover:bg-emerald-100 dark:hover:bg-emerald-900/50 text-emerald-600 dark:text-emerald-400 transition-colors duration-150" data-action="focus-region" data-region-id="${region.id}" title="Focus">
+              ${icons.focus({ size: 14, color: 'currentColor' })}
+            </button>
+            <!-- <button class="region-action-btn p-1.5 rounded-md hover:bg-purple-100 dark:hover:bg-purple-900/50 text-purple-600 dark:text-purple-400 transition-colors duration-150" data-action="import-export" data-region-id="${region.id}" title="Import/Export">
+              ${icons.deviceFloppy({ size: 14, color: 'currentColor' })}
+            </button> -->
+            <button class="region-action-btn p-1.5 rounded-md hover:bg-red-100 dark:hover:bg-red-900/50 text-red-600 dark:text-red-400 transition-colors duration-150" data-action="delete-region" data-region-id="${region.id}" title="Delete">
+              ${icons.trash({ size: 14, color: 'currentColor' })}
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  /**
+   * Create style item template with load button
+   */
+  private createStyleItemTemplate(style: any, regions: any[]): string {
+    const regionCount = regions.length;
+    const totalSize = regions.reduce((sum, region) => sum + (region.size || 0), 0);
+    
+    return `
+      <div class="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-0 mb-4 overflow-hidden">
+        <!-- Style Header -->
+        <div class="p-4">
+          <div class="flex items-center justify-between">
+            <div class="flex-1">
+              <h3 class="font-semibold text-blue-900 dark:text-blue-100 text-base">
+                ${style.style?.name || style.key || 'Unnamed Style'}
+              </h3>
+              <p class="text-sm text-blue-700 dark:text-blue-300 mt-1">
+                Style ID: ${style.key}
+              </p>
+              <p class="text-sm text-blue-600 dark:text-blue-400 mt-1">
+                ${regionCount} region${regionCount === 1 ? '' : 's'} • ${formatBytes(totalSize)}
+              </p>
+            </div>
+            <div class="flex items-center gap-2">
+              <div class="text-blue-400 dark:text-blue-500">
+                ${icons.map({ size: 24, color: 'currentColor' })}
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- HR Separator -->
+        <hr class="border-blue-200 dark:border-blue-800 border-t">
+        
+        <!-- Regions will be added after this div -->
+      </div>
+    `;
+  }
+
+  /**
+   * Create orphaned regions header template
+   */
+  private createOrphanedRegionsHeaderTemplate(regions: any[]): string {
+    return `
+      <div class="bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 border border-amber-200 dark:border-amber-700 rounded-lg p-3 mb-2">
+        <div class="flex items-center justify-between">
+          <div>
+            <h3 class="font-semibold text-amber-800 dark:text-amber-200 text-sm">
+              Regions without Style
+            </h3>
+            <p class="text-xs text-amber-700 dark:text-amber-300 mt-1">
+              ${regions.length} region${regions.length === 1 ? '' : 's'} not associated with any style
+            </p>
+          </div>
+          <div class="text-amber-500 dark:text-amber-400">
+            ${icons.alertTriangle({ size: 16, color: 'currentColor' })}
           </div>
         </div>
       </div>
@@ -463,6 +690,114 @@ export class PanelRenderer extends BaseComponent {
   }
 
   /**
+   * Add event listeners for embedded region action buttons
+   */
+  private addRegionActionEventListeners(): void {
+    const listElement = this.regionsList?.getElement();
+    if (!listElement) return;
+
+    // Add event delegation for region action buttons
+    listElement.addEventListener('click', (event) => {
+      const target = event.target as HTMLElement;
+      const actionButton = target.closest('.region-action-btn') as HTMLElement;
+      
+      if (actionButton) {
+        event.preventDefault();
+        event.stopPropagation();
+        
+        const action = actionButton.dataset.action;
+        const regionId = actionButton.dataset.regionId;
+        
+        if (action && regionId) {
+          // Find the region data from the stored regions
+          this.handleEmbeddedRegionAction(action, regionId);
+        }
+      }
+      
+      // Handle region item click (for details)
+      const regionItem = target.closest('.region-item') as HTMLElement;
+      if (regionItem && !actionButton) {
+        const regionId = regionItem.dataset.regionId;
+        if (regionId) {
+          this.handleShowRegionDetails(regionId);
+        }
+      }
+    });
+  }
+
+  /**
+   * Handle actions for embedded region buttons
+   */
+  private async handleEmbeddedRegionAction(action: string, regionId: string): Promise<void> {
+    try {
+      const regions = await this.offlineManager.listStoredRegions();
+      const region = regions.find((r: any) => r.id === regionId);
+      
+      if (!region) {
+        console.warn('Region not found:', regionId);
+        return;
+      }
+
+      // Use the existing region action handler
+      this.handleRegionAction(action, regionId, region);
+    } catch (error) {
+      console.error('Error handling embedded region action:', error);
+    }
+  }
+
+  /**
+   * Fallback renderer for regions list when styles fail to load
+   */
+  private async renderFallbackRegionsList(regions: any[]): Promise<void> {
+    // Remove existing list
+    if (this.regionsList) {
+      this.regionsList.destroy();
+    }
+
+    const listItems: ListItemConfig[] = regions.map(region => ({
+      id: region.id,
+      data: region,
+      template: this.createRegionItemTemplate(region, false),
+      actions: [
+        {
+          label: 'Details',
+          action: 'show-details',
+          icon: icons.infoCircle({ size: 12, color: 'currentColor' })
+        },
+        {
+          label: 'Focus',
+          action: 'focus-region',
+          icon: icons.focus({ size: 12, color: 'currentColor' })
+        },
+        // {
+        //   label: 'Import/Export',
+        //   action: 'import-export',
+        //   icon: icons.deviceFloppy({ size: 12, color: 'currentColor' })
+        // },
+        {
+          label: 'Delete',
+          action: 'delete-region',
+          variant: 'danger',
+          icon: icons.trash({ size: 12, color: 'currentColor' })
+        }
+      ]
+    }));
+
+    // Create list component
+    this.regionsList = new List({
+      className: 'flex-1 px-6 py-4 overflow-y-auto',
+      items: listItems,
+      emptyText: 'No offline regions found. Click "Add Region" to get started.',
+      onItemAction: this.handleItemAction.bind(this),
+      onItemClick: (itemId: string, item: any) => {
+        this.handleShowRegionDetails(itemId);
+      }
+    });
+
+    this.element.appendChild(this.regionsList.getElement());
+  }
+
+  /**
    * Refresh the panel content
    */
   public async refresh(): Promise<void> {
@@ -481,5 +816,105 @@ export class PanelRenderer extends BaseComponent {
       this.regionsList.destroy();
     }
     super.destroy();
+  }
+
+  /**
+   * Group regions by style ID
+   */
+  private groupRegionsByStyle(regions: any[]): Record<string, any[]> {
+    const grouped: Record<string, any[]> = {};
+    
+    regions.forEach(region => {
+      const styleId = region.styleId || 'unknown';
+      if (!grouped[styleId]) {
+        grouped[styleId] = [];
+      }
+      grouped[styleId].push(region);
+    });
+    
+    return grouped;
+  }
+
+  /**
+   * Handle actions for both styles and regions
+   */
+  private handleItemAction(action: string, itemId: string, itemData: any): void {
+    if (itemData.isStyle) {
+      this.handleStyleAction(action, itemId, itemData);
+    } else {
+      this.handleRegionAction(action, itemId, itemData);
+    }
+  }
+
+  /**
+   * Handle style-specific actions
+   */
+  private async handleStyleAction(action: string, styleId: string, styleData: any): Promise<void> {
+    switch (action) {
+      case 'load-style':
+        await this.handleLoadStyle(styleData);
+        break;
+      case 'delete-style':
+        await this.handleDeleteStyle(styleId, styleData);
+        break;
+      default:
+        console.warn('Unknown style action:', action);
+    }
+  }
+
+  /**
+   * Handle loading a style to the map
+   */
+  private async handleLoadStyle(styleData: any): Promise<void> {
+    if (!this.map) {
+      console.warn('Map not available for loading style');
+      return;
+    }
+
+    try {
+      console.log('Loading style to map:', styleData.key);
+      
+      // Apply the style to the map
+      this.map.setStyle(styleData.style as any);
+      
+      // Show success feedback (you could add a toast notification here)
+      console.log('Style loaded successfully');
+      
+    } catch (error) {
+      console.error('Error loading style to map:', error);
+    }
+  }
+
+  /**
+   * Handle deleting a style
+   */
+  private async handleDeleteStyle(styleId: string, styleData: any): Promise<void> {
+    try {
+      const confirmModal = new ConfirmationModal({
+        title: 'Delete Style',
+        message: `Are you sure you want to delete the style "${styleData.style?.name || styleData.key}"? This action cannot be undone and will affect associated regions.`,
+        confirmText: 'Delete Style',
+        cancelText: 'Cancel',
+        onConfirm: async () => {
+          try {
+            const { deleteStyleById } = await import('../../services/styleService');
+            await deleteStyleById(styleData.key);
+            this.modalManager.close();
+            // Refresh the panel
+            await this.refresh();
+          } catch (error) {
+            console.error('Failed to delete style:', error);
+          }
+        },
+        onCancel: () => {
+          this.modalManager.close();
+        },
+      });
+
+      const modal = confirmModal.show();
+      this.modalManager.show(modal);
+    } catch (error) {
+      console.error('Error deleting style:', error);
+    }
   }
 }

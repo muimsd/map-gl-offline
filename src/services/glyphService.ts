@@ -27,6 +27,7 @@ export class GlyphService {
   async downloadGlyphs(
     glyphUrl: string,
     fontstacks: string[],
+    styleName?: string,
     ranges: string[] = ['0-255'],
     options: GlyphDownloadOptions = {}
   ): Promise<GlyphDownloadResult> {
@@ -79,7 +80,7 @@ export class GlyphService {
         if (!task) break;
 
         const { fontstack, range } = task;
-        const glyphKey = `${fontstack}/${range}`;
+        const glyphKey = this.createGlyphKey(fontstack, range, styleName);
 
         try {
           // Check if glyph already exists
@@ -368,6 +369,17 @@ export class GlyphService {
     // Simple estimation - would need actual uncompressed size for accuracy
     return data.byteLength > 1000 ? 0.3 : 0.8;
   }
+
+  private createGlyphKey(fontstack: string, range: string, styleName?: string): string {
+    // Create a consistent key from the style name, fontstack and range
+    // Format: stylename:fontstack_range.pbf (if styleName provided) or fontstack/range
+    if (styleName) {
+      return `${styleName}:${fontstack}_${range}.pbf`;
+    }
+    
+    // Fallback to original format for backward compatibility
+    return `${fontstack}/${range}`;
+  }
 }
 
 // Export singleton instance and functions for backward compatibility
@@ -376,9 +388,10 @@ export const glyphService = new GlyphService();
 export const downloadGlyphs = (
   glyphUrl: string,
   fontstacks: string[],
+  styleName?: string,
   ranges?: string[],
   options?: GlyphDownloadOptions
-) => glyphService.downloadGlyphs(glyphUrl, fontstacks, ranges, options);
+) => glyphService.downloadGlyphs(glyphUrl, fontstacks, styleName, ranges, options);
 
 export const loadGlyphs = (fontstack: string, ranges: string[]) => 
   glyphService.loadGlyphs(fontstack, ranges);
