@@ -895,7 +895,7 @@ export class PanelRenderer extends BaseComponent {
       console.log('Loading style to map:', styleData);
 
       const patchedStyle = patchStyleForOffline(styleData.style, styleData.key);
-
+      console.log('Loading style to map:', patchedStyle);
       // Apply the patched style to the map
       this.map.setStyle(patchedStyle as any);
 

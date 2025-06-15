@@ -1,6 +1,7 @@
 import type { IControl, Map as MaplibreMap } from 'maplibre-gl';
 import { OfflineMapManager } from '../managers/offlineMapManager';
 import { themeManager } from './ThemeManager';
+import { idbFetchHandler } from '../utils/idbFetchHandler';
 
 // Import refactored modular components
 import { ButtonManager } from './managers/ControlButtonManager';
@@ -29,6 +30,8 @@ export class OfflineManagerControl implements IControl {
   private modalManager: ModalManager = new ModalManager();
   // Bounding box layer for regions
   private bboxLayerAdded = false;
+  // Store original fetch to restore on cleanup
+  private originalFetch: typeof window.fetch;
 
   constructor(
     offlineManager: OfflineMapManager,
@@ -53,6 +56,39 @@ export class OfflineManagerControl implements IControl {
       updateButton: (text, disabled) => this.updateButton(text, disabled),
       updateProgressBadge: (text, visible) => this.updateProgressBadge(text, visible),
     });
+
+    // Store original fetch and setup interceptor
+    this.originalFetch = window.fetch.bind(window);
+    this.setupFetchInterceptor();
+  }
+
+  /**
+   * Setup fetch interceptor to handle idb:// URLs
+   */
+  private setupFetchInterceptor(): void {
+    const self = this;
+    // console.log('🔧 Setting up fetch interceptor for idb:// URLs');
+
+    window.fetch = function (input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+      const method = init?.method || 'GET';
+
+      // console.log(`📡 Fetch intercepted: ${method} ${url}`);
+
+      if (url.startsWith('idb://')) {
+        // console.log(`🎯 Routing to IDB handler: ${method} ${url}`);
+
+        // You can access POST data here if needed
+        if (method === 'POST' && init?.body) {
+          // console.log(`📝 POST body:`, init.body);
+        }
+
+        return idbFetchHandler(url, init);
+      }
+
+      // console.log(`🌐 Using original fetch: ${method} ${url}`);
+      return self.originalFetch(input, init);
+    };
   }
 
   onAdd(map: MaplibreMap): HTMLElement {
@@ -119,6 +155,9 @@ export class OfflineManagerControl implements IControl {
     if (this.panel && this.panel.parentNode) {
       this.panel.parentNode.removeChild(this.panel);
     }
+
+    // Restore original fetch
+    window.fetch = this.originalFetch;
 
     this.map = undefined;
   }

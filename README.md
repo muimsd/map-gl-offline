@@ -676,3 +676,16 @@ See [CHANGELOG.md](CHANGELOG.md) for detailed version history.
 - [PMTiles](https://github.com/protomaps/PMTiles) - Cloud-optimized map tile format
 - [IndexedDB](https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API) - Browser storage API
 - [Tilebelt](https://github.com/mapbox/tilebelt) - Tile coordinate utilities
+
+## 📝 Tile Download Manager: Feature TODOs
+
+- [ ] **Download Progress & Status**: Show real-time progress (tiles downloaded / total, percent complete), estimated time remaining, and indicate which zoom levels and sources are being downloaded.
+- [ ] **Pause, Resume, and Cancel**: Allow users to pause/resume/cancel downloads and persist download state for resuming after reload.
+- [ ] **Retry & Error Handling**: Automatically retry failed tile downloads, show a summary of failed/missing tiles, and allow retrying only those.
+- [ ] **Storage Management**: Show storage usage by offline tiles and allow users to delete specific regions, zoom levels, or sources.
+- [ ] **Coverage Visualization**: Display a map overlay showing offline coverage and highlight missing/incomplete areas.
+- [ ] **Advanced Selection**: Let users select custom areas (draw polygon/rectangle) and zoom ranges for download; support multiple sources/layers in a single region.
+- [ ] **Background/Batch Download**: Download tiles in the background with throttling and batch requests for efficiency.
+- [ ] **Export/Import**: Allow users to export downloaded tiles/regions and import on another device.
+- [ ] **Versioning & Updates**: Detect and update changed tiles/styles for a region and notify users of changes.
+- [ ] **Offline Diagnostics**: Add a diagnostics panel to list missing tiles, corrupted entries, or storage issues, and provide a “verify offline coverage” tool.
