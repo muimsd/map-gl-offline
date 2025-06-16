@@ -1,12 +1,11 @@
 import { dbPromise } from '../storage/indexedDbManager';
 import { downloadStyles, loadStyleById } from './styleService';
 import { downloadTiles } from './tileService';
-// import { deleteTiles } from './tileService'; // Will need to be implemented in tileService
-// import { deleteFontsByStyleId } from './fontService'; // Will need to be implemented in fontService
-// import { deleteSprites } from './spriteService'; // Will need to be implemented in spriteService
 import { patchStyleForOffline, validateRegion } from '../utils/styleUtils';
 import type { OfflineRegionOptions, StoredRegion } from '../types/region';
 import type { StyleEntry, MapboxStyle } from '../types/style';
+import type { TileEntry } from '../types';
+import * as tilebelt from '@mapbox/tilebelt';
 
 // Helper function to get style data from StyleEntry
 function getStyleData(entry: StyleEntry): MapboxStyle & { id?: string } {
@@ -17,6 +16,167 @@ function getStyleData(entry: StyleEntry): MapboxStyle & { id?: string } {
 }
 
 export class RegionService {
+  
+  /**
+   * Check if a tile overlaps with any region bounds
+   */
+  private tileOverlapsWithRegion(
+    tileX: number,
+    tileY: number,
+    tileZ: number,
+    region: OfflineRegionOptions
+  ): boolean {
+    // Get tile bounds using tilebelt
+    const tileBounds = tilebelt.tileToBBOX([tileX, tileY, tileZ]);
+    const [tileWest, tileSouth, tileEast, tileNorth] = tileBounds;
+    
+    // Region bounds format: [[west, south], [east, north]]
+    const regionWest = region.bounds[0][0];
+    const regionSouth = region.bounds[0][1];
+    const regionEast = region.bounds[1][0];
+    const regionNorth = region.bounds[1][1];
+    
+    // Check if bounding boxes overlap
+    return !(
+      tileEast < regionWest ||
+      tileWest > regionEast ||
+      tileNorth < regionSouth ||
+      tileSouth > regionNorth
+    );
+  }
+
+  /**
+   * Check if a tile overlaps with any of the given regions
+   */
+  private tileOverlapsWithAnyRegion(
+    tileX: number,
+    tileY: number,
+    tileZ: number,
+    regions: OfflineRegionOptions[]
+  ): boolean {
+    return regions.some(region => 
+      this.tileOverlapsWithRegion(tileX, tileY, tileZ, region)
+    );
+  }
+
+  /**
+   * Delete tiles that don't overlap with any remaining regions
+   */
+  private async deleteNonOverlappingTiles(
+    styleId: string,
+    remainingRegions: OfflineRegionOptions[]
+  ): Promise<number> {
+    const db = await dbPromise;
+    let deletedCount = 0;
+
+    console.log(`🔍 Checking tiles for style ${styleId} against ${remainingRegions.length} remaining regions`);
+
+    const tx = db.transaction('tiles', 'readwrite');
+    for await (const cursor of tx.store) {
+      const tileEntry: TileEntry = cursor.value;
+
+      // Only check tiles for this style
+      if (tileEntry.styleId !== styleId) {
+        continue;
+      }
+
+      // Parse tile coordinates from key: styleId:sourceId:z:x:y.ext
+      const keyParts = tileEntry.key.split(':');
+      if (keyParts.length < 5) {
+        console.warn(`Invalid tile key format: ${tileEntry.key}`);
+        continue;
+      }
+
+      const z = parseInt(keyParts[2]);
+      const x = parseInt(keyParts[3]);
+      const yWithExt = keyParts[4];
+      const y = parseInt(yWithExt.split('.')[0]);
+
+      if (isNaN(x) || isNaN(y) || isNaN(z)) {
+        console.warn(`Invalid tile coordinates in key: ${tileEntry.key}`);
+        continue;
+      }
+
+      // Check if this tile overlaps with any remaining region
+      if (!this.tileOverlapsWithAnyRegion(x, y, z, remainingRegions)) {
+        console.log(`🗑️  Deleting non-overlapping tile: ${tileEntry.key}`);
+        await cursor.delete();
+        deletedCount++;
+      }
+    }
+
+    console.log(`✅ Deleted ${deletedCount} non-overlapping tiles for style ${styleId}`);
+    return deletedCount;
+  }
+
+  /**
+   * Delete all resources for a style (fonts, glyphs, sprites)
+   */
+  private async deleteStyleResources(styleId: string): Promise<void> {
+    const db = await dbPromise;
+    
+    console.log(`🗑️  Deleting all resources for style: ${styleId}`);
+
+    // Delete fonts - fonts have keys like "styleId:fontname" 
+    let deletedFonts = 0;
+    const fontTx = db.transaction('fonts', 'readwrite');
+    for await (const cursor of fontTx.store) {
+      const fontEntry = cursor.value;
+      // Check if font key starts with "styleId:"
+      if (fontEntry.key.startsWith(`${styleId}:`)) {
+        await cursor.delete();
+        deletedFonts++;
+      }
+    }
+
+    // Delete glyphs - glyphs have keys that may include style info in various formats
+    let deletedGlyphs = 0;
+    const glyphTx = db.transaction('glyphs', 'readwrite');
+    for await (const cursor of glyphTx.store) {
+      const glyphEntry = cursor.value;
+      // Check if glyph key contains style ID (may be in different formats)
+      if (glyphEntry.key.includes(styleId)) {
+        await cursor.delete();
+        deletedGlyphs++;
+      }
+    }
+
+    // Delete sprites - sprites may have keys that include style info
+    let deletedSprites = 0;
+    const spriteTx = db.transaction('sprites', 'readwrite');
+    for await (const cursor of spriteTx.store) {
+      const spriteEntry = cursor.value;
+      // Check if sprite key contains style ID
+      if (spriteEntry.key.includes(styleId)) {
+        await cursor.delete();
+        deletedSprites++;
+      }
+    }
+
+    console.log(`✅ Deleted style resources: ${deletedFonts} fonts, ${deletedGlyphs} glyphs, ${deletedSprites} sprites`);
+  }
+
+  /**
+   * Delete all tiles for a style
+   */
+  private async deleteAllStyleTiles(styleId: string): Promise<number> {
+    const db = await dbPromise;
+    let deletedCount = 0;
+
+    console.log(`🗑️  Deleting all tiles for style: ${styleId}`);
+
+    const tx = db.transaction('tiles', 'readwrite');
+    for await (const cursor of tx.store) {
+      const tileEntry: TileEntry = cursor.value;
+      if (tileEntry.styleId === styleId) {
+        await cursor.delete();
+        deletedCount++;
+      }
+    }
+
+    console.log(`✅ Deleted ${deletedCount} tiles for style ${styleId}`);
+    return deletedCount;
+  }
   async addRegion(region: OfflineRegionOptions): Promise<void> {
     const db = await dbPromise;
     console.warn('Adding region:', region);
@@ -45,11 +205,12 @@ export class RegionService {
     const patchedStyle = patchStyleForOffline(styleData.style, styleId);
 
     // Get or create the style entry
-    let styleEntry = (await db.get('styles', styleId)) as StyleEntry | undefined;
+    let styleEntry: StyleEntry = (await db.get('styles', styleId)) as StyleEntry;
     if (!styleEntry || typeof styleEntry === 'string') {
       styleEntry = {
         key: styleId,
         style: styleData.style,
+        provider: 'auto',
         regions: [],
         fonts: [],
         glyphs: [],
@@ -97,37 +258,89 @@ export class RegionService {
 
   async deleteRegion(regionId: string): Promise<void> {
     const db = await dbPromise;
-    const region = await db.get('regions', regionId);
-
-    if (!region) {
-      console.warn(`Region ${regionId} not found`);
-      return;
-    }
-
-    const styleId = (region as StoredRegion).styleId;
-
-    // TODO: Implement delete functions in respective services
-    // await Promise.all([
-    //   deleteTiles(styleId),
-    //   deleteFontsByStyleId(styleId),
-    //   deleteSprites(styleId),
-    // ]);
-
-    // Remove region from regions table
-    await db.delete('regions', regionId);
-
-    // Remove from style's regions array
+    console.log(`🗑️  Deleting region: ${regionId}`);
+    
     try {
-      const styleEntry = await db.get('styles', styleId);
-      if (styleEntry && typeof styleEntry === 'object' && Array.isArray(styleEntry.regions)) {
-        styleEntry.regions = styleEntry.regions.filter((r: any) => r.id !== regionId);
-        await db.put('styles', styleEntry);
+      // Find which style contains this region
+      const allStyles = await db.getAll('styles');
+      console.log(`🔍 Found ${allStyles.length} styles to search through`);
+      
+      let foundStyle: any = null;
+      let foundRegion: any = null;
+      
+      for (const style of allStyles) {
+        console.log(`🔍 Checking style: ${style?.key}, regions count: ${style?.regions?.length || 0}`);
+        if (style && Array.isArray(style.regions)) {
+          const region = style.regions.find((r: any) => {
+            const match = r.id === regionId || r.regionId === regionId;
+            console.log(`  📍 Region ${r.id || r.regionId}: match = ${match}`);
+            return match;
+          });
+          if (region) {
+            foundStyle = style;
+            foundRegion = region;
+            console.log(`✅ Found region in style: ${style.key}`);
+            break;
+          }
+        }
       }
-    } catch (error) {
-      console.warn('Could not update style entry regions:', error);
-    }
 
-    console.warn(`Region ${regionId} deleted successfully`);
+      if (!foundStyle || !foundRegion) {
+        console.warn(`❌ Region ${regionId} not found in any style`);
+        console.log('Available regions:');
+        allStyles.forEach(style => {
+          if (style && Array.isArray(style.regions)) {
+            style.regions.forEach((r: any) => {
+              console.log(`  - Style ${style.key}: Region ${r.id || r.regionId} (${r.name || 'unnamed'})`);
+            });
+          }
+        });
+        return;
+      }
+
+      console.log(`🎯 Found region in style: ${foundStyle.key}`, foundRegion);
+
+      // Remove the region from the style's regions array
+      const remainingRegions = foundStyle.regions.filter((r: any) => 
+        r.id !== regionId && r.regionId !== regionId
+      );
+
+      foundStyle.regions = remainingRegions;
+      console.log(`📊 Remaining regions count: ${remainingRegions.length}`);
+
+      // If this was the last region for the style, delete the entire style and all its resources
+      if (remainingRegions.length === 0) {
+        console.log(`🗑️  Style ${foundStyle.key} has no remaining regions, deleting entire style and all resources`);
+        
+        // Delete all tiles for this style
+        const deletedTileCount = await this.deleteAllStyleTiles(foundStyle.key);
+        console.log(`🗑️  Deleted ${deletedTileCount} tiles`);
+        
+        // Delete all style resources (fonts, glyphs, sprites)
+        await this.deleteStyleResources(foundStyle.key);
+        
+        // Delete the style entry itself
+        await db.delete('styles', foundStyle.key);
+        
+        console.log(`✅ Completely deleted style ${foundStyle.key} and all associated resources`);
+      } else {
+        console.log(`🔍 Style ${foundStyle.key} has ${remainingRegions.length} remaining regions, cleaning up non-overlapping tiles`);
+        
+        // Delete tiles that don't overlap with any remaining regions
+        const deletedTileCount = await this.deleteNonOverlappingTiles(foundStyle.key, remainingRegions);
+        
+        // Update the style entry with the remaining regions
+        await db.put('styles', foundStyle);
+        
+        console.log(`✅ Region ${regionId} deleted successfully from style ${foundStyle.key}, cleaned up ${deletedTileCount} non-overlapping tiles`);
+      }
+      
+      console.log(`🎉 Region deletion completed successfully for: ${regionId}`);
+      
+    } catch (error) {
+      console.error(`❌ Error during region deletion for ${regionId}:`, error);
+      throw error; // Re-throw to let UI handle the error
+    }
   }
 
   async listRegions(): Promise<OfflineRegionOptions[]> {

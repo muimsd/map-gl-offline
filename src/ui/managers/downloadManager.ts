@@ -59,9 +59,27 @@ export class DownloadManager {
       
       let finalStyleId: string;
       if (!styleExists) {
-        // Download style if not present and get the styleId from the downloaded style
-        const styleResult = await downloadStyles(regionConfig.styleUrl, { skipExisting: true });
+        // Enhanced style download with Mapbox GL support
+        console.log(`🎨 Downloading style with provider: ${formData.provider}`);
+        
+        // Use the enhanced downloadStyleWithProvider for Mapbox GL support
+        const styleDownloadOptions: any = {
+          skipExisting: true,
+          provider: formData.provider || 'auto',
+          accessToken: formData.accessToken,
+          onProgress: (progress: any) => {
+            console.log(`Style download progress: ${progress.percentage}%`);
+          }
+        };
+
+        const styleResult = await this.offlineManager.downloadStyle(regionConfig.styleUrl, styleDownloadOptions);
+        
+        if (!styleResult.success) {
+          throw new Error(`Failed to download style: ${styleResult.errors.join(', ')}`);
+        }
+        
         finalStyleId = styleResult.styleId;
+        console.log(`✅ Style downloaded successfully: ${finalStyleId}`);
       } else {
         // Find the existing style to get its ID
         const styles = await loadStyles();
@@ -70,6 +88,7 @@ export class DownloadManager {
           throw new Error('Style exists but could not be found');
         }
         finalStyleId = existingStyle.key;
+        console.log(`📋 Using existing style: ${finalStyleId}`);
       }
 
       // Update region config with the styleId from the downloaded/existing style

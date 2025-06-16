@@ -111,3 +111,63 @@ const styleSwitcher: StyleSwitcherControl = new StyleSwitcherControl({
   },
 } as StyleSwitcherControlOptions);
 map.addControl(styleSwitcher, 'top-left');
+
+// Debug utilities for testing region deletion
+if (typeof window !== 'undefined') {
+  (window as any).debugOfflineManager = {
+    manager: offlineManager,
+    async listRegions() {
+      console.log('📋 Current regions:');
+      const regions = await offlineManager.listStoredRegions();
+      console.table(regions);
+      return regions;
+    },
+    async deleteRegion(regionId: string) {
+      console.log(`🗑️  Testing deletion of region: ${regionId}`);
+      try {
+        await offlineManager.deleteRegion(regionId);
+        console.log('✅ Region deletion completed');
+        // List regions after deletion
+        return await this.listRegions();
+      } catch (error) {
+        console.error('❌ Region deletion failed:', error);
+        throw error;
+      }
+    },
+    async clearAllData() {
+      console.log('🧹 Clearing all offline data...');
+      const db = await import('./storage/indexedDbManager').then(m => m.dbPromise);
+      const stores: ('styles' | 'tiles' | 'fonts' | 'glyphs' | 'sprites')[] = ['styles', 'tiles', 'fonts', 'glyphs', 'sprites'];
+      for (const store of stores) {
+        const tx = (await db).transaction(store, 'readwrite');
+        await tx.store.clear();
+      }
+      console.log('✅ All data cleared');
+    },
+    async loadOfflineStyles() {
+      console.log('🎨 Loading offline styles...');
+      try {
+        await offlineManagerControl.loadOfflineStyles();
+        console.log('✅ Offline styles loaded');
+      } catch (error) {
+        console.error('❌ Failed to load offline styles:', error);
+      }
+    },
+    async loadOfflineStyle(styleId: string) {
+      console.log(`🎨 Loading specific offline style: ${styleId}`);
+      try {
+        await offlineManagerControl.loadSpecificOfflineStyle(styleId);
+        console.log(`✅ Offline style ${styleId} loaded`);
+      } catch (error) {
+        console.error(`❌ Failed to load offline style ${styleId}:`, error);
+      }
+    }
+  };
+  
+  console.log('🔧 Debug utilities available:');
+  console.log('  - window.debugOfflineManager.listRegions() - List all regions');
+  console.log('  - window.debugOfflineManager.deleteRegion(regionId) - Test region deletion');
+  console.log('  - window.debugOfflineManager.clearAllData() - Clear all offline data');
+  console.log('  - window.debugOfflineManager.loadOfflineStyles() - Load offline styles');
+  console.log('  - window.debugOfflineManager.loadOfflineStyle(styleId) - Load specific style');
+}

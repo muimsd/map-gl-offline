@@ -2,9 +2,18 @@ import { dbPromise } from '../storage/indexedDbManager';
 import { downloadFonts } from './fontService';
 import { downloadSprites } from './spriteService';
 import { generateGlyphUrlsFromStyle, fetchWithRetry } from '../utils';
+import {
+  detectStyleProvider,
+  extractAccessToken,
+  normalizeStyleUrl,
+  processStyleSources,
+  validateStyleForProvider,
+} from '../utils/styleProviderUtils';
 import type {
   StyleEntry,
+  BaseStyle,
   MapboxStyle,
+  StyleProvider,
   StyleDownloadOptions,
   StyleDownloadResult,
   DownloadProgress,
@@ -17,7 +26,8 @@ import type {
 // Helper functions to work with StyleEntry structure
 function createStyleEntry(
   key: string,
-  style: MapboxStyle,
+  style: BaseStyle,
+  provider: StyleProvider = 'auto',
   metadata: {
     lastModified?: number;
     downloadedAt?: number;
@@ -26,20 +36,22 @@ function createStyleEntry(
     size?: number;
     sourceCount?: number;
     layerCount?: number;
+    accessToken?: string;
   } = {}
 ): StyleEntry {
   return {
     key,
     style,
+    provider,
     regions: [],
     fonts: [],
     glyphs: [],
     sprites: [],
     ...metadata,
-  } as StyleEntry & typeof metadata;
+  };
 }
 
-function getStyleData(entry: StyleEntry): MapboxStyle & { id?: string } {
+function getStyleData(entry: StyleEntry): BaseStyle & { id?: string } {
   return {
     ...entry.style,
     id: entry.key,
@@ -226,19 +238,37 @@ export async function downloadStyles(
       }
     }
 
+    // Detect style provider
+    const provider = detectStyleProvider(stylesUrl, style);
+    const accessToken = extractAccessToken(stylesUrl) || undefined;
+    
+    // Process style for the detected provider
+    const processedStyle = processStyleSources(style, provider, accessToken);
+    
+    // Validate style for the provider
+    const validation = validateStyleForProvider(processedStyle, provider);
+    if (!validation.isValid) {
+      console.warn('Style validation failed:', validation.errors);
+    }
+    if (validation.warnings.length > 0) {
+      console.warn('Style validation warnings:', validation.warnings);
+    }
+
     // Create enhanced style storage item
     const styleStorageItem = createStyleEntry(
       style.id,
-      style,
+      processedStyle,
+      provider,
       includeMetadata
         ? {
             lastModified: Date.now(),
             downloadedAt: Date.now(),
             originalUrl: stylesUrl,
-            validated: validateStyle,
+            validated: validateStyle && validation.isValid,
             size: styleSize,
             sourceCount: sourcesProcessed,
-            layerCount: style.layers ? style.layers.length : 0,
+            layerCount: processedStyle.layers ? processedStyle.layers.length : 0,
+            accessToken: accessToken || undefined,
           }
         : {}
     );
@@ -1014,6 +1044,159 @@ export async function getStyleAnalytics(): Promise<{
       averageLayersPerStyle: 0,
       averageSourcesPerStyle: 0,
       recommendations: ['Error retrieving style analytics'],
+    };
+  }
+}
+
+/**
+ * Enhanced style download that supports both Mapbox GL and MapLibre GL
+ */
+export async function downloadStyleWithProvider(
+  styleUrl: string,
+  options: StyleDownloadOptions & {
+    provider?: StyleProvider;
+    accessToken?: string;
+    forceProvider?: boolean;
+  } = {}
+): Promise<StyleDownloadResult> {
+  const {
+    provider: explicitProvider,
+    accessToken: explicitAccessToken,
+    forceProvider = false,
+    onProgress,
+    fontOptions,
+    spriteOptions,
+    skipExisting = false,
+    validateStyle = true,
+    maxRetries = 3,
+    timeoutMs = 30000,
+    enableSourceEmbedding = false,
+    storageQuotaCheck = true,
+    includeMetadata = true,
+  } = options;
+
+  const startTime = Date.now();
+  console.log(`🎨 Downloading style from: ${styleUrl}`);
+
+  try {
+    // Auto-detect provider if not explicitly set
+    const detectedProvider = explicitProvider || detectStyleProvider(styleUrl);
+    const extractedToken = explicitAccessToken || extractAccessToken(styleUrl);
+    
+    console.log(`📊 Detected provider: ${detectedProvider}`);
+    if (extractedToken) {
+      console.log(`🔑 Access token detected`);
+    }
+
+    // Normalize the style URL with access token if needed
+    const normalizedUrl = normalizeStyleUrl(styleUrl, extractedToken || undefined);
+    
+    // Fetch the style
+    console.log(`📥 Fetching style from: ${normalizedUrl}`);
+    const response = await fetchWithRetry(normalizedUrl, {
+      timeout: timeoutMs,
+      retries: maxRetries
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch style: ${response.status} ${response.statusText}`);
+    }
+
+    const style = await response.json() as BaseStyle;
+    console.log(`✅ Style fetched successfully`);
+
+    // Process style for the detected provider
+    const processedStyle = processStyleSources(style, detectedProvider, extractedToken || undefined);
+    
+    // Validate style
+    const validation = validateStyleForProvider(processedStyle, detectedProvider);
+    if (!validation.isValid && !forceProvider) {
+      throw new Error(`Style validation failed: ${validation.errors.join(', ')}`);
+    }
+
+    // Generate style ID
+    const styleId = processedStyle.name?.toLowerCase().replace(/\s+/g, '-') || 
+                   `style-${Date.now()}`;
+
+    // Check if style already exists
+    const db = await dbPromise;
+    if (skipExisting) {
+      const existingStyle = await db.get('styles', styleId);
+      if (existingStyle) {
+        console.log(`⏭️  Style ${styleId} already exists, skipping`);
+        return {
+          styleId,
+          success: true,
+          downloadTime: Date.now() - startTime,
+          styleSize: 0,
+          sourcesProcessed: 0,
+          sourcesEmbedded: 0,
+          errors: [],
+          analytics: {
+            sourceTypes: {},
+            layerTypes: {},
+            totalLayers: 0,
+            hasGlyphs: false,
+            hasSprites: false
+          }
+        };
+      }
+    }
+
+    // Create style entry
+    const styleEntry = createStyleEntry(
+      styleId,
+      processedStyle,
+      detectedProvider,
+      {
+        lastModified: Date.now(),
+        downloadedAt: Date.now(),
+        originalUrl: styleUrl,
+        validated: validation.isValid,
+        accessToken: extractedToken || undefined,
+      }
+    );
+
+    // Save style
+    await db.put('styles', styleEntry);
+    
+    const downloadTime = Date.now() - startTime;
+    console.log(`✅ Style ${styleId} downloaded successfully in ${downloadTime}ms`);
+
+    return {
+      styleId,
+      success: true,
+      downloadTime,
+      styleSize: JSON.stringify(processedStyle).length,
+      sourcesProcessed: Object.keys(processedStyle.sources || {}).length,
+      sourcesEmbedded: 0,
+      errors: [],
+      analytics: {
+        sourceTypes: {},
+        layerTypes: {},
+        totalLayers: processedStyle.layers?.length || 0,
+        hasGlyphs: !!processedStyle.glyphs,
+        hasSprites: !!processedStyle.sprite
+      }
+    };
+
+  } catch (error) {
+    console.error(`❌ Failed to download style from ${styleUrl}:`, error);
+    return {
+      styleId: '',
+      success: false,
+      downloadTime: Date.now() - startTime,
+      styleSize: 0,
+      sourcesProcessed: 0,
+      sourcesEmbedded: 0,
+      errors: [error instanceof Error ? error.message : String(error)],
+      analytics: {
+        sourceTypes: {},
+        layerTypes: {},
+        totalLayers: 0,
+        hasGlyphs: false,
+        hasSprites: false
+      }
     };
   }
 }

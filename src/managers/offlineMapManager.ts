@@ -21,6 +21,11 @@ import type {
   ExportResult,
   PMTilesExportOptions,
   MBTilesExportOptions,
+  StyleProvider,
+  StyleDownloadOptions,
+  StyleDownloadResult,
+  StyleEntry,
+  EnhancedStyleStats,
 } from '../types';
 
 export class OfflineMapManager {
@@ -310,5 +315,116 @@ export class OfflineMapManager {
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
+  }
+
+  // ====================================
+  // Style Management Methods
+  // ====================================
+
+  /**
+   * Download a style with Mapbox GL support
+   */
+  async downloadStyle(
+    styleUrl: string, 
+    options: StyleDownloadOptions & {
+      provider?: StyleProvider;
+      accessToken?: string;
+      forceProvider?: boolean;
+    } = {}
+  ): Promise<StyleDownloadResult> {
+    const { downloadStyleWithProvider } = await import('../services/styleService');
+    return downloadStyleWithProvider(styleUrl, options);
+  }
+
+  /**
+   * Load a stored style by ID
+   */
+  async loadStyleById(styleId: string): Promise<StyleEntry | null> {
+    const { loadStyleById } = await import('../services/styleService');
+    return loadStyleById(styleId);
+  }
+
+  /**
+   * List all stored styles
+   */
+  async listStyles(): Promise<StyleEntry[]> {
+    const { loadStyles } = await import('../services/styleService');
+    return loadStyles();
+  }
+
+  /**
+   * Delete a stored style
+   */
+  async deleteStyle(styleId: string): Promise<void> {
+    const { deleteStyleById } = await import('../services/styleService');
+    return deleteStyleById(styleId);
+  }
+
+  /**
+   * Get style statistics
+   */
+  async getStyleStats(styleId: string): Promise<EnhancedStyleStats> {
+    const { getStyleStats } = await import('../services/styleService');
+    return getStyleStats();
+  }
+
+  /**
+   * Download and store a Mapbox GL style with proper provider detection
+   */
+  async downloadMapboxStyle(
+    styleUrl: string,
+    accessToken?: string,
+    options: StyleDownloadOptions = {}
+  ): Promise<StyleDownloadResult> {
+    return this.downloadStyle(styleUrl, {
+      ...options,
+      provider: 'mapbox',
+      accessToken,
+      forceProvider: true,
+    });
+  }
+
+  /**
+   * Download and store a MapLibre GL style
+   */
+  async downloadMapLibreStyle(
+    styleUrl: string,
+    options: StyleDownloadOptions = {}
+  ): Promise<StyleDownloadResult> {
+    return this.downloadStyle(styleUrl, {
+      ...options,
+      provider: 'maplibre',
+      forceProvider: true,
+    });
+  }
+
+  /**
+   * Auto-detect provider and download style
+   */
+  async downloadStyleWithAutoDetection(
+    styleUrl: string,
+    options: StyleDownloadOptions = {}
+  ): Promise<StyleDownloadResult> {
+    return this.downloadStyle(styleUrl, {
+      ...options,
+      provider: 'auto',
+    });
+  }
+
+  /**
+   * Clean up old styles
+   */
+  async cleanupOldStyles(maxAgeDays: number = 30): Promise<number> {
+    const { cleanupOldStyles } = await import('../services/styleService');
+    const cutoffDate = Date.now() - (maxAgeDays * 24 * 60 * 60 * 1000);
+    
+    const result = await cleanupOldStyles({
+      maxAge: cutoffDate,
+      onProgress: (progress) => {
+        console.log(`Style cleanup progress: ${progress.completed}/${progress.total}`);
+      }
+    });
+    
+    return result.deletedCount;
   }
 }

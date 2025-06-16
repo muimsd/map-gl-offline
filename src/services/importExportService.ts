@@ -611,6 +611,7 @@ export class ImportExportService {
         await styleStore.put({
           key: regionId,
           style: regionData.style,
+          provider: 'auto',
           regions: [],
           fonts: [],
           glyphs: [],

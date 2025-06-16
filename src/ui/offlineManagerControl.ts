@@ -358,9 +358,9 @@ export class OfflineManagerControl implements IControl {
     }
 
     // Auto-hide bbox after 5 seconds
-    // setTimeout(() => {
-    //   this.removeRegionBoundingBox();
-    // }, 5000);
+    setTimeout(() => {
+      this.removeRegionBoundingBox();
+    }, 5000);
   }
 
   /**
@@ -418,6 +418,45 @@ export class OfflineManagerControl implements IControl {
   }
 
   /**
+   * Load offline style for a specific style ID
+   */
+  async loadOfflineStyle(styleId: string): Promise<void> {
+    if (!this.map) {
+      console.warn('Map not available for loading offline style');
+      return;
+    }
+
+    try {
+      console.log(`🔄 Loading offline style: ${styleId}`);
+      
+      const { loadStyleById } = await import('../services/styleService');
+      const { patchStyleForOffline } = await import('../utils/styleUtils');
+      
+      // Load the style from IndexedDB
+      const styleEntry = await loadStyleById(styleId);
+      
+      if (!styleEntry) {
+        console.error(`Style ${styleId} not found in IndexedDB`);
+        return;
+      }
+
+      // Patch the style for offline use
+      const patchedStyle = patchStyleForOffline(styleEntry.style, styleId);
+      
+      console.log(`🎨 Applying patched offline style for: ${styleId}`);
+      console.log('Patched style sources:', Object.keys(patchedStyle.sources || {}));
+      
+      // Apply the patched style to the map
+      this.map.setStyle(patchedStyle as any);
+      
+      console.log(`✅ Offline style ${styleId} loaded successfully`);
+      
+    } catch (error) {
+      console.error(`❌ Error loading offline style ${styleId}:`, error);
+    }
+  }
+
+  /**
    * Load styles from IndexedDB and apply to map
    */
   private async loadStylesFromIDB(): Promise<void> {
@@ -428,28 +467,106 @@ export class OfflineManagerControl implements IControl {
 
     try {
       // Import the loadStyles function from styleService
-      const { loadStyles, loadStyleById } = await import('../services/styleService');
+      const { loadStyles } = await import('../services/styleService');
 
       // Get stored styles from IndexedDB
       const styles = await loadStyles();
 
       if (styles.length === 0) {
         console.warn('No styles found in IndexedDB');
+        alert('No offline styles available. Please download a style first.');
         return;
       }
 
-      // For now, load the first stored style
-      // TODO: Add style selection modal if multiple styles exist
-      const styleToLoad = styles[0];
-      console.log('Loading style from IDB:', styleToLoad.key);
+      // If only one style, load it directly
+      if (styles.length === 1) {
+        const styleToLoad = styles[0];
+        console.log('Loading single available style:', styleToLoad.key);
+        await this.loadOfflineStyle(styleToLoad.key);
+        this.renderPanel();
+        return;
+      }
 
-      // Apply the offline style to the map
-      this.map.setStyle(styleToLoad.style as any);
+      // Multiple styles - show selection dialog
+      console.log(`Found ${styles.length} offline styles available`);
+      this.showStyleSelectionModal(styles);
 
-      // Refresh panel to show updated data
-      this.renderPanel();
     } catch (error) {
       console.error('Error loading styles from IDB:', error);
     }
+  }
+
+  /**
+   * Show modal to select which style to load
+   */
+  private showStyleSelectionModal(styles: any[]): void {
+    // Create a simple selection modal
+    const modal = document.createElement('div');
+    modal.className = 'offline-modal-overlay';
+    modal.innerHTML = `
+      <div class="offline-modal">
+        <div class="offline-modal-header">
+          <h3>Select Offline Style</h3>
+          <button class="offline-modal-close">&times;</button>
+        </div>
+        <div class="offline-modal-body">
+          <p>Choose which offline style to load:</p>
+          <div class="offline-style-list">
+            ${styles.map(style => `
+              <button class="offline-style-option" data-style-id="${style.key}">
+                <div class="style-name">${style.style.name || style.key}</div>
+                <div class="style-info">
+                  ${style.regions?.length || 0} regions • 
+                  ${Object.keys(style.style.sources || {}).length} sources
+                </div>
+              </button>
+            `).join('')}
+          </div>
+        </div>
+      </div>
+    `;
+
+    // Add event listeners
+    const closeBtn = modal.querySelector('.offline-modal-close');
+    closeBtn?.addEventListener('click', () => {
+      document.body.removeChild(modal);
+    });
+
+    // Style selection
+    const styleButtons = modal.querySelectorAll('.offline-style-option');
+    styleButtons.forEach(button => {
+      button.addEventListener('click', async () => {
+        const styleId = button.getAttribute('data-style-id');
+        if (styleId) {
+          document.body.removeChild(modal);
+          console.log(`User selected style: ${styleId}`);
+          await this.loadOfflineStyle(styleId);
+          this.renderPanel();
+        }
+      });
+    });
+
+    // Close on overlay click
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) {
+        document.body.removeChild(modal);
+      }
+    });
+
+    document.body.appendChild(modal);
+  }
+
+  /**
+   * Public method to load offline styles - can be called from outside
+   */
+  async loadOfflineStyles(): Promise<void> {
+    await this.loadStylesFromIDB();
+  }
+
+  /**
+   * Public method to load a specific offline style by ID
+   */
+  async loadSpecificOfflineStyle(styleId: string): Promise<void> {
+    await this.loadOfflineStyle(styleId);
   }
 }

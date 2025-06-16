@@ -956,17 +956,43 @@ export class PanelRenderer extends BaseComponent {
     }
 
     try {
-      console.log('Loading style to map:', styleData);
+      console.log('🎨 Loading style to map:', styleData.key);
+      console.log('🔍 Style data structure:', {
+        hasStyle: !!styleData.style,
+        styleKeys: styleData.style ? Object.keys(styleData.style) : [],
+        sources: styleData.style?.sources ? Object.keys(styleData.style.sources) : [],
+        layers: styleData.style?.layers ? styleData.style.layers.length : 0
+      });
 
+      // Check if the style has the necessary structure
+      if (!styleData.style) {
+        console.error('❌ Style data is missing the "style" property');
+        return;
+      }
+
+      if (!styleData.style.sources) {
+        console.error('❌ Style is missing sources');
+        return;
+      }
+
+      console.log('🔧 Patching style for offline use...');
       const patchedStyle = patchStyleForOffline(styleData.style, styleData.key);
-      console.log('Loading style to map:', patchedStyle);
+      
+      console.log('✅ Style patched successfully');
+      console.log('🔍 Patched style sources:', Object.keys(patchedStyle.sources || {}));
+      
       // Apply the patched style to the map
+      console.log('🗺️ Applying style to map...');
       this.map.setStyle(patchedStyle as any);
 
-      // Show success feedback (you could add a toast notification here)
-      console.log('Style loaded successfully with offline patches');
+      console.log('✅ Voyager/Style loaded successfully with offline patches');
     } catch (error) {
-      console.error('Error loading style to map:', error);
+      console.error('❌ Error loading style to map:', error);
+      console.error('Error details:', {
+        message: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        styleData: styleData
+      });
     }
   }
 

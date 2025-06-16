@@ -2,8 +2,11 @@ import { FontDownloadOptions, FontDownloadResult } from './font';
 import { DownloadProgress } from './progress';
 import { SpriteDownloadOptions, SpriteDownloadResult } from './sprite';
 
-// Basic MapboxStyle interface
-export interface MapboxStyle {
+// Style provider types
+export type StyleProvider = 'mapbox' | 'maplibre' | 'auto';
+
+// Basic style interface that works with both Mapbox GL and MapLibre GL
+export interface BaseStyle {
   version: number;
   name?: string;
   metadata?: Record<string, unknown>;
@@ -14,14 +17,33 @@ export interface MapboxStyle {
   [key: string]: unknown;
 }
 
-// StyleEntry type for offline style management
+// Extended interface for Mapbox GL specific features
+export interface MapboxGLStyle extends BaseStyle {
+  // Mapbox GL specific properties
+  owner?: string;
+  id?: string;
+  crs?: string;
+  draft?: boolean;
+  created?: string;
+  modified?: string;
+  visibility?: 'public' | 'private';
+}
+
+// Alias for backward compatibility
+export interface MapboxStyle extends BaseStyle {}
+
+// Enhanced StyleEntry that can handle both providers
 export type StyleEntry = {
   key: string;
-  style: MapboxStyle;
+  style: BaseStyle;
+  provider: StyleProvider;
   regions: import('./region').OfflineRegionOptions[];
   fonts: string[];
   glyphs: string[];
   sprites: string[];
+  // Additional metadata for Mapbox GL
+  accessToken?: string;
+  originalUrl?: string;
 };
 
 export interface StyleDownloadOptions {

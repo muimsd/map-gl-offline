@@ -107,9 +107,26 @@ export class TileService {
       // Respect source zoom range
       const sourceMinZ = Math.ceil(sourceConfig.minzoom ?? region.minZoom);
       const sourceMaxZ = Math.floor(sourceConfig.maxzoom ?? region.maxZoom);
-      console.warn(`Source zoom range: ${sourceMinZ} to ${sourceMaxZ}`);
+      console.warn(`Region zoom range: ${region.minZoom} to ${region.maxZoom}`);
+      console.warn(`Source "${sourceId}" zoom constraints: minzoom=${sourceConfig.minzoom}, maxzoom=${sourceConfig.maxzoom}`);
+      console.warn(`Effective zoom range for source: ${sourceMinZ} to ${sourceMaxZ}`);
+      
       let coordsToDownload = tileCoords.filter(coord => coord.z >= sourceMinZ && coord.z <= sourceMaxZ);
-      console.warn(`Filtered to ${coordsToDownload.length} coords for source ${sourceId}`);
+      console.warn(`Total tile coords generated: ${tileCoords.length}`);
+      console.warn(`Filtered to ${coordsToDownload.length} coords for source ${sourceId} (after zoom filtering)`);
+
+      // Debug: show tile distribution by zoom level
+      const tilesByZoom: Record<number, number> = {};
+      coordsToDownload.forEach(coord => {
+        tilesByZoom[coord.z] = (tilesByZoom[coord.z] || 0) + 1;
+      });
+      console.warn(`Tiles per zoom level for source ${sourceId}:`, tilesByZoom);
+      
+      // Show what was filtered out
+      const filteredOutCount = tileCoords.length - coordsToDownload.length;
+      if (filteredOutCount > 0) {
+        console.warn(`⚠️  ${filteredOutCount} tiles filtered out due to source zoom constraints (${sourceMinZ}-${sourceMaxZ})`);
+      }
 
       if (!sourceConfig.tiles || sourceConfig.tiles.length === 0) {
         console.warn(`Source ${sourceId} has no tiles array, skipping`);
@@ -130,11 +147,14 @@ export class TileService {
         console.warn(`Checking for existing tiles for source ${sourceId}...`);
         const existingTiles = await this.getExistingTileKeys(styleId, sourceId);
         console.warn(`Found ${existingTiles.size} existing tiles for source ${sourceId}`);
+        
+        const originalCount = coordsToDownload.length;
         coordsToDownload = coordsToDownload.filter(coord => {
           const key = this.createTileKey(coord.x, coord.y, coord.z, styleId, sourceId, ext);
           return !existingTiles.has(key);
         });
-        const skippedForThisSource = coordsToDownload.length; // adjust logic as needed
+        
+        const skippedForThisSource = originalCount - coordsToDownload.length;
         skippedTiles += skippedForThisSource;
 
         console.warn(`Source ${sourceId}: ${coordsToDownload.length} to download, ${skippedForThisSource} skipped (already exist)`);
@@ -380,12 +400,20 @@ export class TileService {
     console.warn('Region bounds:', region.bounds);
     console.warn('Zoom range:', region.minZoom, 'to', region.maxZoom);
 
-    // Calculate area for reference
+    // Calculate area for reference - more accurate calculation
     const [[west, south], [east, north]] = region.bounds;
     const widthDeg = Math.abs(east - west);
     const heightDeg = Math.abs(north - south);
-    const areaApproxKm2 = (widthDeg * 111) * (heightDeg * 111); // Rough conversion
-    console.warn(`Approximate area: ${areaApproxKm2.toFixed(2)} km²`);
+    
+    // More accurate area calculation considering latitude
+    const avgLat = (south + north) / 2;
+    const latCorrectionFactor = Math.cos(avgLat * Math.PI / 180);
+    const widthKm = widthDeg * 111.32 * latCorrectionFactor; // 111.32 km per degree at equator
+    const heightKm = heightDeg * 110.54; // 110.54 km per degree of latitude
+    const areaApproxKm2 = widthKm * heightKm;
+    
+    console.warn(`Approximate area: ${areaApproxKm2.toFixed(2)} km² (improved calculation)`);
+    console.warn(`Region dimensions: ${widthKm.toFixed(1)}km × ${heightKm.toFixed(1)}km`);
 
     for (let z = region.minZoom; z <= region.maxZoom; z++) {
       const bounds = region.bounds;
