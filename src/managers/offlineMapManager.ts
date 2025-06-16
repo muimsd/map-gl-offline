@@ -72,8 +72,36 @@ export class OfflineMapManager {
   }
 
   async listStoredRegions(): Promise<StoredRegion[]> {
-    // Get StoredRegion data directly from the database
-    return this.cleanupService.getAllRegions();
+    // Get regions from styles instead of separate regions table
+    try {
+      const { loadStyles } = await import('../services/styleService');
+      const styles = await loadStyles();
+      
+      const allRegions: StoredRegion[] = [];
+      
+      // Extract regions from each style
+      for (const style of styles) {
+        if (style.regions && Array.isArray(style.regions)) {
+          // Convert regions to StoredRegion format
+          const regionsWithStyle = style.regions.map(region => ({
+            ...region,
+            key: region.id, // Use region id as key
+            styleId: style.key, // Ensure region knows which style it belongs to
+            created: region.created || Date.now(),
+            lastModified: region.updated || region.created || Date.now(),
+            expiry: region.expiry || (Date.now() + 30 * 24 * 60 * 60 * 1000), // Default 30 days
+          } as StoredRegion));
+          allRegions.push(...regionsWithStyle);
+        }
+      }
+      
+      console.log('📋 Extracted regions from styles:', allRegions);
+      return allRegions;
+    } catch (error) {
+      console.error('Error loading regions from styles:', error);
+      // Fallback to cleanup service method
+      return this.cleanupService.getAllRegions();
+    }
   }
 
   async getStoredRegion(regionId: string): Promise<StoredRegion | null> {

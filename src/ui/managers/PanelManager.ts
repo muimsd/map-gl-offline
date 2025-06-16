@@ -45,6 +45,10 @@ export class PanelRenderer extends BaseComponent {
   private actionButtonsContainer?: HTMLElement;
   private regionsList?: List;
   private downloadProgressContainer?: HTMLElement;
+  
+  // Debounce mechanism
+  private refreshTimeout?: NodeJS.Timeout;
+  private isRefreshing = false;
 
   constructor(options: PanelRendererOptions) {
     super({});
@@ -78,6 +82,8 @@ export class PanelRenderer extends BaseComponent {
         this.offlineManager.listStoredRegions(),
         this.offlineManager.getComprehensiveStorageAnalytics(),
       ]);
+
+      console.log('📊 Panel data loaded:', { regions, analytics });
 
       // Render components
       await this.renderHeader(regions, analytics);
@@ -200,6 +206,8 @@ export class PanelRenderer extends BaseComponent {
    * Render styles list with regions grouped under each style
    */
   private async renderRegionsList(regions: any[]): Promise<void> {
+    console.log('🗂️ Rendering regions list with regions:', regions);
+    
     // Remove existing list
     if (this.regionsList) {
       this.regionsList.destroy();
@@ -210,6 +218,9 @@ export class PanelRenderer extends BaseComponent {
       const { loadStyles, getStyleStats } = await import('../../services/styleService');
       const styles = await loadStyles();
       const statsResult = await getStyleStats();
+      console.log('🎨 Loaded styles:', styles);
+      console.log('📈 Style stats:', statsResult);
+      
       const sizeMap: Record<string, number> = {};
       statsResult.styles.forEach(s => {
         sizeMap[s.id] = s.size;
@@ -217,6 +228,7 @@ export class PanelRenderer extends BaseComponent {
 
       // Group regions by style ID
       const regionsByStyle = this.groupRegionsByStyle(regions);
+      console.log('📊 Regions grouped by style:', regionsByStyle);
 
       // Create styles and regions list
       const listItems: ListItemConfig[] = [];
@@ -821,10 +833,62 @@ export class PanelRenderer extends BaseComponent {
    * Refresh the panel content
    */
   public async refresh(): Promise<void> {
-    // Re-render with current container
-    const container = this.element.parentElement as HTMLDivElement;
-    if (container) {
-      await this.render(container);
+    // Debounce mechanism to prevent multiple rapid refreshes
+    if (this.refreshTimeout) {
+      clearTimeout(this.refreshTimeout);
+    }
+
+    if (this.isRefreshing) {
+      console.log('🔄 Refresh already in progress, skipping...');
+      return;
+    }
+
+    this.refreshTimeout = setTimeout(async () => {
+      await this.performRefresh();
+    }, 100); // 100ms debounce
+  }
+
+  /**
+   * Perform the actual refresh
+   */
+  private async performRefresh(): Promise<void> {
+    if (this.isRefreshing) {
+      return;
+    }
+
+    this.isRefreshing = true;
+    
+    try {
+      // Clear the current element content before re-rendering
+      this.element.innerHTML = '';
+      
+      // Reset component references to avoid stale references
+      this.headerContainer = undefined;
+      this.actionButtonsContainer = undefined;
+      this.downloadProgressContainer = undefined;
+      if (this.regionsList) {
+        this.regionsList.destroy();
+        this.regionsList = undefined;
+      }
+
+      // Load fresh data
+      const [regions, analytics] = await Promise.all([
+        this.offlineManager.listStoredRegions(),
+        this.offlineManager.getComprehensiveStorageAnalytics(),
+      ]);
+
+      console.log('🔄 Refreshing panel data:', { regions, analytics });
+
+      // Re-render components
+      await this.renderHeader(regions, analytics);
+      await this.renderActionButtons();
+      await this.renderDownloadProgress();
+      await this.renderRegionsList(regions);
+    } catch (error) {
+      console.error('Error refreshing panel:', error);
+      this.renderErrorState(this.element as HTMLDivElement);
+    } finally {
+      this.isRefreshing = false;
     }
   }
 

@@ -217,23 +217,34 @@ export class OfflineManagerControl implements IControl {
    * Handle region saved event
    */
   private handleRegionSaved(): void {
-    // Refresh panel to show new region
-    this.renderPanel();
+    console.log(`✅ Region saved, refreshing panel`);
+    // Use the panel's refresh method instead of renderPanel to avoid conflicts
+    if (this.panelRenderer) {
+      this.panelRenderer.refresh();
+    }
   }
 
   /**
    * Handle progress updates from download manager
    */
   private handleProgressUpdate(downloads: Map<string, any>): void {
-    // Panel will be automatically updated through the PanelRenderer
-    this.renderPanel();
+    // Only update the download progress section, don't refresh the entire panel
+    // The PanelRenderer will handle this through renderDownloadProgress()
+    if (this.panelRenderer) {
+      // Don't refresh the entire panel for progress updates, just log
+      console.log(`📊 Download progress update:`, downloads.size, 'active downloads');
+    }
   }
 
   /**
    * Handle download completion
    */
   private handleDownloadComplete(regionId: string): void {
-    this.renderPanel();
+    console.log(`✅ Download completed for region: ${regionId}`);
+    // Use the panel's refresh method instead of renderPanel to avoid conflicts
+    if (this.panelRenderer) {
+      this.panelRenderer.refresh();
+    }
   }
 
   /**
@@ -241,7 +252,10 @@ export class OfflineManagerControl implements IControl {
    */
   private handleDownloadError(regionId: string, error: any): void {
     console.error(`Download error for region ${regionId}:`, error);
-    this.renderPanel();
+    // Use the panel's refresh method instead of renderPanel to avoid conflicts
+    if (this.panelRenderer) {
+      this.panelRenderer.refresh();
+    }
   }
 
   /**

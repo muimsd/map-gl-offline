@@ -43,12 +43,11 @@ jobs:
       run: pnpm run test:coverage
       
     - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v3
+      uses: codecov/codecov-action@v5
       if: matrix.node-version == 20
       with:
-        file: ./coverage/lcov.info
-        flags: unittests
-        name: codecov-umbrella
+        token: ${{ secrets.CODECOV_TOKEN }}
+        slug: muimsd/map-gl-offline
 
   build:
     runs-on: ubuntu-latest

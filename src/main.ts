@@ -1,21 +1,61 @@
 import * as maplibregl from 'maplibre-gl';
 import { OfflineMapManager, OfflineManagerControl } from './index';
+import { StyleSwitcherControl, type StyleItem } from 'map-gl-style-switcher';
 import 'maplibre-gl/dist/maplibre-gl.css';
+import 'map-gl-style-switcher/dist/map-gl-style-switcher.css';
 
-const styleURL = 'https://raw.githubusercontent.com/go2garret/maps/main/src/assets/json/arcgis_hybrid.json';
+const styles: StyleItem[] = [
+  {
+    id: 'voyager',
+    name: 'Voyager',
+    image: 'https://raw.githubusercontent.com/muimsd/map-gl-style-switcher/refs/heads/main/public/voyager.png',
+    styleUrl: 'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json',
+    description: 'Voyager style from Carto',
+  },
+  {
+    id: 'positron',
+    name: 'Positron',
+    image: 'https://raw.githubusercontent.com/muimsd/map-gl-style-switcher/refs/heads/main/public/positron.png',
+    styleUrl: 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json',
+    description: 'Positron style from Carto',
+  },
+  {
+    id: 'dark-matter',
+    name: 'Dark Matter',
+    image: 'https://raw.githubusercontent.com/muimsd/map-gl-style-switcher/refs/heads/main/public/dark.png',
+    styleUrl: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
+    description: 'Dark style from Carto',
+  },
+  {
+    id: 'arcgis-hybrid',
+    name: 'ArcGIS Hybrid',
+    image: 'https://raw.githubusercontent.com/muimsd/map-gl-style-switcher/refs/heads/main/public/arcgis-hybrid.png',
+    styleUrl:
+      'https://raw.githubusercontent.com/go2garret/maps/main/src/assets/json/arcgis_hybrid.json',
+    description: 'Hybrid Satellite style from ESRI',
+  },
+  {
+    id: 'osm',
+    name: 'OSM',
+    image: 'https://raw.githubusercontent.com/muimsd/map-gl-style-switcher/refs/heads/main/public/osm.png',
+    styleUrl:
+      'https://raw.githubusercontent.com/go2garret/maps/main/src/assets/json/openStreetMap.json',
+    description: 'OSM style',
+  },
+];
+const defaultStyle = styles[0];
+
 const map = new maplibregl.Map({
   container: 'map',
-  style: styleURL, // Example style
+  style: defaultStyle.styleUrl, // Example style
   //   center: [0, 0],
   //   zoom: 10,
   bounds: [
     [34.97256123524991, 40.996721656078336],
     [34.981376429930464, 41.00112029961136],
   ],
-  attributionControl: false
+  attributionControl: false,
 });
-// Add navigation controls (zoom in/out, compass, pitch/rotate)
-map.addControl(new maplibregl.NavigationControl(), 'top-right');
 // Add navigation controls (zoom in/out, compass, pitch/rotate)
 map.addControl(new maplibregl.NavigationControl(), 'top-right');
 
@@ -25,7 +65,7 @@ map.addControl(new maplibregl.ScaleControl(), 'bottom-left');
 
 const offlineManager = new OfflineMapManager();
 const offlineManagerControl = new OfflineManagerControl(offlineManager, {
-  styleUrl: styleURL,
+  styleUrl: defaultStyle.styleUrl,
   theme: 'light',
   showBbox: true,
 });
@@ -44,59 +84,30 @@ map.addControl(
 
 // Add our custom offline manager control
 map.addControl(offlineManagerControl, 'top-right');
-// map.on('load', async () => {
-//   console.log('Map loaded');
-//   // get style url from the map instance
-// const styleUrl = map?._options?.style;
-// console.log('Style URL:', styleUrl);
-// });
-// Start automatic cleanup of expired regions (runs every hour)
-// offlineManager.setupAutoCleanup();
 
-// Optional: manually trigger cleanup
-async function manualCleanup() {
-  const cleanedCount = await offlineManager.cleanupExpiredRegions();
-  console.warn(`Manual cleanup removed ${cleanedCount} expired regions`);
+// Add style switcher control
+interface StyleSwitcherControlOptions {
+  styles: StyleItem[];
+  theme: 'light' | 'dark';
+  showLabels: boolean;
+  showImages: boolean;
+  activeStyleId: string;
+  onBeforeStyleChange?: (from: StyleItem, to: StyleItem) => void;
+  onAfterStyleChange?: (from: StyleItem, to: StyleItem) => void;
 }
 
-async function handleOffline() {
-  // Example usage of OfflineMapManager
-  await offlineManager.addRegion({
-    id: 'test-region',
-    name: 'Test Downtown Area',
-    multipleRegions: true,
-    styleUrl: styleURL,
-    bounds: [
-      [34.97256123524991, 40.996721656078336],
-      [34.981376429930464, 41.00112029961136],
-    ],
-    minZoom: 0,
-    maxZoom: 6,
-    deleteOnExpiry: true, // This region will be auto-deleted when expired
-  });
-
-  console.warn('Region download initiated');
-
-  // Refresh the offline manager control to show the new region
-  // await offlineManagerControl.refresh(); // Method doesn't exist
-}
-
-//   // // Example: check region expiry
-//   // const expiryInfo = await offlineManager.getRegionExpiry('world');
-//   // if (expiryInfo) {
-//   //   console.warn(`Region expires: ${new Date(expiryInfo.expiry).toISOString()}`);
-//   //   console.warn(`Is expired: ${expiryInfo.expired}`);
-
-//   //   // Example: extend expiry if needed
-//   //   if (expiryInfo.expired) {
-//   //     // await offlineManager.extendRegionExpiry('world');
-//   //     console.warn('Extended region expiry');
-//   //   }
-//   // }
-// }
-// map.on('load', async () => {
-//   console.log('Map loaded');
-//   // Get the style URL from the map instance
-//   // const styleURL = map.getStyle()?.styleUrl;
-//   handleOffline();
-// });
+const styleSwitcher: StyleSwitcherControl = new StyleSwitcherControl({
+  styles: styles,
+  theme: 'light',
+  showLabels: true,
+  showImages: true,
+  activeStyleId: defaultStyle.id,
+  onBeforeStyleChange: (from: StyleItem, to: StyleItem): void => {
+    console.log('Changing style from', from.name, 'to', to.name);
+  },
+  onAfterStyleChange: (_from: StyleItem, to: StyleItem): void => {
+    map.setStyle(to.styleUrl);
+    console.log('Style changed to', to.name);
+  },
+} as StyleSwitcherControlOptions);
+map.addControl(styleSwitcher, 'top-left');
