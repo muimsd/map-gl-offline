@@ -154,6 +154,14 @@ export class RegionControl {
   }
 
   /**
+   * Update the style URL for new regions
+   */
+  public updateStyleUrl(newStyleUrl: string): void {
+    this.options.styleUrl = newStyleUrl;
+    console.log(`📍 RegionControl style URL updated to: ${newStyleUrl}`);
+  }
+
+  /**
    * Cleanup when control is removed
    */
   public cleanup(): void {

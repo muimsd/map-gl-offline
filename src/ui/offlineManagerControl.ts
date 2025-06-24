@@ -569,4 +569,25 @@ export class OfflineManagerControl implements IControl {
   async loadSpecificOfflineStyle(styleId: string): Promise<void> {
     await this.loadOfflineStyle(styleId);
   }
+
+  /**
+   * Update the current style URL for the offline manager
+   */
+  updateStyleUrl(newStyleUrl: string): void {
+    this.options.styleUrl = newStyleUrl;
+    console.log(`🔄 Offline manager style URL updated to: ${newStyleUrl}`);
+    
+    // Update any active regions or downloads to use the new style
+    if (this.regionControl) {
+      // Update region control with new style URL
+      this.regionControl.updateStyleUrl(newStyleUrl);
+    }
+  }
+
+  /**
+   * Get the current style URL
+   */
+  getCurrentStyleUrl(): string {
+    return this.options.styleUrl;
+  }
 }
