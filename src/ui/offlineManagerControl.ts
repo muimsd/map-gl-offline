@@ -9,6 +9,7 @@ import { PanelRenderer } from './managers/PanelManager';
 import { RegionControl } from './controls/RegionControl';
 import { DownloadManager } from './managers/downloadManager';
 import { ModalManager } from './modals/ModalManager';
+import maplibregl from 'maplibre-gl';
 
 export interface OfflineManagerControlOptions {
   styleUrl: string;
@@ -294,10 +295,28 @@ export class OfflineManagerControl implements IControl {
     this.offlineManager
       .listRegions()
       .then((regions: any[]) => {
+        console.log('[fitBounds] Available region IDs:', regions.map((r: any) => r.id));
+        console.log('[fitBounds] Requested regionId:', regionId);
         const region = regions.find((r: any) => r.id === regionId);
-        if (region && region.bounds) {
+        if (!region) {
+          console.warn(`[fitBounds] Region with id ${regionId} not found.`);
+          return;
+        }
+        console.log(`[fitBounds] Focusing region:`, region);
+        if (region.bounds) {
+          // Validate bounds format
+          const bounds = region.bounds;
+          const isValid = Array.isArray(bounds) && bounds.length === 2 &&
+            Array.isArray(bounds[0]) && bounds[0].length === 2 &&
+            Array.isArray(bounds[1]) && bounds[1].length === 2 &&
+            bounds[0].every(Number.isFinite) && bounds[1].every(Number.isFinite);
+          if (!isValid) {
+            console.error(`[fitBounds] Invalid bounds for region`, bounds);
+            return;
+          }
+          console.log(`[fitBounds] Calling map.fitBounds with:`, bounds);
           // Fit map to region bounds
-          this.map!.fitBounds(region.bounds, {
+          this.map!.fitBounds(bounds as [[number, number], [number, number]], {
             padding: 20,
             duration: 1000,
           });
@@ -306,6 +325,8 @@ export class OfflineManagerControl implements IControl {
           if (this.options.showBbox) {
             this.showRegionBoundingBox(region);
           }
+        } else {
+          console.warn(`[fitBounds] Region has no bounds property:`, region);
         }
       })
       .catch((error: any) => {
@@ -342,7 +363,7 @@ export class OfflineManagerControl implements IControl {
     ];
 
     // Update the source with new bbox
-    const source = this.map.getSource(sourceId) as any;
+    const source = this.map.getSource(sourceId) as maplibregl.GeoJSONSource;
     if (source) {
       source.setData({
         type: 'Feature',
@@ -358,9 +379,9 @@ export class OfflineManagerControl implements IControl {
     }
 
     // Auto-hide bbox after 5 seconds
-    setTimeout(() => {
-      this.removeRegionBoundingBox();
-    }, 5000);
+    // setTimeout(() => {
+    //   this.removeRegionBoundingBox();
+    // }, 5000);
   }
 
   /**
@@ -428,13 +449,13 @@ export class OfflineManagerControl implements IControl {
 
     try {
       console.log(`🔄 Loading offline style: ${styleId}`);
-      
+
       const { loadStyleById } = await import('../services/styleService');
       const { patchStyleForOffline } = await import('../utils/styleUtils');
-      
+
       // Load the style from IndexedDB
       const styleEntry = await loadStyleById(styleId);
-      
+
       if (!styleEntry) {
         console.error(`Style ${styleId} not found in IndexedDB`);
         return;
@@ -442,15 +463,14 @@ export class OfflineManagerControl implements IControl {
 
       // Patch the style for offline use
       const patchedStyle = patchStyleForOffline(styleEntry.style, styleId);
-      
+
       console.log(`🎨 Applying patched offline style for: ${styleId}`);
       console.log('Patched style sources:', Object.keys(patchedStyle.sources || {}));
-      
+
       // Apply the patched style to the map
       this.map.setStyle(patchedStyle as any);
-      
+
       console.log(`✅ Offline style ${styleId} loaded successfully`);
-      
     } catch (error) {
       console.error(`❌ Error loading offline style ${styleId}:`, error);
     }
@@ -490,7 +510,6 @@ export class OfflineManagerControl implements IControl {
       // Multiple styles - show selection dialog
       console.log(`Found ${styles.length} offline styles available`);
       this.showStyleSelectionModal(styles);
-
     } catch (error) {
       console.error('Error loading styles from IDB:', error);
     }
@@ -512,7 +531,9 @@ export class OfflineManagerControl implements IControl {
         <div class="offline-modal-body">
           <p>Choose which offline style to load:</p>
           <div class="offline-style-list">
-            ${styles.map(style => `
+            ${styles
+              .map(
+                style => `
               <button class="offline-style-option" data-style-id="${style.key}">
                 <div class="style-name">${style.style.name || style.key}</div>
                 <div class="style-info">
@@ -520,7 +541,9 @@ export class OfflineManagerControl implements IControl {
                   ${Object.keys(style.style.sources || {}).length} sources
                 </div>
               </button>
-            `).join('')}
+            `
+              )
+              .join('')}
           </div>
         </div>
       </div>
@@ -547,7 +570,7 @@ export class OfflineManagerControl implements IControl {
     });
 
     // Close on overlay click
-    modal.addEventListener('click', (e) => {
+    modal.addEventListener('click', e => {
       if (e.target === modal) {
         document.body.removeChild(modal);
       }
@@ -576,7 +599,7 @@ export class OfflineManagerControl implements IControl {
   updateStyleUrl(newStyleUrl: string): void {
     this.options.styleUrl = newStyleUrl;
     console.log(`🔄 Offline manager style URL updated to: ${newStyleUrl}`);
-    
+
     // Update any active regions or downloads to use the new style
     if (this.regionControl) {
       // Update region control with new style URL

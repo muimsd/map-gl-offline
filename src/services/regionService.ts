@@ -1,22 +1,11 @@
 import { dbPromise } from '../storage/indexedDbManager';
-import { downloadStyles, loadStyleById } from './styleService';
-import { downloadTiles } from './tileService';
-import { patchStyleForOffline, validateRegion } from '../utils/styleUtils';
+import { patchStyleForOffline } from '../utils/styleUtils';
 import type { OfflineRegionOptions, StoredRegion } from '../types/region';
-import type { StyleEntry, MapboxStyle } from '../types/style';
+import type { StyleEntry } from '../types/style';
 import type { TileEntry } from '../types';
 import * as tilebelt from '@mapbox/tilebelt';
 
-// Helper function to get style data from StyleEntry
-function getStyleData(entry: StyleEntry): MapboxStyle & { id?: string } {
-  return {
-    ...entry.style,
-    id: entry.key
-  };
-}
-
 export class RegionService {
-  
   /**
    * Check if a tile overlaps with any region bounds
    */
@@ -29,13 +18,13 @@ export class RegionService {
     // Get tile bounds using tilebelt
     const tileBounds = tilebelt.tileToBBOX([tileX, tileY, tileZ]);
     const [tileWest, tileSouth, tileEast, tileNorth] = tileBounds;
-    
+
     // Region bounds format: [[west, south], [east, north]]
     const regionWest = region.bounds[0][0];
     const regionSouth = region.bounds[0][1];
     const regionEast = region.bounds[1][0];
     const regionNorth = region.bounds[1][1];
-    
+
     // Check if bounding boxes overlap
     return !(
       tileEast < regionWest ||
@@ -54,9 +43,7 @@ export class RegionService {
     tileZ: number,
     regions: OfflineRegionOptions[]
   ): boolean {
-    return regions.some(region => 
-      this.tileOverlapsWithRegion(tileX, tileY, tileZ, region)
-    );
+    return regions.some(region => this.tileOverlapsWithRegion(tileX, tileY, tileZ, region));
   }
 
   /**
@@ -69,7 +56,9 @@ export class RegionService {
     const db = await dbPromise;
     let deletedCount = 0;
 
-    console.log(`🔍 Checking tiles for style ${styleId} against ${remainingRegions.length} remaining regions`);
+    console.log(
+      `🔍 Checking tiles for style ${styleId} against ${remainingRegions.length} remaining regions`
+    );
 
     const tx = db.transaction('tiles', 'readwrite');
     for await (const cursor of tx.store) {
@@ -114,10 +103,10 @@ export class RegionService {
    */
   private async deleteStyleResources(styleId: string): Promise<void> {
     const db = await dbPromise;
-    
+
     console.log(`🗑️  Deleting all resources for style: ${styleId}`);
 
-    // Delete fonts - fonts have keys like "styleId:fontname" 
+    // Delete fonts - fonts have keys like "styleId:fontname"
     let deletedFonts = 0;
     const fontTx = db.transaction('fonts', 'readwrite');
     for await (const cursor of fontTx.store) {
@@ -153,7 +142,9 @@ export class RegionService {
       }
     }
 
-    console.log(`✅ Deleted style resources: ${deletedFonts} fonts, ${deletedGlyphs} glyphs, ${deletedSprites} sprites`);
+    console.log(
+      `✅ Deleted style resources: ${deletedFonts} fonts, ${deletedGlyphs} glyphs, ${deletedSprites} sprites`
+    );
   }
 
   /**
@@ -180,7 +171,7 @@ export class RegionService {
   async addRegion(region: OfflineRegionOptions): Promise<void> {
     const db = await dbPromise;
     console.warn('Adding region:', region);
-    
+
     if (!region.styleUrl) {
       throw new Error('Region must have a styleUrl');
     }
@@ -194,7 +185,10 @@ export class RegionService {
     } else {
       // Try to find by styleUrl (legacy)
       const allStyles = await db.getAll('styles');
-      styleData = allStyles.find((s: any) => s?.style?.sprite?.includes(region.styleUrl) || s?.originalUrl === region.styleUrl);
+      styleData = allStyles.find(
+        (s: any) =>
+          s?.style?.sprite?.includes(region.styleUrl) || s?.originalUrl === region.styleUrl
+      );
       styleId = styleData?.key;
     }
     if (!styleData || !styleId) {
@@ -246,11 +240,11 @@ export class RegionService {
     const styleId = region.styleId || region.id;
     const db = await dbPromise;
     const storedStyle = await db.get('styles', styleId!);
-    
+
     if (!storedStyle || !('style' in storedStyle)) {
       throw new Error(`Style not found for region: ${region.id}`);
     }
-    
+
     // TODO: Implement loadTiles function in tileService
     // await loadTiles(region, styleId);
     console.warn('loadTiles function not yet implemented');
@@ -259,17 +253,19 @@ export class RegionService {
   async deleteRegion(regionId: string): Promise<void> {
     const db = await dbPromise;
     console.log(`🗑️  Deleting region: ${regionId}`);
-    
+
     try {
       // Find which style contains this region
       const allStyles = await db.getAll('styles');
       console.log(`🔍 Found ${allStyles.length} styles to search through`);
-      
+
       let foundStyle: any = null;
       let foundRegion: any = null;
-      
+
       for (const style of allStyles) {
-        console.log(`🔍 Checking style: ${style?.key}, regions count: ${style?.regions?.length || 0}`);
+        console.log(
+          `🔍 Checking style: ${style?.key}, regions count: ${style?.regions?.length || 0}`
+        );
         if (style && Array.isArray(style.regions)) {
           const region = style.regions.find((r: any) => {
             const match = r.id === regionId || r.regionId === regionId;
@@ -291,7 +287,9 @@ export class RegionService {
         allStyles.forEach(style => {
           if (style && Array.isArray(style.regions)) {
             style.regions.forEach((r: any) => {
-              console.log(`  - Style ${style.key}: Region ${r.id || r.regionId} (${r.name || 'unnamed'})`);
+              console.log(
+                `  - Style ${style.key}: Region ${r.id || r.regionId} (${r.name || 'unnamed'})`
+              );
             });
           }
         });
@@ -301,8 +299,8 @@ export class RegionService {
       console.log(`🎯 Found region in style: ${foundStyle.key}`, foundRegion);
 
       // Remove the region from the style's regions array
-      const remainingRegions = foundStyle.regions.filter((r: any) => 
-        r.id !== regionId && r.regionId !== regionId
+      const remainingRegions = foundStyle.regions.filter(
+        (r: any) => r.id !== regionId && r.regionId !== regionId
       );
 
       foundStyle.regions = remainingRegions;
@@ -310,33 +308,41 @@ export class RegionService {
 
       // If this was the last region for the style, delete the entire style and all its resources
       if (remainingRegions.length === 0) {
-        console.log(`🗑️  Style ${foundStyle.key} has no remaining regions, deleting entire style and all resources`);
-        
+        console.log(
+          `🗑️  Style ${foundStyle.key} has no remaining regions, deleting entire style and all resources`
+        );
+
         // Delete all tiles for this style
         const deletedTileCount = await this.deleteAllStyleTiles(foundStyle.key);
         console.log(`🗑️  Deleted ${deletedTileCount} tiles`);
-        
+
         // Delete all style resources (fonts, glyphs, sprites)
         await this.deleteStyleResources(foundStyle.key);
-        
+
         // Delete the style entry itself
         await db.delete('styles', foundStyle.key);
-        
+
         console.log(`✅ Completely deleted style ${foundStyle.key} and all associated resources`);
       } else {
-        console.log(`🔍 Style ${foundStyle.key} has ${remainingRegions.length} remaining regions, cleaning up non-overlapping tiles`);
-        
+        console.log(
+          `🔍 Style ${foundStyle.key} has ${remainingRegions.length} remaining regions, cleaning up non-overlapping tiles`
+        );
+
         // Delete tiles that don't overlap with any remaining regions
-        const deletedTileCount = await this.deleteNonOverlappingTiles(foundStyle.key, remainingRegions);
-        
+        const deletedTileCount = await this.deleteNonOverlappingTiles(
+          foundStyle.key,
+          remainingRegions
+        );
+
         // Update the style entry with the remaining regions
         await db.put('styles', foundStyle);
-        
-        console.log(`✅ Region ${regionId} deleted successfully from style ${foundStyle.key}, cleaned up ${deletedTileCount} non-overlapping tiles`);
+
+        console.log(
+          `✅ Region ${regionId} deleted successfully from style ${foundStyle.key}, cleaned up ${deletedTileCount} non-overlapping tiles`
+        );
       }
-      
+
       console.log(`🎉 Region deletion completed successfully for: ${regionId}`);
-      
     } catch (error) {
       console.error(`❌ Error during region deletion for ${regionId}:`, error);
       throw error; // Re-throw to let UI handle the error
@@ -349,4 +355,37 @@ export class RegionService {
     return regions as OfflineRegionOptions[];
   }
 
+  /**
+   * List all stored regions from styles (used for UI and fitBounds)
+   */
+  async listStoredRegions(): Promise<StoredRegion[]> {
+    try {
+      const { loadStyles } = await import('./styleService');
+      const styles = await loadStyles();
+      const allRegions: StoredRegion[] = [];
+      for (const style of styles) {
+        if (style.regions && Array.isArray(style.regions)) {
+          const regionsWithStyle = style.regions.map(
+            region =>
+              ({
+                ...region,
+                key: region.id,
+                styleId: style.key,
+                created: region.created || Date.now(),
+                lastModified: region.updated || region.created || Date.now(),
+                expiry: region.expiry || Date.now() + 30 * 24 * 60 * 60 * 1000,
+              }) as StoredRegion
+          );
+          allRegions.push(...regionsWithStyle);
+        }
+      }
+      console.log('📋 Extracted regions from styles:', allRegions);
+      return allRegions;
+    } catch (error) {
+      console.error('Error loading regions from styles:', error);
+      // Fallback to cleanup service method if available
+      // return this.cleanupService.getAllRegions();
+      return [];
+    }
+  }
 }
