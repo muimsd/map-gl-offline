@@ -76,9 +76,18 @@ export async function fetchResourceWithRetry(
       return { type, data };
     } catch (error) {
       if (attempt === retries) {
-        throw new Error(
-          `Failed to fetch ${url} after ${retries + 1} attempts: ${error instanceof Error ? error.message : 'Unknown error'}`
-        );
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        let enhancedMessage = `Failed to fetch ${url} after ${retries + 1} attempts: ${errorMessage}`;
+        
+        // Provide helpful CORS guidance
+        if (errorMessage.includes('CORS') || errorMessage.includes('Cross-Origin')) {
+          enhancedMessage += '\n\n💡 CORS Issue Detected:\n' +
+            '• Use a local development server with proxy (check vite.config.ts)\n' +
+            '• Or try a different tile provider that allows CORS\n' +
+            '• For production, implement a server-side proxy';
+        }
+        
+        throw new Error(enhancedMessage);
       }
 
       // Wait before retrying

@@ -25,18 +25,18 @@ export class TileService {
   ): Promise<TileDownloadResult> {
     const db = await this.db;
     const {
-      _onProgress,
+      onProgress: _onProgress,
       batchSize = 20,
       maxRetries = 3,
       skipExisting = true,
-      maxConcurrency = 10,
+      maxConcurrency: _maxConcurrency = 10,
       retryDelay = 1000,
       timeout = 15000,
       validateTiles = true,
       compressTiles = false,
       priorityZoomLevels = [],
       bandwidthLimit,
-      _storageQuotaCheck = true,
+      storageQuotaCheck = true,
     } = options;
 
     const startTime = Date.now();
@@ -58,7 +58,7 @@ export class TileService {
     console.warn(`Generated ${tileCoords.length} tile coordinates for region:`, region.id);
 
     // Get tile sources from style
-    const tileSources = this.extractTileSources(style);
+    const tileSources = await this.extractTileSources(style);
     console.warn(`Found ${tileSources.size} tile sources:`, Array.from(tileSources.keys()));
 
     // Calculate expected total downloads
@@ -265,11 +265,11 @@ export class TileService {
 
             errors.push({
               url: tileUrl,
-              error: error instanceof Error ? error.message : String(error),
+              error: _error instanceof Error ? _error.message : String(_error),
             });
             console.error(
               `Failed to download tile ${coord.z}/${coord.x}/${coord.y} from ${sourceId}:`,
-              error
+              _error
             );
           }
         },
@@ -469,7 +469,7 @@ export class TileService {
     return tiles;
   }
 
-  private extractTileSources(style: MapboxStyle): Map<string, any> {
+  private async extractTileSources(style: MapboxStyle): Promise<Map<string, any>> {
     const tileSources = new Map();
 
     if (!style || !style.sources) {
@@ -520,35 +520,62 @@ export class TileService {
           }
 
           try {
-            // For TileJSON URLs, try to extract a usable tile URL pattern
+            // For TileJSON URLs, fetch the actual TileJSON to get real tile URLs
             let tileUrlPattern: string;
+            let tiles: string[] = [];
 
-            // Handle different TileJSON URL formats
-            if (config.url.includes('tilejson+')) {
-              tileUrlPattern = config.url
-                .replace('tilejson+', '')
-                .replace('.json', '/{z}/{x}/{y}.pbf');
-            } else if (config.url.endsWith('.json')) {
-              // Assume it's a TileJSON endpoint that follows the pattern: base/tilejson.json → base/{z}/{x}/{y}.extension
-              const urlBase = config.url.substring(0, config.url.lastIndexOf('/'));
-              tileUrlPattern = `${urlBase}/{z}/{x}/{y}.pbf`; // Default to pbf extension
+            if (config.url.endsWith('.json') || config.url.includes('tilejson')) {
+              try {
+                // Fetch the TileJSON
+                const tilejsonUrl = config.url.replace('tilejson+', '');
+                console.warn(`Fetching TileJSON from: ${tilejsonUrl}`);
+                
+                const response = await fetchResourceWithRetry(tilejsonUrl, {
+                  timeout: 10000,
+                  retries: 2
+                });
+                
+                if (response.type === 'json' && (response.data as any).tiles) {
+                  tiles = (response.data as any).tiles;
+                  tileUrlPattern = tiles[0]; // Use the first tile URL as the pattern
+                  console.warn(`Got ${tiles.length} tile URLs from TileJSON:`, tiles[0]);
+                } else {
+                  throw new Error('Invalid TileJSON response');
+                }
+              } catch (tilejsonError) {
+                console.warn(`Failed to fetch TileJSON from ${config.url}, falling back to pattern generation:`, tilejsonError);
+                
+                // Fallback to pattern generation
+                if (config.url.includes('tilejson+')) {
+                  tileUrlPattern = config.url
+                    .replace('tilejson+', '')
+                    .replace('.json', '/{z}/{x}/{y}.pbf');
+                } else if (config.url.endsWith('.json')) {
+                  const urlBase = config.url.substring(0, config.url.lastIndexOf('/'));
+                  tileUrlPattern = `${urlBase}/{z}/{x}/{y}.pbf`;
+                } else {
+                  tileUrlPattern = `${config.url}/{z}/{x}/{y}.pbf`;
+                }
+                tiles = [tileUrlPattern];
+              }
             } else {
-              // Just use the URL as is with coordinates
+              // Handle non-JSON URLs
               tileUrlPattern = `${config.url}/{z}/{x}/{y}.pbf`;
+              tiles = [tileUrlPattern];
             }
 
-            // Create a config with a tiles array
+            // Create a config with the actual tiles array
             const enhancedConfig = {
               ...config,
-              tiles: [tileUrlPattern],
+              tiles: tiles,
             };
 
             tileSources.set(sourceId, enhancedConfig);
             console.warn(
-              `Enhanced tile source: ${sourceId} with generated tile URL pattern: ${tileUrlPattern}`
+              `Enhanced tile source: ${sourceId} with tile URL pattern: ${tileUrlPattern}`
             );
           } catch (_error) {
-            console.warn(`Failed to process TileJSON URL for source ${sourceId}:`, error);
+            console.warn(`Failed to process TileJSON URL for source ${sourceId}:`, _error);
 
             // Fallback to a simple placeholder
             const placeholderConfig = {
@@ -610,7 +637,7 @@ export class TileService {
     return existingKeys;
   }
 
-  private async compressTile(data: ArrayBuffer, contentType: string): Promise<ArrayBuffer> {
+  private async compressTile(data: ArrayBuffer, _contentType: string): Promise<ArrayBuffer> {
     // Simple compression placeholder - in practice, you might use a compression library
     // For now, just return the original data
     return data;

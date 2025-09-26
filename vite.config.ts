@@ -6,6 +6,47 @@ export default defineConfig({
   root: '.',
   server: {
     open: true, // Automatically open the browser
+    proxy: {
+      // Proxy Carto tile requests to avoid CORS issues
+      '/tiles/carto-a': {
+        target: 'https://tiles-a.basemaps.cartocdn.com',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/tiles\/carto-a/, ''),
+        headers: {
+          'User-Agent': 'map-gl-offline-dev',
+        },
+      },
+      '/tiles/carto-b': {
+        target: 'https://tiles-b.basemaps.cartocdn.com',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/tiles\/carto-b/, ''),
+        headers: {
+          'User-Agent': 'map-gl-offline-dev',
+        },
+      },
+      '/tiles/carto-c': {
+        target: 'https://tiles-c.basemaps.cartocdn.com',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/tiles\/carto-c/, ''),
+        headers: {
+          'User-Agent': 'map-gl-offline-dev',
+        },
+      },
+      '/tiles/carto-d': {
+        target: 'https://tiles-d.basemaps.cartocdn.com',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/tiles\/carto-d/, ''),
+        headers: {
+          'User-Agent': 'map-gl-offline-dev',
+        },
+      },
+      // Proxy other common tile providers
+      '/tiles/osm': {
+        target: 'https://tile.openstreetmap.org',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/tiles\/osm/, ''),
+      }
+    }
   },
   plugins: [
     tsconfigPaths(),
