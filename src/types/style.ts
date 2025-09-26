@@ -29,8 +29,10 @@ export interface MapboxGLStyle extends BaseStyle {
   visibility?: 'public' | 'private';
 }
 
-// Alias for backward compatibility
-export interface MapboxStyle extends BaseStyle {}
+// Alias for backward compatibility - extending with provider info
+export interface MapboxStyle extends BaseStyle {
+  provider?: 'mapbox';
+}
 
 // Enhanced StyleEntry that can handle both providers
 export type StyleEntry = {

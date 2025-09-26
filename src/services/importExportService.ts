@@ -137,7 +137,7 @@ export class ImportExportService {
           fontsExported: exportData.fonts.length,
         },
       };
-    } catch (error) {
+    } catch (_error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
       throw new Error(`Export failed: ${errorMessage}`);
     }
@@ -211,7 +211,7 @@ export class ImportExportService {
           fontsExported: 0,
         },
       };
-    } catch (error) {
+    } catch (_error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
       throw new Error(`PMTiles export failed: ${errorMessage}`);
     }
@@ -288,7 +288,7 @@ export class ImportExportService {
           fontsExported: 0,
         },
       };
-    } catch (error) {
+    } catch (_error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
       throw new Error(`MBTiles export failed: ${errorMessage}`);
     }
@@ -320,7 +320,7 @@ export class ImportExportService {
       const result = await this.importRegionData(regionData, importData);
 
       return result;
-    } catch (error) {
+    } catch (_error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
       return {
         success: false,
@@ -347,7 +347,7 @@ export class ImportExportService {
     try {
       const result = await store.get(regionId);
       return result || null;
-    } catch (error) {
+    } catch (_error) {
       console.error('Error getting region metadata:', error);
       return null;
     }
@@ -364,7 +364,7 @@ export class ImportExportService {
     try {
       const style = await store.get(regionId);
       return style || {};
-    } catch (error) {
+    } catch (_error) {
       console.error('Error exporting style:', error);
       return {};
     }
@@ -416,7 +416,7 @@ export class ImportExportService {
       }
 
       return tiles;
-    } catch (error) {
+    } catch (_error) {
       console.error('Error exporting tiles:', error);
       return [];
     }
@@ -450,7 +450,7 @@ export class ImportExportService {
       }
 
       return sprites;
-    } catch (error) {
+    } catch (_error) {
       console.error('Error exporting sprites:', error);
       return [];
     }
@@ -483,7 +483,7 @@ export class ImportExportService {
       }
 
       return fonts;
-    } catch (error) {
+    } catch (_error) {
       console.error('Error exporting fonts:', error);
       return [];
     }
@@ -663,7 +663,7 @@ export class ImportExportService {
           totalSize: 0, // Calculate if needed
         },
       };
-    } catch (error) {
+    } catch (_error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
       throw new Error(`Failed to import region data: ${errorMessage}`);
     }

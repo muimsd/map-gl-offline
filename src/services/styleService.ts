@@ -12,7 +12,6 @@ import {
 import type {
   StyleEntry,
   BaseStyle,
-  MapboxStyle,
   StyleProvider,
   StyleDownloadOptions,
   StyleDownloadResult,
@@ -63,16 +62,16 @@ export async function downloadStyles(
   options: StyleDownloadOptions = {}
 ): Promise<StyleDownloadResult> {
   const {
-    onProgress,
-    fontOptions,
-    spriteOptions,
+    _onProgress,
+    _fontOptions,
+    _spriteOptions,
     skipExisting = true,
-    validateStyle = true,
+    _validateStyle = true,
     maxRetries = 3,
     timeoutMs = 30000,
     enableSourceEmbedding = true,
     storageQuotaCheck = false,
-    includeMetadata = true,
+    _includeMetadata = true,
   } = options;
 
   const startTime = Date.now();
@@ -101,7 +100,7 @@ export async function downloadStyles(
             `Insufficient storage space. Available: ${(availableSpace / 1024 / 1024).toFixed(1)}MB, Estimated need: ${(estimatedSize / 1024 / 1024).toFixed(1)}MB`
           );
         }
-      } catch (error) {
+      } catch (_error) {
         console.warn('Could not check storage quota:', error);
       }
     }
@@ -212,7 +211,7 @@ export async function downloadStyles(
             style.sources[sourceKey] = { ...source, ...sourceData }; // Embed source data
             sourcesEmbedded++;
             console.warn(`Embedded source data for ${sourceKey}`);
-          } catch (error) {
+          } catch (_error) {
             const errorMsg = `Failed to fetch source for ${sourceKey}: ${error instanceof Error ? error.message : 'Unknown error'}`;
             errors.push(errorMsg);
             console.warn(errorMsg);
@@ -327,7 +326,7 @@ export async function downloadStyles(
         if (includeMetadata) {
           styleStorageItem.fonts = fontUrls;
         }
-      } catch (error) {
+      } catch (_error) {
         const errorMsg = `Font download failed: ${error instanceof Error ? error.message : 'Unknown error'}`;
         errors.push(errorMsg);
         console.warn(errorMsg);
@@ -397,7 +396,7 @@ export async function downloadStyles(
             );
           }
         }
-      } catch (error) {
+      } catch (_error) {
         const errorMsg = `Glyph download failed: ${error instanceof Error ? error.message : 'Unknown error'}`;
         errors.push(errorMsg);
         console.warn(errorMsg);
@@ -463,7 +462,7 @@ export async function downloadStyles(
         if (includeMetadata) {
           styleStorageItem.sprites = spriteVariants;
         }
-      } catch (error) {
+      } catch (_error) {
         const errorMsg = `Sprite download failed: ${error instanceof Error ? error.message : 'Unknown error'}`;
         errors.push(errorMsg);
         console.warn(errorMsg);
@@ -507,7 +506,7 @@ export async function downloadStyles(
         hasSprites: !!style.sprite,
       },
     };
-  } catch (error) {
+  } catch (_error) {
     const errorMsg = `Failed to download style from ${stylesUrl}: ${error instanceof Error ? error.message : 'Unknown error'}`;
     console.error('Error downloading styles:', error);
     errors.push(errorMsg);
@@ -563,7 +562,7 @@ export async function loadStyles(): Promise<StyleStorageItem[]> {
     const styles = await store.getAll();
     await tx.oncomplete;
     return styles;
-  } catch (error) {
+  } catch (_error) {
     console.error('Error loading styles:', error);
     return [];
   }
@@ -577,7 +576,7 @@ export async function loadStyleById(styleId: string): Promise<StyleStorageItem |
     const style = await store.get(styleId);
     await tx.oncomplete;
     return style || null;
-  } catch (error) {
+  } catch (_error) {
     console.error(`Error loading style with ID ${styleId}:`, error);
     return null;
   }
@@ -591,7 +590,7 @@ export async function deleteStyles(): Promise<void> {
     await store.clear();
     await tx.oncomplete;
     console.warn('All styles deleted successfully');
-  } catch (error) {
+  } catch (_error) {
     console.error('Error deleting styles:', error);
   }
 }
@@ -601,7 +600,7 @@ export async function deleteStyleById(styleId: string): Promise<void> {
     const db = await dbPromise;
     await db.delete('styles', styleId);
     console.warn(`Style with ID ${styleId} deleted successfully`);
-  } catch (error) {
+  } catch (_error) {
     console.error(`Error deleting style with ID ${styleId}:`, error);
   }
 }
@@ -736,7 +735,7 @@ export async function getStyleStats(): Promise<EnhancedStyleStats> {
       smallestStyle,
       storageRecommendations,
     };
-  } catch (error) {
+  } catch (_error) {
     console.error('Error getting enhanced style stats:', error);
     return {
       count: 0,
@@ -835,7 +834,7 @@ export async function cleanupOldStyles(
           total: stylesToDelete.length,
           message: `Deleted style: ${style.id}`,
         });
-      } catch (error) {
+      } catch (_error) {
         const errorMsg = `Failed to delete style ${style.id}: ${error instanceof Error ? error.message : 'Unknown error'}`;
         errors.push(errorMsg);
         console.warn(errorMsg);
@@ -846,7 +845,7 @@ export async function cleanupOldStyles(
       `Style cleanup completed: ${deletedCount} styles deleted, ${(freedSpace / 1024).toFixed(1)}KB freed`
     );
     return { deletedCount, freedSpace, errors };
-  } catch (error) {
+  } catch (_error) {
     console.error('Error during style cleanup:', error);
     return {
       deletedCount: 0,
@@ -885,7 +884,7 @@ export async function verifyAndValidateStyles(
   errors: Array<{ id: string; error: string }>;
 }> {
   const db = await dbPromise;
-  const { onProgress, autoRepair = false } = options;
+  const { _onProgress, autoRepair = false } = options;
 
   try {
     const allStyles = await loadStyles();
@@ -936,7 +935,7 @@ export async function verifyAndValidateStyles(
           total: allStyles.length,
           message: `Verified style: ${style.id} (${isValid ? 'valid' : 'invalid'})`,
         });
-      } catch (error) {
+      } catch (_error) {
         invalidCount++;
         const errorMsg = error instanceof Error ? error.message : 'Unknown error';
         errors.push({ id: style.id!, error: errorMsg });
@@ -960,7 +959,7 @@ export async function verifyAndValidateStyles(
       repairedStyles: repairedCount,
       errors,
     };
-  } catch (error) {
+  } catch (_error) {
     console.error('Error during style verification:', error);
     return {
       totalStyles: 0,
@@ -1030,7 +1029,7 @@ export async function getStyleAnalytics(): Promise<{
       averageSourcesPerStyle: stats.count > 0 ? totalSources / stats.count : 0,
       recommendations,
     };
-  } catch (error) {
+  } catch (_error) {
     console.error('Error getting style analytics:', error);
     return {
       totalStyles: 0,
@@ -1063,36 +1062,36 @@ export async function downloadStyleWithProvider(
     provider: explicitProvider,
     accessToken: explicitAccessToken,
     forceProvider = false,
-    onProgress,
-    fontOptions,
-    spriteOptions,
+    _onProgress,
+    _fontOptions,
+    _spriteOptions,
     skipExisting = false,
-    validateStyle = true,
+    _validateStyle = true,
     maxRetries = 3,
     timeoutMs = 30000,
-    enableSourceEmbedding = false,
-    storageQuotaCheck = true,
-    includeMetadata = true,
+    _enableSourceEmbedding = false,
+    _storageQuotaCheck = true,
+    _includeMetadata = true,
   } = options;
 
   const startTime = Date.now();
-  console.log(`🎨 Downloading style from: ${styleUrl}`);
+  console.warn(`🎨 Downloading style from: ${styleUrl}`);
 
   try {
     // Auto-detect provider if not explicitly set
     const detectedProvider = explicitProvider || detectStyleProvider(styleUrl);
     const extractedToken = explicitAccessToken || extractAccessToken(styleUrl);
 
-    console.log(`📊 Detected provider: ${detectedProvider}`);
+    console.warn(`📊 Detected provider: ${detectedProvider}`);
     if (extractedToken) {
-      console.log(`🔑 Access token detected`);
+      console.warn(`🔑 Access token detected`);
     }
 
     // Normalize the style URL with access token if needed
     const normalizedUrl = normalizeStyleUrl(styleUrl, extractedToken || undefined);
 
     // Fetch the style
-    console.log(`📥 Fetching style from: ${normalizedUrl}`);
+    console.warn(`📥 Fetching style from: ${normalizedUrl}`);
     const response = await fetchWithRetry(normalizedUrl, {
       timeout: timeoutMs,
       retries: maxRetries,
@@ -1103,7 +1102,7 @@ export async function downloadStyleWithProvider(
     }
 
     const style = (await response.json()) as BaseStyle;
-    console.log(`✅ Style fetched successfully`);
+    console.warn(`✅ Style fetched successfully`);
 
     // Process style for the detected provider
     const processedStyle = processStyleSources(
@@ -1127,7 +1126,7 @@ export async function downloadStyleWithProvider(
     if (skipExisting) {
       const existingStyle = await db.get('styles', styleId);
       if (existingStyle) {
-        console.log(`⏭️  Style ${styleId} already exists, skipping`);
+        console.warn(`⏭️  Style ${styleId} already exists, skipping`);
         return {
           styleId,
           success: true,
@@ -1160,7 +1159,7 @@ export async function downloadStyleWithProvider(
     await db.put('styles', styleEntry);
 
     const downloadTime = Date.now() - startTime;
-    console.log(`✅ Style ${styleId} downloaded successfully in ${downloadTime}ms`);
+    console.warn(`✅ Style ${styleId} downloaded successfully in ${downloadTime}ms`);
 
     return {
       styleId,
@@ -1178,7 +1177,7 @@ export async function downloadStyleWithProvider(
         hasSprites: !!processedStyle.sprite,
       },
     };
-  } catch (error) {
+  } catch (_error) {
     console.error(`❌ Failed to download style from ${styleUrl}:`, error);
     return {
       styleId: '',

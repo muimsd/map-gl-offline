@@ -280,10 +280,13 @@ export class OfflineManagerControl implements IControl {
 
     this.offlineManager
       .listStoredRegions()
-      .then((regions) => {
-        console.warn('[fitBounds] Available region IDs:', regions.map((r) => r.id));
+      .then(regions => {
+        console.warn(
+          '[fitBounds] Available region IDs:',
+          regions.map(r => r.id)
+        );
         console.warn('[fitBounds] Requested regionId:', regionId);
-        const region = regions.find((r) => r.id === regionId);
+        const region = regions.find(r => r.id === regionId);
         if (!region) {
           console.warn(`[fitBounds] Region with id ${regionId} not found.`);
           return;
@@ -292,10 +295,15 @@ export class OfflineManagerControl implements IControl {
         if (region.bounds) {
           // Validate bounds format
           const bounds = region.bounds;
-          const isValid = Array.isArray(bounds) && bounds.length === 2 &&
-            Array.isArray(bounds[0]) && bounds[0].length === 2 &&
-            Array.isArray(bounds[1]) && bounds[1].length === 2 &&
-            bounds[0].every(Number.isFinite) && bounds[1].every(Number.isFinite);
+          const isValid =
+            Array.isArray(bounds) &&
+            bounds.length === 2 &&
+            Array.isArray(bounds[0]) &&
+            bounds[0].length === 2 &&
+            Array.isArray(bounds[1]) &&
+            bounds[1].length === 2 &&
+            bounds[0].every(Number.isFinite) &&
+            bounds[1].every(Number.isFinite);
           if (!isValid) {
             console.error(`[fitBounds] Invalid bounds for region`, bounds);
             return;
@@ -413,9 +421,9 @@ export class OfflineManagerControl implements IControl {
     if (!this.map) return;
 
     const sourceId = 'region-bbox-source';
-    const source = this.map.getSource(sourceId) as any;
+    const source = this.map.getSource(sourceId) as maplibregl.GeoJSONSource;
 
-    if (source) {
+    if (source && 'setData' in source) {
       source.setData({
         type: 'FeatureCollection',
         features: [],
@@ -433,8 +441,6 @@ export class OfflineManagerControl implements IControl {
     }
 
     try {
-      console.log(`🔄 Loading offline style: ${styleId}`);
-
       const { loadStyleById } = await import('../services/styleService');
       const { patchStyleForOffline } = await import('../utils/styleUtils');
 
@@ -449,13 +455,9 @@ export class OfflineManagerControl implements IControl {
       // Patch the style for offline use
       const patchedStyle = patchStyleForOffline(styleEntry.style, styleId);
 
-      console.log(`🎨 Applying patched offline style for: ${styleId}`);
-      console.log('Patched style sources:', Object.keys(patchedStyle.sources || {}));
-
       // Apply the patched style to the map
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       this.map.setStyle(patchedStyle as any);
-
-      console.log(`✅ Offline style ${styleId} loaded successfully`);
     } catch (error) {
       console.error(`❌ Error loading offline style ${styleId}:`, error);
     }
@@ -486,14 +488,12 @@ export class OfflineManagerControl implements IControl {
       // If only one style, load it directly
       if (styles.length === 1) {
         const styleToLoad = styles[0];
-        console.log('Loading single available style:', styleToLoad.key);
         await this.loadOfflineStyle(styleToLoad.key);
         this.renderPanel();
         return;
       }
 
       // Multiple styles - show selection dialog
-      console.log(`Found ${styles.length} offline styles available`);
       this.showStyleSelectionModal(styles);
     } catch (error) {
       console.error('Error loading styles from IDB:', error);
@@ -503,7 +503,9 @@ export class OfflineManagerControl implements IControl {
   /**
    * Show modal to select which style to load
    */
-  private showStyleSelectionModal(styles: any[]): void {
+  private showStyleSelectionModal(
+    styles: { key: string; style: { name?: string; sources?: object }; regions?: unknown[] }[]
+  ): void {
     // Create a simple selection modal
     const modal = document.createElement('div');
     modal.className = 'offline-modal-overlay';
@@ -547,7 +549,6 @@ export class OfflineManagerControl implements IControl {
         const styleId = button.getAttribute('data-style-id');
         if (styleId) {
           document.body.removeChild(modal);
-          console.log(`User selected style: ${styleId}`);
           await this.loadOfflineStyle(styleId);
           this.renderPanel();
         }
@@ -583,7 +584,6 @@ export class OfflineManagerControl implements IControl {
    */
   updateStyleUrl(newStyleUrl: string): void {
     this.options.styleUrl = newStyleUrl;
-    console.log(`🔄 Offline manager style URL updated to: ${newStyleUrl}`);
 
     // Update any active regions or downloads to use the new style
     if (this.regionControl) {

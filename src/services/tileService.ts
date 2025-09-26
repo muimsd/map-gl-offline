@@ -25,7 +25,7 @@ export class TileService {
   ): Promise<TileDownloadResult> {
     const db = await this.db;
     const {
-      onProgress,
+      _onProgress,
       batchSize = 20,
       maxRetries = 3,
       skipExisting = true,
@@ -36,7 +36,7 @@ export class TileService {
       compressTiles = false,
       priorityZoomLevels = [],
       bandwidthLimit,
-      storageQuotaCheck = true,
+      _storageQuotaCheck = true,
     } = options;
 
     const startTime = Date.now();
@@ -255,7 +255,7 @@ export class TileService {
                 `Source ${sourceId}: Downloaded ${sourceDownloadedTiles}/${coordsToDownload.length} tiles`
               );
             }
-          } catch (error) {
+          } catch (_error) {
             failedTiles++;
             sourceFailedTiles++;
             const tileUrl = tileUrlTemplate
@@ -547,7 +547,7 @@ export class TileService {
             console.warn(
               `Enhanced tile source: ${sourceId} with generated tile URL pattern: ${tileUrlPattern}`
             );
-          } catch (error) {
+          } catch (_error) {
             console.warn(`Failed to process TileJSON URL for source ${sourceId}:`, error);
 
             // Fallback to a simple placeholder

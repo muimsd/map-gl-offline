@@ -17,17 +17,13 @@ export class FontService {
   ): Promise<FontDownloadResult> {
     const db = await this.db;
     const {
-      onProgress,
       batchSize = 10,
       maxRetries = 3,
-      corsProxy,
       skipExisting = true,
       retryDelay = 1000,
       timeout = 30000,
       validateFonts = true,
-      maxConcurrency = 5,
-      storageQuotaCheck = true,
-      continueOnError = true,
+      _storageQuotaCheck = true,
       quietMode = false,
     } = options;
 
@@ -123,7 +119,7 @@ export class FontService {
           // Track font types
           const fontType = this.detectFontType(contentType, fontUrl);
           fontsByType[fontType] = (fontsByType[fontType] || 0) + 1;
-        } catch (error) {
+        } catch (_error) {
           failedFonts++;
           const errorMessage = error instanceof Error ? error.message : String(error);
           errors.push({
@@ -278,7 +274,7 @@ export class FontService {
           await this.validateFont(fontEntry.data, fontEntry.contentType);
           verified++;
         }
-      } catch (error) {
+      } catch {
         // Try to repair or remove
         try {
           // Attempt basic repair by re-downloading
@@ -297,7 +293,7 @@ export class FontService {
             await cursor.delete();
             removed++;
           }
-        } catch (repairError) {
+        } catch {
           await cursor.delete();
           removed++;
         }

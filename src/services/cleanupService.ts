@@ -1,11 +1,5 @@
 import { dbPromise } from '../storage/indexedDbManager';
-import type {
-  StoredRegion,
-  OfflineRegionOptions,
-  RegionCleanupOptions,
-  CleanupResult,
-  RegionAnalytics,
-} from '../types';
+import type { StoredRegion, RegionCleanupOptions, CleanupResult, RegionAnalytics } from '../types';
 
 export class CleanupService {
   private db = dbPromise;
@@ -22,7 +16,7 @@ export class CleanupService {
       maxStorageSize,
       maxRegions,
       priorityPatterns = [],
-      onProgress,
+      _onProgress,
     } = options;
 
     const result: CleanupResult = {
@@ -97,7 +91,7 @@ export class CleanupService {
         message: 'Cleaning up regions...',
       });
 
-      let regionsToDelete: StoredRegion[] = [...expiredRegions];
+      const regionsToDelete: StoredRegion[] = [...expiredRegions];
 
       // Apply storage size limit
       if (maxStorageSize) {
@@ -142,7 +136,7 @@ export class CleanupService {
             total: 100,
             message: `Deleted region: ${region.name || region.id}`,
           });
-        } catch (error) {
+        } catch (_error) {
           result.errors.push(`Failed to delete region ${region.id}: ${error}`);
         }
       }
@@ -159,7 +153,7 @@ export class CleanupService {
         total: 100,
         message: 'Cleanup completed',
       });
-    } catch (error) {
+    } catch (_error) {
       result.errors.push(`Cleanup failed: ${error}`);
     }
 
@@ -259,10 +253,10 @@ export class CleanupService {
     const intervalId = setInterval(
       async () => {
         try {
-          console.log('Running automatic cleanup...');
+          console.warn('Running automatic cleanup...');
           const result = await this.performCleanup(cleanupOptions);
-          console.log('Auto cleanup completed:', result);
-        } catch (error) {
+          console.warn('Auto cleanup completed:', result);
+        } catch (_error) {
           console.error('Auto cleanup failed:', error);
         }
       },
@@ -277,7 +271,7 @@ export class CleanupService {
   async stopAutoCleanup(cleanupId?: string): Promise<void> {
     if (cleanupId) {
       // Stop specific cleanup - would need to track IDs
-      console.log(`Stopping cleanup ${cleanupId}`);
+      console.warn(`Stopping cleanup ${cleanupId}`);
     } else {
       // Stop all auto cleanups
       for (const intervalId of this.autoCleanupIntervals) {
@@ -352,7 +346,7 @@ export class CleanupService {
           }
           cursor = await cursor.continue();
         }
-      } catch (error) {
+      } catch (_error) {
         console.warn(`Could not calculate size for store ${storeName}:`, error);
       }
     }
@@ -448,9 +442,9 @@ export class CleanupService {
 }
 
 // Export functions for backward compatibility
-export const cleanupService = new CleanupService(async (regionId: string, styleId?: string) => {
-  // This would be injected by the main manager
-  console.warn('Delete region callback not properly configured');
+export const cleanupService = new CleanupService(async (_regionId: string, _styleId?: string) => {
+  // This will be implemented by RegionService
+  console.warn('CleanupService: Region deletion not implemented');
 });
 
 export const performCleanup = (options?: RegionCleanupOptions) =>

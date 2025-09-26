@@ -63,7 +63,7 @@ export class MaintenanceService {
               integrityResults.sprites.repaired += spriteResult.repairedSprites;
               integrityResults.glyphs.corrupted += glyphResult.corruptedGlyphs;
               integrityResults.glyphs.repaired += glyphResult.repairedGlyphs;
-            } catch (error) {
+            } catch (_error) {
               console.warn(`Integrity check failed for style ${styleId}:`, error);
             }
           }
@@ -112,7 +112,7 @@ export class MaintenanceService {
         ...results,
         totalTimeMs: Date.now() - startTime,
       } as MaintenanceResults;
-    } catch (error) {
+    } catch (_error) {
       console.error('Maintenance operation failed:', error);
       throw error;
     }

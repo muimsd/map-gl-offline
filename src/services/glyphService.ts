@@ -1,5 +1,5 @@
 import { dbPromise } from '../storage/indexedDbManager';
-import { fetchWithRetry, createProgressTracker } from '../utils';
+import { fetchWithRetry } from '../utils';
 import type { GlyphDownloadOptions, GlyphDownloadResult, GlyphEntry, GlyphRange } from '../types';
 
 export interface EnhancedGlyphStats {
@@ -35,8 +35,8 @@ export class GlyphService {
       maxConcurrency = 5,
       retries = 3,
       timeout = 10000,
-      onProgress,
-      includeMetadata = false,
+      _onProgress,
+      _includeMetadata = false,
       enableValidation = true,
       priorityFonts = [],
     } = options;
@@ -134,7 +134,7 @@ export class GlyphService {
           if (data.byteLength < smallestGlyph.size) {
             smallestGlyph = { fontstack, range, size: data.byteLength };
           }
-        } catch (error) {
+        } catch (_error) {
           failedGlyphs++;
           errors.push(`${glyphKey}: ${error instanceof Error ? error.message : String(error)}`);
         }
@@ -319,7 +319,7 @@ export class GlyphService {
     const db = await this.db;
 
     let verified = 0;
-    let repaired = 0;
+    const repaired = 0;
     let removed = 0;
 
     const tx = db.transaction('glyphs', 'readwrite');
@@ -335,7 +335,7 @@ export class GlyphService {
           this.validateGlyphData(glyphEntry.data);
           verified++;
         }
-      } catch (error) {
+      } catch (_error) {
         // Remove corrupted glyphs (they can be re-downloaded)
         await cursor.delete();
         removed++;

@@ -17,16 +17,16 @@ export class SpriteService {
   ): Promise<SpriteDownloadResult> {
     const db = await this.db;
     const {
-      onProgress,
+      _onProgress,
       batchSize = 5,
       maxRetries = 3,
       skipExisting = true,
       bandwidthLimit,
       prioritySprites = [],
-      storageQuotaCheck = true,
+      _storageQuotaCheck = true,
       enableValidation = true,
       timeoutMs = 15000,
-      includeMetadata = false,
+      _includeMetadata = false,
     } = options;
 
     const startTime = Date.now();
@@ -191,7 +191,7 @@ export class SpriteService {
           if (spriteData.byteLength < smallestSprite.size) {
             smallestSprite = { name: spriteName, size: spriteData.byteLength };
           }
-        } catch (error) {
+        } catch (_error) {
           failedSprites++;
           const errorMessage = error instanceof Error ? error.message : String(error);
           errors.push({
@@ -395,7 +395,7 @@ export class SpriteService {
           await this.validateSprite(spriteEntry.data, spriteEntry.contentType || 'image/png');
           verified++;
         }
-      } catch (error) {
+      } catch (_error) {
         // Try to repair by re-downloading
         try {
           const response = await fetch(spriteEntry.url);
