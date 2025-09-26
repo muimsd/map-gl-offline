@@ -33,7 +33,7 @@ export class List extends BaseComponent {
     super(config);
     this.config = {
       emptyText: 'No items to display',
-      ...config
+      ...config,
     };
     this.createListStructure();
     this.renderItems();
@@ -76,13 +76,14 @@ export class List extends BaseComponent {
 
   private createItemElement(item: ListItemConfig): HTMLElement {
     const itemElement = document.createElement('div');
-    itemElement.className = 'bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg p-4 hover:shadow-md transition-all duration-200';
+    itemElement.className =
+      'bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg p-4 hover:shadow-md transition-all duration-200';
     itemElement.dataset.itemId = item.id;
 
     // Add click handler for the entire item
     if (this.config.onItemClick) {
       itemElement.style.cursor = 'pointer';
-      itemElement.addEventListener('click', (e) => {
+      itemElement.addEventListener('click', e => {
         // Don't trigger if clicking on action buttons
         if ((e.target as HTMLElement).closest('[data-action]')) {
           return;
@@ -113,7 +114,7 @@ export class List extends BaseComponent {
     if (typeof data === 'string') {
       return `<div class="text-gray-900 dark:text-white">${data}</div>`;
     }
-    
+
     if (data.title || data.name) {
       return `
         <div class="text-gray-900 dark:text-white font-medium">
@@ -128,21 +129,22 @@ export class List extends BaseComponent {
 
   private createActionsContainer(item: ListItemConfig): HTMLElement {
     const actionsContainer = document.createElement('div');
-    actionsContainer.className = 'flex gap-2 mt-3 pt-3 border-t border-gray-200 dark:border-gray-600';
+    actionsContainer.className =
+      'flex gap-2 mt-3 pt-3 border-t border-gray-200 dark:border-gray-600';
 
     item.actions!.forEach(action => {
       const button = document.createElement('button');
       button.className = `px-3 py-1 rounded text-xs font-medium transition-colors ${this.getActionButtonClasses(action.variant)}`;
       button.dataset.action = action.action;
       button.dataset.itemId = item.id;
-      
+
       if (action.icon) {
         button.innerHTML = `${action.icon} <span class="ml-1">${action.label}</span>`;
       } else {
         button.textContent = action.label;
       }
 
-      button.addEventListener('click', (e) => {
+      button.addEventListener('click', e => {
         e.stopPropagation();
         if (this.config.onItemAction) {
           this.config.onItemAction(action.action, item.id, item.data);

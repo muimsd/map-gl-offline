@@ -59,7 +59,7 @@ export class RegionFormModal {
       closable: true,
       showThemeToggle: true,
       onClose: this.options.onCancel,
-      onThemeToggle: this.options.onThemeToggle
+      onThemeToggle: this.options.onThemeToggle,
     };
 
     this.modal = new Modal(modalConfig);
@@ -82,7 +82,7 @@ export class RegionFormModal {
   private createForm(bounds: [number, number, number, number], area: number): HTMLElement {
     const [west, south, east, north] = bounds;
     const styleUrl = this.options.styleUrl;
-    console.log("styleURL", styleUrl)
+    console.log('styleURL', styleUrl);
 
     const form = document.createElement('div');
     form.className = 'flex flex-col gap-4';
@@ -97,7 +97,8 @@ export class RegionFormModal {
     this.nameInput = document.createElement('input');
     this.nameInput.type = 'text';
     this.nameInput.placeholder = 'Enter region name...';
-    this.nameInput.className = 'w-full p-2 border border-gray-300 dark:border-gray-600 rounded-sm text-sm text-gray-900 dark:text-white bg-white dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent';
+    this.nameInput.className =
+      'w-full p-2 border border-gray-300 dark:border-gray-600 rounded-sm text-sm text-gray-900 dark:text-white bg-white dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent';
     nameGroup.appendChild(this.nameInput);
     form.appendChild(nameGroup);
 
@@ -116,7 +117,8 @@ export class RegionFormModal {
     this.minZoomInput.value = '1';
     this.minZoomInput.min = '0';
     this.minZoomInput.max = '20';
-    this.minZoomInput.className = 'w-full p-2 border border-gray-300 dark:border-gray-600 rounded-sm text-sm text-gray-900 dark:text-white bg-white dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent';
+    this.minZoomInput.className =
+      'w-full p-2 border border-gray-300 dark:border-gray-600 rounded-sm text-sm text-gray-900 dark:text-white bg-white dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent';
     minZoomDiv.appendChild(this.minZoomInput);
 
     const maxZoomDiv = document.createElement('div');
@@ -130,7 +132,8 @@ export class RegionFormModal {
     this.maxZoomInput.value = '14';
     this.maxZoomInput.min = '0';
     this.maxZoomInput.max = '20';
-    this.maxZoomInput.className = 'w-full p-2 border border-gray-300 dark:border-gray-600 rounded-sm text-sm text-gray-900 dark:text-white bg-white dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent';
+    this.maxZoomInput.className =
+      'w-full p-2 border border-gray-300 dark:border-gray-600 rounded-sm text-sm text-gray-900 dark:text-white bg-white dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent';
     maxZoomDiv.appendChild(this.maxZoomInput);
 
     zoomGroup.appendChild(minZoomDiv);
@@ -147,7 +150,8 @@ export class RegionFormModal {
     this.styleUrlInput = document.createElement('input');
     this.styleUrlInput.type = 'text';
     this.styleUrlInput.value = styleUrl;
-    this.styleUrlInput.className = 'w-full p-2 border border-gray-300 dark:border-gray-600 rounded-sm text-sm text-gray-900 dark:text-white bg-white dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent';
+    this.styleUrlInput.className =
+      'w-full p-2 border border-gray-300 dark:border-gray-600 rounded-sm text-sm text-gray-900 dark:text-white bg-white dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent';
     this.styleUrlInput.addEventListener('input', () => this.handleStyleUrlChange());
     styleGroup.appendChild(this.styleUrlInput);
     form.appendChild(styleGroup);
@@ -160,7 +164,8 @@ export class RegionFormModal {
       </label>
     `;
     this.providerSelect = document.createElement('select');
-    this.providerSelect.className = 'w-full p-2 border border-gray-300 dark:border-gray-600 rounded-sm text-sm text-gray-900 dark:text-white bg-white dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent';
+    this.providerSelect.className =
+      'w-full p-2 border border-gray-300 dark:border-gray-600 rounded-sm text-sm text-gray-900 dark:text-white bg-white dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent';
     this.providerSelect.innerHTML = `
       <option value="auto">Auto-detect</option>
       <option value="mapbox">Mapbox GL (requires access token)</option>
@@ -168,13 +173,13 @@ export class RegionFormModal {
     `;
     this.providerSelect.addEventListener('change', () => this.handleProviderChange());
     providerGroup.appendChild(this.providerSelect);
-    
+
     // Add provider info
     const providerInfo = document.createElement('div');
     providerInfo.className = 'text-xs text-gray-500 dark:text-gray-400 mt-1';
     providerInfo.textContent = 'Auto-detect will analyze the style URL to determine the provider';
     providerGroup.appendChild(providerInfo);
-    
+
     form.appendChild(providerGroup);
 
     // Access Token input (initially hidden)
@@ -189,9 +194,10 @@ export class RegionFormModal {
     this.accessTokenInput = document.createElement('input');
     this.accessTokenInput.type = 'password';
     this.accessTokenInput.placeholder = 'pk.eyJ1...';
-    this.accessTokenInput.className = 'w-full p-2 border border-gray-300 dark:border-gray-600 rounded-sm text-sm text-gray-900 dark:text-white bg-white dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent';
+    this.accessTokenInput.className =
+      'w-full p-2 border border-gray-300 dark:border-gray-600 rounded-sm text-sm text-gray-900 dark:text-white bg-white dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent';
     this.accessTokenGroup.appendChild(this.accessTokenInput);
-    
+
     // Add access token help text
     const tokenHelp = document.createElement('div');
     tokenHelp.className = 'text-xs text-gray-500 dark:text-gray-400 mt-1';
@@ -199,7 +205,7 @@ export class RegionFormModal {
       Get your access token from <a href="https://account.mapbox.com/access-tokens/" target="_blank" rel="noopener noreferrer" class="text-blue-600 dark:text-blue-400 hover:underline">Mapbox Account</a>
     `;
     this.accessTokenGroup.appendChild(tokenHelp);
-    
+
     form.appendChild(this.accessTokenGroup);
 
     // Initialize provider detection
@@ -207,7 +213,8 @@ export class RegionFormModal {
 
     // Region info display
     const infoGroup = document.createElement('div');
-    infoGroup.className = 'grid grid-cols-2 gap-2 p-3 bg-gray-50 dark:bg-gray-700 rounded-sm border border-gray-200 dark:border-gray-600';
+    infoGroup.className =
+      'grid grid-cols-2 gap-2 p-3 bg-gray-50 dark:bg-gray-700 rounded-sm border border-gray-200 dark:border-gray-600';
     infoGroup.innerHTML = `
       <div>
         <strong class="text-gray-900 dark:text-white">Area:</strong>
@@ -246,12 +253,16 @@ export class RegionFormModal {
    */
   private detectProviderFromUrl(): void {
     const styleUrl = this.styleUrlInput?.value || '';
-    
+
     // Simple detection logic
     if (styleUrl.includes('mapbox.com') || styleUrl.includes('api.mapbox.com')) {
       if (this.providerSelect) this.providerSelect.value = 'mapbox';
       this.toggleAccessTokenVisibility(true);
-    } else if (styleUrl.includes('maplibre') || styleUrl.includes('maptiler') || styleUrl.includes('carto')) {
+    } else if (
+      styleUrl.includes('maplibre') ||
+      styleUrl.includes('maptiler') ||
+      styleUrl.includes('carto')
+    ) {
       if (this.providerSelect) this.providerSelect.value = 'maplibre';
       this.toggleAccessTokenVisibility(false);
     } else {
@@ -287,7 +298,7 @@ export class RegionFormModal {
       onClick: () => {
         this.modal?.hide();
         this.options.onCancel();
-      }
+      },
     });
 
     // Save button
@@ -295,7 +306,7 @@ export class RegionFormModal {
       text: 'Download Region',
       variant: 'primary',
       icon: icons.download({ size: 16, color: 'white' }),
-      onClick: () => this.handleSave()
+      onClick: () => this.handleSave(),
     });
 
     footer.appendChild(cancelButton.getElement());

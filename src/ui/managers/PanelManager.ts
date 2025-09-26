@@ -45,7 +45,7 @@ export class PanelRenderer extends BaseComponent {
   private actionButtonsContainer?: HTMLElement;
   private regionsList?: List;
   private downloadProgressContainer?: HTMLElement;
-  
+
   // Debounce mechanism
   private refreshTimeout?: NodeJS.Timeout;
   private isRefreshing = false;
@@ -207,7 +207,7 @@ export class PanelRenderer extends BaseComponent {
    */
   private async renderRegionsList(regions: any[]): Promise<void> {
     console.log('🗂️ Rendering regions list with regions:', regions);
-    
+
     // Remove existing list
     if (this.regionsList) {
       this.regionsList.destroy();
@@ -220,7 +220,7 @@ export class PanelRenderer extends BaseComponent {
       const statsResult = await getStyleStats();
       console.log('🎨 Loaded styles:', styles);
       console.log('📈 Style stats:', statsResult);
-      
+
       const sizeMap: Record<string, number> = {};
       statsResult.styles.forEach(s => {
         sizeMap[s.id] = s.size;
@@ -857,11 +857,11 @@ export class PanelRenderer extends BaseComponent {
     }
 
     this.isRefreshing = true;
-    
+
     try {
       // Clear the current element content before re-rendering
       this.element.innerHTML = '';
-      
+
       // Reset component references to avoid stale references
       this.headerContainer = undefined;
       this.actionButtonsContainer = undefined;
@@ -961,7 +961,7 @@ export class PanelRenderer extends BaseComponent {
         hasStyle: !!styleData.style,
         styleKeys: styleData.style ? Object.keys(styleData.style) : [],
         sources: styleData.style?.sources ? Object.keys(styleData.style.sources) : [],
-        layers: styleData.style?.layers ? styleData.style.layers.length : 0
+        layers: styleData.style?.layers ? styleData.style.layers.length : 0,
       });
 
       // Check if the style has the necessary structure
@@ -977,10 +977,10 @@ export class PanelRenderer extends BaseComponent {
 
       console.log('🔧 Patching style for offline use...');
       const patchedStyle = patchStyleForOffline(styleData.style, styleData.key);
-      
+
       console.log('✅ Style patched successfully');
       console.log('🔍 Patched style sources:', Object.keys(patchedStyle.sources || {}));
-      
+
       // Apply the patched style to the map
       console.log('🗺️ Applying style to map...');
       this.map.setStyle(patchedStyle as any);
@@ -991,7 +991,7 @@ export class PanelRenderer extends BaseComponent {
       console.error('Error details:', {
         message: error instanceof Error ? error.message : String(error),
         stack: error instanceof Error ? error.stack : undefined,
-        styleData: styleData
+        styleData: styleData,
       });
     }
   }

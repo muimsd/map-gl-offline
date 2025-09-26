@@ -130,13 +130,15 @@ export class FontService {
             url: fontUrl,
             error: errorMessage,
           });
-          
+
           // Only log detailed errors if not in quiet mode
           if (!quietMode) {
             console.error(`Failed to download font ${fontUrl}:`, errorMessage);
           } else if (errors.length === 1) {
             // Log a summary message only once
-            console.warn(`Font download issues detected. Some fonts may not be available. Check network connectivity and CORS settings.`);
+            console.warn(
+              `Font download issues detected. Some fonts may not be available. Check network connectivity and CORS settings.`
+            );
           }
         }
       },
@@ -310,11 +312,11 @@ export class FontService {
   private createFontKey(url: string, styleName?: string): string {
     // Create a consistent key from the style name and font URL
     // Format: stylename:fontname.pbf (if styleName provided) or just fontIdentifier
-    
+
     // Extract font name from URL (e.g., "/fonts/Arial Regular/0-255.pbf" -> "Arial Regular_0-255.pbf")
     const parts = url.split('/');
     let fontName = '';
-    
+
     if (parts.length >= 3) {
       // Get the last two parts: fontstack and range.pbf
       const fontstack = parts[parts.length - 2];
@@ -324,11 +326,11 @@ export class FontService {
       // Fallback to hash if URL structure is unexpected
       fontName = btoa(url).replace(/[+/=]/g, '').substring(0, 32) + '.pbf';
     }
-    
+
     if (styleName) {
       return `${styleName}:${fontName}`;
     }
-    
+
     return fontName;
   }
 
@@ -379,10 +381,11 @@ export class FontService {
     }
 
     // For .pbf files and protobuf content, be more permissive
-    if (contentType.includes('application/x-protobuf') || 
-        contentType.includes('application/octet-stream') ||
-        contentType.includes('application/protobuf')) {
-      
+    if (
+      contentType.includes('application/x-protobuf') ||
+      contentType.includes('application/octet-stream') ||
+      contentType.includes('application/protobuf')
+    ) {
       // Accept if it looks like a protobuf (most start with 0x0a)
       const firstByte = view[0];
       if (firstByte === 0x0a || firstByte === 0x08 || firstByte === 0x12) {
@@ -400,10 +403,11 @@ export class FontService {
 
     // For development and debugging, be more permissive
     // If it's a reasonable file size and looks like it could be valid data
-    if (data.byteLength > 100 && data.byteLength < 10 * 1024 * 1024) { // Between 100 bytes and 10MB
+    if (data.byteLength > 100 && data.byteLength < 10 * 1024 * 1024) {
+      // Between 100 bytes and 10MB
       return;
     }
-    
+
     throw new Error(`Invalid font signature: ${signature}`);
   }
 }

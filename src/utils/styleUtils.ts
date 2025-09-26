@@ -6,7 +6,7 @@ import type { MapboxStyle } from '../types/style';
 export function patchStyleForOffline(style: MapboxStyle, downloadId: string): MapboxStyle {
   console.log(`🎨 Patching style for offline use with downloadId: ${downloadId}`);
   console.log(`📄 Original style:`, style);
-  
+
   // Patch sources
   for (const sourceKey in style.sources) {
     const source = style.sources[sourceKey] as {
@@ -14,7 +14,7 @@ export function patchStyleForOffline(style: MapboxStyle, downloadId: string): Ma
       url?: string;
     };
     console.log(`🔧 Patching source: ${sourceKey}`, source);
-    
+
     if (source.tiles) {
       const originalTiles = [...source.tiles];
       // Patch to idb://{downloadId}/tile/{sourceKey}/{z}/{x}/{y}.ext
@@ -24,12 +24,18 @@ export function patchStyleForOffline(style: MapboxStyle, downloadId: string): Ma
         const ext = extMatch ? extMatch[1] : 'pbf';
         return `idb://${downloadId}/tile/${sourceKey}/{z}/{x}/{y}.${ext}`;
       });
-      console.log(`🗺️ Patched tiles for ${sourceKey}:`, { original: originalTiles, patched: source.tiles });
+      console.log(`🗺️ Patched tiles for ${sourceKey}:`, {
+        original: originalTiles,
+        patched: source.tiles,
+      });
     }
     if (source.url) {
       const originalUrl = source.url;
       source.url = `idb://${downloadId}/tilesjson/${encodeURIComponent(source.url)}`;
-      console.log(`📄 Patched tilejson URL for ${sourceKey}:`, { original: originalUrl, patched: source.url });
+      console.log(`📄 Patched tilejson URL for ${sourceKey}:`, {
+        original: originalUrl,
+        patched: source.url,
+      });
     }
   }
 

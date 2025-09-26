@@ -56,12 +56,12 @@ export class DownloadManager {
     try {
       // Check if style is downloaded (by styleUrl only)
       const styleExists = await isStyleDownloaded(undefined, regionConfig.styleUrl);
-      
+
       let finalStyleId: string;
       if (!styleExists) {
         // Enhanced style download with Mapbox GL support
         console.log(`🎨 Downloading style with provider: ${formData.provider}`);
-        
+
         // Use the enhanced downloadStyleWithProvider for Mapbox GL support
         const styleDownloadOptions: any = {
           skipExisting: true,
@@ -69,21 +69,28 @@ export class DownloadManager {
           accessToken: formData.accessToken,
           onProgress: (progress: any) => {
             console.log(`Style download progress: ${progress.percentage}%`);
-          }
+          },
         };
 
-        const styleResult = await this.offlineManager.downloadStyle(regionConfig.styleUrl, styleDownloadOptions);
-        
+        const styleResult = await this.offlineManager.downloadStyle(
+          regionConfig.styleUrl,
+          styleDownloadOptions
+        );
+
         if (!styleResult.success) {
           throw new Error(`Failed to download style: ${styleResult.errors.join(', ')}`);
         }
-        
+
         finalStyleId = styleResult.styleId;
         console.log(`✅ Style downloaded successfully: ${finalStyleId}`);
       } else {
         // Find the existing style to get its ID
         const styles = await loadStyles();
-        const existingStyle = styles.find((s: any) => s?.style?.sprite?.includes(regionConfig.styleUrl) || s?.originalUrl === regionConfig.styleUrl);
+        const existingStyle = styles.find(
+          (s: any) =>
+            s?.style?.sprite?.includes(regionConfig.styleUrl) ||
+            s?.originalUrl === regionConfig.styleUrl
+        );
         if (!existingStyle) {
           throw new Error('Style exists but could not be found');
         }
@@ -105,7 +112,7 @@ export class DownloadManager {
 
       // Then download tiles for the region
       console.warn('Starting tile download for region:', regionId);
-      
+
       // Get the style data for tile download
       const styles = await loadStyles();
       const styleData = styles.find((s: any) => s.key === finalStyleId);
@@ -114,16 +121,25 @@ export class DownloadManager {
       }
 
       await downloadTiles(finalRegionConfig, styleData.style, finalStyleId, {
-        onProgress: (progress) => {
-          console.warn(`Tile download progress: ${progress.completed}/${progress.total} (${progress.percentage.toFixed(1)}%)`);
+        onProgress: progress => {
+          console.warn(
+            `Tile download progress: ${progress.completed}/${progress.total} (${progress.percentage.toFixed(1)}%)`
+          );
           // Update progress in UI if needed
-          this.options.onProgressUpdate?.(new Map([[regionId, {
-            regionId,
-            completed: progress.completed,
-            total: progress.total,
-            percentage: progress.percentage,
-            currentResource: progress.message || 'Downloading tiles'
-          }]]));
+          this.options.onProgressUpdate?.(
+            new Map([
+              [
+                regionId,
+                {
+                  regionId,
+                  completed: progress.completed,
+                  total: progress.total,
+                  percentage: progress.percentage,
+                  currentResource: progress.message || 'Downloading tiles',
+                },
+              ],
+            ])
+          );
         },
         skipExisting: true,
         batchSize: 20,

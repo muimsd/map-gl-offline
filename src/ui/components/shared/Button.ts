@@ -37,14 +37,15 @@ export class Button extends BaseComponent {
 
   private setupButton(): void {
     const button = this.element as HTMLButtonElement;
-    
+
     // Set default classes
     const baseClasses = 'relative flex items-center justify-center transition-all duration-200';
     const variantClasses = this.getVariantClasses();
     const sizeClasses = this.getSizeClasses();
-    
-    button.className = `${baseClasses} ${variantClasses} ${sizeClasses} ${this.config.className || ''}`.trim();
-    
+
+    button.className =
+      `${baseClasses} ${variantClasses} ${sizeClasses} ${this.config.className || ''}`.trim();
+
     // Set content
     if (this.config.icon && this.config.text) {
       button.innerHTML = `${this.config.icon} <span class="ml-2">${this.config.text}</span>`;
@@ -53,7 +54,7 @@ export class Button extends BaseComponent {
     } else if (this.config.text) {
       button.textContent = this.config.text;
     }
-    
+
     // Set attributes
     if (this.config.title) {
       button.title = this.config.title;
@@ -61,7 +62,7 @@ export class Button extends BaseComponent {
     if (this.config.disabled) {
       button.disabled = this.config.disabled;
     }
-    
+
     // Add click handler
     if (this.config.onClick) {
       this.addEventListener('click', this.config.onClick);
@@ -96,7 +97,8 @@ export class Button extends BaseComponent {
 
   private createProgressBadge(): void {
     this.progressBadge = document.createElement('span');
-    this.progressBadge.className = 'absolute -top-1 -right-1 bg-blue-500 text-white rounded-full px-2 py-1 text-xs font-bold hidden min-w-4 text-center shadow-md';
+    this.progressBadge.className =
+      'absolute -top-1 -right-1 bg-blue-500 text-white rounded-full px-2 py-1 text-xs font-bold hidden min-w-4 text-center shadow-md';
     this.element.appendChild(this.progressBadge);
   }
 

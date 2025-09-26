@@ -1,6 +1,8 @@
 import type { DownloadProgress } from '@/types';
 
-export async function fetchResource(url: string): Promise<{ type: 'image' | 'pbf'; data: ArrayBuffer }> {
+export async function fetchResource(
+  url: string
+): Promise<{ type: 'image' | 'pbf'; data: ArrayBuffer }> {
   // Add CORS mode to fetch
   const response = await fetch(url, { mode: 'cors' });
   if (!response.ok) {
@@ -131,8 +133,6 @@ export async function fetchWithRetry(
 
   throw new Error(`Failed to fetch ${url}`);
 }
-
-
 
 /**
  * Process items in batches with concurrency control

@@ -2,7 +2,6 @@ import { dbPromise } from '../storage/indexedDbManager';
 import { fetchWithRetry, createProgressTracker } from '../utils';
 import type { GlyphDownloadOptions, GlyphDownloadResult, GlyphEntry, GlyphRange } from '../types';
 
-
 export interface EnhancedGlyphStats {
   count: number;
   totalSize: number;
@@ -39,7 +38,7 @@ export class GlyphService {
       onProgress,
       includeMetadata = false,
       enableValidation = true,
-      priorityFonts = []
+      priorityFonts = [],
     } = options;
 
     const startTime = Date.now();
@@ -98,7 +97,7 @@ export class GlyphService {
             .replace('{range}', range);
 
           const response = await fetchWithRetry(url, { retries, timeout });
-          
+
           if (!response.ok) {
             throw new Error(`HTTP ${response.status}: ${response.statusText}`);
           }
@@ -118,7 +117,7 @@ export class GlyphService {
             url,
             size: data.byteLength,
             lastModified: Date.now(),
-            downloadedAt: new Date().toISOString()
+            downloadedAt: new Date().toISOString(),
           };
 
           // Store in database
@@ -135,7 +134,6 @@ export class GlyphService {
           if (data.byteLength < smallestGlyph.size) {
             smallestGlyph = { fontstack, range, size: data.byteLength };
           }
-
         } catch (error) {
           failedGlyphs++;
           errors.push(`${glyphKey}: ${error instanceof Error ? error.message : String(error)}`);
@@ -164,8 +162,9 @@ export class GlyphService {
         fontsByStack,
         averageGlyphSize: downloadedGlyphs > 0 ? totalSize / downloadedGlyphs : 0,
         largestGlyph: largestGlyph.size > 0 ? largestGlyph : { fontstack: '', range: '', size: 0 },
-        smallestGlyph: smallestGlyph.size < Infinity ? smallestGlyph : { fontstack: '', range: '', size: 0 }
-      }
+        smallestGlyph:
+          smallestGlyph.size < Infinity ? smallestGlyph : { fontstack: '', range: '', size: 0 },
+      },
     };
   }
 
@@ -180,7 +179,7 @@ export class GlyphService {
           start,
           end,
           data: glyph.data,
-          contentType: 'application/x-protobuf' // Default since it's not stored in GlyphEntry
+          contentType: 'application/x-protobuf', // Default since it's not stored in GlyphEntry
         });
       }
     }
@@ -191,7 +190,7 @@ export class GlyphService {
   async getGlyph(fontstack: string, range: string): Promise<GlyphEntry | null> {
     const db = await this.db;
     const key = `${fontstack}/${range}`;
-    
+
     const glyph = await db.get('glyphs', key);
     return glyph || null;
   }
@@ -228,7 +227,7 @@ export class GlyphService {
         range,
         size: glyphEntry.size,
         lastModified: glyphEntry.lastModified,
-        metadata: {} // No metadata in basic GlyphEntry
+        metadata: {}, // No metadata in basic GlyphEntry
       });
 
       // Track by fontstack
@@ -240,14 +239,14 @@ export class GlyphService {
         oldestGlyph = {
           fontstack,
           range,
-          lastModified: glyphEntry.lastModified
+          lastModified: glyphEntry.lastModified,
         };
       }
       if (!newestGlyph || glyphEntry.lastModified > newestGlyph.lastModified) {
         newestGlyph = {
           fontstack,
           range,
-          lastModified: glyphEntry.lastModified
+          lastModified: glyphEntry.lastModified,
         };
       }
 
@@ -266,41 +265,42 @@ export class GlyphService {
       sizeByStack,
       oldestGlyph,
       newestGlyph,
-      corruptedGlyphs
+      corruptedGlyphs,
     };
   }
 
   async getGlyphAnalytics(): Promise<Record<string, unknown>> {
     const stats = await this.getGlyphStats();
-    
+
     return {
       basic: {
         totalGlyphs: stats.count,
         totalSize: stats.totalSize,
-        averageSize: stats.averageSize
+        averageSize: stats.averageSize,
       },
       distribution: {
         fontsByStack: stats.fontsByStack,
-        sizeByStack: stats.sizeByStack
+        sizeByStack: stats.sizeByStack,
       },
       health: {
         corruptedGlyphs: stats.corruptedGlyphs.length,
-        corruptionRate: stats.count > 0 ? (stats.corruptedGlyphs.length / stats.count) * 100 : 0
+        corruptionRate: stats.count > 0 ? (stats.corruptedGlyphs.length / stats.count) * 100 : 0,
       },
       temporal: {
         oldestGlyph: stats.oldestGlyph,
         newestGlyph: stats.newestGlyph,
-        ageSpan: stats.oldestGlyph && stats.newestGlyph 
-          ? stats.newestGlyph.lastModified - stats.oldestGlyph.lastModified 
-          : 0
-      }
+        ageSpan:
+          stats.oldestGlyph && stats.newestGlyph
+            ? stats.newestGlyph.lastModified - stats.oldestGlyph.lastModified
+            : 0,
+      },
     };
   }
 
   async cleanupOldGlyphs(maxAge: number = 30): Promise<number> {
     const db = await this.db;
-    const cutoffTime = Date.now() - (maxAge * 24 * 60 * 60 * 1000);
-    
+    const cutoffTime = Date.now() - maxAge * 24 * 60 * 60 * 1000;
+
     let deletedCount = 0;
 
     const tx = db.transaction('glyphs', 'readwrite');
@@ -317,7 +317,7 @@ export class GlyphService {
 
   async verifyAndRepairGlyphs(): Promise<{ verified: number; repaired: number; removed: number }> {
     const db = await this.db;
-    
+
     let verified = 0;
     let repaired = 0;
     let removed = 0;
@@ -325,7 +325,7 @@ export class GlyphService {
     const tx = db.transaction('glyphs', 'readwrite');
     for await (const cursor of tx.store) {
       const glyphEntry: GlyphEntry = cursor.value;
-      
+
       try {
         // Basic validation
         if (!glyphEntry.data || glyphEntry.size === 0) {
@@ -352,7 +352,7 @@ export class GlyphService {
 
     // Basic Protocol Buffer validation
     const view = new Uint8Array(data);
-    
+
     // Check for valid protobuf structure (basic check)
     if (view[0] === 0x00 && view[1] === 0x00 && view[2] === 0x00 && view[3] === 0x00) {
       throw new Error('Invalid glyph data - appears to be empty');
@@ -376,7 +376,7 @@ export class GlyphService {
     if (styleName) {
       return `${styleName}:${fontstack}_${range}.pbf`;
     }
-    
+
     // Fallback to original format for backward compatibility
     return `${fontstack}/${range}`;
   }
@@ -393,7 +393,7 @@ export const downloadGlyphs = (
   options?: GlyphDownloadOptions
 ) => glyphService.downloadGlyphs(glyphUrl, fontstacks, styleName, ranges, options);
 
-export const loadGlyphs = (fontstack: string, ranges: string[]) => 
+export const loadGlyphs = (fontstack: string, ranges: string[]) =>
   glyphService.loadGlyphs(fontstack, ranges);
 
 export const getGlyphStats = () => glyphService.getGlyphStats();

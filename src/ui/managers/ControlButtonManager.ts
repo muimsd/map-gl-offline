@@ -72,7 +72,7 @@ export class ButtonManager {
       icon: icons.cloud({ size: 20, color: 'black' }),
       title: 'Offline Map Manager',
       showProgressBadge: true,
-      onClick: this.options.onTogglePanel
+      onClick: this.options.onTogglePanel,
     };
 
     const button = new Button(buttonConfig);

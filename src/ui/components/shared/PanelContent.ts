@@ -63,14 +63,13 @@ export class PanelContentRenderer extends BaseComponent {
 
       // Create main content structure
       const content = this.createMainContent(regions, analytics, downloads, currentTheme);
-      
+
       // Clear and set content
       container.innerHTML = '';
       container.appendChild(content);
 
       // Setup event listeners for the rendered content
       this.setupContentEventListeners(container);
-
     } catch (error) {
       console.error('Error rendering panel content:', error);
       container.innerHTML = `
@@ -81,7 +80,12 @@ export class PanelContentRenderer extends BaseComponent {
     }
   }
 
-  private createMainContent(regions: any[], analytics: any, downloads: Map<string, any>, currentTheme: any): HTMLElement {
+  private createMainContent(
+    regions: any[],
+    analytics: any,
+    downloads: Map<string, any>,
+    currentTheme: any
+  ): HTMLElement {
     const mainContent = document.createElement('div');
     mainContent.className = 'h-full flex flex-col';
 
@@ -129,9 +133,9 @@ export class PanelContentRenderer extends BaseComponent {
 
   private setupContentEventListeners(container: HTMLElement): void {
     // Add event delegation for dynamic content
-    container.addEventListener('click', (event) => {
+    container.addEventListener('click', event => {
       const target = event.target as HTMLElement;
-      
+
       // Handle region actions
       if (target.dataset.action === 'focus-region') {
         const regionId = target.dataset.regionId;

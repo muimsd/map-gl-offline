@@ -27,39 +27,46 @@ export class Panel extends BaseComponent {
 
   protected createElement(): HTMLElement {
     const panel = document.createElement('div');
-    
+
     // Size configurations
     const sizeClasses = {
       sm: ['w-[min(80vw,400px)]', 'h-[min(70vh,350px)]'],
       md: ['w-[min(90vw,600px)]', 'h-[min(80vh,500px)]'],
       lg: ['w-[min(95vw,800px)]', 'h-[min(85vh,600px)]'],
-      xl: ['w-[min(98vw,1000px)]', 'h-[min(90vh,700px)]']
+      xl: ['w-[min(98vw,1000px)]', 'h-[min(90vh,700px)]'],
     };
-    
+
     // Position configurations
     const positionClasses = {
       center: ['fixed', 'top-1/2', 'left-1/2', 'transform', '-translate-x-1/2', '-translate-y-1/2'],
       top: ['fixed', 'top-4', 'left-1/2', 'transform', '-translate-x-1/2'],
       bottom: ['fixed', 'bottom-4', 'left-1/2', 'transform', '-translate-x-1/2'],
       left: ['fixed', 'left-4', 'top-1/2', 'transform', '-translate-y-1/2'],
-      right: ['fixed', 'right-4', 'top-1/2', 'transform', '-translate-y-1/2']
+      right: ['fixed', 'right-4', 'top-1/2', 'transform', '-translate-y-1/2'],
     };
-    
+
     const size = this.panelConfig.size || 'md';
     const position = this.panelConfig.position || 'center';
-    
+
     panel.className = [
       'offline-manager-control',
-      'bg-white', 'dark:bg-gray-800',
-      'border', 'border-gray-200', 'dark:border-gray-700',
-      'rounded-2xl', 'shadow-2xl',
-      'hidden', 'z-[1000]',
-      'overflow-hidden', 'text-sm',
-      'flex', 'flex-col',
+      'bg-white',
+      'dark:bg-gray-800',
+      'border',
+      'border-gray-200',
+      'dark:border-gray-700',
+      'rounded-2xl',
+      'shadow-2xl',
+      'hidden',
+      'z-[1000]',
+      'overflow-hidden',
+      'text-sm',
+      'flex',
+      'flex-col',
       ...sizeClasses[size as keyof typeof sizeClasses],
-      ...positionClasses[position as keyof typeof positionClasses]
+      ...positionClasses[position as keyof typeof positionClasses],
     ].join(' ');
-    
+
     return panel;
   }
 
@@ -67,8 +74,9 @@ export class Panel extends BaseComponent {
     // Create header if title or closable
     if (this.panelConfig.title || this.panelConfig.closable) {
       this.header = document.createElement('div');
-      this.header.className = 'flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700';
-      
+      this.header.className =
+        'flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700';
+
       if (this.panelConfig.title) {
         const title = document.createElement('h2');
         title.className = 'text-lg font-semibold text-gray-900 dark:text-white';
@@ -78,7 +86,8 @@ export class Panel extends BaseComponent {
 
       if (this.panelConfig.closable) {
         const closeButton = document.createElement('button');
-        closeButton.className = 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors';
+        closeButton.className =
+          'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors';
         closeButton.innerHTML = '×';
         closeButton.style.fontSize = '24px';
         closeButton.addEventListener('click', () => {
@@ -119,7 +128,7 @@ export class Panel extends BaseComponent {
    */
   public setBody(content: string | HTMLElement): void {
     if (!this.body) return;
-    
+
     if (typeof content === 'string') {
       this.body.innerHTML = content;
     } else {
@@ -140,7 +149,7 @@ export class Panel extends BaseComponent {
     }
 
     this.footer.classList.remove('hidden');
-    
+
     if (typeof content === 'string') {
       this.footer.innerHTML = content;
     } else {

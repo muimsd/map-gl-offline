@@ -43,10 +43,10 @@ export class RegionControl {
    */
   public startSelection(): void {
     if (this.isActive) return;
-    
+
     this.isActive = true;
     this.createSaveButton();
-    
+
     const polygonOptions: PolygonControlOptions = {
       onSave: (bounds, area) => this.showRegionForm(bounds, area),
       onCancel: () => this.cancelSelection(),
@@ -77,7 +77,8 @@ export class RegionControl {
 
     this.saveButton = document.createElement('button');
     this.saveButton.type = 'button';
-    this.saveButton.className = 'maplibregl-ctrl-icon offline-manager-control mt-0.5 bg-gradient-to-br from-green-600 to-green-700 border border-green-700 rounded-sm cursor-pointer relative w-[29px] h-[29px] flex items-center justify-center hover:from-green-700 hover:to-green-800 transition-all duration-200';
+    this.saveButton.className =
+      'maplibregl-ctrl-icon offline-manager-control mt-0.5 bg-gradient-to-br from-green-600 to-green-700 border border-green-700 rounded-sm cursor-pointer relative w-[29px] h-[29px] flex items-center justify-center hover:from-green-700 hover:to-green-800 transition-all duration-200';
     this.saveButton.innerHTML = icons.check({ size: 16, color: 'white' });
     this.saveButton.title = 'Save Selected Region';
     this.saveButton.addEventListener('click', () => this.handleSaveClick());
@@ -137,7 +138,7 @@ export class RegionControl {
     try {
       this.modalManager.close();
       this.cancelSelection();
-      
+
       await this.downloadManager.downloadRegion(formData);
       this.options.onRegionSaved?.();
     } catch (error) {

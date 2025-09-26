@@ -32,7 +32,7 @@ export class ConfirmationModal {
       title: this.options.title,
       size: 'sm',
       closable: true,
-      onClose: this.options.onCancel
+      onClose: this.options.onCancel,
     };
 
     this.modal = new Modal(modalConfig);
@@ -58,7 +58,7 @@ export class ConfirmationModal {
       onClick: () => {
         this.modal?.hide();
         this.options.onCancel();
-      }
+      },
     });
 
     // Confirm button
@@ -68,7 +68,7 @@ export class ConfirmationModal {
       onClick: () => {
         this.modal?.hide();
         this.options.onConfirm();
-      }
+      },
     });
 
     buttonContainer.appendChild(cancelButton.getElement());

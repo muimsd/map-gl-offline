@@ -14,22 +14,22 @@ export async function retryWithBackoff<T>(
   baseDelay: number = 1000
 ): Promise<T> {
   let lastError: Error;
-  
+
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
       return await fn();
     } catch (error) {
       lastError = error as Error;
-      
+
       if (attempt === maxRetries) {
         throw lastError;
       }
-      
+
       const delayMs = baseDelay * Math.pow(2, attempt);
       await delay(delayMs);
     }
   }
-  
+
   throw lastError!;
 }
 
@@ -42,10 +42,10 @@ export function throttle<T extends (...args: any[]) => any>(
 ): (...args: Parameters<T>) => void {
   let timeoutId: ReturnType<typeof setTimeout> | null = null;
   let lastExecTime = 0;
-  
+
   return (...args: Parameters<T>) => {
     const currentTime = Date.now();
-    
+
     if (currentTime - lastExecTime > delay) {
       func(...args);
       lastExecTime = currentTime;
@@ -53,11 +53,14 @@ export function throttle<T extends (...args: any[]) => any>(
       if (timeoutId) {
         clearTimeout(timeoutId);
       }
-      
-      timeoutId = setTimeout(() => {
-        func(...args);
-        lastExecTime = Date.now();
-      }, delay - (currentTime - lastExecTime));
+
+      timeoutId = setTimeout(
+        () => {
+          func(...args);
+          lastExecTime = Date.now();
+        },
+        delay - (currentTime - lastExecTime)
+      );
     }
   };
 }
@@ -70,12 +73,12 @@ export function debounce<T extends (...args: any[]) => any>(
   delay: number
 ): (...args: Parameters<T>) => void {
   let timeoutId: ReturnType<typeof setTimeout> | null = null;
-  
+
   return (...args: Parameters<T>) => {
     if (timeoutId) {
       clearTimeout(timeoutId);
     }
-    
+
     timeoutId = setTimeout(() => {
       func(...args);
     }, delay);
@@ -90,7 +93,7 @@ export function timeout<T>(promise: Promise<T>, ms: number): Promise<T> {
     promise,
     new Promise<never>((_, reject) =>
       setTimeout(() => reject(new Error(`Operation timed out after ${ms}ms`)), ms)
-    )
+    ),
   ]);
 }
 
@@ -103,12 +106,12 @@ export async function batchProcess<T, R>(
   batchSize: number = 5
 ): Promise<R[]> {
   const results: R[] = [];
-  
+
   for (let i = 0; i < items.length; i += batchSize) {
     const batch = items.slice(i, i + batchSize);
     const batchResults = await Promise.all(batch.map(processor));
     results.push(...batchResults);
   }
-  
+
   return results;
 }

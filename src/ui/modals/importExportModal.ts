@@ -4,12 +4,12 @@
  */
 
 import { icons } from '../../utils/icons';
-import type { 
-  StoredRegion, 
-  ImportExportOptions, 
-  ExportResult, 
-  ImportResult, 
-  RegionImportData 
+import type {
+  StoredRegion,
+  ImportExportOptions,
+  ExportResult,
+  ImportResult,
+  RegionImportData,
 } from '../../types';
 
 export interface ImportExportModalOptions {
@@ -17,7 +17,11 @@ export interface ImportExportModalOptions {
   onClose: () => void;
   onExport?: (result: ExportResult) => void;
   onImport?: (result: ImportResult) => void;
-  exportRegion?: (regionId: string, format: 'json' | 'pmtiles' | 'mbtiles', options?: ImportExportOptions) => Promise<ExportResult>;
+  exportRegion?: (
+    regionId: string,
+    format: 'json' | 'pmtiles' | 'mbtiles',
+    options?: ImportExportOptions
+  ) => Promise<ExportResult>;
   importRegion?: (data: RegionImportData) => Promise<ImportResult>;
 }
 
@@ -36,13 +40,13 @@ export class ImportExportModal {
   show(): HTMLDivElement {
     document.body.appendChild(this.modal);
     document.body.style.overflow = 'hidden';
-    
+
     // Focus first input for accessibility
     const firstInput = this.modal.querySelector('input, button') as HTMLElement;
     if (firstInput) {
       firstInput.focus();
     }
-    
+
     return this.modal;
   }
 
@@ -56,8 +60,9 @@ export class ImportExportModal {
 
   private createModal(): HTMLDivElement {
     const modal = document.createElement('div');
-    modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4';
-    
+    modal.className =
+      'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4';
+
     modal.innerHTML = `
       <div class="bg-white dark:bg-gray-900 rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto shadow-xl">
         <!-- Header -->
@@ -257,14 +262,14 @@ export class ImportExportModal {
     closeBtn?.addEventListener('click', () => this.hide());
 
     // Close on backdrop click
-    this.modal.addEventListener('click', (e) => {
+    this.modal.addEventListener('click', e => {
       if (e.target === this.modal) {
         this.hide();
       }
     });
 
     // Close on Escape key
-    document.addEventListener('keydown', (e) => {
+    document.addEventListener('keydown', e => {
       if (e.key === 'Escape') {
         this.hide();
       }
@@ -273,13 +278,13 @@ export class ImportExportModal {
     // Export functionality
     const exportBtn = this.modal.querySelector('.export-btn') as HTMLButtonElement;
     const exportFormat = this.modal.querySelector('.export-format') as HTMLSelectElement;
-    
+
     exportBtn?.addEventListener('click', () => this.handleExport());
 
     // Import functionality
     const importFile = this.modal.querySelector('.import-file') as HTMLInputElement;
     const importBtn = this.modal.querySelector('.import-btn') as HTMLButtonElement;
-    
+
     importFile?.addEventListener('change', () => {
       importBtn.disabled = !importFile.files?.length;
     });
@@ -328,10 +333,14 @@ export class ImportExportModal {
       exportBtn.disabled = true;
       progressDiv.classList.remove('hidden');
 
-      const format = (this.modal.querySelector('.export-format') as HTMLSelectElement).value as 'json' | 'pmtiles' | 'mbtiles';
+      const format = (this.modal.querySelector('.export-format') as HTMLSelectElement).value as
+        | 'json'
+        | 'pmtiles'
+        | 'mbtiles';
       const includeStyle = (this.modal.querySelector('.include-style') as HTMLInputElement).checked;
       const includeTiles = (this.modal.querySelector('.include-tiles') as HTMLInputElement).checked;
-      const includeSprites = (this.modal.querySelector('.include-sprites') as HTMLInputElement).checked;
+      const includeSprites = (this.modal.querySelector('.include-sprites') as HTMLInputElement)
+        .checked;
       const includeFonts = (this.modal.querySelector('.include-fonts') as HTMLInputElement).checked;
 
       const options: ImportExportOptions = {
@@ -340,17 +349,17 @@ export class ImportExportModal {
         includeTiles,
         includeSprites,
         includeFonts,
-        onProgress: (progress) => {
+        onProgress: progress => {
           progressBar.style.width = `${progress.percentage}%`;
           progressText.textContent = progress.message;
-        }
+        },
       };
 
       const result = await this.options.exportRegion(this.options.region.id, format, options);
-      
+
       if (result.success) {
         progressText.textContent = 'Export complete! Download will start shortly...';
-        
+
         // Auto-download
         const url = URL.createObjectURL(result.blob);
         const link = document.createElement('a');
@@ -362,12 +371,11 @@ export class ImportExportModal {
         URL.revokeObjectURL(url);
 
         this.options.onExport?.(result);
-        
+
         setTimeout(() => this.hide(), 1500);
       } else {
         throw new Error('Export failed');
       }
-
     } catch (error) {
       progressText.textContent = `Export failed: ${error instanceof Error ? error.message : String(error)}`;
       progressBar.style.width = '0%';
@@ -423,7 +431,7 @@ export class ImportExportModal {
         file,
         format,
         overwrite: overwriteCheckbox.checked,
-        newRegionName: nameInput.value.trim() || undefined
+        newRegionName: nameInput.value.trim() || undefined,
       };
 
       progressText.textContent = 'Reading file...';
@@ -434,14 +442,13 @@ export class ImportExportModal {
       if (result.success) {
         progressBar.style.width = '100%';
         progressText.textContent = `Import complete! ${result.statistics.tilesImported} tiles imported.`;
-        
+
         this.options.onImport?.(result);
-        
+
         setTimeout(() => this.hide(), 2000);
       } else {
         throw new Error(result.message);
       }
-
     } catch (error) {
       progressText.textContent = `Import failed: ${error instanceof Error ? error.message : String(error)}`;
       progressBar.style.width = '0%';

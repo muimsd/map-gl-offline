@@ -13,11 +13,15 @@ export function detectStyleProvider(styleUrl: string, style?: BaseStyle): StyleP
   if (styleUrl.includes('mapbox.com') || styleUrl.includes('api.mapbox.com')) {
     return 'mapbox';
   }
-  
-  if (styleUrl.includes('maplibre') || styleUrl.includes('maptiler') || styleUrl.includes('carto')) {
+
+  if (
+    styleUrl.includes('maplibre') ||
+    styleUrl.includes('maptiler') ||
+    styleUrl.includes('carto')
+  ) {
     return 'maplibre';
   }
-  
+
   // Check style content if available
   if (style) {
     // Check for Mapbox-specific properties
@@ -25,7 +29,7 @@ export function detectStyleProvider(styleUrl: string, style?: BaseStyle): StyleP
     if (mapboxStyle.owner || mapboxStyle.draft !== undefined || mapboxStyle.visibility) {
       return 'mapbox';
     }
-    
+
     // Check sources for Mapbox-specific patterns
     const sources = style.sources || {};
     for (const [sourceId, sourceConfig] of Object.entries(sources)) {
@@ -35,7 +39,7 @@ export function detectStyleProvider(styleUrl: string, style?: BaseStyle): StyleP
       }
     }
   }
-  
+
   // Default to auto-detection
   return 'auto';
 }
@@ -60,12 +64,12 @@ export function requiresAuthentication(styleUrl: string, provider: StyleProvider
     // Mapbox styles typically require access tokens
     return styleUrl.includes('mapbox.com');
   }
-  
+
   // Check for other providers that might require tokens
   if (styleUrl.includes('api.maptiler.com')) {
     return true;
   }
-  
+
   return false;
 }
 
@@ -75,12 +79,12 @@ export function requiresAuthentication(styleUrl: string, provider: StyleProvider
 export function normalizeStyleUrl(styleUrl: string, accessToken?: string): string {
   try {
     const url = new URL(styleUrl);
-    
+
     // Add access token if required and not present
     if (accessToken && !url.searchParams.has('access_token')) {
       url.searchParams.set('access_token', accessToken);
     }
-    
+
     return url.toString();
   } catch {
     // If URL parsing fails, return original
@@ -92,21 +96,21 @@ export function normalizeStyleUrl(styleUrl: string, accessToken?: string): strin
  * Process style sources for offline compatibility
  */
 export function processStyleSources(
-  style: BaseStyle, 
-  provider: StyleProvider, 
+  style: BaseStyle,
+  provider: StyleProvider,
   accessToken?: string
 ): BaseStyle {
   const processedStyle = { ...style };
   const sources = { ...style.sources };
-  
+
   for (const [sourceId, sourceConfig] of Object.entries(sources)) {
-    const source = sourceConfig ? { ...(sourceConfig as object) } as any : {};
-    
+    const source = sourceConfig ? ({ ...(sourceConfig as object) } as any) : {};
+
     // Handle Mapbox-specific source URLs
     if (provider === 'mapbox' && source.url) {
       source.url = normalizeStyleUrl(source.url, accessToken);
     }
-    
+
     // Handle tile URLs
     if (source.tiles && Array.isArray(source.tiles)) {
       source.tiles = source.tiles.map((tileUrl: string) => {
@@ -116,76 +120,81 @@ export function processStyleSources(
         return tileUrl;
       });
     }
-    
+
     sources[sourceId] = source;
   }
-  
+
   processedStyle.sources = sources;
-  
+
   // Handle sprite URLs
   if (processedStyle.sprite && provider === 'mapbox' && accessToken) {
     if (typeof processedStyle.sprite === 'string' && processedStyle.sprite.includes('mapbox.com')) {
       processedStyle.sprite = normalizeStyleUrl(processedStyle.sprite, accessToken);
     }
   }
-  
+
   // Handle glyph URLs
   if (processedStyle.glyphs && provider === 'mapbox' && accessToken) {
     if (typeof processedStyle.glyphs === 'string' && processedStyle.glyphs.includes('mapbox.com')) {
       processedStyle.glyphs = normalizeStyleUrl(processedStyle.glyphs, accessToken);
     }
   }
-  
+
   return processedStyle;
 }
 
 /**
  * Enhanced style validation for different providers
  */
-export function validateStyleForProvider(style: BaseStyle, provider: StyleProvider): {
+export function validateStyleForProvider(
+  style: BaseStyle,
+  provider: StyleProvider
+): {
   isValid: boolean;
   errors: string[];
   warnings: string[];
 } {
   const errors: string[] = [];
   const warnings: string[] = [];
-  
+
   // Basic validation
   if (!style.version) {
     errors.push('Style is missing version');
   }
-  
+
   if (!style.sources || Object.keys(style.sources).length === 0) {
     errors.push('Style has no sources');
   }
-  
+
   if (!style.layers || style.layers.length === 0) {
     errors.push('Style has no layers');
   }
-  
+
   // Provider-specific validation
   if (provider === 'mapbox') {
     // Check for Mapbox-specific requirements
-    const hasMapboxSources = Object.values(style.sources || {}).some((source: any) => 
-      source.url && source.url.includes('mapbox.com')
+    const hasMapboxSources = Object.values(style.sources || {}).some(
+      (source: any) => source.url && source.url.includes('mapbox.com')
     );
-    
+
     if (hasMapboxSources) {
       // Check if access token might be needed
-      const hasAccessToken = Object.values(style.sources || {}).some((source: any) => 
-        source.url && source.url.includes('access_token')
+      const hasAccessToken = Object.values(style.sources || {}).some(
+        (source: any) => source.url && source.url.includes('access_token')
       );
-      
+
       if (!hasAccessToken) {
-        warnings.push('Mapbox sources detected but no access token found - authentication may be required');
+        warnings.push(
+          'Mapbox sources detected but no access token found - authentication may be required'
+        );
       }
     }
   }
-  
+
   return {
     isValid: errors.length === 0,
     errors,
-    warnings
+    warnings,
   };
 }
 
@@ -199,23 +208,23 @@ export function getDefaultStyleConfig(provider: StyleProvider) {
         requiresAuth: true,
         defaultSources: ['mapbox://'],
         supportedFormats: ['mvt', 'raster'],
-        maxZoom: 22
+        maxZoom: 22,
       };
-    
+
     case 'maplibre':
       return {
         requiresAuth: false,
         defaultSources: ['http://', 'https://'],
         supportedFormats: ['mvt', 'raster', 'geojson'],
-        maxZoom: 24
+        maxZoom: 24,
       };
-    
+
     default:
       return {
         requiresAuth: false,
         defaultSources: ['http://', 'https://'],
         supportedFormats: ['mvt', 'raster', 'geojson'],
-        maxZoom: 22
+        maxZoom: 22,
       };
   }
 }

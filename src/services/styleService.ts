@@ -241,10 +241,10 @@ export async function downloadStyles(
     // Detect style provider
     const provider = detectStyleProvider(stylesUrl, style);
     const accessToken = extractAccessToken(stylesUrl) || undefined;
-    
+
     // Process style for the detected provider
     const processedStyle = processStyleSources(style, provider, accessToken);
-    
+
     // Validate style for the provider
     const validation = validateStyleForProvider(processedStyle, provider);
     if (!validation.isValid) {
@@ -1082,7 +1082,7 @@ export async function downloadStyleWithProvider(
     // Auto-detect provider if not explicitly set
     const detectedProvider = explicitProvider || detectStyleProvider(styleUrl);
     const extractedToken = explicitAccessToken || extractAccessToken(styleUrl);
-    
+
     console.log(`📊 Detected provider: ${detectedProvider}`);
     if (extractedToken) {
       console.log(`🔑 Access token detected`);
@@ -1090,24 +1090,28 @@ export async function downloadStyleWithProvider(
 
     // Normalize the style URL with access token if needed
     const normalizedUrl = normalizeStyleUrl(styleUrl, extractedToken || undefined);
-    
+
     // Fetch the style
     console.log(`📥 Fetching style from: ${normalizedUrl}`);
     const response = await fetchWithRetry(normalizedUrl, {
       timeout: timeoutMs,
-      retries: maxRetries
+      retries: maxRetries,
     });
 
     if (!response.ok) {
       throw new Error(`Failed to fetch style: ${response.status} ${response.statusText}`);
     }
 
-    const style = await response.json() as BaseStyle;
+    const style = (await response.json()) as BaseStyle;
     console.log(`✅ Style fetched successfully`);
 
     // Process style for the detected provider
-    const processedStyle = processStyleSources(style, detectedProvider, extractedToken || undefined);
-    
+    const processedStyle = processStyleSources(
+      style,
+      detectedProvider,
+      extractedToken || undefined
+    );
+
     // Validate style
     const validation = validateStyleForProvider(processedStyle, detectedProvider);
     if (!validation.isValid && !forceProvider) {
@@ -1115,8 +1119,8 @@ export async function downloadStyleWithProvider(
     }
 
     // Generate style ID
-    const styleId = processedStyle.name?.toLowerCase().replace(/\s+/g, '-') || 
-                   `style-${Date.now()}`;
+    const styleId =
+      processedStyle.name?.toLowerCase().replace(/\s+/g, '-') || `style-${Date.now()}`;
 
     // Check if style already exists
     const db = await dbPromise;
@@ -1137,29 +1141,24 @@ export async function downloadStyleWithProvider(
             layerTypes: {},
             totalLayers: 0,
             hasGlyphs: false,
-            hasSprites: false
-          }
+            hasSprites: false,
+          },
         };
       }
     }
 
     // Create style entry
-    const styleEntry = createStyleEntry(
-      styleId,
-      processedStyle,
-      detectedProvider,
-      {
-        lastModified: Date.now(),
-        downloadedAt: Date.now(),
-        originalUrl: styleUrl,
-        validated: validation.isValid,
-        accessToken: extractedToken || undefined,
-      }
-    );
+    const styleEntry = createStyleEntry(styleId, processedStyle, detectedProvider, {
+      lastModified: Date.now(),
+      downloadedAt: Date.now(),
+      originalUrl: styleUrl,
+      validated: validation.isValid,
+      accessToken: extractedToken || undefined,
+    });
 
     // Save style
     await db.put('styles', styleEntry);
-    
+
     const downloadTime = Date.now() - startTime;
     console.log(`✅ Style ${styleId} downloaded successfully in ${downloadTime}ms`);
 
@@ -1176,10 +1175,9 @@ export async function downloadStyleWithProvider(
         layerTypes: {},
         totalLayers: processedStyle.layers?.length || 0,
         hasGlyphs: !!processedStyle.glyphs,
-        hasSprites: !!processedStyle.sprite
-      }
+        hasSprites: !!processedStyle.sprite,
+      },
     };
-
   } catch (error) {
     console.error(`❌ Failed to download style from ${styleUrl}:`, error);
     return {
@@ -1195,8 +1193,8 @@ export async function downloadStyleWithProvider(
         layerTypes: {},
         totalLayers: 0,
         hasGlyphs: false,
-        hasSprites: false
-      }
+        hasSprites: false,
+      },
     };
   }
 }

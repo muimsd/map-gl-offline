@@ -12,7 +12,7 @@ export class ModalManager {
   public show(modal: HTMLDivElement): void {
     this.close();
     this.activeModal = modal;
-    
+
     // Ensure modal has proper theme class
     modal.classList.add('offline-manager-control');
     document.body.appendChild(modal);

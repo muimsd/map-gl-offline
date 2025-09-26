@@ -11,7 +11,7 @@ import type {
   FontExportData,
   PMTilesExportOptions,
   MBTilesExportOptions,
-  StoredRegion
+  StoredRegion,
 } from '../types';
 
 export class ImportExportService {
@@ -25,16 +25,16 @@ export class ImportExportService {
    * Export a region to JSON format
    */
   async exportRegionAsJSON(
-    regionId: string, 
+    regionId: string,
     options: ImportExportOptions = {}
   ): Promise<ExportResult> {
     const onProgress = options.onProgress || (() => {});
-    
+
     try {
       onProgress({
         stage: 'preparing',
         percentage: 0,
-        message: 'Preparing export...'
+        message: 'Preparing export...',
       });
 
       // Get region metadata
@@ -46,7 +46,7 @@ export class ImportExportService {
       onProgress({
         stage: 'exporting',
         percentage: 10,
-        message: 'Collecting region data...'
+        message: 'Collecting region data...',
       });
 
       const exportData: RegionExportData = {
@@ -61,12 +61,12 @@ export class ImportExportService {
           createdAt: region.created, // StoredRegion uses 'created' not 'createdAt'
           exportedAt: Date.now(),
           version: '1.0.0',
-          format: 'json'
+          format: 'json',
         },
         style: {},
         tiles: [],
         sprites: [],
-        fonts: []
+        fonts: [],
       };
 
       // Export style if requested
@@ -74,7 +74,7 @@ export class ImportExportService {
         onProgress({
           stage: 'exporting',
           percentage: 20,
-          message: 'Exporting style data...'
+          message: 'Exporting style data...',
         });
         exportData.style = await this.exportStyle(regionId);
       }
@@ -84,7 +84,7 @@ export class ImportExportService {
         onProgress({
           stage: 'exporting',
           percentage: 30,
-          message: 'Exporting tiles...'
+          message: 'Exporting tiles...',
         });
         exportData.tiles = await this.exportTiles(regionId, onProgress);
       }
@@ -94,7 +94,7 @@ export class ImportExportService {
         onProgress({
           stage: 'exporting',
           percentage: 70,
-          message: 'Exporting sprites...'
+          message: 'Exporting sprites...',
         });
         exportData.sprites = await this.exportSprites(regionId);
       }
@@ -104,7 +104,7 @@ export class ImportExportService {
         onProgress({
           stage: 'exporting',
           percentage: 85,
-          message: 'Exporting fonts...'
+          message: 'Exporting fonts...',
         });
         exportData.fonts = await this.exportFonts(regionId);
       }
@@ -112,17 +112,17 @@ export class ImportExportService {
       onProgress({
         stage: 'processing',
         percentage: 95,
-        message: 'Creating export file...'
+        message: 'Creating export file...',
       });
 
       // Create JSON blob
       const jsonString = JSON.stringify(exportData, null, 2);
       const blob = new Blob([jsonString], { type: 'application/json' });
-      
+
       onProgress({
         stage: 'complete',
         percentage: 100,
-        message: 'Export complete!'
+        message: 'Export complete!',
       });
 
       return {
@@ -134,10 +134,9 @@ export class ImportExportService {
         statistics: {
           tilesExported: exportData.tiles.length,
           spritesExported: exportData.sprites.length,
-          fontsExported: exportData.fonts.length
-        }
+          fontsExported: exportData.fonts.length,
+        },
       };
-
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
       throw new Error(`Export failed: ${errorMessage}`);
@@ -152,18 +151,18 @@ export class ImportExportService {
     options: ImportExportOptions & PMTilesExportOptions = {}
   ): Promise<ExportResult> {
     const onProgress = options.onProgress || (() => {});
-    
+
     try {
       onProgress({
         stage: 'preparing',
         percentage: 0,
-        message: 'Preparing PMTiles export...'
+        message: 'Preparing PMTiles export...',
       });
 
       // Note: This is a simplified implementation
       // In a real implementation, you would use the PMTiles library
       // to create a proper PMTiles file format
-      
+
       const region = await this.getRegionMetadata(regionId);
       if (!region) {
         throw new Error(`Region ${regionId} not found`);
@@ -171,7 +170,7 @@ export class ImportExportService {
 
       // Get tiles data
       const tiles = await this.exportTiles(regionId, onProgress);
-      
+
       // Create PMTiles header and data structure
       const pmtilesData = {
         header: {
@@ -184,10 +183,10 @@ export class ImportExportService {
           metadata: {
             name: region.name,
             description: region.name || region.id, // StoredRegion doesn't have description, use name instead
-            ...options.metadata
-          }
+            ...options.metadata,
+          },
         },
-        tiles: tiles
+        tiles: tiles,
       };
 
       // Convert to binary format (simplified)
@@ -197,7 +196,7 @@ export class ImportExportService {
       onProgress({
         stage: 'complete',
         percentage: 100,
-        message: 'PMTiles export complete!'
+        message: 'PMTiles export complete!',
       });
 
       return {
@@ -209,10 +208,9 @@ export class ImportExportService {
         statistics: {
           tilesExported: tiles.length,
           spritesExported: 0,
-          fontsExported: 0
-        }
+          fontsExported: 0,
+        },
       };
-
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
       throw new Error(`PMTiles export failed: ${errorMessage}`);
@@ -227,18 +225,18 @@ export class ImportExportService {
     options: ImportExportOptions & MBTilesExportOptions = {}
   ): Promise<ExportResult> {
     const onProgress = options.onProgress || (() => {});
-    
+
     try {
       onProgress({
         stage: 'preparing',
         percentage: 0,
-        message: 'Preparing MBTiles export...'
+        message: 'Preparing MBTiles export...',
       });
 
       // Note: This is a simplified implementation
       // In a real implementation, you would use SQLite/SQL.js
       // to create a proper MBTiles SQLite database
-      
+
       const region = await this.getRegionMetadata(regionId);
       if (!region) {
         throw new Error(`Region ${regionId} not found`);
@@ -246,7 +244,7 @@ export class ImportExportService {
 
       // Get tiles data
       const tiles = await this.exportTiles(regionId, onProgress);
-      
+
       // Create MBTiles structure (simplified as JSON for now)
       const mbtilesData = {
         metadata: {
@@ -258,14 +256,14 @@ export class ImportExportService {
           bounds: region.bounds.flat().join(','),
           minzoom: region.minZoom,
           maxzoom: region.maxZoom,
-          ...options.metadata
+          ...options.metadata,
         },
         tiles: tiles.map(tile => ({
           zoom_level: tile.z,
           tile_column: tile.x,
           tile_row: tile.y,
-          tile_data: tile.data
-        }))
+          tile_data: tile.data,
+        })),
       };
 
       // Convert to binary format (simplified)
@@ -275,7 +273,7 @@ export class ImportExportService {
       onProgress({
         stage: 'complete',
         percentage: 100,
-        message: 'MBTiles export complete!'
+        message: 'MBTiles export complete!',
       });
 
       return {
@@ -287,10 +285,9 @@ export class ImportExportService {
         statistics: {
           tilesExported: tiles.length,
           spritesExported: 0,
-          fontsExported: 0
-        }
+          fontsExported: 0,
+        },
       };
-
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
       throw new Error(`MBTiles export failed: ${errorMessage}`);
@@ -321,9 +318,8 @@ export class ImportExportService {
 
       // Import the region data
       const result = await this.importRegionData(regionData, importData);
-      
-      return result;
 
+      return result;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
       return {
@@ -334,8 +330,8 @@ export class ImportExportService {
           tilesImported: 0,
           spritesImported: 0,
           fontsImported: 0,
-          totalSize: 0
-        }
+          totalSize: 0,
+        },
       };
     }
   }
@@ -347,7 +343,7 @@ export class ImportExportService {
     const db = await this.db;
     const transaction = db.transaction(['regions'], 'readonly');
     const store = transaction.objectStore('regions');
-    
+
     try {
       const result = await store.get(regionId);
       return result || null;
@@ -364,7 +360,7 @@ export class ImportExportService {
     const db = await this.db;
     const transaction = db.transaction(['styles'], 'readonly');
     const store = transaction.objectStore('styles');
-    
+
     try {
       const style = await store.get(regionId);
       return style || {};
@@ -377,17 +373,20 @@ export class ImportExportService {
   /**
    * Export tiles data
    */
-  private async exportTiles(regionId: string, onProgress?: (progress: ImportExportProgress) => void): Promise<TileExportData[]> {
+  private async exportTiles(
+    regionId: string,
+    onProgress?: (progress: ImportExportProgress) => void
+  ): Promise<TileExportData[]> {
     const db = await this.db;
     const transaction = db.transaction(['tiles'], 'readonly');
     const store = transaction.objectStore('tiles');
-    
+
     const tiles: TileExportData[] = [];
-    
+
     try {
       const cursor = await store.openCursor();
       let processed = 0;
-      
+
       if (cursor) {
         do {
           const tile = cursor.value;
@@ -399,10 +398,10 @@ export class ImportExportService {
               y: tile.y ?? 0, // Handle optional y
               data: tile.data,
               format: 'pbf', // TileEntry doesn't have format, use default
-              sourceId: tile.sourceId ?? 'default' // Handle optional sourceId
+              sourceId: tile.sourceId ?? 'default', // Handle optional sourceId
             });
           }
-          
+
           processed++;
           if (onProgress && processed % 100 === 0) {
             onProgress({
@@ -410,12 +409,12 @@ export class ImportExportService {
               percentage: 30 + (processed / 1000) * 40, // Rough estimation
               message: `Exported ${processed} tiles...`,
               currentItem: `${tile.z ?? 0}/${tile.x ?? 0}/${tile.y ?? 0}`,
-              completedItems: processed
+              completedItems: processed,
             });
           }
         } while (await cursor.continue());
       }
-      
+
       return tiles;
     } catch (error) {
       console.error('Error exporting tiles:', error);
@@ -430,12 +429,12 @@ export class ImportExportService {
     const db = await this.db;
     const transaction = db.transaction(['sprites'], 'readonly');
     const store = transaction.objectStore('sprites');
-    
+
     const sprites: SpriteExportData[] = [];
-    
+
     try {
       const cursor = await store.openCursor();
-      
+
       if (cursor) {
         do {
           const sprite = cursor.value;
@@ -445,11 +444,11 @@ export class ImportExportService {
             url: sprite.url,
             data: sprite.data,
             type: sprite.url.endsWith('.json') ? 'json' : 'png',
-            resolution: sprite.url.includes('@2x') ? '2x' : '1x'
+            resolution: sprite.url.includes('@2x') ? '2x' : '1x',
           });
         } while (await cursor.continue());
       }
-      
+
       return sprites;
     } catch (error) {
       console.error('Error exporting sprites:', error);
@@ -464,12 +463,12 @@ export class ImportExportService {
     const db = await this.db;
     const transaction = db.transaction(['fonts'], 'readonly');
     const store = transaction.objectStore('fonts');
-    
+
     const fonts: FontExportData[] = [];
-    
+
     try {
       const cursor = await store.openCursor();
-      
+
       if (cursor) {
         do {
           const font = cursor.value;
@@ -478,11 +477,11 @@ export class ImportExportService {
           fonts.push({
             fontStack: font.key, // Use key as fontstack identifier
             range: '0-255', // Default range since FontEntry doesn't store this
-            data: font.data
+            data: font.data,
           });
         } while (await cursor.continue());
       }
-      
+
       return fonts;
     } catch (error) {
       console.error('Error exporting fonts:', error);
@@ -509,7 +508,7 @@ export class ImportExportService {
     // This is a simplified implementation
     // In reality, you would use the PMTiles library to parse the binary format
     const data = JSON.parse(content);
-    
+
     return {
       metadata: {
         id: data.header.metadata.name || 'imported-region',
@@ -522,12 +521,12 @@ export class ImportExportService {
         createdAt: Date.now(),
         exportedAt: Date.now(),
         version: '1.0.0',
-        format: 'pmtiles'
+        format: 'pmtiles',
       },
       style: {},
       tiles: data.tiles || [],
       sprites: [],
-      fonts: []
+      fonts: [],
     };
   }
 
@@ -538,41 +537,50 @@ export class ImportExportService {
     // This is a simplified implementation
     // In reality, you would use SQL.js to parse the SQLite database
     const data = JSON.parse(content);
-    
-    const bounds = data.metadata.bounds ? data.metadata.bounds.split(',').map(Number) : [0, 0, 0, 0];
-    
+
+    const bounds = data.metadata.bounds
+      ? data.metadata.bounds.split(',').map(Number)
+      : [0, 0, 0, 0];
+
     return {
       metadata: {
         id: data.metadata.name || 'imported-region',
         name: data.metadata.name || 'Imported Region',
         description: data.metadata.description,
-        bounds: [[bounds[0], bounds[1]], [bounds[2], bounds[3]]],
+        bounds: [
+          [bounds[0], bounds[1]],
+          [bounds[2], bounds[3]],
+        ],
         minZoom: data.metadata.minzoom || 0,
         maxZoom: data.metadata.maxzoom || 14,
         styleUrl: '',
         createdAt: Date.now(),
         exportedAt: Date.now(),
         version: '1.0.0',
-        format: 'mbtiles'
+        format: 'mbtiles',
       },
       style: {},
-      tiles: data.tiles.map((tile: any) => ({
-        z: tile.zoom_level,
-        x: tile.tile_column,
-        y: tile.tile_row,
-        data: tile.tile_data,
-        format: 'pbf',
-        sourceId: 'imported'
-      })) || [],
+      tiles:
+        data.tiles.map((tile: any) => ({
+          z: tile.zoom_level,
+          x: tile.tile_column,
+          y: tile.tile_row,
+          data: tile.tile_data,
+          format: 'pbf',
+          sourceId: 'imported',
+        })) || [],
       sprites: [],
-      fonts: []
+      fonts: [],
     };
   }
 
   /**
    * Import region data to database
    */
-  private async importRegionData(regionData: RegionExportData, importOptions: RegionImportData): Promise<ImportResult> {
+  private async importRegionData(
+    regionData: RegionExportData,
+    importOptions: RegionImportData
+  ): Promise<ImportResult> {
     const db = await this.db;
     const regionId = importOptions.newRegionId || regionData.metadata.id;
     const regionName = importOptions.newRegionName || regionData.metadata.name;
@@ -589,7 +597,7 @@ export class ImportExportService {
       // Import region metadata
       const transaction = db.transaction(['regions'], 'readwrite');
       const regionStore = transaction.objectStore('regions');
-      
+
       await regionStore.put({
         id: regionId,
         key: regionId, // StoredRegion requires key property
@@ -601,7 +609,7 @@ export class ImportExportService {
         styleId: regionId, // StoredRegion requires styleId
         created: Date.now(), // StoredRegion uses 'created' not 'createdAt'
         lastModified: Date.now(), // Required by StoredRegion
-        expiry: Date.now() + (30 * 24 * 60 * 60 * 1000) // Default 30 days expiry
+        expiry: Date.now() + 30 * 24 * 60 * 60 * 1000, // Default 30 days expiry
       });
 
       // Import style
@@ -615,7 +623,7 @@ export class ImportExportService {
           regions: [],
           fonts: [],
           glyphs: [],
-          sprites: []
+          sprites: [],
         });
       }
 
@@ -623,7 +631,7 @@ export class ImportExportService {
       if (regionData.tiles && regionData.tiles.length > 0) {
         const tileTransaction = db.transaction(['tiles'], 'readwrite');
         const tileStore = tileTransaction.objectStore('tiles');
-        
+
         for (const tile of regionData.tiles) {
           await tileStore.put({
             key: `${regionId}_${tile.z}_${tile.x}_${tile.y}`,
@@ -637,7 +645,7 @@ export class ImportExportService {
             size: tile.data.byteLength || 0,
             type: 'vector',
             url: `tile://${tile.z}/${tile.x}/${tile.y}`,
-            lastModified: Date.now()
+            lastModified: Date.now(),
           });
         }
       }
@@ -652,10 +660,9 @@ export class ImportExportService {
           tilesImported: regionData.tiles?.length || 0,
           spritesImported: regionData.sprites?.length || 0,
           fontsImported: regionData.fonts?.length || 0,
-          totalSize: 0 // Calculate if needed
-        }
+          totalSize: 0, // Calculate if needed
+        },
       };
-
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
       throw new Error(`Failed to import region data: ${errorMessage}`);

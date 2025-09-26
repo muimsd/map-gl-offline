@@ -26,11 +26,11 @@ export class Modal extends BaseComponent {
 
   constructor(config: ModalConfig = {}) {
     super(config);
-    this.config = { 
-      closable: true, 
-      backdrop: true, 
+    this.config = {
+      closable: true,
+      backdrop: true,
       size: 'md',
-      ...config 
+      ...config,
     };
     this.createModalStructure();
     this.setupEventListeners();
@@ -73,7 +73,8 @@ export class Modal extends BaseComponent {
 
   private createHeader(): void {
     this.header = document.createElement('div');
-    this.header.className = 'flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700';
+    this.header.className =
+      'flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700';
 
     // Title section
     const titleSection = document.createElement('div');
@@ -102,7 +103,8 @@ export class Modal extends BaseComponent {
     // Theme toggle button
     if (this.config.showThemeToggle && this.config.onThemeToggle) {
       const themeButton = document.createElement('button');
-      themeButton.className = 'p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors';
+      themeButton.className =
+        'p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors';
       themeButton.innerHTML = `
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <circle cx="12" cy="12" r="5"></circle>
@@ -124,7 +126,8 @@ export class Modal extends BaseComponent {
     // Close button
     if (this.config.closable && this.config.onClose) {
       const closeButton = document.createElement('button');
-      closeButton.className = 'p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors';
+      closeButton.className =
+        'p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors';
       closeButton.innerHTML = `
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <line x1="18" y1="6" x2="6" y2="18"></line>
@@ -167,7 +170,7 @@ export class Modal extends BaseComponent {
         }
       };
       document.addEventListener('keydown', handleEscape);
-      
+
       // Store reference for cleanup
       this.eventListeners.set('escape', handleEscape as EventListener);
     }
@@ -178,7 +181,7 @@ export class Modal extends BaseComponent {
    */
   public setContent(content: string | HTMLElement): void {
     if (!this.body) return;
-    
+
     if (typeof content === 'string') {
       this.body.innerHTML = content;
     } else {
@@ -192,9 +195,9 @@ export class Modal extends BaseComponent {
    */
   public setFooter(content: string | HTMLElement): void {
     if (!this.footer) return;
-    
+
     this.footer.classList.remove('hidden');
-    
+
     if (typeof content === 'string') {
       this.footer.innerHTML = content;
     } else {
@@ -209,7 +212,7 @@ export class Modal extends BaseComponent {
   public show(): void {
     document.body.appendChild(this.element);
     this.element.classList.remove('hidden');
-    
+
     // Focus management
     const firstFocusable = this.element.querySelector(
       'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'

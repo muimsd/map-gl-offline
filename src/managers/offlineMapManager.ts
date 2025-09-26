@@ -76,9 +76,13 @@ export class OfflineMapManager {
     return this.regionService.listRegions();
   }
 
+  async listStoredRegions(): Promise<StoredRegion[]> {
+    return this.regionService.listStoredRegions();
+  }
+
   async getStoredRegion(regionId: string): Promise<StoredRegion | null> {
     const regions = await this.regionService.listStoredRegions();
-    return regions.find((region: any) => region.id === regionId) || null;
+    return regions.find((region: StoredRegion) => region.id === regionId) || null;
   }
 
   async getRegionSize(regionId: string): Promise<number> {
@@ -94,23 +98,6 @@ export class OfflineMapManager {
   async forceCleanupExpiredRegions(): Promise<number> {
     const result = await this.cleanupService.performCleanup({ maxAge: 0 });
     return result.deletedRegions;
-  }
-
-  async getExpiredRegions(): Promise<{
-    autoDelete: StoredRegion[];
-    manualOnly: StoredRegion[];
-  }> {
-    // This would need to be implemented in CleanupService if needed
-    return { autoDelete: [], manualOnly: [] };
-  }
-
-  async getRegionExpiry(regionId: string): Promise<{ expiry: number; expired: boolean } | null> {
-    // This would need to be implemented in CleanupService if needed
-    return null;
-  }
-
-  async extendRegionExpiry(regionId: string, newExpiry: number): Promise<void> {
-    // This would need to be implemented in CleanupService if needed
   }
 
   async setupAutoCleanup(
@@ -239,7 +226,10 @@ export class OfflineMapManager {
   /**
    * Export a region as JSON format
    */
-  async exportRegionAsJSON(regionId: string, options: ImportExportOptions = {}): Promise<ExportResult> {
+  async exportRegionAsJSON(
+    regionId: string,
+    options: ImportExportOptions = {}
+  ): Promise<ExportResult> {
     return this.importExportService.exportRegionAsJSON(regionId, options);
   }
 
@@ -247,7 +237,7 @@ export class OfflineMapManager {
    * Export a region as PMTiles format
    */
   async exportRegionAsPMTiles(
-    regionId: string, 
+    regionId: string,
     options: ImportExportOptions & PMTilesExportOptions = {}
   ): Promise<ExportResult> {
     return this.importExportService.exportRegionAsPMTiles(regionId, options);
@@ -292,7 +282,7 @@ export class OfflineMapManager {
    * Download a style with Mapbox GL support
    */
   async downloadStyle(
-    styleUrl: string, 
+    styleUrl: string,
     options: StyleDownloadOptions & {
       provider?: StyleProvider;
       accessToken?: string;
@@ -330,7 +320,7 @@ export class OfflineMapManager {
   /**
    * Get style statistics
    */
-  async getStyleStats(styleId: string): Promise<EnhancedStyleStats> {
+  async getStyleStats(_styleId: string): Promise<EnhancedStyleStats> {
     const { getStyleStats } = await import('../services/styleService');
     return getStyleStats();
   }
@@ -383,15 +373,18 @@ export class OfflineMapManager {
    */
   async cleanupOldStyles(maxAgeDays: number = 30): Promise<number> {
     const { cleanupOldStyles } = await import('../services/styleService');
-    const cutoffDate = Date.now() - (maxAgeDays * 24 * 60 * 60 * 1000);
-    
+    const cutoffDate = Date.now() - maxAgeDays * 24 * 60 * 60 * 1000;
+
     const result = await cleanupOldStyles({
       maxAge: cutoffDate,
-      onProgress: (progress) => {
-        console.log(`Style cleanup progress: ${progress.completed}/${progress.total}`);
-      }
+      onProgress: progress => {
+        // Style cleanup progress tracking
+        if (progress.completed % 10 === 0 || progress.completed === progress.total) {
+          console.warn(`Style cleanup progress: ${progress.completed}/${progress.total}`);
+        }
+      },
     });
-    
+
     return result.deletedCount;
   }
 }

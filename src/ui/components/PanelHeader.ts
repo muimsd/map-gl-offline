@@ -18,19 +18,13 @@ export interface HeaderProps {
 }
 
 export function createHeader(props: HeaderProps): HTMLDivElement {
-  const {
-    title,
-    subtitle,
-    onClose,
-    onThemeToggle,
-    onToggleTheme,
-    showThemeToggle = true,
-  } = props;
+  const { title, subtitle, onClose, onThemeToggle, onToggleTheme, showThemeToggle = true } = props;
 
   const themeToggleHandler = onThemeToggle || onToggleTheme;
 
   const header = document.createElement('div');
-  header.className = 'bg-gradient-to-br from-blue-600 to-blue-800 text-white p-4 flex justify-between relative overflow-hidden min-h-[30px] pl-6';
+  header.className =
+    'bg-gradient-to-br from-blue-600 to-blue-800 text-white p-4 flex justify-between relative overflow-hidden min-h-[30px] pl-6';
 
   const titleSection = document.createElement('div');
   titleSection.innerHTML = `
@@ -48,10 +42,11 @@ export function createHeader(props: HeaderProps): HTMLDivElement {
   // Theme toggle button
   if (showThemeToggle && themeToggleHandler) {
     const themeButton = new Button({
-      className: 'w-9 h-9 p-0 bg-white/10 text-white rounded-full backdrop-blur-sm hover:bg-black/20 dark:hover:bg-white/20 transition-colors',
+      className:
+        'w-9 h-9 p-0 bg-white/10 text-white rounded-full backdrop-blur-sm hover:bg-black/20 dark:hover:bg-white/20 transition-colors',
       icon: icons.moon({ size: 16, color: 'white' }),
       title: 'Toggle theme',
-      onClick: themeToggleHandler
+      onClick: themeToggleHandler,
     });
 
     actionsSection.appendChild(themeButton.getElement());
@@ -60,10 +55,11 @@ export function createHeader(props: HeaderProps): HTMLDivElement {
   // Close button
   if (onClose) {
     const closeButton = new Button({
-      className: 'w-9 h-9 p-0 bg-white/10 text-white rounded-full backdrop-blur-sm hover:bg-black/20 dark:hover:bg-white/20 transition-colors',
+      className:
+        'w-9 h-9 p-0 bg-white/10 text-white rounded-full backdrop-blur-sm hover:bg-black/20 dark:hover:bg-white/20 transition-colors',
       icon: icons.x({ size: 16, color: 'white' }),
       title: 'Close',
-      onClick: onClose
+      onClick: onClose,
     });
 
     actionsSection.appendChild(closeButton.getElement());

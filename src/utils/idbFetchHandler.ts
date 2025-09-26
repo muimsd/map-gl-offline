@@ -23,7 +23,7 @@ export async function idbFetchHandler(url: string, init?: RequestInit): Promise<
   console.log(`🔍 IDB Fetch Handler called for URL: ${url}`);
   const method = init?.method || 'GET';
   console.log(`📋 Method: ${method}`);
-  
+
   // You can handle different HTTP methods here
   if (method === 'POST') {
     console.log(`📝 POST request to: ${url}`);
@@ -31,14 +31,16 @@ export async function idbFetchHandler(url: string, init?: RequestInit): Promise<
       console.log(`📝 POST body:`, init.body);
     }
   }
-  
+
   const db = await dbPromise;
   const parsed = url.replace('idb://', '').split('/');
   const [downloadId, type, ...rest] = parsed;
   const resourcePath = rest.join('/');
   const key = `${downloadId}::${decodeURIComponent(resourcePath)}`;
 
-  console.log(`📋 Parsed - downloadId: ${downloadId}, type: ${type}, resourcePath: ${resourcePath}, key: ${key}`);
+  console.log(
+    `📋 Parsed - downloadId: ${downloadId}, type: ${type}, resourcePath: ${resourcePath}, key: ${key}`
+  );
 
   try {
     switch (type) {
@@ -70,7 +72,7 @@ export async function idbFetchHandler(url: string, init?: RequestInit): Promise<
           // fallback: old logic for backward compatibility
           // Old: idb://downloadId/tile/encoded_tile_url
           const pathParts = rest; // ['encoded_tile_url']
-          
+
           if (pathParts.length === 1) {
             // Old format without sourceKey - try to extract from the URL
             const encodedTileUrl = pathParts[0];
@@ -80,12 +82,21 @@ export async function idbFetchHandler(url: string, init?: RequestInit): Promise<
             const urlParts = tileUrl.split('/');
             const fallbackSourceKey = urlParts[urlParts.length - 5] || 'unknown'; // Try to guess sourceKey
             console.warn(`⚠️ Using old URL format, guessed sourceKey: ${fallbackSourceKey}`);
-            console.log(`🗺️ Looking for tile - sourceKey: ${fallbackSourceKey}, tileUrl: ${tileUrl}`);
+            console.log(
+              `🗺️ Looking for tile - sourceKey: ${fallbackSourceKey}, tileUrl: ${tileUrl}`
+            );
             // Extract z/x/y coordinates from the tile URL
             const match = tileUrl.match(/\/(\d+)\/(\d+)\/(\d+)\.(\w+)(?:\?|$)/);
             if (match) {
               const [, z, x, y, ext] = match;
-              const tileKey = createTileKey(parseInt(x), parseInt(y), parseInt(z), downloadId, fallbackSourceKey, ext);
+              const tileKey = createTileKey(
+                parseInt(x),
+                parseInt(y),
+                parseInt(z),
+                downloadId,
+                fallbackSourceKey,
+                ext
+              );
               console.log(`🗺️ Looking for tile with key: ${tileKey}`);
               const resource = await db.get('tiles', tileKey);
               if (resource?.data) {
@@ -100,7 +111,11 @@ export async function idbFetchHandler(url: string, init?: RequestInit): Promise<
                   const keyParts = tile.key.split(':');
                   if (keyParts.length >= 5) {
                     const [, , tz, tx, ty] = keyParts;
-                    return parseInt(tz) === parseInt(z) && parseInt(tx) === parseInt(x) && parseInt(ty) === parseInt(y);
+                    return (
+                      parseInt(tz) === parseInt(z) &&
+                      parseInt(tx) === parseInt(x) &&
+                      parseInt(ty) === parseInt(y)
+                    );
                   }
                   return false;
                 });
@@ -159,9 +174,9 @@ export async function idbFetchHandler(url: string, init?: RequestInit): Promise<
         const style = await db.get('styles', downloadId);
         if (style) {
           console.log(`✅ Found style: ${downloadId}`);
-          return new Response(JSON.stringify(style), { 
-            status: 200, 
-            headers: { 'Content-Type': 'application/json' } 
+          return new Response(JSON.stringify(style), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
           });
         } else {
           console.warn(`❌ Style not found: ${downloadId}`);
@@ -175,7 +190,7 @@ export async function idbFetchHandler(url: string, init?: RequestInit): Promise<
   } catch (error) {
     console.error(`💥 Error fetching resource from IDB: ${url}`, error);
   }
-  
+
   console.warn(`🚫 Resource not found in IDB: ${url}`);
   return new Response('Not found in IDB', { status: 404 });
 }

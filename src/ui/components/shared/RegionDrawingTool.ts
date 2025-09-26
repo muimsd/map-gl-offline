@@ -98,7 +98,8 @@ export class RegionDrawing extends BaseComponent {
   private showDrawingInstructions(): void {
     const instructions = document.createElement('div');
     instructions.id = 'drawing-instructions';
-    instructions.className = 'fixed top-4 left-1/2 transform -translate-x-1/2 bg-blue-600 text-white px-4 py-2 rounded-lg shadow-lg z-[1001]';
+    instructions.className =
+      'fixed top-4 left-1/2 transform -translate-x-1/2 bg-blue-600 text-white px-4 py-2 rounded-lg shadow-lg z-[1001]';
     instructions.innerHTML = `
       <div class="text-center">
         <div class="font-semibold">Drawing Mode Active</div>
@@ -121,7 +122,7 @@ export class RegionDrawing extends BaseComponent {
 
     // Get the clicked point
     const point = e.lngLat;
-    
+
     // Get current bounds or create bounds around the point
     const bounds = this.createBoundsAroundPoint(point);
 
@@ -135,19 +136,19 @@ export class RegionDrawing extends BaseComponent {
   private createBoundsAroundPoint(center: any): [number, number, number, number] {
     // Create a small region around the clicked point
     const offset = 0.01; // roughly 1km
-    
+
     return [
       center.lng - offset, // west
       center.lat - offset, // south
       center.lng + offset, // east
-      center.lat + offset  // north
+      center.lat + offset, // north
     ];
   }
 
   private showRegionForm(bounds: [number, number, number, number]): void {
     // Calculate approximate area in km²
     const area = this.calculateAreaFromBounds(bounds);
-    
+
     const regionForm = new RegionFormModal({
       bounds,
       area,
@@ -166,7 +167,7 @@ export class RegionDrawing extends BaseComponent {
           // This would typically be handled by the offline manager
           // For now, we'll emit an event
           this.drawingConfig.onRegionSaved();
-          
+
           return region;
         } catch (error) {
           console.error('Failed to save region:', error);
@@ -188,14 +189,14 @@ export class RegionDrawing extends BaseComponent {
    */
   private calculateAreaFromBounds(bounds: [number, number, number, number]): number {
     const [west, south, east, north] = bounds;
-    
+
     // Convert degrees to approximate km using rough conversion
     // Note: This is simplified and doesn't account for projection distortion
     const degToKm = 111; // 1 degree ≈ 111 km
     const width = Math.abs(east - west) * degToKm;
     const height = Math.abs(north - south) * degToKm;
     const area = width * height;
-    
+
     return Math.round(area * 100) / 100; // Round to 2 decimal places
   }
 

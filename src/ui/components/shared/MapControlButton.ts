@@ -27,24 +27,25 @@ export class ControlButton extends BaseComponent {
   protected createElement(): HTMLElement {
     const container = document.createElement('div');
     container.className = 'maplibregl-ctrl maplibregl-ctrl-group offline-manager-control';
-    
+
     const button = document.createElement('button');
     button.type = 'button';
     button.className = 'maplibregl-ctrl-icon relative';
     button.innerHTML = this.buttonConfig.icon || icons.cloud({ size: 20, color: 'black' });
     button.title = this.buttonConfig.title || 'Offline Map Manager';
-    
+
     const badge = document.createElement('span');
-    badge.className = 'progress-badge absolute -top-1 -right-1 bg-blue-500 text-white rounded-full px-2 py-1 text-xs font-bold hidden min-w-4 text-center shadow-md';
-    
+    badge.className =
+      'progress-badge absolute -top-1 -right-1 bg-blue-500 text-white rounded-full px-2 py-1 text-xs font-bold hidden min-w-4 text-center shadow-md';
+
     button.appendChild(badge);
     container.appendChild(button);
-    
+
     // Add click handler
     if (this.buttonConfig.onToggle) {
       button.addEventListener('click', this.buttonConfig.onToggle);
     }
-    
+
     return container;
   }
 

@@ -36,7 +36,7 @@ export class RegionDetailsModal {
       closable: true,
       showThemeToggle: false,
       onClose: this.options.onClose,
-      onThemeToggle: this.options.onThemeToggle
+      onThemeToggle: this.options.onThemeToggle,
     };
 
     this.modal = new Modal(modalConfig);
@@ -119,14 +119,14 @@ export class RegionDetailsModal {
       text: 'Focus on Map',
       variant: 'secondary',
       icon: icons.focus({ size: 16, color: 'currentColor' }),
-      onClick: () => this.focusRegion()
+      onClick: () => this.focusRegion(),
     });
 
     // Close button
     const closeButton = new Button({
       text: 'Close',
       variant: 'primary',
-      onClick: () => this.close()
+      onClick: () => this.close(),
     });
 
     footer.appendChild(focusButton.getElement());

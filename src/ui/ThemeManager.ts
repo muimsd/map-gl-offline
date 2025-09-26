@@ -30,12 +30,12 @@ class ThemeManager {
   private initializeTheme(): void {
     const savedTheme = localStorage.getItem('offline-manager-theme') as ThemeMode;
     const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-    
+
     const themeMode = savedTheme || (systemPrefersDark ? 'dark' : 'light');
     this.setTheme(themeMode);
 
     // Listen for system theme changes
-    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', e => {
       if (!localStorage.getItem('offline-manager-theme')) {
         this.setTheme(e.matches ? 'dark' : 'light');
       }
@@ -49,14 +49,14 @@ class ThemeManager {
   setTheme(mode: ThemeMode): void {
     this.currentTheme = mode === 'dark' ? darkTheme : lightTheme;
     localStorage.setItem('offline-manager-theme', mode);
-    
+
     // Apply theme to document for Tailwind dark mode
     if (mode === 'dark') {
       document.documentElement.classList.add('dark');
     } else {
       document.documentElement.classList.remove('dark');
     }
-    
+
     this.notifyListeners();
   }
 

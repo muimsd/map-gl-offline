@@ -15,10 +15,7 @@ export interface ActionButtonsProps {
 }
 
 export function createActionButtons(props: ActionButtonsProps): HTMLDivElement {
-  const {
-    onAddRegion,
-    onRefresh,
-  } = props;
+  const { onAddRegion, onRefresh } = props;
 
   const container = document.createElement('div');
   container.className = 'flex gap-4 mb-8 flex-wrap items-center';
@@ -31,7 +28,8 @@ export function createActionButtons(props: ActionButtonsProps): HTMLDivElement {
       text: 'Add New Region',
       icon: icons.plus({ size: 16, color: 'white' }),
       onClick: onAddRegion,
-      className: 'bg-gradient-to-r from-green-600 to-green-700 text-white border-0 text-base px-4 py-3 rounded-md font-semibold shadow-md transition-all duration-200 min-w-[100px] hover:from-green-700 hover:to-green-800',
+      className:
+        'bg-gradient-to-r from-green-600 to-green-700 text-white border-0 text-base px-4 py-3 rounded-md font-semibold shadow-md transition-all duration-200 min-w-[100px] hover:from-green-700 hover:to-green-800',
     });
 
     container.appendChild(addButton.getElement());
@@ -45,7 +43,8 @@ export function createActionButtons(props: ActionButtonsProps): HTMLDivElement {
       text: 'Refresh',
       icon: icons.refresh({ size: 16, color: 'currentColor' }),
       onClick: onRefresh,
-      className: 'bg-white dark:bg-gray-800 text-blue-600 dark:text-blue-400 border border-blue-600 dark:border-blue-400 text-base px-3 py-2 rounded-md font-semibold shadow-md transition-all duration-200 min-w-[80px] hover:bg-blue-50 dark:hover:bg-blue-900/20',
+      className:
+        'bg-white dark:bg-gray-800 text-blue-600 dark:text-blue-400 border border-blue-600 dark:border-blue-400 text-base px-3 py-2 rounded-md font-semibold shadow-md transition-all duration-200 min-w-[80px] hover:bg-blue-50 dark:hover:bg-blue-900/20',
     });
 
     container.appendChild(refreshButton.getElement());

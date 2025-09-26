@@ -67,28 +67,16 @@ export class OfflineManagerControl implements IControl {
    * Setup fetch interceptor to handle idb:// URLs
    */
   private setupFetchInterceptor(): void {
-    const self = this;
-    // console.log('🔧 Setting up fetch interceptor for idb:// URLs');
+    const originalFetch = this.originalFetch;
 
     window.fetch = function (input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
       const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
-      const method = init?.method || 'GET';
-
-      // console.log(`📡 Fetch intercepted: ${method} ${url}`);
 
       if (url.startsWith('idb://')) {
-        // console.log(`🎯 Routing to IDB handler: ${method} ${url}`);
-
-        // You can access POST data here if needed
-        if (method === 'POST' && init?.body) {
-          // console.log(`📝 POST body:`, init.body);
-        }
-
         return idbFetchHandler(url, init);
       }
 
-      // console.log(`🌐 Using original fetch: ${method} ${url}`);
-      return self.originalFetch(input, init);
+      return originalFetch(input, init);
     };
   }
 
@@ -218,8 +206,7 @@ export class OfflineManagerControl implements IControl {
    * Handle region saved event
    */
   private handleRegionSaved(): void {
-    console.log(`✅ Region saved, refreshing panel`);
-    // Use the panel's refresh method instead of renderPanel to avoid conflicts
+    // Region saved, refreshing panel
     if (this.panelRenderer) {
       this.panelRenderer.refresh();
     }
@@ -228,21 +215,20 @@ export class OfflineManagerControl implements IControl {
   /**
    * Handle progress updates from download manager
    */
-  private handleProgressUpdate(downloads: Map<string, any>): void {
+  private handleProgressUpdate(_downloads: Map<string, unknown>): void {
     // Only update the download progress section, don't refresh the entire panel
     // The PanelRenderer will handle this through renderDownloadProgress()
     if (this.panelRenderer) {
-      // Don't refresh the entire panel for progress updates, just log
-      console.log(`📊 Download progress update:`, downloads.size, 'active downloads');
+      // Don't refresh the entire panel for progress updates
+      // Progress updates are handled by the PanelRenderer
     }
   }
 
   /**
    * Handle download completion
    */
-  private handleDownloadComplete(regionId: string): void {
-    console.log(`✅ Download completed for region: ${regionId}`);
-    // Use the panel's refresh method instead of renderPanel to avoid conflicts
+  private handleDownloadComplete(_regionId: string): void {
+    // Download completed for region
     if (this.panelRenderer) {
       this.panelRenderer.refresh();
     }
@@ -251,7 +237,7 @@ export class OfflineManagerControl implements IControl {
   /**
    * Handle download error
    */
-  private handleDownloadError(regionId: string, error: any): void {
+  private handleDownloadError(regionId: string, error: unknown): void {
     console.error(`Download error for region ${regionId}:`, error);
     // Use the panel's refresh method instead of renderPanel to avoid conflicts
     if (this.panelRenderer) {
@@ -293,16 +279,16 @@ export class OfflineManagerControl implements IControl {
     if (!this.map) return;
 
     this.offlineManager
-      .listRegions()
-      .then((regions: any[]) => {
-        console.log('[fitBounds] Available region IDs:', regions.map((r: any) => r.id));
-        console.log('[fitBounds] Requested regionId:', regionId);
-        const region = regions.find((r: any) => r.id === regionId);
+      .listStoredRegions()
+      .then((regions) => {
+        console.warn('[fitBounds] Available region IDs:', regions.map((r) => r.id));
+        console.warn('[fitBounds] Requested regionId:', regionId);
+        const region = regions.find((r) => r.id === regionId);
         if (!region) {
           console.warn(`[fitBounds] Region with id ${regionId} not found.`);
           return;
         }
-        console.log(`[fitBounds] Focusing region:`, region);
+        console.warn(`[fitBounds] Focusing region:`, region);
         if (region.bounds) {
           // Validate bounds format
           const bounds = region.bounds;
@@ -314,9 +300,9 @@ export class OfflineManagerControl implements IControl {
             console.error(`[fitBounds] Invalid bounds for region`, bounds);
             return;
           }
-          console.log(`[fitBounds] Calling map.fitBounds with:`, bounds);
+          console.warn(`[fitBounds] Calling map.fitBounds with:`, bounds);
           // Fit map to region bounds
-          this.map!.fitBounds(bounds as [[number, number], [number, number]], {
+          this.map?.fitBounds(bounds as [[number, number], [number, number]], {
             padding: 20,
             duration: 1000,
           });
@@ -329,7 +315,7 @@ export class OfflineManagerControl implements IControl {
           console.warn(`[fitBounds] Region has no bounds property:`, region);
         }
       })
-      .catch((error: any) => {
+      .catch((error: unknown) => {
         console.error('Error focusing region:', error);
       });
   }
@@ -337,11 +323,10 @@ export class OfflineManagerControl implements IControl {
   /**
    * Show bounding box for a region on the map
    */
-  private showRegionBoundingBox(region: any): void {
+  private showRegionBoundingBox(region: { bounds?: number[][]; name?: string; id?: string }): void {
     if (!this.map || !region.bounds) return;
 
     const sourceId = 'region-bbox-source';
-    const layerId = 'region-bbox-layer';
 
     // Remove existing bbox if present
     this.removeRegionBoundingBox();

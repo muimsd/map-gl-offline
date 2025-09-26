@@ -111,14 +111,14 @@ const styleSwitcher: StyleSwitcherControl = new StyleSwitcherControl({
   showLabels: true,
   showImages: true,
   activeStyleId: defaultStyle.id,
-  onBeforeStyleChange: (from: StyleItem, to: StyleItem): void => {
-    console.log('Changing style from', from.name, 'to', to.name);
+  onBeforeStyleChange: (_from: StyleItem, _to: StyleItem): void => {
+    // Changing style from _from.name to _to.name
   },
   onAfterStyleChange: (_from: StyleItem, to: StyleItem): void => {
     map.setStyle(to.styleUrl);
     // Update offline manager style URL
     offlineManagerControl.updateStyleUrl(to.styleUrl);
-    console.log('Style changed to', to.name, 'and offline manager updated');
+    // Style changed to to.name and offline manager updated
   },
 } as StyleSwitcherControlOptions);
 map.addControl(styleSwitcher, 'top-left');

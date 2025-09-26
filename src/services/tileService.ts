@@ -63,7 +63,9 @@ export class TileService {
 
     // Calculate expected total downloads
     const expectedTotalDownloads = tileCoords.length * tileSources.size;
-    console.warn(`Expected total tile downloads: ${tileCoords.length} coords × ${tileSources.size} sources = ${expectedTotalDownloads}`);
+    console.warn(
+      `Expected total tile downloads: ${tileCoords.length} coords × ${tileSources.size} sources = ${expectedTotalDownloads}`
+    );
 
     // Create progress tracker
     const progressTracker = createProgressTracker(expectedTotalDownloads);
@@ -91,7 +93,7 @@ export class TileService {
       }
     }
 
-    // Debug: Log all sources in the style  
+    // Debug: Log all sources in the style
     if (style.sources) {
       console.warn('All sources in style:', Object.keys(style.sources));
       for (const [sourceId, sourceConfig] of Object.entries(style.sources)) {
@@ -108,12 +110,18 @@ export class TileService {
       const sourceMinZ = Math.ceil(sourceConfig.minzoom ?? region.minZoom);
       const sourceMaxZ = Math.floor(sourceConfig.maxzoom ?? region.maxZoom);
       console.warn(`Region zoom range: ${region.minZoom} to ${region.maxZoom}`);
-      console.warn(`Source "${sourceId}" zoom constraints: minzoom=${sourceConfig.minzoom}, maxzoom=${sourceConfig.maxzoom}`);
+      console.warn(
+        `Source "${sourceId}" zoom constraints: minzoom=${sourceConfig.minzoom}, maxzoom=${sourceConfig.maxzoom}`
+      );
       console.warn(`Effective zoom range for source: ${sourceMinZ} to ${sourceMaxZ}`);
-      
-      let coordsToDownload = tileCoords.filter(coord => coord.z >= sourceMinZ && coord.z <= sourceMaxZ);
+
+      let coordsToDownload = tileCoords.filter(
+        coord => coord.z >= sourceMinZ && coord.z <= sourceMaxZ
+      );
       console.warn(`Total tile coords generated: ${tileCoords.length}`);
-      console.warn(`Filtered to ${coordsToDownload.length} coords for source ${sourceId} (after zoom filtering)`);
+      console.warn(
+        `Filtered to ${coordsToDownload.length} coords for source ${sourceId} (after zoom filtering)`
+      );
 
       // Debug: show tile distribution by zoom level
       const tilesByZoom: Record<number, number> = {};
@@ -121,11 +129,13 @@ export class TileService {
         tilesByZoom[coord.z] = (tilesByZoom[coord.z] || 0) + 1;
       });
       console.warn(`Tiles per zoom level for source ${sourceId}:`, tilesByZoom);
-      
+
       // Show what was filtered out
       const filteredOutCount = tileCoords.length - coordsToDownload.length;
       if (filteredOutCount > 0) {
-        console.warn(`⚠️  ${filteredOutCount} tiles filtered out due to source zoom constraints (${sourceMinZ}-${sourceMaxZ})`);
+        console.warn(
+          `⚠️  ${filteredOutCount} tiles filtered out due to source zoom constraints (${sourceMinZ}-${sourceMaxZ})`
+        );
       }
 
       if (!sourceConfig.tiles || sourceConfig.tiles.length === 0) {
@@ -147,23 +157,29 @@ export class TileService {
         console.warn(`Checking for existing tiles for source ${sourceId}...`);
         const existingTiles = await this.getExistingTileKeys(styleId, sourceId);
         console.warn(`Found ${existingTiles.size} existing tiles for source ${sourceId}`);
-        
+
         const originalCount = coordsToDownload.length;
         coordsToDownload = coordsToDownload.filter(coord => {
           const key = this.createTileKey(coord.x, coord.y, coord.z, styleId, sourceId, ext);
           return !existingTiles.has(key);
         });
-        
+
         const skippedForThisSource = originalCount - coordsToDownload.length;
         skippedTiles += skippedForThisSource;
 
-        console.warn(`Source ${sourceId}: ${coordsToDownload.length} to download, ${skippedForThisSource} skipped (already exist)`);
+        console.warn(
+          `Source ${sourceId}: ${coordsToDownload.length} to download, ${skippedForThisSource} skipped (already exist)`
+        );
       } else {
-        console.warn(`Source ${sourceId}: ${coordsToDownload.length} to download (skipExisting disabled)`);
+        console.warn(
+          `Source ${sourceId}: ${coordsToDownload.length} to download (skipExisting disabled)`
+        );
       }
 
       // Process tiles in batches with concurrency control
-      console.warn(`Starting batch download of ${coordsToDownload.length} tiles for source ${sourceId}...`);
+      console.warn(
+        `Starting batch download of ${coordsToDownload.length} tiles for source ${sourceId}...`
+      );
 
       let sourceDownloadedTiles = 0;
       let sourceFailedTiles = 0;
@@ -235,7 +251,9 @@ export class TileService {
             sourceDownloadedTiles++;
 
             if (sourceDownloadedTiles % 10 === 0) {
-              console.warn(`Source ${sourceId}: Downloaded ${sourceDownloadedTiles}/${coordsToDownload.length} tiles`);
+              console.warn(
+                `Source ${sourceId}: Downloaded ${sourceDownloadedTiles}/${coordsToDownload.length} tiles`
+              );
             }
           } catch (error) {
             failedTiles++;
@@ -249,13 +267,18 @@ export class TileService {
               url: tileUrl,
               error: error instanceof Error ? error.message : String(error),
             });
-            console.error(`Failed to download tile ${coord.z}/${coord.x}/${coord.y} from ${sourceId}:`, error);
+            console.error(
+              `Failed to download tile ${coord.z}/${coord.x}/${coord.y} from ${sourceId}:`,
+              error
+            );
           }
         },
         { batchSize }
       );
 
-      console.warn(`Source ${sourceId} completed: ${sourceDownloadedTiles} downloaded, ${sourceFailedTiles} failed`);
+      console.warn(
+        `Source ${sourceId} completed: ${sourceDownloadedTiles} downloaded, ${sourceFailedTiles} failed`
+      );
     }
 
     const downloadTime = Date.now() - startTime;
@@ -404,14 +427,14 @@ export class TileService {
     const [[west, south], [east, north]] = region.bounds;
     const widthDeg = Math.abs(east - west);
     const heightDeg = Math.abs(north - south);
-    
+
     // More accurate area calculation considering latitude
     const avgLat = (south + north) / 2;
-    const latCorrectionFactor = Math.cos(avgLat * Math.PI / 180);
+    const latCorrectionFactor = Math.cos((avgLat * Math.PI) / 180);
     const widthKm = widthDeg * 111.32 * latCorrectionFactor; // 111.32 km per degree at equator
     const heightKm = heightDeg * 110.54; // 110.54 km per degree of latitude
     const areaApproxKm2 = widthKm * heightKm;
-    
+
     console.warn(`Approximate area: ${areaApproxKm2.toFixed(2)} km² (improved calculation)`);
     console.warn(`Region dimensions: ${widthKm.toFixed(1)}km × ${heightKm.toFixed(1)}km`);
 
@@ -453,7 +476,7 @@ export class TileService {
       console.warn('Style or sources missing in extractTileSources', {
         hasStyle: !!style,
         hasSources: !!(style && style.sources),
-        sourceKeys: style && style.sources ? Object.keys(style.sources) : []
+        sourceKeys: style && style.sources ? Object.keys(style.sources) : [],
       });
       return tileSources;
     }
@@ -465,15 +488,14 @@ export class TileService {
 
       console.warn(`Processing source ${sourceId}:`, {
         type: config.type,
-        hasTiles: !!(config.tiles),
-        hasUrl: !!(config.url),
+        hasTiles: !!config.tiles,
+        hasUrl: !!config.url,
         tilesLength: config.tiles ? config.tiles.length : 0,
-        url: config.url
+        url: config.url,
       });
 
       // Handle vector and raster tile sources
-      if ((config.type === 'vector' || config.type === 'raster')) {
-
+      if (config.type === 'vector' || config.type === 'raster') {
         // Handle direct tile URLs in the source config
         if (config.tiles && Array.isArray(config.tiles) && config.tiles.length > 0) {
           // Filter out any idb:// URLs in case somehow a patched style was passed
@@ -503,7 +525,9 @@ export class TileService {
 
             // Handle different TileJSON URL formats
             if (config.url.includes('tilejson+')) {
-              tileUrlPattern = config.url.replace('tilejson+', '').replace('.json', '/{z}/{x}/{y}.pbf');
+              tileUrlPattern = config.url
+                .replace('tilejson+', '')
+                .replace('.json', '/{z}/{x}/{y}.pbf');
             } else if (config.url.endsWith('.json')) {
               // Assume it's a TileJSON endpoint that follows the pattern: base/tilejson.json → base/{z}/{x}/{y}.extension
               const urlBase = config.url.substring(0, config.url.lastIndexOf('/'));
@@ -516,19 +540,20 @@ export class TileService {
             // Create a config with a tiles array
             const enhancedConfig = {
               ...config,
-              tiles: [tileUrlPattern]
+              tiles: [tileUrlPattern],
             };
 
             tileSources.set(sourceId, enhancedConfig);
-            console.warn(`Enhanced tile source: ${sourceId} with generated tile URL pattern: ${tileUrlPattern}`);
-
+            console.warn(
+              `Enhanced tile source: ${sourceId} with generated tile URL pattern: ${tileUrlPattern}`
+            );
           } catch (error) {
             console.warn(`Failed to process TileJSON URL for source ${sourceId}:`, error);
 
             // Fallback to a simple placeholder
             const placeholderConfig = {
               ...config,
-              tiles: [config.url.replace('tilejson+', '').replace('.json', '/{z}/{x}/{y}.pbf')]
+              tiles: [config.url.replace('tilejson+', '').replace('.json', '/{z}/{x}/{y}.pbf')],
             };
             tileSources.set(sourceId, placeholderConfig);
             console.warn(`Using placeholder tile URL for source ${sourceId}`);
@@ -550,7 +575,7 @@ export class TileService {
 
         tileSources.set(firstSourceId, {
           type: 'vector',
-          tiles: ['{z}/{x}/{y}.pbf']
+          tiles: ['{z}/{x}/{y}.pbf'],
         });
       }
     }
