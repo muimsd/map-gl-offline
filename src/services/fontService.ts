@@ -23,7 +23,7 @@ export class FontService {
       retryDelay = 1000,
       timeout = 30000,
       validateFonts = true,
-      _storageQuotaCheck = true,
+      storageQuotaCheck = true,
       quietMode = false,
     } = options;
 
@@ -119,7 +119,7 @@ export class FontService {
           // Track font types
           const fontType = this.detectFontType(contentType, fontUrl);
           fontsByType[fontType] = (fontsByType[fontType] || 0) + 1;
-        } catch (_error) {
+        } catch (error) {
           failedFonts++;
           const errorMessage = error instanceof Error ? error.message : String(error);
           errors.push({

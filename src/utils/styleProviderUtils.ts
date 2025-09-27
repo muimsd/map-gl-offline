@@ -32,7 +32,7 @@ export function detectStyleProvider(styleUrl: string, style?: BaseStyle): StyleP
 
     // Check sources for Mapbox-specific patterns
     const sources = style.sources || {};
-    for (const [sourceId, sourceConfig] of Object.entries(sources)) {
+    for (const [_sourceId, sourceConfig] of Object.entries(sources)) {
       const source = sourceConfig as any;
       if (source.url && source.url.includes('mapbox.com')) {
         return 'mapbox';

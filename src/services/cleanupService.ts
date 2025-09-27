@@ -10,13 +10,13 @@ export class CleanupService {
     this.deleteRegionCallback = deleteRegionCallback;
   }
 
-  async performCleanup(options: RegionCleanupOptions = {}): Promise<CleanupResult> {
-    const {
-      maxAge = 30, // 30 days default
+  async runCleanup(options: RegionCleanupOptions = {}): Promise<CleanupResult> {
+    const { 
+      onProgress,
+      maxAge,
       maxStorageSize,
       maxRegions,
-      priorityPatterns = [],
-      _onProgress,
+      priorityPatterns = []
     } = options;
 
     const result: CleanupResult = {
@@ -136,7 +136,7 @@ export class CleanupService {
             total: 100,
             message: `Deleted region: ${region.name || region.id}`,
           });
-        } catch (_error) {
+        } catch (error) {
           result.errors.push(`Failed to delete region ${region.id}: ${error}`);
         }
       }
@@ -153,7 +153,7 @@ export class CleanupService {
         total: 100,
         message: 'Cleanup completed',
       });
-    } catch (_error) {
+    } catch (error) {
       result.errors.push(`Cleanup failed: ${error}`);
     }
 
@@ -256,7 +256,7 @@ export class CleanupService {
           console.warn('Running automatic cleanup...');
           const result = await this.performCleanup(cleanupOptions);
           console.warn('Auto cleanup completed:', result);
-        } catch (_error) {
+        } catch (error) {
           console.error('Auto cleanup failed:', error);
         }
       },
@@ -346,7 +346,7 @@ export class CleanupService {
           }
           cursor = await cursor.continue();
         }
-      } catch (_error) {
+      } catch (error) {
         console.warn(`Could not calculate size for store ${storeName}:`, error);
       }
     }

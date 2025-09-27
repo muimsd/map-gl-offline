@@ -4,8 +4,8 @@ import type { MapboxStyle } from '../types/style';
  * Patches a MapboxStyle for offline use by replacing URLs with IndexedDB references
  */
 export function patchStyleForOffline(style: MapboxStyle, downloadId: string): MapboxStyle {
-  console.log(`🎨 Patching style for offline use with downloadId: ${downloadId}`);
-  console.log(`📄 Original style:`, style);
+  console.warn(`🎨 Patching style for offline use with downloadId: ${downloadId}`);
+  console.warn(`📄 Original style:`, style);
 
   // Patch sources
   for (const sourceKey in style.sources) {
@@ -13,7 +13,7 @@ export function patchStyleForOffline(style: MapboxStyle, downloadId: string): Ma
       tiles?: string[];
       url?: string;
     };
-    console.log(`🔧 Patching source: ${sourceKey}`, source);
+    console.warn(`🔧 Patching source: ${sourceKey}`, source);
 
     if (source.tiles) {
       const originalTiles = [...source.tiles];
@@ -24,7 +24,7 @@ export function patchStyleForOffline(style: MapboxStyle, downloadId: string): Ma
         const ext = extMatch ? extMatch[1] : 'pbf';
         return `idb://${downloadId}/tile/${sourceKey}/{z}/{x}/{y}.${ext}`;
       });
-      console.log(`🗺️ Patched tiles for ${sourceKey}:`, {
+      console.warn(`🗺️ Patched tiles for ${sourceKey}:`, {
         original: originalTiles,
         patched: source.tiles,
       });
@@ -32,7 +32,7 @@ export function patchStyleForOffline(style: MapboxStyle, downloadId: string): Ma
     if (source.url) {
       const originalUrl = source.url;
       source.url = `idb://${downloadId}/tilesjson/${encodeURIComponent(source.url)}`;
-      console.log(`📄 Patched tilejson URL for ${sourceKey}:`, {
+      console.warn(`📄 Patched tilejson URL for ${sourceKey}:`, {
         original: originalUrl,
         patched: source.url,
       });
@@ -43,17 +43,17 @@ export function patchStyleForOffline(style: MapboxStyle, downloadId: string): Ma
   if (style.glyphs) {
     const originalGlyphs = style.glyphs;
     style.glyphs = `idb://${downloadId}/glyph/{fontstack}/{range}.pbf`;
-    console.log(`🔤 Patched glyphs:`, { original: originalGlyphs, patched: style.glyphs });
+    console.warn(`🔤 Patched glyphs:`, { original: originalGlyphs, patched: style.glyphs });
   }
 
   // Patch sprite
   if (style.sprite) {
     const originalSprite = style.sprite;
     style.sprite = `idb://${downloadId}/sprite/sprite`;
-    console.log(`🎨 Patched sprite:`, { original: originalSprite, patched: style.sprite });
+    console.warn(`🎨 Patched sprite:`, { original: originalSprite, patched: style.sprite });
   }
 
-  console.log(`✅ Final patched style:`, style);
+  console.warn(`✅ Final patched style:`, style);
   return style;
 }
 

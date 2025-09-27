@@ -9,7 +9,7 @@ import { DownloadManager } from '../../managers/downloadManager';
 import { ModalManager } from '../../modals/ModalManager';
 import { RegionDetailsModal } from '../../modals/regionDetailsModal';
 import { ConfirmationModal } from '../../modals/confirmationModal';
-import { ImportExportModal } from '../../modals/importExportModal';
+// import { ImportExportModal } from '../../modals/ImportExportModal.js';
 import { createHeader } from '../PanelHeader';
 import { createActionButtons } from '../PanelActions';
 import { createRegionsList } from '../RegionList';
@@ -124,7 +124,7 @@ export class PanelContentRenderer extends BaseComponent {
       onFocusRegion: this.contentConfig.onFocusRegion,
       onDeleteRegion: (regionId: string) => this.deleteRegion(regionId),
       onShowRegionDetails: (regionId: string) => this.findAndShowRegionDetails(regionId),
-      onImportExport: (regionId: string) => this.showImportExportModal(),
+      onImportExport: (_regionId: string) => this.showImportExportModal(),
     });
     mainContent.appendChild(regionsList);
 
@@ -224,14 +224,14 @@ export class PanelContentRenderer extends BaseComponent {
   private downloadRegion(regionId: string): void {
     // For now, just log that we would start a download
     // In a real implementation, this would trigger a new download
-    console.log('Download region requested:', regionId);
+    console.warn('Download region requested:', regionId);
     alert('Download feature not implemented in this refactored version');
   }
 
   private showImportExportModal(): void {
     // For this refactored version, we'll show a simple alert
     // In a real implementation, you would create and show the import/export modal
-    console.log('Import/Export modal requested');
+    console.warn('Import/Export modal requested');
     alert('Import/Export feature not fully implemented in this refactored version');
   }
 

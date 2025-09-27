@@ -17,16 +17,14 @@ export class SpriteService {
   ): Promise<SpriteDownloadResult> {
     const db = await this.db;
     const {
-      _onProgress,
-      batchSize = 5,
+      onProgress,
+      batchSize = 10,
       maxRetries = 3,
       skipExisting = true,
-      bandwidthLimit,
-      prioritySprites = [],
-      _storageQuotaCheck = true,
-      enableValidation = true,
-      timeoutMs = 15000,
-      _includeMetadata = false,
+      timeout: _timeout = 15000,
+      storageQuotaCheck = true,
+      validateSprites: _validateSprites = true,
+      includeMetadata: _includeMetadata = false,
     } = options;
 
     const startTime = Date.now();
@@ -129,7 +127,7 @@ export class SpriteService {
 
           const response = await fetchWithRetry(spriteUrl, {
             retries: maxRetries,
-            timeout: timeoutMs,
+            timeout: _timeout,
           });
 
           if (!response.ok) {
@@ -191,7 +189,7 @@ export class SpriteService {
           if (spriteData.byteLength < smallestSprite.size) {
             smallestSprite = { name: spriteName, size: spriteData.byteLength };
           }
-        } catch (_error) {
+        } catch (error) {
           failedSprites++;
           const errorMessage = error instanceof Error ? error.message : String(error);
           errors.push({
@@ -413,7 +411,7 @@ export class SpriteService {
             await cursor.delete();
             removed++;
           }
-        } catch (repairError) {
+        } catch (_repairError) {
           await cursor.delete();
           removed++;
         }

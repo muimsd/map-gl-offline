@@ -159,7 +159,7 @@ export class RegionControl {
    */
   public updateStyleUrl(newStyleUrl: string): void {
     this.options.styleUrl = newStyleUrl;
-    console.log(`📍 RegionControl style URL updated to: ${newStyleUrl}`);
+    console.warn(`📍 RegionControl style URL updated to: ${newStyleUrl}`);
   }
 
   /**

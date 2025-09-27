@@ -4,11 +4,11 @@
  * Refactored to use modular components
  */
 
-import type { Map as MaplibreMap } from 'maplibre-gl';
+// import { MaplibreMap } from 'maplibre-gl';
 import { Modal, ModalConfig } from '../components/shared/Modal';
 import { Button } from '../components/shared/Button';
 import { icons } from '../../utils/icons';
-import { themeManager } from '../ThemeManager';
+// import { themeManager } from '../managers/themeManager.js';
 
 export interface RegionFormData {
   name: string;
@@ -82,7 +82,7 @@ export class RegionFormModal {
   private createForm(bounds: [number, number, number, number], area: number): HTMLElement {
     const [west, south, east, north] = bounds;
     const styleUrl = this.options.styleUrl;
-    console.log('styleURL', styleUrl);
+    console.warn('styleURL', styleUrl);
 
     const form = document.createElement('div');
     form.className = 'flex flex-col gap-4';

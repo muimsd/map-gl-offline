@@ -26,17 +26,9 @@ export class TileService {
     const db = await this.db;
     const {
       onProgress: _onProgress,
-      batchSize = 20,
+      batchSize = 10,
       maxRetries = 3,
-      skipExisting = true,
-      maxConcurrency: _maxConcurrency = 10,
-      retryDelay = 1000,
-      timeout = 15000,
-      validateTiles = true,
-      compressTiles = false,
-      priorityZoomLevels = [],
-      bandwidthLimit,
-      storageQuotaCheck = true,
+      maxConcurrency: _maxConcurrency = 5,
     } = options;
 
     const startTime = Date.now();

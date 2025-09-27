@@ -3,7 +3,7 @@
  * Handles download operations and progress tracking
  */
 
-import { downloadStyles, isStyleDownloaded, loadStyles } from '@/services/styleService';
+import { isStyleDownloaded, loadStyles } from '@/services/styleService';
 import { downloadTiles } from '../../services/tileService';
 import { OfflineMapManager } from '../../managers/offlineMapManager';
 import { RegionFormData } from '../modals/regionFormModal';
@@ -60,7 +60,7 @@ export class DownloadManager {
       let finalStyleId: string;
       if (!styleExists) {
         // Enhanced style download with Mapbox GL support
-        console.log(`🎨 Downloading style with provider: ${formData.provider}`);
+        console.warn(`🎨 Downloading style with provider: ${formData.provider}`);
 
         // Use the enhanced downloadStyleWithProvider for Mapbox GL support
         const styleDownloadOptions: any = {
@@ -68,7 +68,7 @@ export class DownloadManager {
           provider: formData.provider || 'auto',
           accessToken: formData.accessToken,
           onProgress: (progress: any) => {
-            console.log(`Style download progress: ${progress.percentage}%`);
+            console.warn(`Style download progress: ${progress.percentage}%`);
           },
         };
 
@@ -82,7 +82,7 @@ export class DownloadManager {
         }
 
         finalStyleId = styleResult.styleId;
-        console.log(`✅ Style downloaded successfully: ${finalStyleId}`);
+        console.warn(`✅ Style downloaded successfully: ${finalStyleId}`);
       } else {
         // Find the existing style to get its ID
         const styles = await loadStyles();
@@ -95,7 +95,7 @@ export class DownloadManager {
           throw new Error('Style exists but could not be found');
         }
         finalStyleId = existingStyle.key;
-        console.log(`📋 Using existing style: ${finalStyleId}`);
+        console.warn(`📋 Using existing style: ${finalStyleId}`);
       }
 
       // Update region config with the styleId from the downloaded/existing style

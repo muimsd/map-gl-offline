@@ -20,15 +20,15 @@ function createTileKey(
 }
 
 export async function idbFetchHandler(url: string, init?: RequestInit): Promise<Response> {
-  console.log(`🔍 IDB Fetch Handler called for URL: ${url}`);
+  console.warn(`🔍 IDB Fetch Handler called for URL: ${url}`);
   const method = init?.method || 'GET';
-  console.log(`📋 Method: ${method}`);
+  console.warn(`📋 Method: ${method}`);
 
   // You can handle different HTTP methods here
   if (method === 'POST') {
-    console.log(`📝 POST request to: ${url}`);
+    console.warn(`📝 POST request to: ${url}`);
     if (init?.body) {
-      console.log(`📝 POST body:`, init.body);
+      console.warn(`📝 POST body:`, init.body);
     }
   }
 
@@ -38,7 +38,7 @@ export async function idbFetchHandler(url: string, init?: RequestInit): Promise<
   const resourcePath = rest.join('/');
   const key = `${downloadId}::${decodeURIComponent(resourcePath)}`;
 
-  console.log(
+  console.warn(
     `📋 Parsed - downloadId: ${downloadId}, type: ${type}, resourcePath: ${resourcePath}, key: ${key}`
   );
 
@@ -57,10 +57,10 @@ export async function idbFetchHandler(url: string, init?: RequestInit): Promise<
             const y = parseInt(yMatch[1]);
             const ext = yMatch[2];
             const tileKey = createTileKey(x, y, z, downloadId, sourceKey, ext);
-            console.log(`🗺️ Looking for tile with key: ${tileKey}`);
+            console.warn(`🗺️ Looking for tile with key: ${tileKey}`);
             const resource = await db.get('tiles', tileKey);
             if (resource?.data) {
-              console.log(`✅ Found tile: ${tileKey}`);
+              console.warn(`✅ Found tile: ${tileKey}`);
               return new Response(resource.data, { status: 200 });
             } else {
               console.warn(`❌ Tile not found: ${tileKey}`);
@@ -82,7 +82,7 @@ export async function idbFetchHandler(url: string, init?: RequestInit): Promise<
             const urlParts = tileUrl.split('/');
             const fallbackSourceKey = urlParts[urlParts.length - 5] || 'unknown'; // Try to guess sourceKey
             console.warn(`⚠️ Using old URL format, guessed sourceKey: ${fallbackSourceKey}`);
-            console.log(
+            console.warn(
               `🗺️ Looking for tile - sourceKey: ${fallbackSourceKey}, tileUrl: ${tileUrl}`
             );
             // Extract z/x/y coordinates from the tile URL
@@ -97,15 +97,15 @@ export async function idbFetchHandler(url: string, init?: RequestInit): Promise<
                 fallbackSourceKey,
                 ext
               );
-              console.log(`🗺️ Looking for tile with key: ${tileKey}`);
+              console.warn(`🗺️ Looking for tile with key: ${tileKey}`);
               const resource = await db.get('tiles', tileKey);
               if (resource?.data) {
-                console.log(`✅ Found tile: ${tileKey}`);
+                console.warn(`✅ Found tile: ${tileKey}`);
                 return new Response(resource.data, { status: 200 });
               } else {
                 console.warn(`❌ Tile not found: ${tileKey}`);
                 // If not found with guessed sourceKey, try to find any tile with these coordinates
-                console.log(`🔍 Searching for any tile with coordinates z:${z}, x:${x}, y:${y}`);
+                console.warn(`🔍 Searching for any tile with coordinates z:${z}, x:${x}, y:${y}`);
                 const allTiles = await db.getAll('tiles');
                 const matchingTile = allTiles.find((tile: any) => {
                   const keyParts = tile.key.split(':');
@@ -120,7 +120,7 @@ export async function idbFetchHandler(url: string, init?: RequestInit): Promise<
                   return false;
                 });
                 if (matchingTile) {
-                  console.log(`✅ Found tile by coordinates: ${matchingTile.key}`);
+                  console.warn(`✅ Found tile by coordinates: ${matchingTile.key}`);
                   return new Response(matchingTile.data, { status: 200 });
                 } else {
                   console.warn(`❌ No tile found with coordinates z:${z}, x:${x}, y:${y}`);
@@ -134,10 +134,10 @@ export async function idbFetchHandler(url: string, init?: RequestInit): Promise<
         break;
       }
       case 'glyph': {
-        console.log(`🔤 Looking for glyph with key: ${key}`);
+        console.warn(`🔤 Looking for glyph with key: ${key}`);
         const resource = await db.get('glyphs', key);
         if (resource?.data) {
-          console.log(`✅ Found glyph: ${key}`);
+          console.warn(`✅ Found glyph: ${key}`);
           return new Response(resource.data, { status: 200 });
         } else {
           console.warn(`❌ Glyph not found: ${key}`);
@@ -145,10 +145,10 @@ export async function idbFetchHandler(url: string, init?: RequestInit): Promise<
         break;
       }
       case 'sprite': {
-        console.log(`🎨 Looking for sprite with key: ${key}`);
+        console.warn(`🎨 Looking for sprite with key: ${key}`);
         const resource = await db.get('sprites', key);
         if (resource?.data) {
-          console.log(`✅ Found sprite: ${key}`);
+          console.warn(`✅ Found sprite: ${key}`);
           return new Response(resource.data, {
             status: 200,
             headers: resource.contentType ? { 'Content-Type': resource.contentType } : undefined,
@@ -159,10 +159,10 @@ export async function idbFetchHandler(url: string, init?: RequestInit): Promise<
         break;
       }
       case 'font': {
-        console.log(`📝 Looking for font with key: ${key}`);
+        console.warn(`📝 Looking for font with key: ${key}`);
         const resource = await db.get('fonts', key);
         if (resource?.data) {
-          console.log(`✅ Found font: ${key}`);
+          console.warn(`✅ Found font: ${key}`);
           return new Response(resource.data, { status: 200 });
         } else {
           console.warn(`❌ Font not found: ${key}`);
@@ -170,10 +170,10 @@ export async function idbFetchHandler(url: string, init?: RequestInit): Promise<
         break;
       }
       case 'tilesjson': {
-        console.log(`📄 Looking for style/tilesjson with downloadId: ${downloadId}`);
+        console.warn(`📄 Looking for style/tilesjson with downloadId: ${downloadId}`);
         const style = await db.get('styles', downloadId);
         if (style) {
-          console.log(`✅ Found style: ${downloadId}`);
+          console.warn(`✅ Found style: ${downloadId}`);
           return new Response(JSON.stringify(style), {
             status: 200,
             headers: { 'Content-Type': 'application/json' },
@@ -204,14 +204,14 @@ export async function listTileKeysInIDB(styleId: string, sourceId: string, zoom:
     const parts = tile.key.split(':');
     return parts[0] === styleId && parts[1] === sourceId && parseInt(parts[2]) === zoom;
   });
-  console.log(`Tile keys for styleId='${styleId}', sourceId='${sourceId}', zoom=${zoom}:`);
-  matching.forEach(tile => console.log(tile.key));
+  console.warn(`Tile keys for styleId='${styleId}', sourceId='${sourceId}', zoom=${zoom}:`);
+  matching.forEach(tile => console.warn(tile.key));
   return matching.map(tile => tile.key);
 }
 
 // Make available in browser console
 if (typeof window !== 'undefined') {
-  // @ts-ignore
+  // @ts-expect-error - Adding to global window for debugging
   window.listTileKeysInIDB = listTileKeysInIDB;
 }
 

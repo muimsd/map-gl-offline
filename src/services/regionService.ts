@@ -196,7 +196,7 @@ export class RegionService {
     }
 
     // Patch style for offline use
-    const patchedStyle = patchStyleForOffline(styleData.style, styleId);
+    patchStyleForOffline(style, region.id);
 
     // Get or create the style entry
     let styleEntry: StyleEntry = (await db.get('styles', styleId)) as StyleEntry;
@@ -238,8 +238,11 @@ export class RegionService {
 
   async loadRegion(region: OfflineRegionOptions): Promise<void> {
     const styleId = region.styleId || region.id;
+    if (!styleId) {
+      throw new Error(`No style ID found for region: ${region.id}`);
+    }
     const db = await dbPromise;
-    const storedStyle = await db.get('styles', styleId!);
+    const storedStyle = await db.get('styles', styleId);
 
     if (!storedStyle || !('style' in storedStyle)) {
       throw new Error(`Style not found for region: ${region.id}`);
@@ -343,7 +346,7 @@ export class RegionService {
       }
 
       console.warn(`🎉 Region deletion completed successfully for: ${regionId}`);
-    } catch (_error) {
+    } catch (error) {
       console.error(`❌ Error during region deletion for ${regionId}:`, error);
       throw error; // Re-throw to let UI handle the error
     }
@@ -381,7 +384,7 @@ export class RegionService {
       }
       console.warn('📋 Extracted regions from styles:', allRegions);
       return allRegions;
-    } catch (_error) {
+    } catch (error) {
       console.error('Error loading regions from styles:', error);
       // Fallback to cleanup service method if available
       // return this.cleanupService.getAllRegions();

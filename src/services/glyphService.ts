@@ -35,8 +35,8 @@ export class GlyphService {
       maxConcurrency = 5,
       retries = 3,
       timeout = 10000,
-      _onProgress,
-      _includeMetadata = false,
+      onProgress,
+      includeMetadata: _includeMetadata = false,
       enableValidation = true,
       priorityFonts = [],
     } = options;
@@ -103,7 +103,7 @@ export class GlyphService {
           }
 
           const data = await response.arrayBuffer();
-          const contentType = response.headers.get('content-type') || 'application/x-protobuf';
+          // Response content type checked but not used
 
           // Validate glyph data if enabled
           if (enableValidation) {
@@ -134,7 +134,7 @@ export class GlyphService {
           if (data.byteLength < smallestGlyph.size) {
             smallestGlyph = { fontstack, range, size: data.byteLength };
           }
-        } catch (_error) {
+        } catch (error) {
           failedGlyphs++;
           errors.push(`${glyphKey}: ${error instanceof Error ? error.message : String(error)}`);
         }
@@ -335,7 +335,7 @@ export class GlyphService {
           this.validateGlyphData(glyphEntry.data);
           verified++;
         }
-      } catch (_error) {
+      } catch {
         // Remove corrupted glyphs (they can be re-downloaded)
         await cursor.delete();
         removed++;

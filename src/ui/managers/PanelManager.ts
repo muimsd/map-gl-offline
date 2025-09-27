@@ -20,7 +20,7 @@ import { Button } from '../components/shared/Button';
 import { BaseComponent } from '../components/shared/BaseComponent';
 // Patch the style for offline use (convert URLs to idb:// URLs)
 import { patchStyleForOffline } from '../../utils/styleUtils';
-import type { IControl, Map as MaplibreMap } from 'maplibre-gl';
+// import { IControl } from 'maplibre-gl';
 
 export interface PanelRendererOptions {
   offlineManager: OfflineMapManager;
@@ -83,7 +83,7 @@ export class PanelRenderer extends BaseComponent {
         this.offlineManager.getComprehensiveStorageAnalytics(),
       ]);
 
-      console.log('📊 Panel data loaded:', { regions, analytics });
+      console.warn('📊 Panel data loaded:', { regions, analytics });
 
       // Render components
       await this.renderHeader(regions, analytics);
@@ -206,7 +206,7 @@ export class PanelRenderer extends BaseComponent {
    * Render styles list with regions grouped under each style
    */
   private async renderRegionsList(regions: any[]): Promise<void> {
-    console.log('🗂️ Rendering regions list with regions:', regions);
+    console.warn('🗂️ Rendering regions list with regions:', regions);
 
     // Remove existing list
     if (this.regionsList) {
@@ -218,8 +218,8 @@ export class PanelRenderer extends BaseComponent {
       const { loadStyles, getStyleStats } = await import('../../services/styleService');
       const styles = await loadStyles();
       const statsResult = await getStyleStats();
-      console.log('🎨 Loaded styles:', styles);
-      console.log('📈 Style stats:', statsResult);
+      console.warn('🎨 Loaded styles:', styles);
+      console.warn('📈 Style stats:', statsResult);
 
       const sizeMap: Record<string, number> = {};
       statsResult.styles.forEach(s => {
@@ -228,7 +228,7 @@ export class PanelRenderer extends BaseComponent {
 
       // Group regions by style ID
       const regionsByStyle = this.groupRegionsByStyle(regions);
-      console.log('📊 Regions grouped by style:', regionsByStyle);
+      console.warn('📊 Regions grouped by style:', regionsByStyle);
 
       // Create styles and regions list
       const listItems: ListItemConfig[] = [];
@@ -631,7 +631,7 @@ export class PanelRenderer extends BaseComponent {
   /**
    * Handle import/export functionality
    */
-  private async handleImportExport(regionId: string, regionData: any): Promise<void> {
+  private async handleImportExport(regionId: string, _regionData: any): Promise<void> {
     try {
       const regions = await this.offlineManager.listStoredRegions();
       const region = regions.find((r: any) => r.id === regionId);
@@ -644,12 +644,12 @@ export class PanelRenderer extends BaseComponent {
           this.modalManager.close();
         },
         onExport: result => {
-          console.log('Export completed:', result);
+          console.warn('Export completed:', result);
           // Handle export result - could show success message
           this.offlineManager.downloadExportedRegion(result);
         },
         onImport: result => {
-          console.log('Import completed:', result);
+          console.warn('Import completed:', result);
           // Refresh the panel to show updated regions
           this.refresh();
         },
@@ -821,7 +821,7 @@ export class PanelRenderer extends BaseComponent {
       items: listItems,
       emptyText: 'No offline regions found. Click "Add Region" to get started.',
       onItemAction: this.handleItemAction.bind(this),
-      onItemClick: (itemId: string, item: any) => {
+      onItemClick: (itemId: string, _item: any) => {
         this.handleShowRegionDetails(itemId);
       },
     });
@@ -839,7 +839,7 @@ export class PanelRenderer extends BaseComponent {
     }
 
     if (this.isRefreshing) {
-      console.log('🔄 Refresh already in progress, skipping...');
+      console.warn('🔄 Refresh already in progress, skipping...');
       return;
     }
 
@@ -877,7 +877,7 @@ export class PanelRenderer extends BaseComponent {
         this.offlineManager.getComprehensiveStorageAnalytics(),
       ]);
 
-      console.log('🔄 Refreshing panel data:', { regions, analytics });
+      console.warn('🔄 Refreshing panel data:', { regions, analytics });
 
       // Re-render components
       await this.renderHeader(regions, analytics);
@@ -956,8 +956,8 @@ export class PanelRenderer extends BaseComponent {
     }
 
     try {
-      console.log('🎨 Loading style to map:', styleData.key);
-      console.log('🔍 Style data structure:', {
+      console.warn('🎨 Loading style to map:', styleData.key);
+      console.warn('🔍 Style data structure:', {
         hasStyle: !!styleData.style,
         styleKeys: styleData.style ? Object.keys(styleData.style) : [],
         sources: styleData.style?.sources ? Object.keys(styleData.style.sources) : [],
@@ -975,17 +975,17 @@ export class PanelRenderer extends BaseComponent {
         return;
       }
 
-      console.log('🔧 Patching style for offline use...');
+      console.warn('🔧 Patching style for offline use...');
       const patchedStyle = patchStyleForOffline(styleData.style, styleData.key);
 
-      console.log('✅ Style patched successfully');
-      console.log('🔍 Patched style sources:', Object.keys(patchedStyle.sources || {}));
+      console.warn('✅ Style patched successfully');
+      console.warn('🔍 Patched style sources:', Object.keys(patchedStyle.sources || {}));
 
       // Apply the patched style to the map
-      console.log('🗺️ Applying style to map...');
+      console.warn('🗺️ Applying style to map...');
       this.map.setStyle(patchedStyle as any);
 
-      console.log('✅ Voyager/Style loaded successfully with offline patches');
+      console.warn('✅ Voyager/Style loaded successfully with offline patches');
     } catch (error) {
       console.error('❌ Error loading style to map:', error);
       console.error('Error details:', {
