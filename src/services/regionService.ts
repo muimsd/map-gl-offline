@@ -186,8 +186,8 @@ export class RegionService {
       // Try to find by styleUrl (legacy)
       const allStyles = await db.getAll('styles');
       styleData = allStyles.find(
-        (s: any) =>
-          s?.style?.sprite?.includes(region.styleUrl) || s?.originalUrl === region.styleUrl
+        (s: { style?: { sprite?: string }; originalUrl?: string }) =>
+          (region.styleUrl && s?.style?.sprite?.includes(region.styleUrl)) || s?.originalUrl === region.styleUrl
       );
       styleId = styleData?.key;
     }
@@ -195,8 +195,7 @@ export class RegionService {
       throw new Error('Style must be downloaded before adding a region.');
     }
 
-    // Patch style for offline use
-    patchStyleForOffline(style, region.id);
+    // We'll patch the style after we get the styleEntry
 
     // Get or create the style entry
     let styleEntry: StyleEntry = (await db.get('styles', styleId)) as StyleEntry;
@@ -216,6 +215,9 @@ export class RegionService {
     if (!Array.isArray(styleEntry.regions)) {
       styleEntry.regions = [];
     }
+
+    // Patch style for offline use
+    patchStyleForOffline(styleEntry.style, region.id);
 
     // Add region metadata to the style entry
     const bboxExists = styleEntry.regions.some(
@@ -262,15 +264,15 @@ export class RegionService {
       const allStyles = await db.getAll('styles');
       console.warn(`🔍 Found ${allStyles.length} styles to search through`);
 
-      let foundStyle: any = null;
-      let foundRegion: any = null;
+      let foundStyle: unknown = null;
+      let foundRegion: unknown = null;
 
       for (const style of allStyles) {
         console.warn(
           `🔍 Checking style: ${style?.key}, regions count: ${style?.regions?.length || 0}`
         );
         if (style && Array.isArray(style.regions)) {
-          const region = style.regions.find((r: any) => {
+          const region = style.regions.find((r: { id?: string; regionId?: string }) => {
             const match = r.id === regionId || r.regionId === regionId;
             console.warn(`  📍 Region ${r.id || r.regionId}: match = ${match}`);
             return match;
@@ -289,7 +291,7 @@ export class RegionService {
         console.warn('Available regions:');
         allStyles.forEach(style => {
           if (style && Array.isArray(style.regions)) {
-            style.regions.forEach((r: any) => {
+            style.regions.forEach((r: { id?: string; regionId?: string; name?: string }) => {
               console.warn(
                 `  - Style ${style.key}: Region ${r.id || r.regionId} (${r.name || 'unnamed'})`
               );
@@ -299,49 +301,50 @@ export class RegionService {
         return;
       }
 
-      console.warn(`🎯 Found region in style: ${foundStyle.key}`, foundRegion);
+      const styleObj = foundStyle as StyleEntry;
+      console.warn(`🎯 Found region in style: ${styleObj.key}`, foundRegion);
 
       // Remove the region from the style's regions array
-      const remainingRegions = foundStyle.regions.filter(
-        (r: any) => r.id !== regionId && r.regionId !== regionId
+      const remainingRegions = styleObj.regions.filter(
+        (r: OfflineRegionOptions) => r.id !== regionId
       );
 
-      foundStyle.regions = remainingRegions;
+      styleObj.regions = remainingRegions;
       console.warn(`📊 Remaining regions count: ${remainingRegions.length}`);
 
       // If this was the last region for the style, delete the entire style and all its resources
       if (remainingRegions.length === 0) {
         console.warn(
-          `🗑️  Style ${foundStyle.key} has no remaining regions, deleting entire style and all resources`
+          `🗑️  Style ${styleObj.key} has no remaining regions, deleting entire style and all resources`
         );
 
         // Delete all tiles for this style
-        const deletedTileCount = await this.deleteAllStyleTiles(foundStyle.key);
+        const deletedTileCount = await this.deleteAllStyleTiles(styleObj.key);
         console.warn(`🗑️  Deleted ${deletedTileCount} tiles`);
 
         // Delete all style resources (fonts, glyphs, sprites)
-        await this.deleteStyleResources(foundStyle.key);
+        await this.deleteStyleResources(styleObj.key);
 
         // Delete the style entry itself
-        await db.delete('styles', foundStyle.key);
+        await db.delete('styles', styleObj.key);
 
-        console.warn(`✅ Completely deleted style ${foundStyle.key} and all associated resources`);
+        console.warn(`✅ Completely deleted style ${styleObj.key} and all associated resources`);
       } else {
         console.warn(
-          `🔍 Style ${foundStyle.key} has ${remainingRegions.length} remaining regions, cleaning up non-overlapping tiles`
+          `🔍 Style ${styleObj.key} has ${remainingRegions.length} remaining regions, cleaning up non-overlapping tiles`
         );
 
         // Delete tiles that don't overlap with any remaining regions
         const deletedTileCount = await this.deleteNonOverlappingTiles(
-          foundStyle.key,
+          styleObj.key,
           remainingRegions
         );
 
         // Update the style entry with the remaining regions
-        await db.put('styles', foundStyle);
+        await db.put('styles', styleObj);
 
         console.warn(
-          `✅ Region ${regionId} deleted successfully from style ${foundStyle.key}, cleaned up ${deletedTileCount} non-overlapping tiles`
+          `✅ Region ${regionId} deleted successfully from style ${styleObj.key}, cleaned up ${deletedTileCount} non-overlapping tiles`
         );
       }
 

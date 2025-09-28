@@ -54,7 +54,7 @@ export class CleanupService {
       });
 
       const currentTime = Date.now();
-      const cutoffTime = currentTime - maxAge * 24 * 60 * 60 * 1000;
+      const cutoffTime = currentTime - (maxAge ?? 30) * 24 * 60 * 60 * 1000;
 
       // Categorize regions
       const expiredRegions: StoredRegion[] = [];
@@ -158,6 +158,10 @@ export class CleanupService {
     }
 
     return result;
+  }
+
+  async performCleanup(options: RegionCleanupOptions = {}): Promise<CleanupResult> {
+    return this.runCleanup(options);
   }
 
   async getRegionAnalytics(): Promise<RegionAnalytics> {

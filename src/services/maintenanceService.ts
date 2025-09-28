@@ -12,13 +12,13 @@ export type { MaintenanceOptions, MaintenanceResults } from '../types/maintenanc
 export class MaintenanceService {
   constructor(
     private performSmartCleanup: (options?: RegionCleanupOptions) => Promise<CleanupResult>,
-    private listRegions: () => Promise<any[]>,
-    private verifyAndRepairFonts: (styleId: string, options?: any) => Promise<any>,
-    private verifyAndRepairSprites: (styleId: string, options?: any) => Promise<any>,
-    private verifyAndRepairGlyphs: (styleId: string, options?: any) => Promise<any>,
-    private cleanupOldFonts: (options?: any) => Promise<any>,
-    private cleanupOldSprites: (styleId: string, options?: any) => Promise<any>,
-    private cleanupOldGlyphs: (options?: any) => Promise<any>,
+    private listRegions: () => Promise<unknown[]>,
+    private verifyAndRepairFonts: (styleId: string, options?: Record<string, unknown>) => Promise<unknown>,
+    private verifyAndRepairSprites: (styleId: string, options?: Record<string, unknown>) => Promise<unknown>,
+    private verifyAndRepairGlyphs: (styleId: string, options?: Record<string, unknown>) => Promise<unknown>,
+    private cleanupOldFonts: (options?: Record<string, unknown>) => Promise<unknown>,
+    private cleanupOldSprites: (styleId: string, options?: Record<string, unknown>) => Promise<unknown>,
+    private cleanupOldGlyphs: (options?: Record<string, unknown>) => Promise<unknown>,
     private getComprehensiveStorageAnalytics: () => Promise<StorageAnalyticsReport>
   ) {}
 
@@ -48,7 +48,8 @@ export class MaintenanceService {
         };
 
         for (const region of styles) {
-          const styleId = region.styleId || region.id;
+          const regionData = region as { styleId?: string; id?: string };
+          const styleId = regionData.styleId || regionData.id;
           if (styleId) {
             try {
               const [fontResult, spriteResult, glyphResult] = await Promise.all([
@@ -57,12 +58,16 @@ export class MaintenanceService {
                 this.verifyAndRepairGlyphs(styleId, { removeCorrupted: true }),
               ]);
 
-              integrityResults.fonts.corrupted += fontResult.corruptedFonts;
-              integrityResults.fonts.repaired += fontResult.removedFonts;
-              integrityResults.sprites.corrupted += spriteResult.corruptedSprites;
-              integrityResults.sprites.repaired += spriteResult.repairedSprites;
-              integrityResults.glyphs.corrupted += glyphResult.corruptedGlyphs;
-              integrityResults.glyphs.repaired += glyphResult.repairedGlyphs;
+              const fontRes = fontResult as { corruptedFonts?: number; removedFonts?: number };
+              const spriteRes = spriteResult as { corruptedSprites?: number; repairedSprites?: number };
+              const glyphRes = glyphResult as { corruptedGlyphs?: number; repairedGlyphs?: number };
+              
+              integrityResults.fonts.corrupted += fontRes.corruptedFonts || 0;
+              integrityResults.fonts.repaired += fontRes.removedFonts || 0;
+              integrityResults.sprites.corrupted += spriteRes.corruptedSprites || 0;
+              integrityResults.sprites.repaired += spriteRes.repairedSprites || 0;
+              integrityResults.glyphs.corrupted += glyphRes.corruptedGlyphs || 0;
+              integrityResults.glyphs.repaired += glyphRes.repairedGlyphs || 0;
             } catch (error) {
               console.warn(`Integrity check failed for style ${styleId}:`, error);
             }
@@ -85,10 +90,14 @@ export class MaintenanceService {
           this.cleanupOldGlyphs({ maxAge: 30 * 24 * 60 * 60 * 1000 }),
         ]);
 
+        const fontClean = fontCleanup as { freedSpace?: number; deletedCount?: number };
+        const spriteClean = spriteCleanup as { freedSpace?: number; deletedCount?: number };
+        const glyphClean = glyphCleanup as { freedSpace?: number; deletedCount?: number };
+        
         totalFreedSpace +=
-          fontCleanup.freedSpace + spriteCleanup.freedSpace + glyphCleanup.freedSpace;
+          (fontClean.freedSpace || 0) + (spriteClean.freedSpace || 0) + (glyphClean.freedSpace || 0);
         optimizedResources +=
-          fontCleanup.deletedCount + spriteCleanup.deletedCount + glyphCleanup.deletedCount;
+          (fontClean.deletedCount || 0) + (spriteClean.deletedCount || 0) + (glyphClean.deletedCount || 0);
 
         results.optimizationResults = {
           freedSpace: totalFreedSpace,

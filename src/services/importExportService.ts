@@ -8,6 +8,7 @@ import type {
   ExportResult,
   TileExportData,
   SpriteExportData,
+  BaseStyle,
   FontExportData,
   PMTilesExportOptions,
   MBTilesExportOptions,
@@ -618,7 +619,7 @@ export class ImportExportService {
         const styleStore = styleTransaction.objectStore('styles');
         await styleStore.put({
           key: regionId,
-          style: regionData.style,
+          style: regionData.style as BaseStyle,
           provider: 'auto',
           regions: [],
           fonts: [],

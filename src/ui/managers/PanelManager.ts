@@ -14,13 +14,16 @@ import { ImportExportModal } from '../modals/importExportModal';
 import { formatBytes } from '../../utils/formatting';
 import { themeManager } from '../ThemeManager';
 import { icons } from '../../utils/icons';
+import { patchStyleForOffline } from '../../utils/styleUtils';
+import type { MapboxStyle } from '../../types/style';
 
 // Import modular components
 import { List, ListItemConfig } from '../components/shared/List';
 import { Button } from '../components/shared/Button';
 import { BaseComponent } from '../components/shared/BaseComponent';
-// Patch the style for offline use (convert URLs to idb:// URLs)
-import { patchStyleForOffline } from '../../utils/styleUtils';
+
+// Map type for MapLibre GL
+type MaplibreMap = unknown;
 // import { IControl } from 'maplibre-gl';
 
 export interface PanelRendererOptions {
@@ -969,25 +972,26 @@ export class PanelRenderer extends BaseComponent {
       });
 
       // Check if the style has the necessary structure
-      if (!styleData.style) {
+      const styleEntry = styleData as { style?: MapboxStyle; key?: string };
+      if (!styleEntry.style) {
         console.error('❌ Style data is missing the "style" property');
         return;
       }
 
-      if (!styleData.style.sources) {
+      if (!styleEntry.style.sources) {
         console.error('❌ Style is missing sources');
         return;
       }
 
       console.warn('🔧 Patching style for offline use...');
-      const patchedStyle = patchStyleForOffline(style.style, style.key);
+      const patchedStyle = patchStyleForOffline(styleEntry.style, styleEntry.key || 'unknown');
 
       console.warn('✅ Style patched successfully');
       console.warn('🔍 Patched style sources:', Object.keys(patchedStyle.sources || {}));
 
       // Apply the patched style to the map
       console.warn('🗺️ Applying style to map...');
-      this.map.setStyle(patchedStyle as Record<string, unknown>);
+      (this.map as { setStyle?: (style: MapboxStyle) => void })?.setStyle?.(patchedStyle);
 
       console.warn('✅ Voyager/Style loaded successfully with offline patches');
     } catch (error) {

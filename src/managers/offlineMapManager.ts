@@ -52,9 +52,9 @@ export class OfflineMapManager {
       this.resourceService.verifyAndRepairFonts.bind(this.resourceService),
       this.resourceService.verifyAndRepairSprites.bind(this.resourceService),
       this.resourceService.verifyAndRepairGlyphs.bind(this.resourceService),
-      this.resourceService.cleanupOldFonts.bind(this.resourceService),
+      (options?: Record<string, unknown>) => this.resourceService.cleanupOldFonts(undefined, options as { maxAge?: number }),
       this.resourceService.cleanupOldSprites.bind(this.resourceService),
-      this.resourceService.cleanupOldGlyphs.bind(this.resourceService),
+      (options?: Record<string, unknown>) => this.resourceService.cleanupOldGlyphs(undefined, options as { maxAge?: number }),
       this.getComprehensiveStorageAnalytics.bind(this)
     );
   }

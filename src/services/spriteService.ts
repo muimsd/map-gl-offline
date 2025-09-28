@@ -21,7 +21,7 @@ export class SpriteService {
       batchSize = 10,
       maxRetries = 3,
       skipExisting = true,
-      timeout = 15000,
+      timeoutMs = 15000,
       storageQuotaCheck = true,
       prioritySprites = [],
       bandwidthLimit,
@@ -128,7 +128,7 @@ export class SpriteService {
 
           const response = await fetchWithRetry(spriteUrl, {
             retries: maxRetries,
-            timeout,
+            timeout: timeoutMs,
           });
 
           if (!response.ok) {
