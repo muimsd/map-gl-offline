@@ -136,7 +136,7 @@ export class RegionsList extends BaseComponent {
         icon: icons.focus({ size: 10 }),
         className: 'px-2 py-1 text-xs',
         onClick: () => {
-          this.props.onFocusRegion!(region.id);
+          this.props.onFocusRegion?.(region.id);
         },
       });
 
@@ -173,7 +173,7 @@ export class RegionsList extends BaseComponent {
         icon: icons.trash({ size: 10 }),
         className: 'px-2 py-1 text-xs',
         onClick: () => {
-          this.props.onDeleteRegion!(region.id);
+          this.props.onDeleteRegion?.(region.id);
         },
       });
 

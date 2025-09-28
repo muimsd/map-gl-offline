@@ -60,14 +60,16 @@ export function patchStyleForOffline(style: MapboxStyle, downloadId: string): Ma
 /**
  * Validates if a region configuration is valid
  */
-export function validateRegion(region: any): boolean {
-  if (!region.id || !region.name) return false;
-  if (!region.bounds || !Array.isArray(region.bounds)) return false;
-  if (region.bounds.length !== 2) return false;
-  if (!Array.isArray(region.bounds[0]) || !Array.isArray(region.bounds[1])) return false;
-  if (region.bounds[0].length !== 2 || region.bounds[1].length !== 2) return false;
-  if (typeof region.minZoom !== 'number' || typeof region.maxZoom !== 'number') return false;
-  if (region.minZoom < 0 || region.maxZoom > 24 || region.minZoom > region.maxZoom) return false;
+export function validateRegion(region: unknown): boolean {
+  if (!region || typeof region !== 'object') return false;
+  const r = region as Record<string, unknown>;
+  if (!r.id || !r.name) return false;
+  if (!r.bounds || !Array.isArray(r.bounds)) return false;
+  if (r.bounds.length !== 2) return false;
+  if (!Array.isArray(r.bounds[0]) || !Array.isArray(r.bounds[1])) return false;
+  if (r.bounds[0].length !== 2 || r.bounds[1].length !== 2) return false;
+  if (typeof r.minZoom !== 'number' || typeof r.maxZoom !== 'number') return false;
+  if (r.minZoom < 0 || r.maxZoom > 24 || r.minZoom > r.maxZoom) return false;
 
   return true;
 }

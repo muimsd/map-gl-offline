@@ -14,7 +14,7 @@ export interface RegionExportData {
     version: string;
     format: 'json' | 'pmtiles' | 'mbtiles';
   };
-  style: any; // MapLibre style JSON
+  style: unknown; // MapLibre style JSON
   tiles: TileExportData[];
   sprites: SpriteExportData[];
   fonts: FontExportData[];
@@ -45,13 +45,13 @@ export interface FontExportData {
 export interface PMTilesExportOptions {
   compression?: 'gzip' | 'brotli' | 'none';
   clustered?: boolean;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 export interface MBTilesExportOptions {
   format?: 'pbf' | 'png' | 'jpg';
   compression?: 'gzip' | 'none';
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 export interface ImportExportOptions {

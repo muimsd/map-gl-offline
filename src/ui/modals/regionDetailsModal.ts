@@ -8,9 +8,10 @@ import { Modal, ModalConfig } from '../components/shared/Modal';
 import { Button } from '../components/shared/Button';
 import { icons } from '../../utils/icons';
 import { formatDate } from '../../utils/formatting';
+import { StoredRegion } from '../../types/region';
 
 export interface RegionDetailsOptions {
-  region: any;
+  region: StoredRegion;
   onClose: () => void;
   onFocus: (regionId: string) => void;
   onThemeToggle?: () => void;
@@ -56,7 +57,7 @@ export class RegionDetailsModal {
   /**
    * Create the modal content
    */
-  private createContent(region: any): HTMLElement {
+  private createContent(region: StoredRegion): HTMLElement {
     const content = document.createElement('div');
     content.className = 'flex flex-col gap-4';
 
@@ -89,14 +90,14 @@ export class RegionDetailsModal {
       </div>
       
       ${
-        region.downloadedAt
+        region.created
           ? `
         <div>
           <label class="block mb-1 font-semibold text-gray-900 dark:text-white">
-            Downloaded:
+            Created:
           </label>
           <div class="text-sm text-gray-600 dark:text-gray-400">
-            ${formatDate(region.downloadedAt)}
+            ${formatDate(region.created)}
           </div>
         </div>
       `

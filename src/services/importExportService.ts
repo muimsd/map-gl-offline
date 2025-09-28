@@ -356,7 +356,7 @@ export class ImportExportService {
   /**
    * Export style data
    */
-  private async exportStyle(regionId: string): Promise<any> {
+  private async exportStyle(regionId: string): Promise<Record<string, unknown>> {
     const db = await this.db;
     const transaction = db.transaction(['styles'], 'readonly');
     const store = transaction.objectStore('styles');
@@ -561,7 +561,7 @@ export class ImportExportService {
       },
       style: {},
       tiles:
-        data.tiles.map((tile: any) => ({
+        data.tiles.map((tile: { zoom_level: number; tile_column: number; tile_row: number; tile_data: ArrayBuffer }) => ({
           z: tile.zoom_level,
           x: tile.tile_column,
           y: tile.tile_row,

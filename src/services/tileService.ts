@@ -25,10 +25,16 @@ export class TileService {
   ): Promise<TileDownloadResult> {
     const db = await this.db;
     const {
-      onProgress: _onProgress,
       batchSize = 10,
       maxRetries = 3,
-      maxConcurrency: _maxConcurrency = 5,
+      skipExisting = true,
+      timeout = 10000,
+      retryDelay = 1000,
+      priorityZoomLevels = [],
+      storageQuotaCheck = true,
+      validateTiles = false,
+      compressTiles = false,
+      bandwidthLimit
     } = options;
 
     const startTime = Date.now();
@@ -461,7 +467,7 @@ export class TileService {
     return tiles;
   }
 
-  private async extractTileSources(style: MapboxStyle): Promise<Map<string, any>> {
+  private async extractTileSources(style: MapboxStyle): Promise<Map<string, { tiles: string[]; minzoom?: number; maxzoom?: number }>> {
     const tileSources = new Map();
 
     if (!style || !style.sources) {
@@ -476,7 +482,13 @@ export class TileService {
     console.warn('Processing sources in extractTileSources:', Object.keys(style.sources));
 
     for (const [sourceId, sourceConfig] of Object.entries(style.sources)) {
-      const config = sourceConfig as any;
+      const config = sourceConfig as {
+        type?: string;
+        url?: string;
+        tiles?: string[];
+        minzoom?: number;
+        maxzoom?: number;
+      };
 
       console.warn(`Processing source ${sourceId}:`, {
         type: config.type,
@@ -527,8 +539,11 @@ export class TileService {
                   retries: 2
                 });
                 
-                if (response.type === 'json' && (response.data as any).tiles) {
-                  tiles = (response.data as any).tiles;
+                if (response.type === 'json') {
+                  const jsonData = response.data as unknown as { tiles?: string[] };
+                  if (jsonData.tiles) {
+                    tiles = jsonData.tiles;
+                  }
                   tileUrlPattern = tiles[0]; // Use the first tile URL as the pattern
                   console.warn(`Got ${tiles.length} tile URLs from TileJSON:`, tiles[0]);
                 } else {

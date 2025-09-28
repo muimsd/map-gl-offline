@@ -7,7 +7,7 @@ import { BaseComponent } from './BaseComponent';
 import type { Map as MaplibreMap } from 'maplibre-gl';
 import { DownloadManager } from '../../managers/downloadManager';
 import { ModalManager } from '../../modals/ModalManager';
-import { RegionFormModal } from '../../modals/regionFormModal';
+import { RegionFormModal, RegionFormData } from '../../modals/regionFormModal';
 
 export interface RegionDrawingConfig {
   map: MaplibreMap;
@@ -24,7 +24,7 @@ export class RegionDrawing extends BaseComponent {
   private modalManager: ModalManager;
   private drawingConfig: RegionDrawingConfig;
   private isDrawing = false;
-  private drawingHandler: ((e: any) => void) | null = null;
+  private drawingHandler: ((e: { lngLat: { lng: number; lat: number } }) => void) | null = null;
 
   constructor(config: RegionDrawingConfig) {
     super({});
@@ -68,7 +68,7 @@ export class RegionDrawing extends BaseComponent {
     this.showDrawingInstructions();
 
     // Setup click handler for region selection
-    this.drawingHandler = (e: any) => this.handleMapClick(e);
+    this.drawingHandler = (e: { lngLat: { lng: number; lat: number } }) => this.handleMapClick(e);
     this.map.on('click', this.drawingHandler);
 
     // Add escape key handler
@@ -117,7 +117,7 @@ export class RegionDrawing extends BaseComponent {
     }
   }
 
-  private handleMapClick(e: any): void {
+  private handleMapClick(e: { lngLat: { lng: number; lat: number } }): void {
     if (!this.isDrawing) return;
 
     // Get the clicked point
@@ -133,7 +133,7 @@ export class RegionDrawing extends BaseComponent {
     this.showRegionForm(bounds);
   }
 
-  private createBoundsAroundPoint(center: any): [number, number, number, number] {
+  private createBoundsAroundPoint(center: { lng: number; lat: number }): [number, number, number, number] {
     // Create a small region around the clicked point
     const offset = 0.01; // roughly 1km
 
@@ -153,22 +153,12 @@ export class RegionDrawing extends BaseComponent {
       bounds,
       area,
       styleUrl: this.drawingConfig.getCurrentStyleUrl(),
-      onSave: async (regionData: any) => {
+      onSave: async (_regionData: RegionFormData) => {
         try {
           // Add the region using the download manager or offline manager
-          const region = {
-            ...regionData,
-            id: `region_${Date.now()}`,
-            bounds,
-            styleUrl: this.drawingConfig.getCurrentStyleUrl(),
-            createdAt: Date.now(),
-          };
-
           // This would typically be handled by the offline manager
           // For now, we'll emit an event
           this.drawingConfig.onRegionSaved();
-
-          return region;
         } catch (error) {
           console.error('Failed to save region:', error);
           throw error;

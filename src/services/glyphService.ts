@@ -36,7 +36,6 @@ export class GlyphService {
       retries = 3,
       timeout = 10000,
       onProgress,
-      includeMetadata: _includeMetadata = false,
       enableValidation = true,
       priorityFonts = [],
     } = options;

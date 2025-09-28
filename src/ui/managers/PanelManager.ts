@@ -8,6 +8,7 @@ import { OfflineMapManager } from '../../managers/offlineMapManager';
 import { DownloadManager } from './downloadManager';
 import { ModalManager } from '../modals/ModalManager';
 import { RegionDetailsModal } from '../modals/regionDetailsModal';
+import { StoredRegion, StorageAnalyticsReport } from '../../types';
 import { ConfirmationModal } from '../modals/confirmationModal';
 import { ImportExportModal } from '../modals/importExportModal';
 import { formatBytes } from '../../utils/formatting';
@@ -99,7 +100,7 @@ export class PanelRenderer extends BaseComponent {
   /**
    * Render header section
    */
-  private async renderHeader(regions: any[], analytics: any): Promise<void> {
+  private async renderHeader(regions: StoredRegion[], analytics: StorageAnalyticsReport): Promise<void> {
     if (this.headerContainer) {
       this.element.removeChild(this.headerContainer);
     }
@@ -195,7 +196,7 @@ export class PanelRenderer extends BaseComponent {
         'px-6 py-4 border-b border-gray-200 dark:border-gray-700';
 
       const downloads = this.downloadManager.getCurrentDownloads();
-      const progressHTML = this.createDownloadProgressHTML(downloads);
+      const progressHTML = this.createDownloadProgressHTML(downloads as unknown as Map<string, Record<string, unknown>>);
       this.downloadProgressContainer.innerHTML = progressHTML;
 
       this.element.appendChild(this.downloadProgressContainer);
@@ -205,7 +206,7 @@ export class PanelRenderer extends BaseComponent {
   /**
    * Render styles list with regions grouped under each style
    */
-  private async renderRegionsList(regions: any[]): Promise<void> {
+  private async renderRegionsList(regions: StoredRegion[]): Promise<void> {
     console.warn('🗂️ Rendering regions list with regions:', regions);
 
     // Remove existing list
@@ -311,12 +312,13 @@ export class PanelRenderer extends BaseComponent {
         items: listItems,
         emptyText: 'No offline styles or regions found. Click "Add Region" to get started.',
         onItemAction: this.handleItemAction.bind(this),
-        onItemClick: (itemId: string, item: any) => {
-          if (item.isStyle) {
+        onItemClick: (itemId: string, item: unknown) => {
+          const itemObj = item as Record<string, unknown>;
+          if (itemObj.isStyle) {
             // Handle style click - could expand/collapse or other action
             return;
           }
-          if (!item.isOrphanedHeader) {
+          if (!itemObj.isOrphanedHeader) {
             this.handleShowRegionDetails(itemId);
           }
         },
@@ -336,7 +338,7 @@ export class PanelRenderer extends BaseComponent {
   /**
    * Create region item template
    */
-  private createRegionItemTemplate(region: any, isGrouped: boolean = false): string {
+  private createRegionItemTemplate(region: StoredRegion & { downloadedAt?: number; size?: number }, isGrouped: boolean = false): string {
     const containerClass = isGrouped
       ? 'bg-slate-50 dark:bg-slate-800 px-4 py-3 border-t border-slate-200 dark:border-slate-600'
       : 'bg-white dark:bg-slate-800 rounded-lg p-4 border border-slate-200 dark:border-slate-600 shadow-sm hover:shadow-md transition-shadow duration-150';
@@ -365,7 +367,7 @@ export class PanelRenderer extends BaseComponent {
   /**
    * Create complete style template with header, HR, and regions
    */
-  private createCompleteStyleTemplate(style: any, regions: any[]): string {
+  private createCompleteStyleTemplate(style: { key: string; style?: { name?: string }; dbSize?: number }, regions: (StoredRegion & { size?: number })[]): string {
     const regionCount = regions.length;
     const totalSize = regions.reduce((sum, region) => sum + (region.size || 0), 0);
 
@@ -411,7 +413,7 @@ export class PanelRenderer extends BaseComponent {
   /**
    * Create region item specifically for embedding within a style container
    */
-  private createRegionItemForStyle(region: any): string {
+  private createRegionItemForStyle(region: StoredRegion & { downloadedAt?: number; size?: number }): string {
     return `
       <div class="px-4 py-3 border-t border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700/50 cursor-pointer region-item transition-colors duration-150" data-region-id="${region.id}">
         <div class="flex items-center justify-between">
@@ -450,7 +452,7 @@ export class PanelRenderer extends BaseComponent {
   /**
    * Create style item template with load button
    */
-  private createStyleItemTemplate(style: any, regions: any[]): string {
+  private createStyleItemTemplate(style: { key: string; style?: { name?: string } }, regions: (StoredRegion & { size?: number })[]): string {
     const regionCount = regions.length;
     const totalSize = regions.reduce((sum, region) => sum + (region.size || 0), 0);
 
@@ -489,7 +491,7 @@ export class PanelRenderer extends BaseComponent {
   /**
    * Create orphaned regions header template
    */
-  private createOrphanedRegionsHeaderTemplate(regions: any[]): string {
+  private createOrphanedRegionsHeaderTemplate(regions: StoredRegion[]): string {
     return `
       <div class="bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 border border-amber-200 dark:border-amber-700 rounded-lg p-3 mb-2">
         <div class="flex items-center justify-between">
@@ -512,7 +514,7 @@ export class PanelRenderer extends BaseComponent {
   /**
    * Create download progress HTML
    */
-  private createDownloadProgressHTML(downloads: Map<string, any>): string {
+  private createDownloadProgressHTML(downloads: Map<string, Record<string, unknown>>): string {
     const downloadArray = Array.from(downloads.values());
     return `
       <div class="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4">
@@ -529,7 +531,7 @@ export class PanelRenderer extends BaseComponent {
                 <div class="w-24 h-2 bg-blue-200 dark:bg-blue-800 rounded-full overflow-hidden">
                   <div class="h-full bg-blue-600 transition-all duration-300" style="width: ${download.progress || 0}%"></div>
                 </div>
-                <span class="text-blue-700 dark:text-blue-300 min-w-[3rem]">${Math.round(download.progress || 0)}%</span>
+                <span class="text-blue-700 dark:text-blue-300 min-w-[3rem]">${Math.round((download.progress as number) || 0)}%</span>
               </div>
             </div>
           `
@@ -543,7 +545,7 @@ export class PanelRenderer extends BaseComponent {
   /**
    * Handle region actions
    */
-  private handleRegionAction(action: string, regionId: string, regionData: any): void {
+  private handleRegionAction(action: string, regionId: string, regionData: StoredRegion): void {
     switch (action) {
       case 'show-details':
         this.handleShowRegionDetails(regionId);
@@ -568,7 +570,7 @@ export class PanelRenderer extends BaseComponent {
   private async handleShowRegionDetails(regionId: string): Promise<void> {
     try {
       const regions = await this.offlineManager.listStoredRegions();
-      const region = regions.find((r: any) => r.id === regionId);
+      const region = regions.find((r: StoredRegion) => r.id === regionId);
 
       if (!region) return;
 
@@ -596,7 +598,7 @@ export class PanelRenderer extends BaseComponent {
   private async handleDeleteRegion(regionId: string): Promise<void> {
     try {
       const regions = await this.offlineManager.listStoredRegions();
-      const region = regions.find((r: any) => r.id === regionId);
+      const region = regions.find((r: StoredRegion) => r.id === regionId);
 
       if (!region) return;
 
@@ -631,10 +633,10 @@ export class PanelRenderer extends BaseComponent {
   /**
    * Handle import/export functionality
    */
-  private async handleImportExport(regionId: string, _regionData: any): Promise<void> {
+  private async handleImportExport(regionId: string, _regionData: unknown): Promise<void> {
     try {
       const regions = await this.offlineManager.listStoredRegions();
-      const region = regions.find((r: any) => r.id === regionId);
+      const region = regions.find((r: StoredRegion) => r.id === regionId);
 
       if (!region) return;
 
@@ -663,9 +665,9 @@ export class PanelRenderer extends BaseComponent {
             case 'json':
               return await this.offlineManager.exportRegionAsJSON(regionId, options);
             case 'pmtiles':
-              return await this.offlineManager.exportRegionAsPMTiles(regionId, options as any);
+              return await this.offlineManager.exportRegionAsPMTiles(regionId, options as Record<string, unknown>);
             case 'mbtiles':
-              return await this.offlineManager.exportRegionAsMBTiles(regionId, options as any);
+              return await this.offlineManager.exportRegionAsMBTiles(regionId, options as Record<string, unknown>);
             default:
               throw new Error(`Unsupported export format: ${format}`);
           }
@@ -763,7 +765,7 @@ export class PanelRenderer extends BaseComponent {
   private async handleEmbeddedRegionAction(action: string, regionId: string): Promise<void> {
     try {
       const regions = await this.offlineManager.listStoredRegions();
-      const region = regions.find((r: any) => r.id === regionId);
+      const region = regions.find((r: StoredRegion) => r.id === regionId);
 
       if (!region) {
         console.warn('Region not found:', regionId);
@@ -780,7 +782,7 @@ export class PanelRenderer extends BaseComponent {
   /**
    * Fallback renderer for regions list when styles fail to load
    */
-  private async renderFallbackRegionsList(regions: any[]): Promise<void> {
+  private async renderFallbackRegionsList(regions: StoredRegion[]): Promise<void> {
     // Remove existing list
     if (this.regionsList) {
       this.regionsList.destroy();
@@ -821,7 +823,7 @@ export class PanelRenderer extends BaseComponent {
       items: listItems,
       emptyText: 'No offline regions found. Click "Add Region" to get started.',
       onItemAction: this.handleItemAction.bind(this),
-      onItemClick: (itemId: string, _item: any) => {
+      onItemClick: (itemId: string, _item: unknown) => {
         this.handleShowRegionDetails(itemId);
       },
     });
@@ -905,8 +907,8 @@ export class PanelRenderer extends BaseComponent {
   /**
    * Group regions by style ID
    */
-  private groupRegionsByStyle(regions: any[]): Record<string, any[]> {
-    const grouped: Record<string, any[]> = {};
+  private groupRegionsByStyle(regions: StoredRegion[]): Record<string, StoredRegion[]> {
+    const grouped: Record<string, StoredRegion[]> = {};
 
     regions.forEach(region => {
       const styleId = region.styleId || 'unknown';
@@ -922,18 +924,19 @@ export class PanelRenderer extends BaseComponent {
   /**
    * Handle actions for both styles and regions
    */
-  private handleItemAction(action: string, itemId: string, itemData: any): void {
-    if (itemData.isStyle) {
+  private handleItemAction(action: string, itemId: string, itemData: unknown): void {
+    const itemObj = itemData as Record<string, unknown>;
+    if (itemObj.isStyle) {
       this.handleStyleAction(action, itemId, itemData);
     } else {
-      this.handleRegionAction(action, itemId, itemData);
+      this.handleRegionAction(action, itemId, itemData as StoredRegion);
     }
   }
 
   /**
    * Handle style-specific actions
    */
-  private async handleStyleAction(action: string, styleId: string, styleData: any): Promise<void> {
+  private async handleStyleAction(action: string, styleId: string, styleData: unknown): Promise<void> {
     switch (action) {
       case 'load-style':
         await this.handleLoadStyle(styleData);
@@ -949,19 +952,20 @@ export class PanelRenderer extends BaseComponent {
   /**
    * Handle loading a style to the map
    */
-  private async handleLoadStyle(styleData: any): Promise<void> {
+  private async handleLoadStyle(styleData: unknown): Promise<void> {
     if (!this.map) {
       console.warn('Map not available for loading style');
       return;
     }
 
     try {
-      console.warn('🎨 Loading style to map:', styleData.key);
+      const style = styleData as { key: string; style?: Record<string, unknown> & { sources?: Record<string, unknown>; layers?: unknown[] } };
+      console.warn('🎨 Loading style to map:', style.key);
       console.warn('🔍 Style data structure:', {
-        hasStyle: !!styleData.style,
-        styleKeys: styleData.style ? Object.keys(styleData.style) : [],
-        sources: styleData.style?.sources ? Object.keys(styleData.style.sources) : [],
-        layers: styleData.style?.layers ? styleData.style.layers.length : 0,
+        hasStyle: !!style.style,
+        styleKeys: style.style ? Object.keys(style.style) : [],
+        sources: style.style?.sources ? Object.keys(style.style.sources) : [],
+        layers: style.style?.layers ? style.style.layers.length : 0,
       });
 
       // Check if the style has the necessary structure
@@ -976,14 +980,14 @@ export class PanelRenderer extends BaseComponent {
       }
 
       console.warn('🔧 Patching style for offline use...');
-      const patchedStyle = patchStyleForOffline(styleData.style, styleData.key);
+      const patchedStyle = patchStyleForOffline(style.style, style.key);
 
       console.warn('✅ Style patched successfully');
       console.warn('🔍 Patched style sources:', Object.keys(patchedStyle.sources || {}));
 
       // Apply the patched style to the map
       console.warn('🗺️ Applying style to map...');
-      this.map.setStyle(patchedStyle as any);
+      this.map.setStyle(patchedStyle as Record<string, unknown>);
 
       console.warn('✅ Voyager/Style loaded successfully with offline patches');
     } catch (error) {
@@ -999,17 +1003,18 @@ export class PanelRenderer extends BaseComponent {
   /**
    * Handle deleting a style
    */
-  private async handleDeleteStyle(styleId: string, styleData: any): Promise<void> {
+  private async handleDeleteStyle(styleId: string, styleData: unknown): Promise<void> {
     try {
+      const style = styleData as { key: string; style?: { name?: string } };
       const confirmModal = new ConfirmationModal({
         title: 'Delete Style',
-        message: `Are you sure you want to delete the style "${styleData.style?.name || styleData.key}"? This action cannot be undone and will affect associated regions.`,
+        message: `Are you sure you want to delete the style "${style.style?.name || style.key}"? This action cannot be undone and will affect associated regions.`,
         confirmText: 'Delete Style',
         cancelText: 'Cancel',
         onConfirm: async () => {
           try {
             const { deleteStyleById } = await import('../../services/styleService');
-            await deleteStyleById(styleData.key);
+            await deleteStyleById(style.key);
             this.modalManager.close();
             // Refresh the panel
             await this.refresh();

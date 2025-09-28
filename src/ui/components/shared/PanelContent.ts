@@ -5,9 +5,11 @@
 
 import { BaseComponent } from './BaseComponent';
 import { OfflineMapManager } from '../../../managers/offlineMapManager';
-import { DownloadManager } from '../../managers/downloadManager';
+import { DownloadManager, DownloadProgress } from '../../managers/downloadManager';
 import { ModalManager } from '../../modals/ModalManager';
 import { RegionDetailsModal } from '../../modals/regionDetailsModal';
+import { StoredRegion } from '../../../types/region';
+import { StorageAnalyticsReport } from '../../../types/maintenance';
 import { ConfirmationModal } from '../../modals/confirmationModal';
 // import { ImportExportModal } from '../../modals/ImportExportModal.js';
 import { createHeader } from '../PanelHeader';
@@ -81,10 +83,10 @@ export class PanelContentRenderer extends BaseComponent {
   }
 
   private createMainContent(
-    regions: any[],
-    analytics: any,
-    downloads: Map<string, any>,
-    currentTheme: any
+    regions: StoredRegion[],
+    analytics: StorageAnalyticsReport,
+    downloads: Map<string, DownloadProgress>,
+    currentTheme: { mode: string }
   ): HTMLElement {
     const mainContent = document.createElement('div');
     mainContent.className = 'h-full flex flex-col';
@@ -92,13 +94,15 @@ export class PanelContentRenderer extends BaseComponent {
     // Header
     const header = createHeader({
       title: 'Offline Map Manager',
-      subtitle: `${regions.length} regions • ${formatBytes(analytics.totalSize)}`,
+      subtitle: `${regions.length} regions • ${formatBytes(analytics.totalStorageSize)}`,
       onClose: this.contentConfig.onClose,
       onThemeToggle: () => {
         const newTheme = currentTheme.mode === 'dark' ? 'light' : 'dark';
         themeManager.setTheme(newTheme);
         // Re-render to update theme
-        this.render(mainContent.parentElement!);
+        if (mainContent.parentElement) {
+          this.render(mainContent.parentElement);
+        }
       },
     });
     mainContent.appendChild(header);
@@ -173,7 +177,7 @@ export class PanelContentRenderer extends BaseComponent {
     }
   }
 
-  private showRegionDetails(region: any): void {
+  private showRegionDetails(region: StoredRegion): void {
     const detailsModal = new RegionDetailsModal({
       region,
       onClose: () => {

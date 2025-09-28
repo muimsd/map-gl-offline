@@ -140,7 +140,9 @@ export class Modal extends BaseComponent {
     }
 
     this.header.appendChild(actions);
-    this.modalContent!.appendChild(this.header);
+    if (this.modalContent) {
+      this.modalContent.appendChild(this.header);
+    }
   }
 
   private getSizeClasses(): string {
@@ -166,7 +168,7 @@ export class Modal extends BaseComponent {
     if (this.config.closable && this.config.onClose) {
       const handleEscape = (event: KeyboardEvent) => {
         if (event.key === 'Escape') {
-          this.config.onClose!();
+          this.config.onClose?.();
         }
       };
       document.addEventListener('keydown', handleEscape);

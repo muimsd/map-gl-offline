@@ -6,5 +6,5 @@ export type DownloadOptions = {
     currentTile?: string;
     currentFont?: string;
   }) => void;
-  [key: string]: any;
+  [key: string]: unknown;
 };

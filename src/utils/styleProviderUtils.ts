@@ -32,8 +32,8 @@ export function detectStyleProvider(styleUrl: string, style?: BaseStyle): StyleP
 
     // Check sources for Mapbox-specific patterns
     const sources = style.sources || {};
-    for (const [_sourceId, sourceConfig] of Object.entries(sources)) {
-      const source = sourceConfig as any;
+    for (const [, sourceConfig] of Object.entries(sources)) {
+      const source = sourceConfig as { url?: string };
       if (source.url && source.url.includes('mapbox.com')) {
         return 'mapbox';
       }
@@ -104,10 +104,10 @@ export function processStyleSources(
   const sources = { ...style.sources };
 
   for (const [sourceId, sourceConfig] of Object.entries(sources)) {
-    const source = sourceConfig ? ({ ...(sourceConfig as object) } as any) : {};
+    const source = sourceConfig ? ({ ...(sourceConfig as Record<string, unknown>) } as Record<string, unknown>) : {};
 
     // Handle Mapbox-specific source URLs
-    if (provider === 'mapbox' && source.url) {
+    if (provider === 'mapbox' && source.url && typeof source.url === 'string') {
       source.url = normalizeStyleUrl(source.url, accessToken);
     }
 
@@ -174,13 +174,19 @@ export function validateStyleForProvider(
   if (provider === 'mapbox') {
     // Check for Mapbox-specific requirements
     const hasMapboxSources = Object.values(style.sources || {}).some(
-      (source: any) => source.url && source.url.includes('mapbox.com')
+      (source: unknown) => {
+        const s = source as { url?: string };
+        return s.url && s.url.includes('mapbox.com');
+      }
     );
 
     if (hasMapboxSources) {
       // Check if access token might be needed
       const hasAccessToken = Object.values(style.sources || {}).some(
-        (source: any) => source.url && source.url.includes('access_token')
+        (source: unknown) => {
+          const s = source as { url?: string };
+          return s.url && s.url.includes('access_token');
+        }
       );
 
       if (!hasAccessToken) {

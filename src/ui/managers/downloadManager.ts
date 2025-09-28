@@ -20,7 +20,7 @@ export interface DownloadManagerOptions {
   offlineManager: OfflineMapManager;
   onProgressUpdate?: (downloads: Map<string, DownloadProgress>) => void;
   onDownloadComplete?: (regionId: string) => void;
-  onDownloadError?: (regionId: string, error: any) => void;
+  onDownloadError?: (regionId: string, error: Error | string) => void;
   updateButton?: (text: string, disabled: boolean) => void;
   updateProgressBadge?: (text: string, visible: boolean) => void;
 }
@@ -63,11 +63,11 @@ export class DownloadManager {
         console.warn(`🎨 Downloading style with provider: ${formData.provider}`);
 
         // Use the enhanced downloadStyleWithProvider for Mapbox GL support
-        const styleDownloadOptions: any = {
+        const styleDownloadOptions = {
           skipExisting: true,
           provider: formData.provider || 'auto',
           accessToken: formData.accessToken,
-          onProgress: (progress: any) => {
+          onProgress: (progress: { percentage?: number }) => {
             console.warn(`Style download progress: ${progress.percentage}%`);
           },
         };
@@ -87,7 +87,7 @@ export class DownloadManager {
         // Find the existing style to get its ID
         const styles = await loadStyles();
         const existingStyle = styles.find(
-          (s: any) =>
+          (s: { style?: { sprite?: string }; originalUrl?: string }) =>
             s?.style?.sprite?.includes(regionConfig.styleUrl) ||
             s?.originalUrl === regionConfig.styleUrl
         );
@@ -115,7 +115,7 @@ export class DownloadManager {
 
       // Get the style data for tile download
       const styles = await loadStyles();
-      const styleData = styles.find((s: any) => s.key === finalStyleId);
+      const styleData = styles.find((s: { key?: string }) => s.key === finalStyleId);
       if (!styleData) {
         throw new Error('Style not found for tile download');
       }
@@ -216,14 +216,15 @@ export class DownloadManager {
   /**
    * Handle download error
    */
-  private handleDownloadError(regionId: string, error: any): void {
+  private handleDownloadError(regionId: string, error: Error | string | unknown): void {
     this.currentDownloads.delete(regionId);
 
     if (this.currentDownloads.size === 0) {
       this.resetUI();
     }
 
-    this.options.onDownloadError?.(regionId, error);
+    const errorMessage = error instanceof Error ? error : String(error);
+    this.options.onDownloadError?.(regionId, errorMessage);
     this.options.onProgressUpdate?.(this.currentDownloads);
   }
 

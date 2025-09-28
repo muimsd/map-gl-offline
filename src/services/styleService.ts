@@ -531,23 +531,24 @@ export async function downloadStyles(
 }
 
 // Utility function to validate style data
-function isValidStyleData(style: any): boolean {
+function isValidStyleData(style: unknown): boolean {
   if (!style || typeof style !== 'object') return false;
+  const s = style as Record<string, unknown>;
 
   // Check required properties
-  if (!style.version || !style.sources || !style.layers) return false;
+  if (!s.version || !s.sources || !s.layers) return false;
 
   // Validate version
-  if (typeof style.version !== 'number' || style.version < 8) return false;
+  if (typeof s.version !== 'number' || s.version < 8) return false;
 
   // Validate sources
-  if (typeof style.sources !== 'object' || Object.keys(style.sources).length === 0) return false;
+  if (typeof s.sources !== 'object' || Object.keys(s.sources as object).length === 0) return false;
 
   // Validate layers
-  if (!Array.isArray(style.layers) || style.layers.length === 0) return false;
+  if (!Array.isArray(s.layers) || s.layers.length === 0) return false;
 
   // Basic layer validation
-  for (const layer of style.layers) {
+  for (const layer of s.layers as Array<{ id?: string; type?: string }>) {
     if (!layer.id || !layer.type) return false;
   }
 
@@ -625,20 +626,26 @@ export async function getStyleStats(): Promise<EnhancedStyleStats> {
 
       // Handle both old and new style storage formats - check if enhanced metadata exists
       const hasEnhancedMetadata = 'lastModified' in styleEntry || 'size' in styleEntry;
+      const enhancedEntry = styleEntry as Record<string, unknown> & {
+        size?: number;
+        lastModified?: number;
+        sourceCount?: number;
+        layerCount?: number;
+      };
       const size =
-        hasEnhancedMetadata && (styleEntry as any).size
-          ? (styleEntry as any).size
+        hasEnhancedMetadata && enhancedEntry.size
+          ? enhancedEntry.size
           : JSON.stringify(styleEntry).length;
-      const lastModified = hasEnhancedMetadata ? (styleEntry as any).lastModified : undefined;
+      const lastModified = hasEnhancedMetadata ? enhancedEntry.lastModified : undefined;
       const sourceCount =
-        hasEnhancedMetadata && (styleEntry as any).sourceCount
-          ? (styleEntry as any).sourceCount
+        hasEnhancedMetadata && enhancedEntry.sourceCount
+          ? enhancedEntry.sourceCount
           : style.sources
             ? Object.keys(style.sources).length
             : 0;
       const layerCount =
-        hasEnhancedMetadata && (styleEntry as any).layerCount
-          ? (styleEntry as any).layerCount
+        hasEnhancedMetadata && enhancedEntry.layerCount
+          ? enhancedEntry.layerCount
           : style.layers
             ? style.layers.length
             : 0;
@@ -666,25 +673,25 @@ export async function getStyleStats(): Promise<EnhancedStyleStats> {
       }
 
       // Track oldest and newest styles
-      if (lastModified) {
+      if (lastModified && style.id) {
         if (!oldestStyle || lastModified < oldestStyle.lastModified) {
-          oldestStyle = { id: style.id!, lastModified };
+          oldestStyle = { id: style.id, lastModified };
         }
         if (!newestStyle || lastModified > newestStyle.lastModified) {
-          newestStyle = { id: style.id!, lastModified };
+          newestStyle = { id: style.id, lastModified };
         }
       }
 
       // Track largest and smallest styles
-      if (!largestStyle || size > largestStyle.size) {
-        largestStyle = { id: style.id!, size };
+      if (style.id && (!largestStyle || size > largestStyle.size)) {
+        largestStyle = { id: style.id, size };
       }
-      if (!smallestStyle || size < smallestStyle.size) {
-        smallestStyle = { id: style.id!, size };
+      if (style.id && (!smallestStyle || size < smallestStyle.size)) {
+        smallestStyle = { id: style.id, size };
       }
 
       return {
-        id: style.id!,
+        id: style.id || 'unknown',
         name: style.name,
         size,
         lastModified,
@@ -694,9 +701,9 @@ export async function getStyleStats(): Promise<EnhancedStyleStats> {
         hasSprites: !!style.sprite,
         metadata: hasEnhancedMetadata
           ? {
-              downloadedAt: (styleEntry as any).downloadedAt,
-              originalUrl: (styleEntry as any).originalUrl,
-              validated: (styleEntry as any).validated,
+              downloadedAt: enhancedEntry.downloadedAt as number | undefined,
+              originalUrl: enhancedEntry.originalUrl as string | undefined,
+              validated: enhancedEntry.validated as boolean | undefined,
             }
           : undefined,
       };
@@ -864,7 +871,8 @@ export async function isStyleDownloaded(styleId?: string, styleUrl?: string): Pr
   if (styleUrl) {
     const allStyles = await db.getAll('styles');
     return allStyles.some(
-      (s: any) => s?.style?.sprite?.includes(styleUrl) || s?.originalUrl === styleUrl
+      (s: Record<string, unknown> & { style?: { sprite?: string }; originalUrl?: string }) => 
+        s?.style?.sprite?.includes(styleUrl) || s?.originalUrl === styleUrl
     );
   }
   return false;
@@ -908,7 +916,7 @@ export async function verifyAndValidateStyles(
         } else {
           invalidCount++;
           const errorMsg = 'Invalid style data detected';
-          errors.push({ id: style.id!, error: errorMsg });
+          errors.push({ id: style.id || 'unknown', error: errorMsg });
 
           if (autoRepair) {
             // Basic repair attempts
@@ -936,10 +944,10 @@ export async function verifyAndValidateStyles(
           total: allStyles.length,
           message: `Verified style: ${style.id} (${isValid ? 'valid' : 'invalid'})`,
         });
-      } catch (_error) {
+      } catch (error: unknown) {
         invalidCount++;
         const errorMsg = error instanceof Error ? error.message : 'Unknown error';
-        errors.push({ id: style.id!, error: errorMsg });
+        errors.push({ id: style.id || 'unknown', error: errorMsg });
 
         onProgress?.({
           completed: i + 1,
@@ -1063,16 +1071,9 @@ export async function downloadStyleWithProvider(
     provider: explicitProvider,
     accessToken: explicitAccessToken,
     forceProvider = false,
-    _onProgress,
-    _fontOptions,
-    _spriteOptions,
     skipExisting = false,
-    _validateStyle = true,
     maxRetries = 3,
     timeoutMs = 30000,
-    _enableSourceEmbedding = false,
-    _storageQuotaCheck = true,
-    _includeMetadata = true,
   } = options;
 
   const startTime = Date.now();

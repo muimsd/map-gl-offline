@@ -20,8 +20,15 @@ export class ControlButton extends BaseComponent {
   constructor(config: ControlButtonConfig = {}) {
     super(config);
     this.buttonConfig = config;
-    this.button = this.element.querySelector('button')!;
-    this.progressBadge = this.button.querySelector('.progress-badge')!;
+    const button = this.element.querySelector('button');
+    const progressBadge = button?.querySelector('.progress-badge') as HTMLSpanElement;
+    
+    if (!button || !progressBadge) {
+      throw new Error('ControlButton: Required elements not found');
+    }
+    
+    this.button = button;
+    this.progressBadge = progressBadge;
   }
 
   protected createElement(): HTMLElement {

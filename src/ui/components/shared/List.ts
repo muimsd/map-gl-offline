@@ -7,7 +7,7 @@ import { BaseComponent, ComponentConfig } from './BaseComponent';
 
 export interface ListItemConfig {
   id: string;
-  data: any;
+  data: unknown;
   template?: string;
   actions?: Array<{
     label: string;
@@ -20,9 +20,9 @@ export interface ListItemConfig {
 export interface ListConfig extends ComponentConfig {
   items?: ListItemConfig[];
   emptyText?: string;
-  itemTemplate?: (item: any) => string;
-  onItemAction?: (action: string, itemId: string, item: any) => void;
-  onItemClick?: (itemId: string, item: any) => void;
+  itemTemplate?: (item: unknown) => string;
+  onItemAction?: (action: string, itemId: string, item: unknown) => void;
+  onItemClick?: (itemId: string, item: unknown) => void;
 }
 
 export class List extends BaseComponent {
@@ -63,15 +63,15 @@ export class List extends BaseComponent {
 
     this.config.items.forEach(item => {
       const itemElement = this.createItemElement(item);
-      this.listContainer!.appendChild(itemElement);
+      this.listContainer?.appendChild(itemElement);
     });
   }
 
   private renderEmptyState(): void {
     const emptyElement = document.createElement('div');
     emptyElement.className = 'text-center py-8 text-gray-500 dark:text-gray-400';
-    emptyElement.textContent = this.config.emptyText!;
-    this.listContainer!.appendChild(emptyElement);
+    emptyElement.textContent = this.config.emptyText || 'No items found';
+    this.listContainer?.appendChild(emptyElement);
   }
 
   private createItemElement(item: ListItemConfig): HTMLElement {
@@ -88,7 +88,7 @@ export class List extends BaseComponent {
         if ((e.target as HTMLElement).closest('[data-action]')) {
           return;
         }
-        this.config.onItemClick!(item.id, item.data);
+        this.config.onItemClick?.(item.id, item.data);
       });
     }
 
@@ -110,18 +110,21 @@ export class List extends BaseComponent {
     return itemElement;
   }
 
-  private getDefaultItemTemplate(data: any): string {
+  private getDefaultItemTemplate(data: unknown): string {
     if (typeof data === 'string') {
       return `<div class="text-gray-900 dark:text-white">${data}</div>`;
     }
 
-    if (data.title || data.name) {
-      return `
-        <div class="text-gray-900 dark:text-white font-medium">
-          ${data.title || data.name}
-        </div>
-        ${data.description ? `<div class="text-sm text-gray-500 dark:text-gray-400 mt-1">${data.description}</div>` : ''}
-      `;
+    if (data && typeof data === 'object') {
+      const obj = data as Record<string, unknown>;
+      if (obj.title || obj.name) {
+        return `
+          <div class="text-gray-900 dark:text-white font-medium">
+            ${obj.title || obj.name}
+          </div>
+          ${obj.description ? `<div class="text-sm text-gray-500 dark:text-gray-400 mt-1">${obj.description}</div>` : ''}
+        `;
+      }
     }
 
     return `<div class="text-gray-900 dark:text-white">${JSON.stringify(data)}</div>`;
@@ -132,7 +135,7 @@ export class List extends BaseComponent {
     actionsContainer.className =
       'flex gap-2 mt-3 pt-3 border-t border-gray-200 dark:border-gray-600';
 
-    item.actions!.forEach(action => {
+    item.actions?.forEach(action => {
       const button = document.createElement('button');
       button.className = `px-3 py-1 rounded text-xs font-medium transition-colors ${this.getActionButtonClasses(action.variant)}`;
       button.dataset.action = action.action;
@@ -200,11 +203,15 @@ export class List extends BaseComponent {
   /**
    * Update specific item
    */
-  public updateItem(itemId: string, newData: any): void {
+  public updateItem(itemId: string, newData: unknown): void {
     if (this.config.items) {
       const item = this.config.items.find(item => item.id === itemId);
       if (item) {
-        item.data = { ...item.data, ...newData };
+        if (typeof item.data === 'object' && item.data !== null && typeof newData === 'object' && newData !== null) {
+          item.data = { ...item.data as Record<string, unknown>, ...newData as Record<string, unknown> };
+        } else {
+          item.data = newData;
+        }
         this.renderItems();
       }
     }

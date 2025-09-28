@@ -107,7 +107,7 @@ export async function idbFetchHandler(url: string, init?: RequestInit): Promise<
                 // If not found with guessed sourceKey, try to find any tile with these coordinates
                 console.warn(`🔍 Searching for any tile with coordinates z:${z}, x:${x}, y:${y}`);
                 const allTiles = await db.getAll('tiles');
-                const matchingTile = allTiles.find((tile: any) => {
+                const matchingTile = allTiles.find((tile) => {
                   const keyParts = tile.key.split(':');
                   if (keyParts.length >= 5) {
                     const [, , tz, tx, ty] = keyParts;

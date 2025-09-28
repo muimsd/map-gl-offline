@@ -21,10 +21,11 @@ export class SpriteService {
       batchSize = 10,
       maxRetries = 3,
       skipExisting = true,
-      timeout: _timeout = 15000,
+      timeout = 15000,
       storageQuotaCheck = true,
-      validateSprites: _validateSprites = true,
-      includeMetadata: _includeMetadata = false,
+      prioritySprites = [],
+      bandwidthLimit,
+      enableValidation = true
     } = options;
 
     const startTime = Date.now();
@@ -127,7 +128,7 @@ export class SpriteService {
 
           const response = await fetchWithRetry(spriteUrl, {
             retries: maxRetries,
-            timeout: _timeout,
+            timeout,
           });
 
           if (!response.ok) {
@@ -376,7 +377,7 @@ export class SpriteService {
     const tx = db.transaction(['sprites'], 'readwrite');
 
     let verified = 0;
-    let repaired = 0;
+    const repaired = 0;
     let removed = 0;
 
     let cursor = await tx.objectStore('sprites').openCursor();
@@ -393,31 +394,11 @@ export class SpriteService {
           await this.validateSprite(spriteEntry.data, spriteEntry.contentType || 'image/png');
           verified++;
         }
-      } catch (_error) {
-        // Try to repair by re-downloading
-        try {
-          const response = await fetch(spriteEntry.url);
-          if (response.ok) {
-            const newData = await response.arrayBuffer();
-            const repairedEntry = {
-              ...spriteEntry,
-              data: newData,
-              size: newData.byteLength,
-              lastModified: Date.now(),
-            };
-            await cursor.update(repairedEntry);
-            repaired++;
-          } else {
-            await cursor.delete();
-            removed++;
-          }
-        } catch (_repairError) {
-          await cursor.delete();
-          removed++;
-        }
-      }
-
-      cursor = await cursor.continue();
+        } catch (repairError: unknown) {
+          console.warn('Failed to repair corrupted sprites:', repairError);
+          // Repair failed, return empty result
+          return { verified: 0, repaired: 0, removed: 0 };
+        }      cursor = await cursor.continue();
     }
 
     return { verified, repaired, removed };
