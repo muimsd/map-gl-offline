@@ -9,6 +9,13 @@ export interface SpriteEntry {
   downloadedAt: string;
   size: number;
   url: string;
+  styleId?: string;
+  downloadId?: string;
+  spriteName?: string;
+  metadata?: {
+    variant?: '1x' | '2x' | string;
+    originalUrl?: string;
+  };
 }
 
 export interface SpriteDownloadOptions {

@@ -9,6 +9,7 @@ export interface TileEntry {
   url: string;
   lastModified: number;
   contentType?: string;
+  contentEncoding?: string;
   x?: number;
   y?: number;
   z?: number;

@@ -132,8 +132,8 @@ export class ResourceService {
     return getGlyphAnalytics();
   }
 
-  async loadGlyphsForStyle(fontstack: string, ranges: string[]) {
-    return loadGlyphs(fontstack, ranges);
+  async loadGlyphsForStyle(fontstack: string, ranges: string[], styleId?: string) {
+    return loadGlyphs(fontstack, ranges, styleId);
   }
 
   async cleanupOldGlyphs(styleId?: string, options?: { maxAge?: number }): Promise<number> {

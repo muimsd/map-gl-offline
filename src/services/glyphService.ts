@@ -82,7 +82,7 @@ export class GlyphService {
 
         try {
           // Check if glyph already exists
-          const existingGlyph = await this.getGlyph(fontstack, range);
+          const existingGlyph = await this.getGlyph(fontstack, range, styleName);
           if (existingGlyph) {
             skippedGlyphs++;
             completed++;
@@ -110,6 +110,7 @@ export class GlyphService {
           }
 
           // Create glyph entry
+          const normalizedFontstack = this.normalizeFontstack(fontstack);
           const glyphEntry: GlyphEntry = {
             key: glyphKey,
             data,
@@ -117,6 +118,9 @@ export class GlyphService {
             size: data.byteLength,
             lastModified: Date.now(),
             downloadedAt: new Date().toISOString(),
+            styleId: styleName,
+            fontstack: normalizedFontstack,
+            range,
           };
 
           // Store in database
@@ -124,14 +128,14 @@ export class GlyphService {
 
           totalSize += data.byteLength;
           downloadedGlyphs++;
-          fontsByStack[fontstack] = (fontsByStack[fontstack] || 0) + 1;
+          fontsByStack[normalizedFontstack] = (fontsByStack[normalizedFontstack] || 0) + 1;
 
           // Track largest and smallest glyphs
           if (data.byteLength > largestGlyph.size) {
-            largestGlyph = { fontstack, range, size: data.byteLength };
+            largestGlyph = { fontstack: normalizedFontstack, range, size: data.byteLength };
           }
           if (data.byteLength < smallestGlyph.size) {
-            smallestGlyph = { fontstack, range, size: data.byteLength };
+            smallestGlyph = { fontstack: normalizedFontstack, range, size: data.byteLength };
           }
         } catch (error) {
           failedGlyphs++;
@@ -167,11 +171,11 @@ export class GlyphService {
     };
   }
 
-  async loadGlyphs(fontstack: string, ranges: string[]): Promise<GlyphRange[]> {
-    const glyphRanges: GlyphRange[] = [];
+  async loadGlyphs(fontstack: string, ranges: string[], styleName?: string): Promise<GlyphRange[]> {
+  const glyphRanges: GlyphRange[] = [];
 
     for (const range of ranges) {
-      const glyph = await this.getGlyph(fontstack, range);
+      const glyph = await this.getGlyph(fontstack, range, styleName);
       if (glyph) {
         const [start, end] = range.split('-').map(Number);
         glyphRanges.push({
@@ -186,12 +190,34 @@ export class GlyphService {
     return glyphRanges;
   }
 
-  async getGlyph(fontstack: string, range: string): Promise<GlyphEntry | null> {
+  async getGlyph(fontstack: string, range: string, styleName?: string): Promise<GlyphEntry | null> {
     const db = await this.db;
-    const key = `${fontstack}/${range}`;
+    const glyphPath = this.buildGlyphPath(fontstack, range);
+    const candidates = new Set<string>();
 
-    const glyph = await db.get('glyphs', key);
-    return glyph || null;
+    if (styleName) {
+      candidates.add(`${styleName}::${glyphPath}`);
+
+      const normalizedFontstack = this.normalizeFontstack(fontstack);
+      candidates.add(`${styleName}:${normalizedFontstack}_${range}.pbf`);
+      candidates.add(`${styleName}:${normalizedFontstack}_${range}`);
+    }
+
+    candidates.add(glyphPath);
+    candidates.add(glyphPath.replace(/\.pbf$/i, ''));
+
+    const normalizedFontstack = this.normalizeFontstack(fontstack);
+    candidates.add(`${normalizedFontstack}_${range}.pbf`);
+    candidates.add(`${encodeURIComponent(normalizedFontstack)}/${range}.pbf`);
+
+    for (const key of candidates) {
+      const glyph = await db.get('glyphs', key);
+      if (glyph) {
+        return glyph;
+      }
+    }
+
+    return null;
   }
 
   async getGlyphStats(): Promise<EnhancedGlyphStats> {
@@ -218,8 +244,11 @@ export class GlyphService {
       count++;
       totalSize += glyphEntry.size;
 
-      // Parse fontstack and range from key (format: "fontstack/range")
-      const [fontstack, range] = glyphEntry.key.split('/');
+      const parsedKey = glyphEntry.fontstack && glyphEntry.range
+        ? { fontstack: glyphEntry.fontstack, range: glyphEntry.range }
+        : this.parseGlyphKey(glyphEntry.key);
+      const fontstack = parsedKey.fontstack;
+      const range = parsedKey.range;
 
       glyphs.push({
         fontstack,
@@ -230,8 +259,8 @@ export class GlyphService {
       });
 
       // Track by fontstack
-      fontsByStack[fontstack] = (fontsByStack[fontstack] || 0) + 1;
-      sizeByStack[fontstack] = (sizeByStack[fontstack] || 0) + glyphEntry.size;
+  fontsByStack[fontstack] = (fontsByStack[fontstack] || 0) + 1;
+  sizeByStack[fontstack] = (sizeByStack[fontstack] || 0) + glyphEntry.size;
 
       // Track oldest and newest
       if (!oldestGlyph || glyphEntry.lastModified < oldestGlyph.lastModified) {
@@ -369,15 +398,63 @@ export class GlyphService {
     return data.byteLength > 1000 ? 0.3 : 0.8;
   }
 
+  private normalizeFontstack(fontstack: string): string {
+    try {
+      return decodeURIComponent(fontstack);
+    } catch {
+      return fontstack;
+    }
+  }
+
+  private buildGlyphPath(fontstack: string, range: string): string {
+    const normalizedFontstack = this.normalizeFontstack(fontstack);
+    return `${normalizedFontstack}/${range}.pbf`;
+  }
+
+  private parseGlyphKey(key: string): { styleId?: string; fontstack: string; range: string } {
+    let remaining = key;
+    let styleId: string | undefined;
+
+    if (remaining.includes('::')) {
+      const [prefix, ...rest] = remaining.split('::');
+      styleId = prefix;
+      remaining = rest.join('::');
+    } else if (remaining.includes(':') && !remaining.includes('/')) {
+      const [prefix, rest] = remaining.split(':');
+      styleId = styleId ?? prefix;
+      remaining = rest;
+    }
+
+    const trimmed = remaining.endsWith('.pbf') ? remaining.slice(0, -4) : remaining;
+
+    if (trimmed.includes('/')) {
+      const [fontstack, range] = trimmed.split('/');
+      if (fontstack && range) {
+        return { styleId, fontstack, range };
+      }
+    }
+
+    if (trimmed.includes('_')) {
+      const [fontstack, range] = trimmed.split('_');
+      if (fontstack && range) {
+        return { styleId, fontstack, range };
+      }
+    }
+
+    return { styleId, fontstack: trimmed, range: '' };
+  }
+
   private createGlyphKey(fontstack: string, range: string, styleName?: string): string {
     // Create a consistent key from the style name, fontstack and range
-    // Format: stylename:fontstack_range.pbf (if styleName provided) or fontstack/range
+    // Format: stylename::fontstack/range.pbf (if styleName provided) or fontstack/range.pbf
+    const glyphPath = this.buildGlyphPath(fontstack, range);
+
     if (styleName) {
-      return `${styleName}:${fontstack}_${range}.pbf`;
+      return `${styleName}::${glyphPath}`;
     }
 
     // Fallback to original format for backward compatibility
-    return `${fontstack}/${range}`;
+    return glyphPath;
   }
 }
 
@@ -392,8 +469,8 @@ export const downloadGlyphs = (
   options?: GlyphDownloadOptions
 ) => glyphService.downloadGlyphs(glyphUrl, fontstacks, styleName, ranges, options);
 
-export const loadGlyphs = (fontstack: string, ranges: string[]) =>
-  glyphService.loadGlyphs(fontstack, ranges);
+export const loadGlyphs = (fontstack: string, ranges: string[], styleName?: string) =>
+  glyphService.loadGlyphs(fontstack, ranges, styleName);
 
 export const getGlyphStats = () => glyphService.getGlyphStats();
 export const getGlyphAnalytics = () => glyphService.getGlyphAnalytics();

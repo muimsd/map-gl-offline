@@ -1,5 +1,19 @@
 import type { DownloadProgress } from '@/types';
 
+export type FetchResourceResult =
+  | {
+      type: 'json';
+      data: unknown;
+      contentType: string;
+      contentEncoding?: string;
+    }
+  | {
+      type: 'image' | 'pbf' | 'other';
+      data: ArrayBuffer;
+      contentType: string;
+      contentEncoding?: string;
+    };
+
 export async function fetchResource(
   url: string
 ): Promise<{ type: 'image' | 'pbf'; data: ArrayBuffer }> {
@@ -30,7 +44,7 @@ export async function fetchResourceWithRetry(
     retryDelay?: number;
     timeout?: number;
   } = {}
-): Promise<{ type: 'image' | 'pbf' | 'json' | 'other'; data: ArrayBuffer }> {
+): Promise<FetchResourceResult> {
   const { retries = 3, retryDelay = 1000, timeout = 30000 } = options;
 
   for (let attempt = 0; attempt <= retries; attempt++) {
@@ -57,23 +71,24 @@ export async function fetchResourceWithRetry(
       }
 
       const contentType = response.headers.get('content-type') || '';
-      const data = await response.arrayBuffer();
+      const contentEncoding = response.headers.get('content-encoding') || undefined;
 
-      let type: 'image' | 'pbf' | 'json' | 'other';
-      if (contentType.includes('image')) {
-        type = 'image';
-      } else if (
-        contentType.includes('application/x-protobuf') ||
-        contentType.includes('protobuf')
-      ) {
-        type = 'pbf';
-      } else if (contentType.includes('application/json')) {
-        type = 'json';
-      } else {
-        type = 'other';
+      if (contentType.includes('application/json') || contentType.includes('+json')) {
+        const data = (await response.json()) as unknown;
+        return { type: 'json', data, contentType, contentEncoding };
       }
 
-      return { type, data };
+      const data = await response.arrayBuffer();
+
+      if (contentType.includes('image')) {
+        return { type: 'image', data, contentType, contentEncoding };
+      }
+
+      if (contentType.includes('application/x-protobuf') || contentType.includes('protobuf')) {
+        return { type: 'pbf', data, contentType, contentEncoding };
+      }
+
+      return { type: 'other', data, contentType, contentEncoding };
     } catch (error) {
       if (attempt === retries) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -197,23 +212,44 @@ export async function processBatch<T, R>(
  */
 export function createProgressTracker(total: number): {
   progress: DownloadProgress;
-  update: (completed?: number, currentItem?: string, error?: string) => void;
+  update: (increment?: number, currentItem?: string, error?: string) => void;
   getProgress: () => DownloadProgress;
 } {
   const progress: DownloadProgress = {
     completed: 0,
     total,
-    percentage: 0,
+    percentage: total > 0 ? 0 : 100,
     errors: [],
   };
 
+  const clampCompleted = (value: number) => {
+    if (Number.isNaN(value) || !Number.isFinite(value)) {
+      return progress.completed;
+    }
+    return Math.max(0, Math.min(progress.total, value));
+  };
+
+  const recalculatePercentage = () => {
+    progress.percentage = progress.total > 0
+      ? Math.round((progress.completed / progress.total) * 100)
+      : 100;
+  };
+
+  recalculatePercentage();
+
   return {
     progress,
-    update: (completed?: number, currentItem?: string, error?: string) => {
-      if (completed !== undefined) progress.completed = completed;
-      if (currentItem !== undefined) progress.currentItem = currentItem;
-      if (error !== undefined) progress.errors.push(error);
-      progress.percentage = total > 0 ? Math.round((progress.completed / total) * 100) : 0;
+    update: (increment: number = 1, currentItem?: string, error?: string) => {
+      if (increment !== undefined) {
+        progress.completed = clampCompleted(progress.completed + increment);
+      }
+      if (currentItem !== undefined) {
+        progress.currentItem = currentItem;
+      }
+      if (error !== undefined && error.length > 0) {
+        progress.errors = [...progress.errors, error];
+      }
+      recalculatePercentage();
     },
     getProgress: () => ({ ...progress }),
   };

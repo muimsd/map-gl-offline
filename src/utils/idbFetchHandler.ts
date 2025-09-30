@@ -19,6 +19,82 @@ function createTileKey(
   return `${styleId}:${sourceId}:${z}:${x}:${y}.${ext}`;
 }
 
+function deriveTileExtension(tiles?: unknown): string {
+  if (Array.isArray(tiles) && tiles.length > 0) {
+    const firstTile = tiles[0];
+    if (typeof firstTile === 'string') {
+      const match = firstTile.match(/\.([\w]+)(?:\?|$)/i);
+      if (match) {
+        return match[1];
+      }
+    }
+  }
+  return 'pbf';
+}
+
+function buildOfflineTileJson(
+  sourceConfig: Record<string, unknown>,
+  downloadId: string,
+  sourceId: string
+): Record<string, unknown> {
+  const extension = deriveTileExtension(sourceConfig.tiles);
+  const offlineTiles = [`idb://${downloadId}/tile/${sourceId}/{z}/{x}/{y}.${extension}`];
+
+  const tileJson: Record<string, unknown> = {
+    tilejson: typeof sourceConfig.tilejson === 'string' ? sourceConfig.tilejson : '2.2.0',
+    name: (sourceConfig.name as string) ?? sourceId,
+    tiles: offlineTiles,
+    minzoom: typeof sourceConfig.minzoom === 'number' ? sourceConfig.minzoom : 0,
+    maxzoom: typeof sourceConfig.maxzoom === 'number' ? sourceConfig.maxzoom : 22,
+  };
+
+  const fieldsToCopy = [
+    'bounds',
+    'center',
+    'vector_layers',
+    'scheme',
+    'attribution',
+    'encoding',
+    'format',
+    'grids',
+    'data',
+    'template',
+    'version',
+  ] as const;
+
+  for (const field of fieldsToCopy) {
+    if (field in sourceConfig && sourceConfig[field] !== undefined) {
+      tileJson[field] = sourceConfig[field];
+    }
+  }
+
+  return tileJson;
+}
+
+function createTileResponse(resource: {
+  data: ArrayBuffer;
+  contentType?: string;
+  contentEncoding?: string;
+  type?: string;
+}): Response {
+  const headers: HeadersInit = {};
+
+  if (resource.contentType) {
+    headers['Content-Type'] = resource.contentType;
+  } else if (resource.type === 'vector') {
+    headers['Content-Type'] = 'application/x-protobuf';
+  }
+
+  if (resource.contentEncoding) {
+    headers['Content-Encoding'] = resource.contentEncoding;
+  }
+
+  return new Response(resource.data, {
+    status: 200,
+    headers: Object.keys(headers).length > 0 ? headers : undefined,
+  });
+}
+
 export async function idbFetchHandler(url: string, init?: RequestInit): Promise<Response> {
   console.warn(`🔍 IDB Fetch Handler called for URL: ${url}`);
   const method = init?.method || 'GET';
@@ -36,7 +112,8 @@ export async function idbFetchHandler(url: string, init?: RequestInit): Promise<
   const parsed = url.replace('idb://', '').split('/');
   const [downloadId, type, ...rest] = parsed;
   const resourcePath = rest.join('/');
-  const key = `${downloadId}::${decodeURIComponent(resourcePath)}`;
+  const decodedResourcePath = decodeURIComponent(resourcePath);
+  const key = `${downloadId}::${decodedResourcePath}`;
 
   console.warn(
     `📋 Parsed - downloadId: ${downloadId}, type: ${type}, resourcePath: ${resourcePath}, key: ${key}`
@@ -61,7 +138,7 @@ export async function idbFetchHandler(url: string, init?: RequestInit): Promise<
             const resource = await db.get('tiles', tileKey);
             if (resource?.data) {
               console.warn(`✅ Found tile: ${tileKey}`);
-              return new Response(resource.data, { status: 200 });
+              return createTileResponse(resource);
             } else {
               console.warn(`❌ Tile not found: ${tileKey}`);
             }
@@ -101,7 +178,7 @@ export async function idbFetchHandler(url: string, init?: RequestInit): Promise<
               const resource = await db.get('tiles', tileKey);
               if (resource?.data) {
                 console.warn(`✅ Found tile: ${tileKey}`);
-                return new Response(resource.data, { status: 200 });
+                return createTileResponse(resource);
               } else {
                 console.warn(`❌ Tile not found: ${tileKey}`);
                 // If not found with guessed sourceKey, try to find any tile with these coordinates
@@ -121,7 +198,7 @@ export async function idbFetchHandler(url: string, init?: RequestInit): Promise<
                 });
                 if (matchingTile) {
                   console.warn(`✅ Found tile by coordinates: ${matchingTile.key}`);
-                  return new Response(matchingTile.data, { status: 200 });
+                  return createTileResponse(matchingTile);
                 } else {
                   console.warn(`❌ No tile found with coordinates z:${z}, x:${x}, y:${y}`);
                 }
@@ -134,28 +211,68 @@ export async function idbFetchHandler(url: string, init?: RequestInit): Promise<
         break;
       }
       case 'glyph': {
-        console.warn(`🔤 Looking for glyph with key: ${key}`);
-        const resource = await db.get('glyphs', key);
-        if (resource?.data) {
-          console.warn(`✅ Found glyph: ${key}`);
-          return new Response(resource.data, { status: 200 });
-        } else {
-          console.warn(`❌ Glyph not found: ${key}`);
-        }
+          console.warn(`🔤 Looking for glyph with key: ${key}`);
+          const normalizedPath = decodedResourcePath.endsWith('.pbf')
+            ? decodedResourcePath
+            : `${decodedResourcePath}.pbf`;
+
+          const glyphCandidateKeys = Array.from(
+            new Set([
+              key,
+              `${downloadId}::${normalizedPath}`,
+              `${downloadId}:${normalizedPath}`,
+              `${downloadId}:${normalizedPath.replace(/\//g, '_')}`,
+              `${downloadId}:${normalizedPath.replace(/\//g, '_').replace(/\.pbf$/i, '')}`,
+              `${downloadId}::${decodedResourcePath}`,
+              normalizedPath,
+              decodedResourcePath,
+              normalizedPath.replace(/\//g, '_'),
+              decodedResourcePath.replace(/\//g, '_'),
+              normalizedPath.replace(/\//g, '_').replace(/\.pbf$/i, ''),
+              decodedResourcePath.replace(/\//g, '_').replace(/\.pbf$/i, ''),
+            ])
+          );
+
+          for (const candidateKey of glyphCandidateKeys) {
+            const resource = await db.get('glyphs', candidateKey);
+            if (resource?.data) {
+              console.warn(`✅ Found glyph using key: ${candidateKey}`);
+              return new Response(resource.data, { status: 200 });
+            }
+          }
+
+          console.warn(`❌ Glyph not found, tried keys: ${glyphCandidateKeys.join(', ')}`);
         break;
       }
       case 'sprite': {
-        console.warn(`🎨 Looking for sprite with key: ${key}`);
-        const resource = await db.get('sprites', key);
-        if (resource?.data) {
-          console.warn(`✅ Found sprite: ${key}`);
-          return new Response(resource.data, {
-            status: 200,
-            headers: resource.contentType ? { 'Content-Type': resource.contentType } : undefined,
-          });
-        } else {
-          console.warn(`❌ Sprite not found: ${key}`);
-        }
+          console.warn(`🎨 Looking for sprite with key: ${key}`);
+          const spriteCandidateKeys = Array.from(
+            new Set([
+              key,
+              `${downloadId}:${decodedResourcePath}`,
+              `${downloadId}::${decodedResourcePath}`,
+              `${downloadId}:${decodedResourcePath.replace(/\//g, ':')}`,
+              `${downloadId}::${decodedResourcePath.replace(/\//g, ':')}`,
+              `${downloadId}:${decodedResourcePath.replace(/\.(json|png)$/i, '')}`,
+              `${downloadId}::${decodedResourcePath.replace(/\.(json|png)$/i, '')}`,
+              decodedResourcePath,
+              decodedResourcePath.replace(/\//g, ':'),
+              decodedResourcePath.replace(/\.(json|png)$/i, ''),
+            ])
+          );
+
+          for (const candidateKey of spriteCandidateKeys) {
+            const resource = await db.get('sprites', candidateKey);
+            if (resource?.data) {
+              console.warn(`✅ Found sprite using key: ${candidateKey}`);
+              return new Response(resource.data, {
+                status: 200,
+                headers: resource.contentType ? { 'Content-Type': resource.contentType } : undefined,
+              });
+            }
+          }
+
+          console.warn(`❌ Sprite not found, tried keys: ${spriteCandidateKeys.join(', ')}`);
         break;
       }
       case 'font': {
@@ -170,16 +287,42 @@ export async function idbFetchHandler(url: string, init?: RequestInit): Promise<
         break;
       }
       case 'tilesjson': {
-        console.warn(`📄 Looking for style/tilesjson with downloadId: ${downloadId}`);
-        const style = await db.get('styles', downloadId);
-        if (style) {
-          console.warn(`✅ Found style: ${downloadId}`);
-          return new Response(JSON.stringify(style), {
-            status: 200,
-            headers: { 'Content-Type': 'application/json' },
-          });
+        console.warn(`📄 Looking for tilejson with downloadId: ${downloadId}, resourcePath: ${decodedResourcePath}`);
+        const styleEntry = await db.get('styles', downloadId);
+        if (styleEntry?.style?.sources) {
+          const sources = styleEntry.style.sources as Record<string, Record<string, unknown>>;
+          let matchedSourceId: string | undefined;
+          let matchedSourceConfig: Record<string, unknown> | undefined;
+
+          if (decodedResourcePath in sources) {
+            matchedSourceId = decodedResourcePath;
+            matchedSourceConfig = sources[decodedResourcePath];
+          } else {
+            for (const [sourceId, sourceValue] of Object.entries(sources)) {
+              const sourceUrl = typeof sourceValue.url === 'string' ? sourceValue.url : undefined;
+              const originalUrl = typeof sourceValue.__originalTilesetUrl === 'string'
+                ? sourceValue.__originalTilesetUrl
+                : undefined;
+              if (sourceUrl === decodedResourcePath || originalUrl === decodedResourcePath) {
+                matchedSourceId = sourceId;
+                matchedSourceConfig = sourceValue;
+                break;
+              }
+            }
+          }
+
+          if (matchedSourceId && matchedSourceConfig) {
+            const tileJson = buildOfflineTileJson(matchedSourceConfig, downloadId, matchedSourceId);
+            console.warn(`✅ Serving offline tilejson for source: ${matchedSourceId}`);
+            return new Response(JSON.stringify(tileJson), {
+              status: 200,
+              headers: { 'Content-Type': 'application/json' },
+            });
+          }
+
+          console.warn(`❌ No matching source found for tilejson: ${decodedResourcePath}`);
         } else {
-          console.warn(`❌ Style not found: ${downloadId}`);
+          console.warn(`❌ Style not found or missing sources for downloadId: ${downloadId}`);
         }
         break;
       }

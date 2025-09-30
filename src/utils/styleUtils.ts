@@ -31,7 +31,8 @@ export function patchStyleForOffline(style: MapboxStyle, downloadId: string): Ma
     }
     if (source.url) {
       const originalUrl = source.url;
-      source.url = `idb://${downloadId}/tilesjson/${encodeURIComponent(source.url)}`;
+      source.url = `idb://${downloadId}/tilesjson/${encodeURIComponent(sourceKey)}`;
+      (source as Record<string, unknown>).__originalTilesetUrl = originalUrl;
       console.warn(`📄 Patched tilejson URL for ${sourceKey}:`, {
         original: originalUrl,
         patched: source.url,

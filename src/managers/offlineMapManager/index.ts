@@ -4,134 +4,105 @@ import {
   type OfflineManagerServices,
 } from './base';
 import {
-  createRegionManagement,
-  type RegionManagement,
-} from './regionManagement';
-import {
-  createCleanupManagement,
-  type CleanupManagement,
-} from './cleanupManagement';
-import {
-  createResourceManagement,
-  type ResourceManagement,
-} from './resourceManagement';
-import {
-  createAnalyticsManagement,
-  type AnalyticsManagement,
-} from './analyticsManagement';
-import {
-  createMaintenanceManagement,
-  type MaintenanceManagement,
-} from './maintenanceManagement';
-import {
-  createImportExportManagement,
-  type ImportExportManagement,
-} from './importExportManagement';
-import {
-  createStyleManagement,
-  type StyleManagement,
-} from './styleManagement';
-
-export type OfflineMapManagerModules = RegionManagement &
-  CleanupManagement &
-  ResourceManagement &
-  AnalyticsManagement &
-  MaintenanceManagement &
-  ImportExportManagement &
-  StyleManagement;
+  createOfflineMapManagerModules,
+  type OfflineMapManagerModules,
+} from './modules';
+import type { RegionManagement } from './regionManagement';
+import type { CleanupManagement } from './cleanupManagement';
+import type { ResourceManagement } from './resourceManagement';
+import type { AnalyticsManagement } from './analyticsManagement';
+import type { MaintenanceManagement } from './maintenanceManagement';
+import type { ImportExportManagement } from './importExportManagement';
+import type { StyleManagement } from './styleManagement';
 
 export class OfflineMapManager implements OfflineMapManagerModules {
   private readonly services: OfflineManagerServices;
+  private readonly modules: OfflineMapManagerModules;
 
   // Region management
-  public addRegion!: RegionManagement['addRegion'];
-  public loadRegion!: RegionManagement['loadRegion'];
-  public deleteRegion!: RegionManagement['deleteRegion'];
-  public listRegions!: RegionManagement['listRegions'];
-  public listStoredRegions!: RegionManagement['listStoredRegions'];
-  public getStoredRegion!: RegionManagement['getStoredRegion'];
+  declare public addRegion: RegionManagement['addRegion'];
+  declare public loadRegion: RegionManagement['loadRegion'];
+  declare public deleteRegion: RegionManagement['deleteRegion'];
+  declare public listRegions: RegionManagement['listRegions'];
+  declare public listStoredRegions: RegionManagement['listStoredRegions'];
+  declare public getStoredRegion: RegionManagement['getStoredRegion'];
 
   // Cleanup management
-  public getRegionSize!: CleanupManagement['getRegionSize'];
-  public cleanupExpiredRegions!: CleanupManagement['cleanupExpiredRegions'];
-  public forceCleanupExpiredRegions!: CleanupManagement['forceCleanupExpiredRegions'];
-  public setupAutoCleanup!: CleanupManagement['setupAutoCleanup'];
-  public stopAutoCleanup!: CleanupManagement['stopAutoCleanup'];
-  public getRegionAnalytics!: CleanupManagement['getRegionAnalytics'];
-  public performSmartCleanup!: CleanupManagement['performSmartCleanup'];
-  public startEnhancedAutoCleanup!: CleanupManagement['startEnhancedAutoCleanup'];
-  public stopAllAutoCleanup!: CleanupManagement['stopAllAutoCleanup'];
+  declare public getRegionSize: CleanupManagement['getRegionSize'];
+  declare public cleanupExpiredRegions: CleanupManagement['cleanupExpiredRegions'];
+  declare public forceCleanupExpiredRegions: CleanupManagement['forceCleanupExpiredRegions'];
+  declare public setupAutoCleanup: CleanupManagement['setupAutoCleanup'];
+  declare public stopAutoCleanup: CleanupManagement['stopAutoCleanup'];
+  declare public getRegionAnalytics: CleanupManagement['getRegionAnalytics'];
+  declare public performSmartCleanup: CleanupManagement['performSmartCleanup'];
+  declare public startEnhancedAutoCleanup: CleanupManagement['startEnhancedAutoCleanup'];
+  declare public stopAllAutoCleanup: CleanupManagement['stopAllAutoCleanup'];
 
   // Resource management
-  public downloadTilesWithOptions!: ResourceManagement['downloadTilesWithOptions'];
-  public getTileStatistics!: ResourceManagement['getTileStatistics'];
-  public downloadFontsWithOptions!: ResourceManagement['downloadFontsWithOptions'];
-  public getFontStatistics!: ResourceManagement['getFontStatistics'];
-  public getFontAnalytics!: ResourceManagement['getFontAnalytics'];
-  public cleanupOldFonts!: ResourceManagement['cleanupOldFonts'];
-  public verifyAndRepairFonts!: ResourceManagement['verifyAndRepairFonts'];
-  public downloadSpritesWithOptions!: ResourceManagement['downloadSpritesWithOptions'];
-  public getSpriteStatistics!: ResourceManagement['getSpriteStatistics'];
-  public cleanupOldSprites!: ResourceManagement['cleanupOldSprites'];
-  public verifyAndRepairSprites!: ResourceManagement['verifyAndRepairSprites'];
-  public getSpriteAnalytics!: ResourceManagement['getSpriteAnalytics'];
-  public downloadGlyphsWithOptions!: ResourceManagement['downloadGlyphsWithOptions'];
-  public getGlyphStatistics!: ResourceManagement['getGlyphStatistics'];
-  public getGlyphAnalytics!: ResourceManagement['getGlyphAnalytics'];
-  public loadGlyphsForStyle!: ResourceManagement['loadGlyphsForStyle'];
-  public cleanupOldGlyphs!: ResourceManagement['cleanupOldGlyphs'];
-  public verifyAndRepairGlyphs!: ResourceManagement['verifyAndRepairGlyphs'];
+  declare public downloadTilesWithOptions: ResourceManagement['downloadTilesWithOptions'];
+  declare public getTileStatistics: ResourceManagement['getTileStatistics'];
+  declare public downloadFontsWithOptions: ResourceManagement['downloadFontsWithOptions'];
+  declare public getFontStatistics: ResourceManagement['getFontStatistics'];
+  declare public getFontAnalytics: ResourceManagement['getFontAnalytics'];
+  declare public cleanupOldFonts: ResourceManagement['cleanupOldFonts'];
+  declare public verifyAndRepairFonts: ResourceManagement['verifyAndRepairFonts'];
+  declare public downloadSpritesWithOptions: ResourceManagement['downloadSpritesWithOptions'];
+  declare public getSpriteStatistics: ResourceManagement['getSpriteStatistics'];
+  declare public cleanupOldSprites: ResourceManagement['cleanupOldSprites'];
+  declare public verifyAndRepairSprites: ResourceManagement['verifyAndRepairSprites'];
+  declare public getSpriteAnalytics: ResourceManagement['getSpriteAnalytics'];
+  declare public downloadGlyphsWithOptions: ResourceManagement['downloadGlyphsWithOptions'];
+  declare public getGlyphStatistics: ResourceManagement['getGlyphStatistics'];
+  declare public getGlyphAnalytics: ResourceManagement['getGlyphAnalytics'];
+  declare public loadGlyphsForStyle: ResourceManagement['loadGlyphsForStyle'];
+  declare public cleanupOldGlyphs: ResourceManagement['cleanupOldGlyphs'];
+  declare public verifyAndRepairGlyphs: ResourceManagement['verifyAndRepairGlyphs'];
 
   // Analytics management
-  public getComprehensiveStorageAnalytics!: AnalyticsManagement['getComprehensiveStorageAnalytics'];
+  declare public getComprehensiveStorageAnalytics: AnalyticsManagement['getComprehensiveStorageAnalytics'];
 
   // Maintenance management
-  public performCompleteMaintenance!: MaintenanceManagement['performCompleteMaintenance'];
+  declare public performCompleteMaintenance: MaintenanceManagement['performCompleteMaintenance'];
 
   // Import/export management
-  public exportRegionAsJSON!: ImportExportManagement['exportRegionAsJSON'];
-  public exportRegionAsPMTiles!: ImportExportManagement['exportRegionAsPMTiles'];
-  public exportRegionAsMBTiles!: ImportExportManagement['exportRegionAsMBTiles'];
-  public importRegion!: ImportExportManagement['importRegion'];
-  public downloadExportedRegion!: ImportExportManagement['downloadExportedRegion'];
+  declare public exportRegionAsJSON: ImportExportManagement['exportRegionAsJSON'];
+  declare public exportRegionAsPMTiles: ImportExportManagement['exportRegionAsPMTiles'];
+  declare public exportRegionAsMBTiles: ImportExportManagement['exportRegionAsMBTiles'];
+  declare public importRegion: ImportExportManagement['importRegion'];
+  declare public downloadExportedRegion: ImportExportManagement['downloadExportedRegion'];
 
   // Style management
-  public downloadStyle!: StyleManagement['downloadStyle'];
-  public loadStyleById!: StyleManagement['loadStyleById'];
-  public listStyles!: StyleManagement['listStyles'];
-  public deleteStyle!: StyleManagement['deleteStyle'];
-  public getStyleStats!: StyleManagement['getStyleStats'];
-  public downloadMapboxStyle!: StyleManagement['downloadMapboxStyle'];
-  public downloadMapLibreStyle!: StyleManagement['downloadMapLibreStyle'];
-  public downloadStyleWithAutoDetection!: StyleManagement['downloadStyleWithAutoDetection'];
-  public cleanupOldStyles!: StyleManagement['cleanupOldStyles'];
+  declare public downloadStyle: StyleManagement['downloadStyle'];
+  declare public loadStyleById: StyleManagement['loadStyleById'];
+  declare public listStyles: StyleManagement['listStyles'];
+  declare public deleteStyle: StyleManagement['deleteStyle'];
+  declare public getStyleStats: StyleManagement['getStyleStats'];
+  declare public downloadMapboxStyle: StyleManagement['downloadMapboxStyle'];
+  declare public downloadMapLibreStyle: StyleManagement['downloadMapLibreStyle'];
+  declare public downloadStyleWithAutoDetection: StyleManagement['downloadStyleWithAutoDetection'];
+  declare public cleanupOldStyles: StyleManagement['cleanupOldStyles'];
 
   constructor(overrides: OfflineManagerServiceOverrides = {}) {
     this.services = createManagerServices(overrides);
+    this.modules = createOfflineMapManagerModules(this.services);
+    Object.assign(this, this.modules);
+  }
 
-    const region = createRegionManagement(this.services);
-    const cleanup = createCleanupManagement(this.services);
-    const resource = createResourceManagement(this.services);
-    const analytics = createAnalyticsManagement(this.services, {
-      getRegionAnalytics: cleanup.getRegionAnalytics,
-    });
-    const maintenance = createMaintenanceManagement(this.services, {
-      performSmartCleanup: cleanup.performSmartCleanup,
-      listRegions: region.listRegions,
-      getComprehensiveStorageAnalytics: analytics.getComprehensiveStorageAnalytics,
-    });
-    const importExport = createImportExportManagement(this.services);
-    const style = createStyleManagement();
+  getServices(): OfflineManagerServices {
+    return this.services;
+  }
 
-    Object.assign(
-      this,
-      region,
-      cleanup,
-      resource,
-      analytics,
-      maintenance,
-      importExport,
-      style
-    );
+  getModules(): OfflineMapManagerModules {
+    return this.modules;
   }
 }
+
+export const createOfflineMapManager = (overrides: OfflineManagerServiceOverrides = {}) => {
+  const services = createManagerServices(overrides);
+  const modules = createOfflineMapManagerModules(services);
+  return { services, modules };
+};
+
+export type { OfflineManagerServices, OfflineManagerServiceOverrides } from './base';
+export type { OfflineMapManagerModules } from './modules';
+export { createOfflineMapManagerModules } from './modules';

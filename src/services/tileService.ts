@@ -1,11 +1,7 @@
 import { dbPromise } from '../storage/indexedDbManager';
 import * as tilebelt from '@mapbox/tilebelt';
-import {
-  fetchResourceWithRetry,
-  processBatch,
-  createProgressTracker,
-  validateResource,
-} from '../utils';
+import { fetchResourceWithRetry, processBatch, createProgressTracker, validateResource } from '../utils';
+import type { FetchResourceResult } from '../utils';
 import type {
   TileDownloadOptions,
   TileDownloadResult,
@@ -25,6 +21,7 @@ export class TileService {
   ): Promise<TileDownloadResult> {
     const db = await this.db;
     const {
+      onProgress,
       batchSize = 10,
       maxRetries = 3,
       skipExisting = true,
@@ -44,38 +41,26 @@ export class TileService {
     let failedTiles = 0;
     const errors: Array<{ url: string; error: string }> = [];
 
-    // Generate tile coordinates
-    console.warn('=== REGION PARAMETERS ===');
-    console.warn('Region ID:', region.id);
-    console.warn('Region name:', region.name);
-    console.warn('Min zoom:', region.minZoom);
-    console.warn('Max zoom:', region.maxZoom);
-    console.warn('Bounds:', region.bounds);
-    console.warn('========================');
+    if (!style?.sources || Object.keys(style.sources).length === 0) {
+      throw new Error('Style does not contain any sources to download tiles from');
+    }
+
+    // Generate tile coordinates once for the region
     const tileCoords = this.generateTileCoordinates(region);
-    console.warn(`Generated ${tileCoords.length} tile coordinates for region:`, region.id);
-
-    // Get tile sources from style
     const tileSources = await this.extractTileSources(style);
-    console.warn(`Found ${tileSources.size} tile sources:`, Array.from(tileSources.keys()));
 
-    // Calculate expected total downloads
-    const expectedTotalDownloads = tileCoords.length * tileSources.size;
-    console.warn(
-      `Expected total tile downloads: ${tileCoords.length} coords × ${tileSources.size} sources = ${expectedTotalDownloads}`
-    );
+    if (tileSources.size === 0) {
+      throw new Error('No valid tile sources found in style definition');
+    }
 
-    // Create progress tracker
-    const progressTracker = createProgressTracker(expectedTotalDownloads);
-
-    // Sort tiles by priority zoom levels
+    // Sort by priority zoom levels if requested (lower zoom first)
     if (priorityZoomLevels.length > 0) {
       tileCoords.sort((a, b) => {
         const aPriority = priorityZoomLevels.includes(a.z);
         const bPriority = priorityZoomLevels.includes(b.z);
         if (aPriority && !bPriority) return -1;
         if (!aPriority && bPriority) return 1;
-        return a.z - b.z; // Secondary sort by zoom level
+        return a.z - b.z;
       });
     }
 
@@ -86,118 +71,95 @@ export class TileService {
       const availableSpace = (estimate.quota || 0) - usedSpace;
 
       if (availableSpace < 500 * 1024 * 1024) {
-        // Less than 500MB
         throw new Error('Insufficient storage space for tile download');
       }
     }
 
-    // Debug: Log all sources in the style
-    if (style.sources) {
-      console.warn('All sources in style:', Object.keys(style.sources));
-      for (const [sourceId, sourceConfig] of Object.entries(style.sources)) {
-        console.warn(`Source ${sourceId}:`, sourceConfig);
-      }
-    } else {
-      console.warn('No sources found in style');
-    }
+    type TileDownloadPlan = {
+      sourceId: string;
+      templates: readonly string[];
+      coords: Array<{ x: number; y: number; z: number }>;
+      ext: string;
+    };
 
-    // Process tiles for each source
+    const downloadPlans: TileDownloadPlan[] = [];
+    let totalTilesToDownload = 0;
+
     for (const [sourceId, sourceConfig] of tileSources) {
-      console.warn(`\n=== PROCESSING SOURCE: ${sourceId} ===`);
-      // Respect source zoom range
-      const sourceMinZ = Math.ceil(sourceConfig.minzoom ?? region.minZoom);
-      const sourceMaxZ = Math.floor(sourceConfig.maxzoom ?? region.maxZoom);
-      console.warn(`Region zoom range: ${region.minZoom} to ${region.maxZoom}`);
-      console.warn(
-        `Source "${sourceId}" zoom constraints: minzoom=${sourceConfig.minzoom}, maxzoom=${sourceConfig.maxzoom}`
-      );
-      console.warn(`Effective zoom range for source: ${sourceMinZ} to ${sourceMaxZ}`);
+      const tiles = sourceConfig.tiles;
 
-      let coordsToDownload = tileCoords.filter(
-        coord => coord.z >= sourceMinZ && coord.z <= sourceMaxZ
-      );
-      console.warn(`Total tile coords generated: ${tileCoords.length}`);
-      console.warn(
-        `Filtered to ${coordsToDownload.length} coords for source ${sourceId} (after zoom filtering)`
-      );
-
-      // Debug: show tile distribution by zoom level
-      const tilesByZoom: Record<number, number> = {};
-      coordsToDownload.forEach(coord => {
-        tilesByZoom[coord.z] = (tilesByZoom[coord.z] || 0) + 1;
-      });
-      console.warn(`Tiles per zoom level for source ${sourceId}:`, tilesByZoom);
-
-      // Show what was filtered out
-      const filteredOutCount = tileCoords.length - coordsToDownload.length;
-      if (filteredOutCount > 0) {
-        console.warn(
-          `⚠️  ${filteredOutCount} tiles filtered out due to source zoom constraints (${sourceMinZ}-${sourceMaxZ})`
-        );
-      }
-
-      if (!sourceConfig.tiles || sourceConfig.tiles.length === 0) {
-        console.warn(`Source ${sourceId} has no tiles array, skipping`);
+      if (!tiles || tiles.length === 0) {
         continue;
       }
 
-      const tileUrlTemplate = sourceConfig.tiles[0];
-      console.warn(`Tile URL template: ${tileUrlTemplate}`);
+      const sourceMinZ = Math.ceil(sourceConfig.minzoom ?? region.minZoom);
+      const sourceMaxZ = Math.floor(sourceConfig.maxzoom ?? region.maxZoom);
 
-      // Derive file extension for tile key from URL template
-      const extMatch = tileUrlTemplate.match(/\.(\w+)(?:\?|$)/);
-      const ext = extMatch ? extMatch[1] : 'pbf';
-      console.warn(`Using file extension "${ext}" for tile keys`);
-
-      // Filter existing tiles if skipExisting is true
-      // coordsToDownload already generated per-source
-      if (skipExisting) {
-        console.warn(`Checking for existing tiles for source ${sourceId}...`);
-        const existingTiles = await this.getExistingTileKeys(styleId, sourceId);
-        console.warn(`Found ${existingTiles.size} existing tiles for source ${sourceId}`);
-
-        const originalCount = coordsToDownload.length;
-        coordsToDownload = coordsToDownload.filter(coord => {
-          const key = this.createTileKey(coord.x, coord.y, coord.z, styleId, sourceId, ext);
-          return !existingTiles.has(key);
-        });
-
-        const skippedForThisSource = originalCount - coordsToDownload.length;
-        skippedTiles += skippedForThisSource;
-
-        console.warn(
-          `Source ${sourceId}: ${coordsToDownload.length} to download, ${skippedForThisSource} skipped (already exist)`
-        );
-      } else {
-        console.warn(
-          `Source ${sourceId}: ${coordsToDownload.length} to download (skipExisting disabled)`
-        );
-      }
-
-      // Process tiles in batches with concurrency control
-      console.warn(
-        `Starting batch download of ${coordsToDownload.length} tiles for source ${sourceId}...`
+      let coordsForSource = tileCoords.filter(
+        coord => coord.z >= sourceMinZ && coord.z <= sourceMaxZ
       );
 
-      let sourceDownloadedTiles = 0;
-      let sourceFailedTiles = 0;
+      if (coordsForSource.length === 0) {
+        continue;
+      }
 
+      const extension = this.extractExtension(tiles[0]);
+
+      if (skipExisting) {
+        const existingTiles = await this.getExistingTileKeys(styleId, sourceId);
+        const originalCount = coordsForSource.length;
+        coordsForSource = coordsForSource.filter(coord => {
+          const key = this.createTileKey(
+            coord.x,
+            coord.y,
+            coord.z,
+            styleId,
+            sourceId,
+            extension
+          );
+          return !existingTiles.has(key);
+        });
+        skippedTiles += originalCount - coordsForSource.length;
+      }
+
+      if (coordsForSource.length === 0) {
+        continue;
+      }
+
+      const ext = extension;
+
+      downloadPlans.push({
+        sourceId,
+        templates: tiles,
+        coords: coordsForSource,
+        ext,
+      });
+
+      totalTilesToDownload += coordsForSource.length;
+    }
+
+    const progressTracker = createProgressTracker(totalTilesToDownload);
+    const emitProgress = () => {
+      if (onProgress) {
+        onProgress(progressTracker.getProgress());
+      }
+    };
+    emitProgress();
+
+    for (const plan of downloadPlans) {
       await processBatch(
-        coordsToDownload,
+        plan.coords,
         async coord => {
+          const { x, y, z } = coord;
+          const label = `${plan.sourceId}:${z}/${x}/${y}`;
+          let tileUrl = '';
+          let errorMessage: string | undefined;
+
           try {
-            const { x, y, z } = coord;
-            const tileUrl = tileUrlTemplate
-              .replace('{x}', x.toString())
-              .replace('{y}', y.toString())
-              .replace('{z}', z.toString());
+            const template = this.selectTileTemplate(plan.templates, coord);
+            tileUrl = this.populateTemplate(template, coord);
+            const tileKey = this.createTileKey(x, y, z, styleId, plan.sourceId, plan.ext);
 
-            // Create tile key including extension
-            const tileKey = this.createTileKey(x, y, z, styleId, sourceId, ext);
-
-            progressTracker.update(1, `Downloading tile ${z}/${x}/${y} from ${sourceId}`);
-
-            // Apply bandwidth limiting if specified
             if (bandwidthLimit) {
               await this.rateLimitDelay(bandwidthLimit);
             }
@@ -208,25 +170,25 @@ export class TileService {
               timeout,
             });
 
-            let tileData = response.data;
-            const contentType =
-              response.type === 'image'
-                ? 'image/png'
-                : response.type === 'pbf'
-                  ? 'application/x-protobuf'
-                  : 'application/octet-stream';
-
-            // Validate tile if enabled
-            if (validateTiles) {
-              await validateResource(tileData, contentType);
+            if (response.type === 'json') {
+              throw new Error('Unexpected JSON response while downloading tile');
             }
 
-            // Compress tile if enabled
-            if (compressTiles && contentType.includes('image')) {
+            let tileData = response.data;
+            const contentType = this.resolveTileContentType(response);
+            const contentEncoding = response.contentEncoding;
+
+            if (validateTiles) {
+              const isValid = validateResource(tileData, response.type);
+              if (!isValid) {
+                throw new Error(`Tile validation failed for ${label}`);
+              }
+            }
+
+            if (compressTiles && contentType.startsWith('image/')) {
               tileData = await this.compressTile(tileData, contentType);
             }
 
-            // Create tile entry
             const tileEntry: TileEntry = {
               key: tileKey,
               url: tileUrl,
@@ -235,68 +197,52 @@ export class TileService {
               size: tileData.byteLength,
               lastModified: Date.now(),
               downloadedAt: new Date().toISOString(),
-              type: contentType.includes('image') ? 'raster' : 'vector',
+              type: contentType.startsWith('image') ? 'raster' : 'vector',
+              contentEncoding,
               x,
               y,
               z,
+              styleId,
+              sourceId: plan.sourceId,
             };
 
-            // Store tile in database
             await db.put('tiles', tileEntry);
 
             totalSize += tileData.byteLength;
             downloadedTiles++;
-            sourceDownloadedTiles++;
-
-            if (sourceDownloadedTiles % 10 === 0) {
-              console.warn(
-                `Source ${sourceId}: Downloaded ${sourceDownloadedTiles}/${coordsToDownload.length} tiles`
-              );
-            }
           } catch (_error) {
             failedTiles++;
-            sourceFailedTiles++;
-            const tileUrl = tileUrlTemplate
-              .replace('{x}', coord.x.toString())
-              .replace('{y}', coord.y.toString())
-              .replace('{z}', coord.z.toString());
+            const errorObject = _error as unknown;
+            errorMessage =
+              errorObject instanceof Error ? errorObject.message : String(errorObject);
 
             errors.push({
-              url: tileUrl,
-              error: _error instanceof Error ? _error.message : String(_error),
+              url: tileUrl || label,
+              error: errorMessage,
             });
+
             console.error(
-              `Failed to download tile ${coord.z}/${coord.x}/${coord.y} from ${sourceId}:`,
-              _error
+              `Failed to download tile ${z}/${x}/${y} from ${plan.sourceId}:`,
+              errorObject
             );
+          } finally {
+            progressTracker.update(1, label, errorMessage);
+            emitProgress();
           }
         },
         { batchSize }
-      );
-
-      console.warn(
-        `Source ${sourceId} completed: ${sourceDownloadedTiles} downloaded, ${sourceFailedTiles} failed`
       );
     }
 
     const downloadTime = Date.now() - startTime;
     const averageSpeed = downloadTime > 0 ? (totalSize / 1024 / downloadTime) * 1000 : 0;
 
-    // Final summary
-    console.warn('\n=== DOWNLOAD SUMMARY ===');
-    console.warn(`Total tile coordinates: ${tileCoords.length}`);
-    console.warn(`Tile sources processed: ${tileSources.size}`);
-    console.warn(`Expected total downloads: ${tileCoords.length * tileSources.size}`);
-    console.warn(`Actually downloaded: ${downloadedTiles}`);
-    console.warn(`Skipped (existing): ${skippedTiles}`);
-    console.warn(`Failed: ${failedTiles}`);
-    console.warn(`Total size: ${(totalSize / 1024 / 1024).toFixed(2)} MB`);
-    console.warn(`Download time: ${(downloadTime / 1000).toFixed(1)}s`);
-    console.warn(`Average speed: ${averageSpeed.toFixed(1)} KB/s`);
-    console.warn('========================');
+    if (totalTilesToDownload === 0) {
+      emitProgress();
+    }
 
     return {
-      totalTiles: tileCoords.length * tileSources.size,
+      totalTiles: totalTilesToDownload + skippedTiles,
       downloadedTiles,
       skippedTiles,
       failedTiles,
@@ -540,11 +486,21 @@ export class TileService {
                 });
                 
                 if (response.type === 'json') {
-                  const jsonData = response.data as unknown as { tiles?: string[] };
-                  if (jsonData.tiles) {
-                    tiles = jsonData.tiles;
+                  const jsonData = response.data;
+                  if (
+                    jsonData &&
+                    typeof jsonData === 'object' &&
+                    'tiles' in jsonData &&
+                    Array.isArray((jsonData as { tiles?: unknown }).tiles)
+                  ) {
+                    tiles = (jsonData as { tiles?: string[] }).tiles ?? [];
                   }
-                  tileUrlPattern = tiles[0]; // Use the first tile URL as the pattern
+
+                  if (tiles.length === 0) {
+                    throw new Error('TileJSON does not contain any tile templates');
+                  }
+
+                  tileUrlPattern = tiles[0];
                   console.warn(`Got ${tiles.length} tile URLs from TileJSON:`, tiles[0]);
                 } else {
                   throw new Error('Invalid TileJSON response');
@@ -638,6 +594,12 @@ export class TileService {
       const tileEntry: TileEntry = cursor.value;
       if (tileEntry.styleId === styleId && tileEntry.sourceId === sourceId) {
         existingKeys.add(tileEntry.key);
+        continue;
+      }
+
+      const parsedKey = this.parseTileKey(tileEntry.key);
+      if (parsedKey && parsedKey.styleId === styleId && parsedKey.sourceId === sourceId) {
+        existingKeys.add(tileEntry.key);
       }
     }
 
@@ -656,6 +618,61 @@ export class TileService {
     if (delay > 0) {
       await new Promise(resolve => setTimeout(resolve, delay));
     }
+  }
+
+  private extractExtension(template: string): string {
+    const extMatch = template.match(/\.([\w]+)(?:\?|$)/i);
+    return extMatch ? extMatch[1] : 'pbf';
+  }
+
+  private selectTileTemplate(
+    templates: readonly string[],
+    coord: { x: number; y: number; z: number }
+  ): string {
+    if (templates.length === 1) {
+      return templates[0];
+    }
+
+    const index = Math.abs((coord.x + coord.y + coord.z) % templates.length);
+    return templates[index];
+  }
+
+  private populateTemplate(
+    template: string,
+    coord: { x: number; y: number; z: number }
+  ): string {
+    return template
+      .replace('{x}', coord.x.toString())
+      .replace('{y}', coord.y.toString())
+      .replace('{z}', coord.z.toString());
+  }
+
+  private resolveTileContentType(result: FetchResourceResult): string {
+    if ('contentType' in result && result.contentType) {
+      return result.contentType;
+    }
+
+    if (result.type === 'image') {
+      return 'image/png';
+    }
+
+    if (result.type === 'pbf') {
+      return 'application/x-protobuf';
+    }
+
+    return 'application/octet-stream';
+  }
+
+  private parseTileKey(key: string): { styleId: string; sourceId: string } | null {
+    const match = key.match(/^([^:]+):([^:]+):\d+:\d+:[^:]+$/);
+    if (!match) {
+      return null;
+    }
+
+    return {
+      styleId: match[1],
+      sourceId: match[2],
+    };
   }
 }
 

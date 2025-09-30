@@ -6,6 +6,9 @@ export interface GlyphEntry {
   downloadedAt: string;
   size: number;
   url: string;
+  styleId?: string;
+  fontstack?: string;
+  range?: string;
 }
 
 // Enhanced glyph interfaces

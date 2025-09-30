@@ -6,6 +6,16 @@ import type {
   StyleProvider,
 } from '../../types';
 
+type StyleServiceModule = typeof import('../../services/styleService');
+let styleServiceModulePromise: Promise<StyleServiceModule> | null = null;
+
+const loadStyleServiceModule = async (): Promise<StyleServiceModule> => {
+  if (!styleServiceModulePromise) {
+    styleServiceModulePromise = import('../../services/styleService');
+  }
+  return styleServiceModulePromise;
+};
+
 export interface StyleManagement {
   downloadStyle(
     styleUrl: string,
@@ -44,27 +54,27 @@ export const createStyleManagement = (): StyleManagement => {
       forceProvider?: boolean;
     } = {}
   ) => {
-    const { downloadStyleWithProvider } = await import('../../services/styleService');
+    const { downloadStyleWithProvider } = await loadStyleServiceModule();
     return downloadStyleWithProvider(styleUrl, options);
   };
 
   const loadStyleById = async (styleId: string) => {
-    const { loadStyleById } = await import('../../services/styleService');
+    const { loadStyleById } = await loadStyleServiceModule();
     return loadStyleById(styleId);
   };
 
   const listStyles = async () => {
-    const { loadStyles } = await import('../../services/styleService');
+    const { loadStyles } = await loadStyleServiceModule();
     return loadStyles();
   };
 
   const deleteStyle = async (styleId: string) => {
-    const { deleteStyleById } = await import('../../services/styleService');
+    const { deleteStyleById } = await loadStyleServiceModule();
     return deleteStyleById(styleId);
   };
 
   const getStyleStats = async (_styleId: string) => {
-    const { getStyleStats } = await import('../../services/styleService');
+    const { getStyleStats } = await loadStyleServiceModule();
     return getStyleStats();
   };
 
@@ -100,7 +110,7 @@ export const createStyleManagement = (): StyleManagement => {
     });
 
   const cleanupOldStyles = async (maxAgeDays: number = 30) => {
-    const { cleanupOldStyles } = await import('../../services/styleService');
+    const { cleanupOldStyles } = await loadStyleServiceModule();
     const cutoffDate = Date.now() - maxAgeDays * 24 * 60 * 60 * 1000;
 
     const result = await cleanupOldStyles({

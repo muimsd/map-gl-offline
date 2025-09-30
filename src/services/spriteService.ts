@@ -56,13 +56,23 @@ export class SpriteService {
     // Filter existing sprites if skipExisting is true
     let urlsToDownload = sortedUrls;
     if (skipExisting) {
-      const existingSprites = new Set();
+      const existingSprites = new Set<string>();
       const tx = db.transaction(['sprites'], 'readonly');
 
       let cursor = await tx.objectStore('sprites').openCursor();
 
       while (cursor) {
-        existingSprites.add(cursor.value.key);
+        const storedKey = cursor.value.key;
+        existingSprites.add(storedKey);
+
+        // Backfill legacy keys into the lookup map to avoid duplicate downloads
+        if (!storedKey.includes('::')) {
+          const legacySpriteName = storedKey.split(':')[1] ?? storedKey;
+          const legacyStyleName = storedKey.split(':')[0];
+          if (legacyStyleName && legacySpriteName) {
+            existingSprites.add(`${legacyStyleName}::${legacySpriteName}`);
+          }
+        }
         cursor = await cursor.continue();
       }
 
@@ -148,6 +158,7 @@ export class SpriteService {
           }
 
           // Create sprite entry
+          const variant = spriteName.includes('@2x') ? '2x' : '1x';
           const spriteEntry: SpriteEntry = {
             key: spriteKey,
             url: spriteUrl,
@@ -156,6 +167,13 @@ export class SpriteService {
             size: spriteData.byteLength,
             lastModified: Date.now(),
             downloadedAt: new Date().toISOString(),
+            styleId: styleName,
+            downloadId: styleName,
+            spriteName,
+            metadata: {
+              originalUrl: spriteUrl,
+              variant,
+            },
           };
 
           console.warn(`Storing sprite with key: ${spriteKey} for URL: ${spriteUrl}`);
@@ -409,7 +427,7 @@ export class SpriteService {
     // Format: stylename:spritename.extension
     const spriteName = this.extractSpriteName(url);
 
-    return `${styleName}:${spriteName}`;
+    return `${styleName}::${spriteName}`;
   }
 
   private extractSpriteName(url?: string): string {

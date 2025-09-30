@@ -85,8 +85,13 @@ export class FontService {
             timeout,
           });
 
+          if (response.type === 'json') {
+            throw new Error(`Unexpected JSON response when fetching font: ${fontUrl}`);
+          }
+
           const fontData = response.data;
-          const contentType = response.type === 'other' ? 'font/opentype' : `font/${response.type}`;
+          const contentType =
+            response.contentType || (response.type === 'other' ? 'font/opentype' : `font/${response.type}`);
 
           // Validate font if enabled
           if (validateFonts) {
