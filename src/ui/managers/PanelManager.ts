@@ -14,8 +14,7 @@ import { ImportExportModal } from '../modals/importExportModal';
 import { formatBytes } from '../../utils/formatting';
 import { themeManager } from '../ThemeManager';
 import { icons } from '../../utils/icons';
-import { patchStyleForOffline } from '../../utils/styleUtils';
-import type { MapboxStyle } from '../../types/style';
+import type { MapboxStyle, StyleStorageItem } from '../../types/style';
 
 // Import modular components
 import { List, ListItemConfig } from '../components/shared/List';
@@ -255,6 +254,12 @@ export class PanelRenderer extends BaseComponent {
                 icon: icons.cloud({ size: 12, color: 'currentColor' }),
               },
               {
+                label: 'Fix Tiles',
+                action: 'fix-compressed-tiles',
+                variant: 'secondary',
+                icon: icons.settings({ size: 12, color: 'currentColor' }),
+              },
+              {
                 label: 'Delete Style',
                 action: 'delete-style',
                 variant: 'danger',
@@ -440,6 +445,9 @@ export class PanelRenderer extends BaseComponent {
             <button class="region-action-btn p-1.5 rounded-md hover:bg-emerald-100 dark:hover:bg-emerald-900/50 text-emerald-600 dark:text-emerald-400 transition-colors duration-150" data-action="focus-region" data-region-id="${region.id}" title="Focus">
               ${icons.focus({ size: 14, color: 'currentColor' })}
             </button>
+            <button class="region-action-btn p-1.5 rounded-md hover:bg-blue-100 dark:hover:bg-blue-900/50 text-blue-600 dark:text-blue-400 transition-colors duration-150" data-action="redownload-region" data-region-id="${region.id}" title="Re-download">
+              ${icons.download({ size: 14, color: 'currentColor' })}
+            </button>
             <!-- <button class="region-action-btn p-1.5 rounded-md hover:bg-purple-100 dark:hover:bg-purple-900/50 text-purple-600 dark:text-purple-400 transition-colors duration-150" data-action="import-export" data-region-id="${region.id}" title="Import/Export">
               ${icons.deviceFloppy({ size: 14, color: 'currentColor' })}
             </button> -->
@@ -556,6 +564,9 @@ export class PanelRenderer extends BaseComponent {
       case 'focus-region':
         this.options.onFocusRegion(regionId);
         break;
+      case 'redownload-region':
+        this.handleRedownloadRegion(regionId);
+        break;
       case 'import-export':
         this.handleImportExport(regionId, regionData);
         break;
@@ -630,6 +641,76 @@ export class PanelRenderer extends BaseComponent {
       this.modalManager.show(modal);
     } catch (error) {
       console.error('Error deleting region:', error);
+    }
+  }
+
+  /**
+   * Handle re-downloading a region
+   */
+  private async handleRedownloadRegion(regionId: string): Promise<void> {
+    try {
+      const regions = await this.offlineManager.listStoredRegions();
+      const region = regions.find((r: StoredRegion) => r.id === regionId);
+
+      if (!region) {
+        console.error('Region not found:', regionId);
+        return;
+      }
+
+      const confirmModal = new ConfirmationModal({
+        title: 'Re-download Region',
+        message: `Re-download "${region.name}"?\n\nThis will:\n• Delete existing tiles and resources\n• Re-download all data with current settings\n• Fix any corrupted or outdated resources`,
+        confirmText: 'Re-download',
+        cancelText: 'Cancel',
+        onConfirm: async () => {
+          try {
+            this.modalManager.close();
+
+            // First, delete the existing region
+            console.warn('Deleting region before re-download:', regionId);
+            await this.offlineManager.deleteRegion(regionId);
+
+            // Prepare form data for re-download
+            const formData = {
+              name: region.name,
+              bounds: [
+                region.bounds[0][0], // west
+                region.bounds[0][1], // south
+                region.bounds[1][0], // east
+                region.bounds[1][1], // north
+              ] as [number, number, number, number],
+              minZoom: region.minZoom,
+              maxZoom: region.maxZoom,
+              styleUrl: region.styleUrl || '',
+              provider: 'auto' as const,
+            };
+
+            console.warn('Starting re-download with config:', formData);
+
+            // Use the download manager to re-download
+            if (this.downloadManager) {
+              await this.downloadManager.downloadRegion(formData);
+            } else {
+              console.error('Download manager not available');
+              alert('Download manager not available. Please try again.');
+            }
+
+            // Refresh the panel to show the new region
+            await this.refresh();
+          } catch (error) {
+            console.error('Failed to re-download region:', error);
+            alert(`Failed to re-download region: ${error instanceof Error ? error.message : 'Unknown error'}`);
+          }
+        },
+        onCancel: () => {
+          this.modalManager.close();
+        },
+      });
+
+      const modal = confirmModal.show();
+      this.modalManager.show(modal);
+    } catch (error) {
+      console.error('Error re-downloading region:', error);
     }
   }
 
@@ -944,6 +1025,9 @@ export class PanelRenderer extends BaseComponent {
       case 'load-style':
         await this.handleLoadStyle(styleData);
         break;
+      case 'fix-compressed-tiles':
+        await this.handleFixCompressedTiles(styleId);
+        break;
       case 'delete-style':
         await this.handleDeleteStyle(styleId, styleData);
         break;
@@ -953,54 +1037,210 @@ export class PanelRenderer extends BaseComponent {
   }
 
   /**
+   * Handle fixing compressed tiles
+   */
+  private async handleFixCompressedTiles(_styleId: string): Promise<void> {
+    try {
+      const { cleanupCompressedTiles, countCompressedTiles } = await import('../../utils/cleanupCompressedTiles');
+      
+      // First count the compressed tiles
+      const stats = await countCompressedTiles();
+      
+      if (stats.gzipped === 0) {
+        const confirmModal = new ConfirmationModal({
+          title: 'No Issues Found',
+          message: `No compressed tiles detected. Your tiles are already in the correct format!`,
+          confirmText: 'OK',
+          cancelText: '',
+          onConfirm: () => {
+            this.modalManager.close();
+          },
+          onCancel: () => {
+            this.modalManager.close();
+          },
+        });
+        
+        const modal = confirmModal.show();
+        this.modalManager.show(modal);
+        return;
+      }
+
+      const confirmModal = new ConfirmationModal({
+        title: 'Fix Compressed Tiles',
+        message: `Found ${stats.gzipped} compressed tiles that may cause rendering errors.\n\nThis will:\n1. Remove all compressed tiles (${stats.gzipped} tiles)\n2. You'll need to re-download regions to get properly decompressed tiles\n\nContinue?`,
+        confirmText: 'Fix Tiles',
+        cancelText: 'Cancel',
+        onConfirm: async () => {
+          try {
+            console.warn('🔧 Cleaning up compressed tiles...');
+            const result = await cleanupCompressedTiles();
+            console.warn(`✅ Cleanup complete: removed ${result.removed} tiles`);
+            
+            this.modalManager.close();
+            
+            // Show success message
+            const successModal = new ConfirmationModal({
+              title: 'Cleanup Complete',
+              message: `Successfully removed ${result.removed} compressed tiles.\n\nPlease re-download your regions to get the fixed tiles.`,
+              confirmText: 'OK',
+              cancelText: '',
+              onConfirm: () => {
+                this.modalManager.close();
+              },
+              onCancel: () => {
+                this.modalManager.close();
+              },
+            });
+            
+            const modal = successModal.show();
+            this.modalManager.show(modal);
+            
+            // Refresh the panel
+            await this.refresh();
+          } catch (error) {
+            console.error('Failed to cleanup compressed tiles:', error);
+            this.modalManager.close();
+          }
+        },
+        onCancel: () => {
+          this.modalManager.close();
+        },
+      });
+
+      const modal = confirmModal.show();
+      this.modalManager.show(modal);
+    } catch (error) {
+      console.error('Error fixing compressed tiles:', error);
+    }
+  }
+
+  /**
    * Handle loading a style to the map
    */
   private async handleLoadStyle(styleData: unknown): Promise<void> {
     if (!this.map) {
-      console.warn('Map not available for loading style');
+      console.warn('⚠️ Map not available for loading style');
+      alert('Map is not initialized. Please ensure the map is loaded before loading a style.');
       return;
     }
 
     try {
-      const style = styleData as { key: string; style?: Record<string, unknown> & { sources?: Record<string, unknown>; layers?: unknown[] } };
-      console.warn('🎨 Loading style to map:', style.key);
-      console.warn('🔍 Style data structure:', {
-        hasStyle: !!style.style,
-        styleKeys: style.style ? Object.keys(style.style) : [],
-        sources: style.style?.sources ? Object.keys(style.style.sources) : [],
-        layers: style.style?.layers ? style.style.layers.length : 0,
+      const styleEntry = styleData as StyleStorageItem;
+      
+      if (!styleEntry || !styleEntry.style) {
+        console.error('❌ Invalid style data - missing style property');
+        alert('Invalid style data. The style may be corrupted.');
+        return;
+      }
+
+      if (!styleEntry.key) {
+        console.error('❌ Invalid style data - missing key property');
+        alert('Invalid style data. The style key is missing.');
+        return;
+      }
+
+      console.warn('🎨 Loading style from IndexedDB:', {
+        key: styleEntry.key,
+        provider: styleEntry.provider,
+        hasStyle: !!styleEntry.style,
+        hasSources: !!styleEntry.style?.sources,
+        sourcesCount: styleEntry.style?.sources ? Object.keys(styleEntry.style.sources).length : 0,
+        layersCount: styleEntry.style?.layers?.length || 0,
+        hasSprite: !!styleEntry.style?.sprite,
+        hasGlyphs: !!styleEntry.style?.glyphs,
       });
 
-      // Check if the style has the necessary structure
-      const styleEntry = styleData as { style?: MapboxStyle; key?: string };
-      if (!styleEntry.style) {
-        console.error('❌ Style data is missing the "style" property');
-        return;
-      }
-
-      if (!styleEntry.style.sources) {
+      // Validate style structure
+      if (!styleEntry.style.sources || Object.keys(styleEntry.style.sources).length === 0) {
         console.error('❌ Style is missing sources');
+        alert('Style has no sources defined. The style may be incomplete.');
         return;
       }
 
-      console.warn('🔧 Patching style for offline use...');
-      const patchedStyle = patchStyleForOffline(styleEntry.style, styleEntry.key || 'unknown');
+      if (!styleEntry.style.layers || styleEntry.style.layers.length === 0) {
+        console.error('❌ Style is missing layers');
+        alert('Style has no layers defined. The style may be incomplete.');
+        return;
+      }
 
-      console.warn('✅ Style patched successfully');
-      console.warn('🔍 Patched style sources:', Object.keys(patchedStyle.sources || {}));
+      // Check for compressed tiles
+      try {
+        const { countCompressedTiles } = await import('../../utils/cleanupCompressedTiles');
+        const compressed = await countCompressedTiles();
+        
+        if (compressed.gzipped > 0) {
+          console.warn(`⚠️ Found ${compressed.gzipped} compressed tiles that may cause rendering issues`);
+          const shouldContinue = confirm(
+            `Warning: Found ${compressed.gzipped} compressed tiles that may cause rendering issues.\n\n` +
+            `Recommended: Use the "Re-download" button to fix this issue.\n\n` +
+            `Do you want to continue loading the style anyway?`
+          );
+          if (!shouldContinue) {
+            return;
+          }
+        }
+      } catch (cleanupError) {
+        console.warn('⚠️ Could not check for compressed tiles:', cleanupError);
+      }
+
+      // The style is already patched with idb:// URLs when stored in regionService
+      // DO NOT patch it again - double-patching breaks the URLs!
+      // Just use the stored style directly
+      const patchedStyle = JSON.parse(JSON.stringify(styleEntry.style)) as MapboxStyle;
+
+      console.warn('Using pre-patched offline style (already contains idb:// URLs)');
+
+      console.warn('✅ Style patched successfully:', {
+        sources: patchedStyle.sources ? Object.keys(patchedStyle.sources).length : 0,
+        layers: patchedStyle.layers?.length || 0,
+        sprite: patchedStyle.sprite,
+        glyphs: patchedStyle.glyphs,
+      });
+
+      // Log patched sources for debugging
+      if (patchedStyle.sources) {
+        console.warn('� Patched sources:');
+        for (const [sourceId, source] of Object.entries(patchedStyle.sources)) {
+          const src = source as { tiles?: string[]; url?: string; type?: string };
+          console.warn(`  - ${sourceId}:`, {
+            type: src.type,
+            tiles: src.tiles?.[0],
+            url: src.url,
+          });
+        }
+      }
 
       // Apply the patched style to the map
-      console.warn('🗺️ Applying style to map...');
-      (this.map as { setStyle?: (style: MapboxStyle) => void })?.setStyle?.(patchedStyle);
+      console.warn('🗺️ Applying patched style to map...');
+      
+      try {
+        (this.map as { setStyle?: (style: MapboxStyle) => void })?.setStyle?.(patchedStyle);
+        console.warn('✅ Style loaded successfully!');
+        
+        // Wait a bit and check if the style was applied
+        setTimeout(() => {
+          const currentStyle = (this.map as { getStyle?: () => MapboxStyle })?.getStyle?.();
+          if (currentStyle) {
+            console.warn('✅ Style verification:', {
+              sources: currentStyle.sources ? Object.keys(currentStyle.sources).length : 0,
+              layers: currentStyle.layers?.length || 0,
+            });
+          }
+        }, 1000);
+        
+      } catch (setStyleError) {
+        console.error('❌ Error calling setStyle:', setStyleError);
+        alert(`Failed to apply style to map: ${setStyleError instanceof Error ? setStyleError.message : 'Unknown error'}`);
+        return;
+      }
 
-      console.warn('✅ Voyager/Style loaded successfully with offline patches');
     } catch (error) {
       console.error('❌ Error loading style to map:', error);
       console.error('Error details:', {
         message: error instanceof Error ? error.message : String(error),
         stack: error instanceof Error ? error.stack : undefined,
-        styleData: styleData,
       });
+      alert(`Failed to load style: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 

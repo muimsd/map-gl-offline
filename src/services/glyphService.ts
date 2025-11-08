@@ -101,8 +101,24 @@ export class GlyphService {
             throw new Error(`HTTP ${response.status}: ${response.statusText}`);
           }
 
-          const data = await response.arrayBuffer();
-          // Response content type checked but not used
+          let data = await response.arrayBuffer();
+          const contentEncoding = response.headers.get('content-encoding');
+
+          // Decompress gzipped glyphs before storage
+          if (contentEncoding === 'gzip') {
+            try {
+              const decompressedStream = new Response(data).body?.pipeThrough(
+                new DecompressionStream('gzip')
+              );
+              if (decompressedStream) {
+                const originalSize = data.byteLength;
+                data = await new Response(decompressedStream).arrayBuffer();
+                console.warn(`Decompressed gzipped glyph ${fontstack}/${range}: ${originalSize} -> ${data.byteLength} bytes`);
+              }
+            } catch (decompressError) {
+              console.warn(`Failed to decompress glyph ${fontstack}/${range}, storing as-is:`, decompressError);
+            }
+          }
 
           // Validate glyph data if enabled
           if (enableValidation) {

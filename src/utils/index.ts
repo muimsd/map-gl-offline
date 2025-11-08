@@ -1,7 +1,10 @@
 // Re-export all utilities
-export * from './styleUtils';
-export * from './formatUtils';
 export * from './asyncUtils';
 export * from './download';
-export * from './idbFetchHandler';
+export * from './formatting';
+// Skip formatUtils to avoid conflicts with formatting
 export * from './icons';
+export * from './idbFetchHandler';
+export * from './styleProviderUtils';
+export * from './styleUtils';
+export * from './cleanupCompressedTiles';

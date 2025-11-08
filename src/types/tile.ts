@@ -1,11 +1,12 @@
 import type { DownloadProgress } from './progress';
 // Tile entry stored in the tiles table
 export interface TileEntry {
-  key: string;
+  key: string; // Format: styleId:sourceId:z:x:y.ext (with extension)
   data: ArrayBuffer;
   downloadedAt: string;
   size: number;
-  type: string;
+  type: string; // 'raster' or 'vector'
+  format?: string; // File format: 'pbf', 'mvt', 'png', 'jpg', 'webp', etc. (also in key)
   url: string;
   lastModified: number;
   contentType?: string;

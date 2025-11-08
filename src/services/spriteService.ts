@@ -145,8 +145,25 @@ export class SpriteService {
             throw new Error(`HTTP ${response.status}: ${response.statusText}`);
           }
 
-          const spriteData = await response.arrayBuffer();
+          let spriteData = await response.arrayBuffer();
           const contentType = response.headers.get('content-type') || 'image/png';
+          const contentEncoding = response.headers.get('content-encoding');
+
+          // Decompress gzipped sprites before storage
+          if (contentEncoding === 'gzip') {
+            try {
+              const decompressedStream = new Response(spriteData).body?.pipeThrough(
+                new DecompressionStream('gzip')
+              );
+              if (decompressedStream) {
+                const originalSize = spriteData.byteLength;
+                spriteData = await new Response(decompressedStream).arrayBuffer();
+                console.warn(`Decompressed gzipped sprite ${spriteName}: ${originalSize} -> ${spriteData.byteLength} bytes`);
+              }
+            } catch (decompressError) {
+              console.warn(`Failed to decompress sprite ${spriteName}, storing as-is:`, decompressError);
+            }
+          }
 
           console.warn(
             `Downloaded sprite ${spriteUrl}: ${spriteData.byteLength} bytes, type: ${contentType}`
