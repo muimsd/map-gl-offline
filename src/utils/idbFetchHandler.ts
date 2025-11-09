@@ -176,8 +176,18 @@ async function createTileResponse(resource: {
 }
 
 export async function idbFetchHandler(url: string, init?: RequestInit): Promise<Response> {
-  idbLogger.debug(`IDB Fetch Handler called for URL: ${url}`);
   const method = init?.method || 'GET';
+  
+  // Extract zoom level from tile URL for enhanced logging
+  const tileMatch = url.match(/\/(\d+)\/(\d+)\/(\d+)\./);
+  const isZoom12 = tileMatch && parseInt(tileMatch[1]) === 12;
+  
+  if (isZoom12) {
+    idbLogger.debug(`🔍 IDB Fetch Handler called for Z12 tile: ${url}`);
+  } else {
+    idbLogger.debug(`IDB Fetch Handler called for URL: ${url}`);
+  }
+  
   idbLogger.debug(`Method: ${method}`);
 
   // You can handle different HTTP methods here
@@ -228,26 +238,50 @@ export async function idbFetchHandler(url: string, init?: RequestInit): Promise<
 
             // Create key WITHOUT extension (new format)
             const tileKey = createTileKey(x, y, z, actualStyleId, sourceKey, requestedExt);
-            idbLogger.debug(
-              `Looking for tile with key: ${tileKey} (z:${z}, x:${x}, y:${y}, source:${sourceKey})`
-            );
+            
+            if (z === 12) {
+              idbLogger.debug(
+                `🔍 Z12 tile lookup: ${tileKey} (z:${z}, x:${x}, y:${y}, source:${sourceKey})`
+              );
+            } else {
+              idbLogger.debug(
+                `Looking for tile with key: ${tileKey} (z:${z}, x:${x}, y:${y}, source:${sourceKey})`
+              );
+            }
 
             // Debug: Check what tiles exist for this style
             const allTiles = await db.getAllKeys('tiles');
             const matchingStyleTiles = allTiles.filter(
               k => typeof k === 'string' && k.startsWith(`${actualStyleId}:`)
             );
-            idbLogger.debug(
-              `Total tiles in DB: ${allTiles.length}, tiles for style "${actualStyleId}": ${matchingStyleTiles.length}`
-            );
-            if (matchingStyleTiles.length > 0 && matchingStyleTiles.length <= 10) {
-              idbLogger.debug(`Sample tiles:`, matchingStyleTiles.slice(0, 10));
+            
+            if (z === 12) {
+              const z12Tiles = matchingStyleTiles.filter(
+                k => typeof k === 'string' && k.includes(`:12:`)
+              );
+              idbLogger.debug(
+                `Total tiles in DB: ${allTiles.length}, tiles for style "${actualStyleId}": ${matchingStyleTiles.length}, Z12 tiles: ${z12Tiles.length}`
+              );
+              if (z12Tiles.length > 0 && z12Tiles.length <= 20) {
+                idbLogger.debug(`Z12 tiles in DB:`, z12Tiles);
+              }
+            } else {
+              idbLogger.debug(
+                `Total tiles in DB: ${allTiles.length}, tiles for style "${actualStyleId}": ${matchingStyleTiles.length}`
+              );
+              if (matchingStyleTiles.length > 0 && matchingStyleTiles.length <= 10) {
+                idbLogger.debug(`Sample tiles:`, matchingStyleTiles.slice(0, 10));
+              }
             }
 
             const resource = await db.get('tiles', tileKey);
 
             if (resource?.data) {
-              idbLogger.debug(`Found tile: ${tileKey}, format: ${resource.format || 'unknown'}`);
+              if (z === 12) {
+                idbLogger.debug(`✓ Found Z12 tile: ${tileKey}, format: ${resource.format || 'unknown'}, size: ${resource.data.byteLength} bytes`);
+              } else {
+                idbLogger.debug(`Found tile: ${tileKey}, format: ${resource.format || 'unknown'}`);
+              }
               const response = await createTileResponse(resource);
               idbLogger.debug(
                 `Serving tile: ${tileKey}, size: ${resource.data.byteLength} bytes, type: ${response.headers.get('Content-Type')}`
@@ -255,9 +289,15 @@ export async function idbFetchHandler(url: string, init?: RequestInit): Promise<
               return response;
             }
 
-            idbLogger.debug(
-              `Tile not found with requested extension (${requestedExt}): ${tileKey}`
-            );
+            if (z === 12) {
+              idbLogger.warn(
+                `✗ Z12 tile NOT FOUND with requested extension (${requestedExt}): ${tileKey}`
+              );
+            } else {
+              idbLogger.debug(
+                `Tile not found with requested extension (${requestedExt}): ${tileKey}`
+              );
+            }
 
             // Fallback: try to find any tile with the same coordinates but different extension
             const baseKey = `${actualStyleId}:${sourceKey}:${z}:${x}:${y}`;

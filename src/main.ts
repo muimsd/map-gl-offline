@@ -55,6 +55,14 @@ const styles: StyleItem[] = [
     styleUrl: 'https://api.maptiler.com/maps/openstreetmap/style.json?key=REDACTED_API_KEY',
     description: 'OSM style',
   },
+  {
+    id: 'basic',
+    name: 'Basic',
+    image:
+      'https://raw.githubusercontent.com/muimsd/map-gl-style-switcher/refs/heads/main/public/positron.png',
+    styleUrl: 'https://api.maptiler.com/maps/basic-v2/style.json?key=REDACTED_API_KEY',
+    description: 'Basic style from MapTiler',
+  },
 ];
 const defaultStyle = styles[0];
 

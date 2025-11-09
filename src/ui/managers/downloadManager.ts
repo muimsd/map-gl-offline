@@ -68,6 +68,7 @@ export class DownloadManager {
         // Use the enhanced downloadStyleWithProvider for Mapbox GL support
         const styleDownloadOptions = {
           skipExisting: true,
+          enableSourceEmbedding: true, // CRITICAL: Embed TileJSON into sources for tile downloads
           provider: formData.provider || 'auto',
           accessToken: formData.accessToken,
           onProgress: (progress: { percentage?: number }) => {
@@ -120,17 +121,21 @@ export class DownloadManager {
         throw new Error('Style not found for resource download');
       }
 
-      // Get the ORIGINAL unpatched style for downloading resources
-      // The stored style is already patched with idb:// URLs, which won't work for downloads
-      let originalStyle = styleData.style;
+      // Get the stored style which has embedded TileJSON data
+      // This is the style we'll use for tile downloads (it has the tiles array)
+      const styleWithEmbeddedSources = styleData.style;
 
-      // If the style URLs are already patched, we need to fetch the original
+      // For sprites and glyphs, we need the original unpatched URLs
+      // If the stored style is patched, fetch the original style from URL
+      let originalStyleForResources = styleData.style;
+
+      // If the style URLs are already patched, we need to fetch the original for sprite/glyph URLs
       if (
         styleData.style?.sprite?.startsWith('idb://') ||
         styleData.style?.glyphs?.startsWith('idb://')
       ) {
         downloadLogger.debug(
-          'Style URLs are already patched, fetching original style for downloads'
+          'Style URLs are already patched, fetching original style for sprite/glyph URLs'
         );
 
         // Fetch the original style from the URL if available
@@ -138,7 +143,7 @@ export class DownloadManager {
           try {
             const response = await fetch(styleData.originalUrl);
             if (response.ok) {
-              originalStyle = await response.json();
+              originalStyleForResources = await response.json();
               downloadLogger.debug('Fetched original style from:', styleData.originalUrl);
             }
           } catch (error) {
@@ -148,15 +153,15 @@ export class DownloadManager {
       }
 
       // Download sprites if the style has them
-      if (originalStyle?.sprite && !originalStyle.sprite.startsWith('idb://')) {
+      if (originalStyleForResources?.sprite && !originalStyleForResources.sprite.startsWith('idb://')) {
         downloadLogger.debug('Downloading sprites for style:', finalStyleId);
-        downloadLogger.debug('Original sprite URL:', originalStyle.sprite);
+        downloadLogger.debug('Original sprite URL:', originalStyleForResources.sprite);
         try {
           const { SpriteService } = await import('../../services/spriteService');
           const spriteService = new SpriteService();
 
           // Generate sprite URLs from base sprite path (use ORIGINAL style)
-          const spriteBase = originalStyle.sprite;
+          const spriteBase = originalStyleForResources.sprite;
           const spriteUrls = [
             `${spriteBase}.json`,
             `${spriteBase}.png`,
@@ -177,17 +182,17 @@ export class DownloadManager {
         } catch (spriteError) {
           downloadLogger.error('Failed to download sprites (non-fatal):', spriteError);
         }
-      } else if (originalStyle?.sprite?.startsWith('idb://')) {
+      } else if (originalStyleForResources?.sprite?.startsWith('idb://')) {
         downloadLogger.debug(
           'Skipping sprite download - sprite URL is already patched:',
-          originalStyle.sprite
+          originalStyleForResources.sprite
         );
       }
 
       // Download glyphs if the style has them
-      if (originalStyle?.glyphs && !originalStyle.glyphs.startsWith('idb://')) {
+      if (originalStyleForResources?.glyphs && !originalStyleForResources.glyphs.startsWith('idb://')) {
         downloadLogger.debug('Downloading glyphs for style:', finalStyleId);
-        downloadLogger.debug('Original glyphs URL:', originalStyle.glyphs);
+        downloadLogger.debug('Original glyphs URL:', originalStyleForResources.glyphs);
         try {
           const { GlyphService } = await import('../../services/glyphService');
           const glyphService = new GlyphService();
@@ -244,7 +249,7 @@ export class DownloadManager {
             ];
 
             await glyphService.downloadGlyphs(
-              originalStyle.glyphs, // Use ORIGINAL unpatched glyphs URL
+              originalStyleForResources.glyphs, // Use ORIGINAL unpatched glyphs URL
               Array.from(fontFamilies),
               finalStyleId,
               glyphRanges,
@@ -261,10 +266,10 @@ export class DownloadManager {
         } catch (glyphError) {
           downloadLogger.error('Failed to download glyphs (non-fatal):', glyphError);
         }
-      } else if (originalStyle?.glyphs?.startsWith('idb://')) {
+      } else if (originalStyleForResources?.glyphs?.startsWith('idb://')) {
         downloadLogger.debug(
           'Skipping glyph download - glyphs URL is already patched:',
-          originalStyle.glyphs
+          originalStyleForResources.glyphs
         );
       }
 
@@ -287,8 +292,23 @@ export class DownloadManager {
       }
 
       downloadLogger.debug('Calling downloadTiles with finalStyleId:', finalStyleId);
+      downloadLogger.debug('Stored style sources:', Object.keys(styleWithEmbeddedSources?.sources || {}));
+      
+      // Log source details to verify we have tile URLs
+      if (styleWithEmbeddedSources?.sources) {
+        for (const [sourceId, source] of Object.entries(styleWithEmbeddedSources.sources)) {
+          const typedSource = source as { tiles?: string[]; url?: string };
+          downloadLogger.debug(`Source ${sourceId}:`, {
+            hasTiles: !!typedSource.tiles,
+            tilesCount: typedSource.tiles?.length,
+            firstTileUrl: typedSource.tiles?.[0],
+            hasUrl: !!typedSource.url,
+          });
+        }
+      }
 
-      const tileResult = await downloadTiles(finalRegionConfig, styleData.style, finalStyleId, {
+      // Use stored style with embedded TileJSON (has tiles array) for tile downloads
+      const tileResult = await downloadTiles(finalRegionConfig, styleWithEmbeddedSources, finalStyleId, {
         onProgress: progress => {
           downloadLogger.debug(
             `Tile download progress: ${progress.completed}/${progress.total} (${progress.percentage.toFixed(1)}%)`

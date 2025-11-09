@@ -148,13 +148,15 @@ export class Modal extends BaseComponent {
   private getSizeClasses(): string {
     switch (this.config.size) {
       case 'sm':
-        return 'w-full max-w-md';
+        return 'w-full max-w-md mx-4';
+      case 'md':
+        return 'w-full max-w-2xl mx-4';
       case 'lg':
-        return 'w-full max-w-4xl';
+        return 'w-full max-w-4xl mx-4';
       case 'xl':
-        return 'w-full max-w-6xl';
+        return 'w-full max-w-6xl mx-4';
       default:
-        return 'w-full max-w-2xl';
+        return 'w-full max-w-2xl mx-4';
     }
   }
 

@@ -56,7 +56,20 @@ export class TileService {
 
     // Generate tile coordinates once for the region
     const tileCoords = this.generateTileCoordinates(region);
+    
+    tileLogger.debug('🔍 ABOUT TO CALL extractTileSources with style:', {
+      hasStyle: !!style,
+      hasSources: !!(style && style.sources),
+      sourceKeys: style && style.sources ? Object.keys(style.sources) : [],
+      sourceCount: style && style.sources ? Object.keys(style.sources).length : 0,
+    });
+    
     const tileSources = await this.extractTileSources(style);
+    
+    tileLogger.debug('🔍 extractTileSources RETURNED:', {
+      sourceCount: tileSources.size,
+      sourceIds: Array.from(tileSources.keys()),
+    });
 
     if (tileSources.size === 0) {
       throw new Error('No valid tile sources found in style definition');
@@ -178,6 +191,18 @@ export class TileService {
     emitProgress();
 
     for (const plan of downloadPlans) {
+      // Log zoom level distribution for this source
+      const zoomLevels = new Map<number, number>();
+      plan.coords.forEach(coord => {
+        zoomLevels.set(coord.z, (zoomLevels.get(coord.z) || 0) + 1);
+      });
+      tileLogger.debug(`Source ${plan.sourceId} tile distribution:`, 
+        Array.from(zoomLevels.entries())
+          .sort((a, b) => a[0] - b[0])
+          .map(([z, count]) => `Z${z}: ${count} tiles`)
+          .join(', ')
+      );
+
       await processBatch(
         plan.coords,
         async coord => {
@@ -190,6 +215,11 @@ export class TileService {
             const template = this.selectTileTemplate(plan.templates, coord);
             tileUrl = this.populateTemplate(template, coord);
             const tileKey = this.createTileKey(x, y, z, styleId, plan.sourceId, plan.ext);
+
+            // Enhanced logging for zoom 12
+            if (z === 12) {
+              tileLogger.debug(`Downloading Z12 tile: ${label}, URL: ${tileUrl.substring(0, 100)}...`);
+            }
 
             if (bandwidthLimit) {
               await this.rateLimitDelay(bandwidthLimit);
@@ -300,6 +330,11 @@ export class TileService {
 
             totalSize += tileData.byteLength;
             downloadedTiles++;
+            
+            // Enhanced logging for zoom 12 successful downloads
+            if (z === 12) {
+              tileLogger.debug(`✓ Successfully stored Z12 tile: ${label}, size: ${tileData.byteLength} bytes, type: ${contentType}`);
+            }
           } catch (_error) {
             failedTiles++;
             const errorObject = _error as unknown;
@@ -309,6 +344,11 @@ export class TileService {
               url: tileUrl || label,
               error: errorMessage,
             });
+
+            // Enhanced logging for zoom 12 failures
+            if (z === 12) {
+              tileLogger.error(`✗ Failed to download Z12 tile ${label}:`, errorObject);
+            }
 
             tileLogger.error(
               `Failed to download tile ${z}/${x}/${y} from ${plan.sourceId}:`,
@@ -329,6 +369,17 @@ export class TileService {
     if (totalTilesToDownload === 0) {
       emitProgress();
     }
+
+    // Log download summary by zoom level
+    tileLogger.debug(`Download Summary:
+      Total tiles planned: ${totalTilesToDownload}
+      Downloaded: ${downloadedTiles}
+      Skipped: ${skippedTiles}
+      Failed: ${failedTiles}
+      Total size: ${(totalSize / 1024 / 1024).toFixed(2)} MB
+      Time: ${(downloadTime / 1000).toFixed(2)}s
+      Speed: ${averageSpeed.toFixed(2)} KB/s
+    `);
 
     // Get the tile extension from the first download plan
     const tileExtension = downloadPlans.length > 0 ? downloadPlans[0].ext : undefined;
@@ -509,6 +560,12 @@ export class TileService {
   private async extractTileSources(
     style: MapboxStyle
   ): Promise<Map<string, { tiles: string[]; minzoom?: number; maxzoom?: number }>> {
+    tileLogger.debug('🚀 extractTileSources CALLED with style:', {
+      hasStyle: !!style,
+      hasSources: !!(style && style.sources),
+      sourceKeys: style && style.sources ? Object.keys(style.sources) : [],
+    });
+    
     const tileSources = new Map();
 
     if (!style || !style.sources) {
@@ -531,6 +588,8 @@ export class TileService {
         maxzoom?: number;
       };
 
+      tileLogger.debug(`Source ${sourceId} RAW DATA:`, JSON.stringify(config, null, 2));
+
       tileLogger.debug(`Processing source ${sourceId}:`, {
         type: config.type,
         hasTiles: !!config.tiles,
@@ -543,8 +602,10 @@ export class TileService {
       if (config.type === 'vector' || config.type === 'raster') {
         // Handle direct tile URLs in the source config
         if (config.tiles && Array.isArray(config.tiles) && config.tiles.length > 0) {
-          // Filter out any idb:// URLs in case somehow a patched style was passed
-          const httpTiles = config.tiles.filter((tile: string) => !tile.startsWith('idb://'));
+          // Filter out idb:// URLs and relative paths - we only want absolute HTTP(S) URLs
+          const httpTiles = config.tiles.filter((tile: string) => 
+            tile.startsWith('http://') || tile.startsWith('https://')
+          );
           if (httpTiles.length > 0) {
             tileSources.set(sourceId, { ...config, tiles: httpTiles });
             tileLogger.debug(
@@ -552,9 +613,14 @@ export class TileService {
               httpTiles[0]
             );
           } else {
-            tileLogger.debug(`Source ${sourceId} has only idb:// URLs, skipping for download`);
+            tileLogger.debug(`Source ${sourceId} has no absolute HTTP tile URLs, will try to fetch from TileJSON URL if available`);
+            // Don't continue here - fall through to try fetching from TileJSON URL
           }
-          continue;
+          
+          // Only continue (skip TileJSON fetch) if we found valid HTTP tiles
+          if (httpTiles.length > 0) {
+            continue;
+          }
         }
 
         // Handle TileJSON URL sources
@@ -583,19 +649,27 @@ export class TileService {
             let tileUrlPattern: string;
             let tiles: string[] = [];
 
-            if (urlToFetch.endsWith('.json') || urlToFetch.includes('tilejson')) {
+            // Check if URL points to a JSON file (before query params)
+            const urlWithoutQuery = urlToFetch.split('?')[0];
+            const isTileJsonUrl = urlWithoutQuery.endsWith('.json') || urlToFetch.includes('tilejson');
+            
+            if (isTileJsonUrl) {
               try {
                 // Fetch the TileJSON
                 const tilejsonUrl = urlToFetch.replace('tilejson+', '');
-                tileLogger.debug(`Fetching TileJSON from: ${tilejsonUrl}`);
+                tileLogger.debug(`🌐 Fetching TileJSON from: ${tilejsonUrl}`);
 
                 const response = await fetchResourceWithRetry(tilejsonUrl, {
                   timeout: 10000,
                   retries: 2,
                 });
 
+                tileLogger.debug(`TileJSON fetch response type: ${response.type}`);
+
                 if (response.type === 'json') {
                   const jsonData = response.data;
+                  tileLogger.debug(`TileJSON data keys: ${Object.keys(jsonData || {}).join(', ')}`);
+                  
                   if (
                     jsonData &&
                     typeof jsonData === 'object' &&
@@ -603,15 +677,18 @@ export class TileService {
                     Array.isArray((jsonData as { tiles?: unknown }).tiles)
                   ) {
                     tiles = (jsonData as { tiles?: string[] }).tiles ?? [];
+                    tileLogger.debug(`Extracted ${tiles.length} tile URLs from TileJSON`);
                   }
 
                   if (tiles.length === 0) {
+                    tileLogger.error('TileJSON does not contain any tile templates!', jsonData);
                     throw new Error('TileJSON does not contain any tile templates');
                   }
 
                   tileUrlPattern = tiles[0];
-                  tileLogger.debug(`Got ${tiles.length} tile URLs from TileJSON:`, tiles[0]);
+                  tileLogger.debug(`✅ SUCCESS: Got ${tiles.length} tile URLs from TileJSON. First URL: ${tiles[0]}`);
                 } else {
+                  tileLogger.error(`Invalid TileJSON response type: ${response.type}`);
                   throw new Error('Invalid TileJSON response');
                 }
               } catch (tilejsonError) {
@@ -625,9 +702,31 @@ export class TileService {
                   tileUrlPattern = urlToFetch
                     .replace('tilejson+', '')
                     .replace('.json', '/{z}/{x}/{y}.pbf');
-                } else if (urlToFetch.endsWith('.json')) {
-                  const urlBase = urlToFetch.substring(0, urlToFetch.lastIndexOf('/'));
-                  tileUrlPattern = `${urlBase}/{z}/{x}/{y}.pbf`;
+                } else if (urlToFetch.includes('/tiles.json') || urlToFetch.endsWith('.json')) {
+                  // Handle Maptiler-style TileJSON URLs that end with /tiles.json or /style.json
+                  // Remove the JSON filename and query params, then append tile pattern
+                  let baseUrl = urlToFetch;
+                  
+                  // Extract query params if present
+                  let queryParams = '';
+                  const queryIndex = baseUrl.indexOf('?');
+                  if (queryIndex !== -1) {
+                    queryParams = baseUrl.substring(queryIndex);
+                    baseUrl = baseUrl.substring(0, queryIndex);
+                  }
+                  
+                  // Remove .json filename
+                  if (baseUrl.includes('/tiles.json')) {
+                    // For URLs like: https://api.maptiler.com/tiles/v3/tiles.json
+                    // Extract base path before /tiles.json
+                    const tilesJsonIndex = baseUrl.lastIndexOf('/tiles.json');
+                    baseUrl = baseUrl.substring(0, tilesJsonIndex);
+                  } else {
+                    // For other .json files, remove from last /
+                    baseUrl = baseUrl.substring(0, baseUrl.lastIndexOf('/'));
+                  }
+                  
+                  tileUrlPattern = `${baseUrl}/{z}/{x}/{y}.pbf${queryParams}`;
                 } else {
                   tileUrlPattern = `${urlToFetch}/{z}/{x}/{y}.pbf`;
                 }
