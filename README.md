@@ -47,7 +47,24 @@ yarn add map-gl-offline
 pnpm add map-gl-offline
 ```
 
-## 🚀 Quick Start
+## � Environment Setup
+
+For development or if using Maptiler styles, create a `.env` file in your project root:
+
+```bash
+# Copy the example file
+cp .env.example .env
+```
+
+Then add your Maptiler API key:
+
+```env
+VITE_MAPTILER_API_KEY=your_api_key_here
+```
+
+Get a free API key from [Maptiler](https://www.maptiler.com/).
+
+## �🚀 Quick Start
 
 ### Basic Usage
 

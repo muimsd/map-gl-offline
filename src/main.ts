@@ -4,6 +4,8 @@ import { StyleSwitcherControl, type StyleItem } from 'map-gl-style-switcher';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import 'map-gl-style-switcher/dist/map-gl-style-switcher.css';
 
+const MAPTILER_API_KEY = import.meta.env.VITE_MAPTILER_API_KEY || '';
+
 const styles: StyleItem[] = [
   {
     id: 'voyager',
@@ -52,7 +54,7 @@ const styles: StyleItem[] = [
     name: 'OSM-MapTiler',
     image:
       'https://raw.githubusercontent.com/muimsd/map-gl-style-switcher/refs/heads/main/public/osm.png',
-    styleUrl: 'https://api.maptiler.com/maps/openstreetmap/style.json?key=REDACTED_API_KEY',
+    styleUrl: `https://api.maptiler.com/maps/openstreetmap/style.json?key=${MAPTILER_API_KEY}`,
     description: 'OSM style',
   },
   {
@@ -60,7 +62,7 @@ const styles: StyleItem[] = [
     name: 'Basic',
     image:
       'https://raw.githubusercontent.com/muimsd/map-gl-style-switcher/refs/heads/main/public/positron.png',
-    styleUrl: 'https://api.maptiler.com/maps/basic-v2/style.json?key=REDACTED_API_KEY',
+    styleUrl: `https://api.maptiler.com/maps/basic-v2/style.json?key=${MAPTILER_API_KEY}`,
     description: 'Basic style from MapTiler',
   },
 ];
