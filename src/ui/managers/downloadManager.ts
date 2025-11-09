@@ -7,6 +7,9 @@ import { isStyleDownloaded, loadStyles } from '@/services/styleService';
 import { downloadTiles } from '../../services/tileService';
 import { OfflineMapManager } from '../../managers/offlineMapManager';
 import { RegionFormData } from '../modals/regionFormModal';
+import { logger } from '../../utils/logger';
+
+const downloadLogger = logger.scope('DownloadManager');
 
 export interface DownloadProgress {
   regionId: string;
@@ -60,7 +63,7 @@ export class DownloadManager {
       let finalStyleId: string;
       if (!styleExists) {
         // Enhanced style download with Mapbox GL support
-        console.warn(`🎨 Downloading style with provider: ${formData.provider}`);
+        downloadLogger.debug(`Downloading style with provider: ${formData.provider}`);
 
         // Use the enhanced downloadStyleWithProvider for Mapbox GL support
         const styleDownloadOptions = {
@@ -68,7 +71,7 @@ export class DownloadManager {
           provider: formData.provider || 'auto',
           accessToken: formData.accessToken,
           onProgress: (progress: { percentage?: number }) => {
-            console.warn(`Style download progress: ${progress.percentage}%`);
+            downloadLogger.debug(`Style download progress: ${progress.percentage}%`);
           },
         };
 
@@ -82,7 +85,7 @@ export class DownloadManager {
         }
 
         finalStyleId = styleResult.styleId;
-        console.warn(`✅ Style downloaded successfully: ${finalStyleId}`);
+        downloadLogger.debug(`Style downloaded successfully: ${finalStyleId}`);
       } else {
         // Find the existing style to get its ID
         const styles = await loadStyles();
@@ -95,7 +98,7 @@ export class DownloadManager {
           throw new Error('Style exists but could not be found');
         }
         finalStyleId = existingStyle.key;
-        console.warn(`📋 Using existing style: ${finalStyleId}`);
+        downloadLogger.debug(`Using existing style: ${finalStyleId}`);
       }
 
       // Update region config with the styleId from the downloaded/existing style
@@ -126,7 +129,9 @@ export class DownloadManager {
         styleData.style?.sprite?.startsWith('idb://') ||
         styleData.style?.glyphs?.startsWith('idb://')
       ) {
-        console.warn('⚠️ Style URLs are already patched, fetching original style for downloads');
+        downloadLogger.debug(
+          'Style URLs are already patched, fetching original style for downloads'
+        );
 
         // Fetch the original style from the URL if available
         if (styleData.originalUrl) {
@@ -134,18 +139,18 @@ export class DownloadManager {
             const response = await fetch(styleData.originalUrl);
             if (response.ok) {
               originalStyle = await response.json();
-              console.warn('✅ Fetched original style from:', styleData.originalUrl);
+              downloadLogger.debug('Fetched original style from:', styleData.originalUrl);
             }
           } catch (error) {
-            console.error('Failed to fetch original style, will use stored style:', error);
+            downloadLogger.error('Failed to fetch original style, will use stored style:', error);
           }
         }
       }
 
       // Download sprites if the style has them
       if (originalStyle?.sprite && !originalStyle.sprite.startsWith('idb://')) {
-        console.warn('📦 Downloading sprites for style:', finalStyleId);
-        console.warn('📦 Original sprite URL:', originalStyle.sprite);
+        downloadLogger.debug('Downloading sprites for style:', finalStyleId);
+        downloadLogger.debug('Original sprite URL:', originalStyle.sprite);
         try {
           const { SpriteService } = await import('../../services/spriteService');
           const spriteService = new SpriteService();
@@ -159,30 +164,30 @@ export class DownloadManager {
             `${spriteBase}@2x.png`,
           ];
 
-          console.warn('📦 Sprite URLs to download:', spriteUrls);
+          downloadLogger.debug('Sprite URLs to download:', spriteUrls);
 
           await spriteService.downloadSprites(spriteUrls, finalStyleId, {
             onProgress: (progress: { completed: number; total: number }) => {
-              console.warn(`Sprite download: ${progress.completed}/${progress.total}`);
+              downloadLogger.debug(`Sprite download: ${progress.completed}/${progress.total}`);
             },
             enableValidation: true,
             skipExisting: false,
           });
-          console.warn('✅ Sprites downloaded successfully');
+          downloadLogger.debug('Sprites downloaded successfully');
         } catch (spriteError) {
-          console.error('⚠️ Failed to download sprites (non-fatal):', spriteError);
+          downloadLogger.error('Failed to download sprites (non-fatal):', spriteError);
         }
       } else if (originalStyle?.sprite?.startsWith('idb://')) {
-        console.warn(
-          '⏭️ Skipping sprite download - sprite URL is already patched:',
+        downloadLogger.debug(
+          'Skipping sprite download - sprite URL is already patched:',
           originalStyle.sprite
         );
       }
 
       // Download glyphs if the style has them
       if (originalStyle?.glyphs && !originalStyle.glyphs.startsWith('idb://')) {
-        console.warn('📝 Downloading glyphs for style:', finalStyleId);
-        console.warn('📝 Original glyphs URL:', originalStyle.glyphs);
+        downloadLogger.debug('Downloading glyphs for style:', finalStyleId);
+        downloadLogger.debug('Original glyphs URL:', originalStyle.glyphs);
         try {
           const { GlyphService } = await import('../../services/glyphService');
           const glyphService = new GlyphService();
@@ -202,7 +207,7 @@ export class DownloadManager {
           }
 
           if (fontFamilies.size > 0) {
-            console.warn('📝 Fonts to download:', Array.from(fontFamilies));
+            downloadLogger.debug('Fonts to download:', Array.from(fontFamilies));
 
             // Download comprehensive set of glyph ranges for complete font coverage
             // These ranges cover most common Unicode blocks
@@ -245,28 +250,28 @@ export class DownloadManager {
               glyphRanges,
               {
                 onProgress: (progress: { completed: number; total: number }) => {
-                  console.warn(`Glyph download: ${progress.completed}/${progress.total}`);
+                  downloadLogger.debug(`Glyph download: ${progress.completed}/${progress.total}`);
                 },
               }
             );
-            console.warn('✅ Glyphs downloaded successfully');
+            downloadLogger.debug('Glyphs downloaded successfully');
           } else {
-            console.warn('⚠️ No fonts found in style layers');
+            downloadLogger.debug('No fonts found in style layers');
           }
         } catch (glyphError) {
-          console.error('⚠️ Failed to download glyphs (non-fatal):', glyphError);
+          downloadLogger.error('Failed to download glyphs (non-fatal):', glyphError);
         }
       } else if (originalStyle?.glyphs?.startsWith('idb://')) {
-        console.warn(
-          '⏭️ Skipping glyph download - glyphs URL is already patched:',
+        downloadLogger.debug(
+          'Skipping glyph download - glyphs URL is already patched:',
           originalStyle.glyphs
         );
       }
 
       // Then download tiles for the region
-      console.warn('🗺️ Starting tile download for region:', regionId);
-      console.warn('📋 Region config:', finalRegionConfig);
-      console.warn('📋 Style data sources:', Object.keys(styleData.style?.sources || {}));
+      downloadLogger.debug('Starting tile download for region:', regionId);
+      downloadLogger.debug('Region config:', finalRegionConfig);
+      downloadLogger.debug('Style data sources:', Object.keys(styleData.style?.sources || {}));
 
       // Use the already-fetched style data
       if (!styleData) {
@@ -281,12 +286,12 @@ export class DownloadManager {
         throw new Error('Style does not contain any sources for tile download');
       }
 
-      console.warn('🎯 Calling downloadTiles with finalStyleId:', finalStyleId);
+      downloadLogger.debug('Calling downloadTiles with finalStyleId:', finalStyleId);
 
       const tileResult = await downloadTiles(finalRegionConfig, styleData.style, finalStyleId, {
         onProgress: progress => {
-          console.warn(
-            `🔄 Tile download progress: ${progress.completed}/${progress.total} (${progress.percentage.toFixed(1)}%)`
+          downloadLogger.debug(
+            `Tile download progress: ${progress.completed}/${progress.total} (${progress.percentage.toFixed(1)}%)`
           );
           // Update progress in UI if needed
           this.options.onProgressUpdate?.(
@@ -309,8 +314,8 @@ export class DownloadManager {
         maxConcurrency: 10,
       });
 
-      console.warn('✅ Tile download completed for region:', regionId);
-      console.warn('📊 Tile download result:', {
+      downloadLogger.debug('Tile download completed for region:', regionId);
+      downloadLogger.debug('Tile download result:', {
         totalTiles: tileResult.totalTiles,
         downloadedTiles: tileResult.downloadedTiles,
         failedTiles: tileResult.failedTiles,
@@ -322,7 +327,7 @@ export class DownloadManager {
 
       // Save the tile extension to the region for future use
       if (tileResult.tileExtension) {
-        console.warn(`📝 Saving tile extension to region: ${tileResult.tileExtension}`);
+        downloadLogger.debug(`Saving tile extension to region: ${tileResult.tileExtension}`);
         try {
           const { dbPromise } = await import('../../storage/indexedDbManager');
           const db = await dbPromise;
@@ -333,25 +338,27 @@ export class DownloadManager {
             // Update with tile extension
             currentRegion.tileExtension = tileResult.tileExtension;
             await db.put('regions', currentRegion);
-            console.warn(`✅ Tile extension saved to region: ${tileResult.tileExtension}`);
+            downloadLogger.debug(`Tile extension saved to region: ${tileResult.tileExtension}`);
           }
         } catch (saveError) {
-          console.error('Failed to save tile extension to region:', saveError);
+          downloadLogger.error('Failed to save tile extension to region:', saveError);
         }
       }
 
       if (tileResult.failedTiles > 0 || (tileResult.errors && tileResult.errors.length > 0)) {
-        console.error('⚠️ Tile download had errors:', tileResult.errors);
+        downloadLogger.error('Tile download had errors:', tileResult.errors);
       }
 
       if (tileResult.downloadedTiles === 0 && tileResult.skippedTiles === 0) {
-        console.warn('⚠️ WARNING: No tiles were downloaded! Check the style sources and TileJSON.');
+        downloadLogger.warn(
+          'WARNING: No tiles were downloaded! Check the style sources and TileJSON.'
+        );
       }
 
       // Download complete
       this.handleDownloadComplete(regionId);
     } catch (error) {
-      console.error('Error downloading region:', error);
+      downloadLogger.error('Error downloading region:', error);
       this.handleDownloadError(regionId, error);
     }
   }

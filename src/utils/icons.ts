@@ -3,6 +3,10 @@
  * Provides consistent icon usage throughout the application using inline SVG strings
  */
 
+import { logger } from './logger';
+
+const iconLogger = logger.scope('Icons');
+
 // Tabler Icons SVG strings for inline use
 const TABLER_ICONS = {
   mapPin:
@@ -77,7 +81,7 @@ function renderIcon(iconSvg: string, config: IconConfig = {}): string {
   const svg = tempDiv.querySelector('svg');
 
   if (!svg) {
-    console.warn('Failed to parse icon SVG');
+    iconLogger.warn('Failed to parse icon SVG');
     return iconSvg;
   }
 

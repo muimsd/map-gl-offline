@@ -13,6 +13,9 @@ import { ConfirmationModal } from '../modals/confirmationModal';
 import { ImportExportModal } from '../modals/importExportModal';
 import { formatBytes } from '../../utils/formatting';
 import { themeManager } from '../ThemeManager';
+import { logger } from '../../utils/logger';
+
+const panelLogger = logger.scope('PanelManager');
 import { icons } from '../../utils/icons';
 import type { MapboxStyle, StyleStorageItem } from '../../types/style';
 

@@ -587,7 +587,7 @@ export class TileService {
               try {
                 // Fetch the TileJSON
                 const tilejsonUrl = urlToFetch.replace('tilejson+', '');
-                console.warn(`Fetching TileJSON from: ${tilejsonUrl}`);
+                tileLogger.debug(`Fetching TileJSON from: ${tilejsonUrl}`);
 
                 const response = await fetchResourceWithRetry(tilejsonUrl, {
                   timeout: 10000,
@@ -610,12 +610,12 @@ export class TileService {
                   }
 
                   tileUrlPattern = tiles[0];
-                  console.warn(`Got ${tiles.length} tile URLs from TileJSON:`, tiles[0]);
+                  tileLogger.debug(`Got ${tiles.length} tile URLs from TileJSON:`, tiles[0]);
                 } else {
                   throw new Error('Invalid TileJSON response');
                 }
               } catch (tilejsonError) {
-                console.warn(
+                tileLogger.warn(
                   `Failed to fetch TileJSON from ${urlToFetch}, falling back to pattern generation:`,
                   tilejsonError
                 );
@@ -646,11 +646,11 @@ export class TileService {
             };
 
             tileSources.set(sourceId, enhancedConfig);
-            console.warn(
+            tileLogger.debug(
               `Enhanced tile source: ${sourceId} with tile URL pattern: ${tileUrlPattern}`
             );
           } catch (_error) {
-            console.warn(`Failed to process TileJSON URL for source ${sourceId}:`, _error);
+            tileLogger.warn(`Failed to process TileJSON URL for source ${sourceId}:`, _error);
 
             // Fallback to a simple placeholder
             const placeholderConfig = {
@@ -658,22 +658,22 @@ export class TileService {
               tiles: [urlToFetch.replace('tilejson+', '').replace('.json', '/{z}/{x}/{y}.pbf')],
             };
             tileSources.set(sourceId, placeholderConfig);
-            console.warn(`Using placeholder tile URL for source ${sourceId}`);
+            tileLogger.debug(`Using placeholder tile URL for source ${sourceId}`);
           }
         } else {
-          console.warn(`Source ${sourceId} has no tiles or URL property`);
+          tileLogger.debug(`Source ${sourceId} has no tiles or URL property`);
         }
       } else {
-        console.warn(`Ignoring non-vector/raster source ${sourceId} of type ${config.type}`);
+        tileLogger.debug(`Ignoring non-vector/raster source ${sourceId} of type ${config.type}`);
       }
     }
 
     if (tileSources.size === 0) {
-      console.warn('No valid tile sources found in style', Object.keys(style.sources));
+      tileLogger.warn('No valid tile sources found in style', Object.keys(style.sources));
       // As a last resort, try to use a common vector tile source pattern if we can't extract any
       if (style.sources && Object.keys(style.sources).length > 0) {
         const firstSourceId = Object.keys(style.sources)[0];
-        console.warn(`Attempting to create fallback source from ${firstSourceId}`);
+        tileLogger.debug(`Attempting to create fallback source from ${firstSourceId}`);
 
         tileSources.set(firstSourceId, {
           type: 'vector',

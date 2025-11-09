@@ -1,4 +1,7 @@
 import type { MapboxStyle } from '../types/style';
+import { logger } from './logger';
+
+const styleLogger = logger.scope('StyleUtils');
 
 /**
  * Patches a MapboxStyle for offline use by replacing URLs with IndexedDB references
@@ -9,10 +12,10 @@ export function patchStyleForOffline(
   maxZoom?: number,
   tileExtension?: string
 ): MapboxStyle {
-  console.warn(
-    `🎨 Patching style for offline use with downloadId: ${downloadId}, maxZoom: ${maxZoom}, tileExtension: ${tileExtension}`
+  styleLogger.debug(
+    `Patching style for offline use with downloadId: ${downloadId}, maxZoom: ${maxZoom}, tileExtension: ${tileExtension}`
   );
-  console.warn(`📄 Original style:`, style);
+  styleLogger.debug(`Original style:`, style);
 
   // Patch sources
   for (const sourceKey in style.sources) {
@@ -21,7 +24,7 @@ export function patchStyleForOffline(
       url?: string;
       maxzoom?: number;
     };
-    console.warn(`🔧 Patching source: ${sourceKey}`, source);
+    styleLogger.debug(`Patching source: ${sourceKey}`, source);
 
     if (source.tiles) {
       const originalTiles = [...source.tiles];
@@ -35,10 +38,13 @@ export function patchStyleForOffline(
         }
         return `idb://${downloadId}/tile/${sourceKey}/{z}/{x}/{y}.${ext}`;
       });
-      console.warn(`🗺️ Patched tiles for ${sourceKey} with extension .${tileExtension || 'pbf'}:`, {
-        original: originalTiles,
-        patched: source.tiles,
-      });
+      styleLogger.debug(
+        `Patched tiles for ${sourceKey} with extension .${tileExtension || 'pbf'}:`,
+        {
+          original: originalTiles,
+          patched: source.tiles,
+        }
+      );
     }
 
     // Set maxzoom to the region's maxZoom to enable overzooming
@@ -46,14 +52,14 @@ export function patchStyleForOffline(
     if (maxZoom !== undefined) {
       const originalMaxzoom = source.maxzoom;
       source.maxzoom = maxZoom;
-      console.warn(`🔢 Set maxzoom for ${sourceKey}: ${originalMaxzoom} → ${maxZoom}`);
+      styleLogger.debug(`Set maxzoom for ${sourceKey}: ${originalMaxzoom} → ${maxZoom}`);
     }
 
     if (source.url) {
       const originalUrl = source.url;
       source.url = `idb://${downloadId}/tilesjson/${encodeURIComponent(sourceKey)}`;
       (source as Record<string, unknown>).__originalTilesetUrl = originalUrl;
-      console.warn(`📄 Patched tilejson URL for ${sourceKey}:`, {
+      styleLogger.debug(`Patched tilejson URL for ${sourceKey}:`, {
         original: originalUrl,
         patched: source.url,
       });
@@ -64,17 +70,17 @@ export function patchStyleForOffline(
   if (style.glyphs) {
     const originalGlyphs = style.glyphs;
     style.glyphs = `idb://${downloadId}/glyph/{fontstack}/{range}.pbf`;
-    console.warn(`🔤 Patched glyphs:`, { original: originalGlyphs, patched: style.glyphs });
+    styleLogger.debug(`Patched glyphs:`, { original: originalGlyphs, patched: style.glyphs });
   }
 
   // Patch sprite
   if (style.sprite) {
     const originalSprite = style.sprite;
     style.sprite = `idb://${downloadId}/sprite/sprite`;
-    console.warn(`🎨 Patched sprite:`, { original: originalSprite, patched: style.sprite });
+    styleLogger.debug(`Patched sprite:`, { original: originalSprite, patched: style.sprite });
   }
 
-  console.warn(`✅ Final patched style:`, style);
+  styleLogger.debug(`Final patched style:`, style);
   return style;
 }
 
@@ -204,6 +210,6 @@ export function extractTileKey(url: string): string {
   }
 
   // Last resort: use the full URL
-  console.warn(`Could not extract tile key from URL: ${url}`);
+  styleLogger.warn(`Could not extract tile key from URL: ${url}`);
   return url;
 }

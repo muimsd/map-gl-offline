@@ -1,4 +1,7 @@
 import type { DownloadProgress } from '@/types';
+import { logger } from './logger';
+
+const downloadLogger = logger.scope('Download');
 
 export type FetchResourceResult =
   | {
@@ -197,11 +200,11 @@ export async function processBatch<T, R>(
         if (result.status === 'fulfilled') {
           results.push(result.value);
         } else {
-          console.warn(`Failed to process item ${i + index}:`, result.reason);
+          downloadLogger.warn(`Failed to process item ${i + index}:`, result.reason);
         }
       });
     } catch (error) {
-      console.error(`Batch processing error:`, error);
+      downloadLogger.error(`Batch processing error:`, error);
     }
   }
 

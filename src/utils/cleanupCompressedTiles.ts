@@ -1,4 +1,7 @@
 import { dbPromise } from '../storage/indexedDbManager';
+import { logger } from './logger';
+
+const cleanupLogger = logger.scope('CleanupCompressedTiles');
 
 export interface CompressedTileStats {
   total: number;
@@ -74,7 +77,7 @@ export async function cleanupCompressedTiles(): Promise<CompressedTileCleanupRes
       removed++;
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
-      console.error(`Failed to delete compressed tile: ${key}`, error);
+      cleanupLogger.error(`Failed to delete compressed tile: ${key}`, error);
       errors.push(`${key}: ${message}`);
     }
   }

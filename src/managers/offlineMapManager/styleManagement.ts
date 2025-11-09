@@ -5,6 +5,9 @@ import type {
   StyleEntry,
   StyleProvider,
 } from '../../types';
+import { logger } from '../../utils';
+
+const styleManagementLogger = logger.scope('StyleManagement');
 
 type StyleServiceModule = typeof import('../../services/styleService');
 let styleServiceModulePromise: Promise<StyleServiceModule> | null = null;
@@ -114,7 +117,9 @@ export const createStyleManagement = (): StyleManagement => {
       maxAge: cutoffDate,
       onProgress: progress => {
         if (progress.completed % 10 === 0 || progress.completed === progress.total) {
-          console.warn(`Style cleanup progress: ${progress.completed}/${progress.total}`);
+          styleManagementLogger.debug(
+            `Style cleanup progress: ${progress.completed}/${progress.total}`
+          );
         }
       },
     });
