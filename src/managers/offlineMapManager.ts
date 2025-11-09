@@ -1,10 +1,10 @@
 export {
-	OfflineMapManager,
-	createOfflineMapManager,
-	createOfflineMapManagerModules,
+  OfflineMapManager,
+  createOfflineMapManager,
+  createOfflineMapManagerModules,
 } from './offlineMapManager/index';
 export type {
-	OfflineManagerServices,
-	OfflineManagerServiceOverrides,
-	OfflineMapManagerModules,
+  OfflineManagerServices,
+  OfflineManagerServiceOverrides,
+  OfflineMapManagerModules,
 } from './offlineMapManager/index';

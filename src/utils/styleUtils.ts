@@ -3,8 +3,15 @@ import type { MapboxStyle } from '../types/style';
 /**
  * Patches a MapboxStyle for offline use by replacing URLs with IndexedDB references
  */
-export function patchStyleForOffline(style: MapboxStyle, downloadId: string): MapboxStyle {
-  console.warn(`🎨 Patching style for offline use with downloadId: ${downloadId}`);
+export function patchStyleForOffline(
+  style: MapboxStyle,
+  downloadId: string,
+  maxZoom?: number,
+  tileExtension?: string
+): MapboxStyle {
+  console.warn(
+    `🎨 Patching style for offline use with downloadId: ${downloadId}, maxZoom: ${maxZoom}, tileExtension: ${tileExtension}`
+  );
   console.warn(`📄 Original style:`, style);
 
   // Patch sources
@@ -12,6 +19,7 @@ export function patchStyleForOffline(style: MapboxStyle, downloadId: string): Ma
     const source = style.sources[sourceKey] as {
       tiles?: string[];
       url?: string;
+      maxzoom?: number;
     };
     console.warn(`🔧 Patching source: ${sourceKey}`, source);
 
@@ -19,16 +27,28 @@ export function patchStyleForOffline(style: MapboxStyle, downloadId: string): Ma
       const originalTiles = [...source.tiles];
       // Patch to idb://{downloadId}/tile/{sourceKey}/{z}/{x}/{y}.ext
       source.tiles = source.tiles.map((url: string) => {
-        // Try to extract extension from the original URL
-        const extMatch = url.match(/\{z\}\/\{x\}\/\{y\}\.(\w+)/);
-        const ext = extMatch ? extMatch[1] : 'pbf';
+        // Use stored tileExtension if available, otherwise try to extract from URL
+        let ext = tileExtension;
+        if (!ext) {
+          const extMatch = url.match(/\{z\}\/\{x\}\/\{y\}\.(\w+)/);
+          ext = extMatch ? extMatch[1] : 'pbf';
+        }
         return `idb://${downloadId}/tile/${sourceKey}/{z}/{x}/{y}.${ext}`;
       });
-      console.warn(`🗺️ Patched tiles for ${sourceKey}:`, {
+      console.warn(`🗺️ Patched tiles for ${sourceKey} with extension .${tileExtension || 'pbf'}:`, {
         original: originalTiles,
         patched: source.tiles,
       });
     }
+
+    // Set maxzoom to the region's maxZoom to enable overzooming
+    // This prevents MapLibre from requesting tiles beyond what we downloaded
+    if (maxZoom !== undefined) {
+      const originalMaxzoom = source.maxzoom;
+      source.maxzoom = maxZoom;
+      console.warn(`🔢 Set maxzoom for ${sourceKey}: ${originalMaxzoom} → ${maxZoom}`);
+    }
+
     if (source.url) {
       const originalUrl = source.url;
       source.url = `idb://${downloadId}/tilesjson/${encodeURIComponent(sourceKey)}`;

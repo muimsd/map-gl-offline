@@ -871,7 +871,7 @@ export async function isStyleDownloaded(styleId?: string, styleUrl?: string): Pr
   if (styleUrl) {
     const allStyles = await db.getAll('styles');
     return allStyles.some(
-      (s: Record<string, unknown> & { style?: { sprite?: string }; originalUrl?: string }) => 
+      (s: Record<string, unknown> & { style?: { sprite?: string }; originalUrl?: string }) =>
         s?.style?.sprite?.includes(styleUrl) || s?.originalUrl === styleUrl
     );
   }

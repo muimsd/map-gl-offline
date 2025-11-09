@@ -8,3 +8,6 @@ export * from './idbFetchHandler';
 export * from './styleProviderUtils';
 export * from './styleUtils';
 export * from './cleanupCompressedTiles';
+export * from './logger';
+export * from './constants';
+export * from './errorHandling';

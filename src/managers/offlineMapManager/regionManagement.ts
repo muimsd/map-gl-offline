@@ -10,15 +10,10 @@ export interface RegionManagement {
   getStoredRegion(regionId: string): Promise<StoredRegion | null>;
 }
 
-export const createRegionManagement = (
-  services: OfflineManagerServices
-): RegionManagement => ({
-  addRegion: async (region: OfflineRegionOptions) =>
-    services.regionService.addRegion(region),
-  loadRegion: async (region: OfflineRegionOptions) =>
-    services.regionService.loadRegion(region),
-  deleteRegion: async (regionId: string) =>
-    services.regionService.deleteRegion(regionId),
+export const createRegionManagement = (services: OfflineManagerServices): RegionManagement => ({
+  addRegion: async (region: OfflineRegionOptions) => services.regionService.addRegion(region),
+  loadRegion: async (region: OfflineRegionOptions) => services.regionService.loadRegion(region),
+  deleteRegion: async (regionId: string) => services.regionService.deleteRegion(regionId),
   listRegions: async () => services.regionService.listRegions(),
   listStoredRegions: async () => services.regionService.listStoredRegions(),
   getStoredRegion: async (regionId: string) => {

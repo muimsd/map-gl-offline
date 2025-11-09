@@ -1,3 +1,4 @@
+import { logger } from '../utils';
 import type {
   StorageAnalyticsReport,
   MaintenanceOptions,
@@ -6,6 +7,8 @@ import type {
   CleanupResult,
 } from '../types';
 
+const maintenanceLogger = logger.scope('MaintenanceService');
+
 // Re-export types for convenience
 export type { MaintenanceOptions, MaintenanceResults } from '../types/maintenance';
 
@@ -13,11 +16,23 @@ export class MaintenanceService {
   constructor(
     private performSmartCleanup: (options?: RegionCleanupOptions) => Promise<CleanupResult>,
     private listRegions: () => Promise<unknown[]>,
-    private verifyAndRepairFonts: (styleId: string, options?: Record<string, unknown>) => Promise<unknown>,
-    private verifyAndRepairSprites: (styleId: string, options?: Record<string, unknown>) => Promise<unknown>,
-    private verifyAndRepairGlyphs: (styleId: string, options?: Record<string, unknown>) => Promise<unknown>,
+    private verifyAndRepairFonts: (
+      styleId: string,
+      options?: Record<string, unknown>
+    ) => Promise<unknown>,
+    private verifyAndRepairSprites: (
+      styleId: string,
+      options?: Record<string, unknown>
+    ) => Promise<unknown>,
+    private verifyAndRepairGlyphs: (
+      styleId: string,
+      options?: Record<string, unknown>
+    ) => Promise<unknown>,
     private cleanupOldFonts: (options?: Record<string, unknown>) => Promise<unknown>,
-    private cleanupOldSprites: (styleId: string, options?: Record<string, unknown>) => Promise<unknown>,
+    private cleanupOldSprites: (
+      styleId: string,
+      options?: Record<string, unknown>
+    ) => Promise<unknown>,
     private cleanupOldGlyphs: (options?: Record<string, unknown>) => Promise<unknown>,
     private getComprehensiveStorageAnalytics: () => Promise<StorageAnalyticsReport>
   ) {}
@@ -59,9 +74,12 @@ export class MaintenanceService {
               ]);
 
               const fontRes = fontResult as { corruptedFonts?: number; removedFonts?: number };
-              const spriteRes = spriteResult as { corruptedSprites?: number; repairedSprites?: number };
+              const spriteRes = spriteResult as {
+                corruptedSprites?: number;
+                repairedSprites?: number;
+              };
               const glyphRes = glyphResult as { corruptedGlyphs?: number; repairedGlyphs?: number };
-              
+
               integrityResults.fonts.corrupted += fontRes.corruptedFonts || 0;
               integrityResults.fonts.repaired += fontRes.removedFonts || 0;
               integrityResults.sprites.corrupted += spriteRes.corruptedSprites || 0;
@@ -69,7 +87,7 @@ export class MaintenanceService {
               integrityResults.glyphs.corrupted += glyphRes.corruptedGlyphs || 0;
               integrityResults.glyphs.repaired += glyphRes.repairedGlyphs || 0;
             } catch (error) {
-              console.warn(`Integrity check failed for style ${styleId}:`, error);
+              maintenanceLogger.warn(`Integrity check failed for style ${styleId}:`, error);
             }
           }
         }
@@ -93,11 +111,15 @@ export class MaintenanceService {
         const fontClean = fontCleanup as { freedSpace?: number; deletedCount?: number };
         const spriteClean = spriteCleanup as { freedSpace?: number; deletedCount?: number };
         const glyphClean = glyphCleanup as { freedSpace?: number; deletedCount?: number };
-        
+
         totalFreedSpace +=
-          (fontClean.freedSpace || 0) + (spriteClean.freedSpace || 0) + (glyphClean.freedSpace || 0);
+          (fontClean.freedSpace || 0) +
+          (spriteClean.freedSpace || 0) +
+          (glyphClean.freedSpace || 0);
         optimizedResources +=
-          (fontClean.deletedCount || 0) + (spriteClean.deletedCount || 0) + (glyphClean.deletedCount || 0);
+          (fontClean.deletedCount || 0) +
+          (spriteClean.deletedCount || 0) +
+          (glyphClean.deletedCount || 0);
 
         results.optimizationResults = {
           freedSpace: totalFreedSpace,
@@ -122,7 +144,7 @@ export class MaintenanceService {
         totalTimeMs: Date.now() - startTime,
       } as MaintenanceResults;
     } catch (error) {
-      console.error('Maintenance operation failed:', error);
+      maintenanceLogger.error('Maintenance operation failed:', error);
       throw error;
     }
   }

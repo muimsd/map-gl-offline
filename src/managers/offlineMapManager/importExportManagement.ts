@@ -9,10 +9,7 @@ import type {
 import type { OfflineManagerServices } from './base';
 
 export interface ImportExportManagement {
-  exportRegionAsJSON(
-    regionId: string,
-    options?: ImportExportOptions
-  ): Promise<ExportResult>;
+  exportRegionAsJSON(regionId: string, options?: ImportExportOptions): Promise<ExportResult>;
   exportRegionAsPMTiles(
     regionId: string,
     options?: ImportExportOptions & PMTilesExportOptions
@@ -28,10 +25,8 @@ export interface ImportExportManagement {
 export const createImportExportManagement = (
   services: OfflineManagerServices
 ): ImportExportManagement => ({
-  exportRegionAsJSON: async (
-    regionId: string,
-    options: ImportExportOptions = {}
-  ) => services.importExportService.exportRegionAsJSON(regionId, options),
+  exportRegionAsJSON: async (regionId: string, options: ImportExportOptions = {}) =>
+    services.importExportService.exportRegionAsJSON(regionId, options),
   exportRegionAsPMTiles: async (
     regionId: string,
     options: ImportExportOptions & PMTilesExportOptions = {}

@@ -1,6 +1,8 @@
 import { dbPromise } from '../storage/indexedDbManager';
-import { fetchWithRetry } from '../utils';
+import { fetchWithRetry, logger } from '../utils';
 import type { GlyphDownloadOptions, GlyphDownloadResult, GlyphEntry, GlyphRange } from '../types';
+
+const glyphLogger = logger.scope('GlyphService');
 
 export interface EnhancedGlyphStats {
   count: number;
@@ -113,10 +115,15 @@ export class GlyphService {
               if (decompressedStream) {
                 const originalSize = data.byteLength;
                 data = await new Response(decompressedStream).arrayBuffer();
-                console.warn(`Decompressed gzipped glyph ${fontstack}/${range}: ${originalSize} -> ${data.byteLength} bytes`);
+                glyphLogger.debug(
+                  `Decompressed gzipped glyph ${fontstack}/${range}: ${originalSize} -> ${data.byteLength} bytes`
+                );
               }
             } catch (decompressError) {
-              console.warn(`Failed to decompress glyph ${fontstack}/${range}, storing as-is:`, decompressError);
+              glyphLogger.warn(
+                `Failed to decompress glyph ${fontstack}/${range}, storing as-is:`,
+                decompressError
+              );
             }
           }
 
@@ -188,7 +195,7 @@ export class GlyphService {
   }
 
   async loadGlyphs(fontstack: string, ranges: string[], styleName?: string): Promise<GlyphRange[]> {
-  const glyphRanges: GlyphRange[] = [];
+    const glyphRanges: GlyphRange[] = [];
 
     for (const range of ranges) {
       const glyph = await this.getGlyph(fontstack, range, styleName);
@@ -260,9 +267,10 @@ export class GlyphService {
       count++;
       totalSize += glyphEntry.size;
 
-      const parsedKey = glyphEntry.fontstack && glyphEntry.range
-        ? { fontstack: glyphEntry.fontstack, range: glyphEntry.range }
-        : this.parseGlyphKey(glyphEntry.key);
+      const parsedKey =
+        glyphEntry.fontstack && glyphEntry.range
+          ? { fontstack: glyphEntry.fontstack, range: glyphEntry.range }
+          : this.parseGlyphKey(glyphEntry.key);
       const fontstack = parsedKey.fontstack;
       const range = parsedKey.range;
 
@@ -275,8 +283,8 @@ export class GlyphService {
       });
 
       // Track by fontstack
-  fontsByStack[fontstack] = (fontsByStack[fontstack] || 0) + 1;
-  sizeByStack[fontstack] = (sizeByStack[fontstack] || 0) + glyphEntry.size;
+      fontsByStack[fontstack] = (fontsByStack[fontstack] || 0) + 1;
+      sizeByStack[fontstack] = (sizeByStack[fontstack] || 0) + glyphEntry.size;
 
       // Track oldest and newest
       if (!oldestGlyph || glyphEntry.lastModified < oldestGlyph.lastModified) {

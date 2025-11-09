@@ -90,10 +90,7 @@ export const createStyleManagement = (): StyleManagement => {
       forceProvider: true,
     });
 
-  const downloadMapLibreStyle = async (
-    styleUrl: string,
-    options: StyleDownloadOptions = {}
-  ) =>
+  const downloadMapLibreStyle = async (styleUrl: string, options: StyleDownloadOptions = {}) =>
     downloadStyle(styleUrl, {
       ...options,
       provider: 'maplibre',

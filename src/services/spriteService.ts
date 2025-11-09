@@ -5,7 +5,9 @@ import type {
   SpriteDownloadResult,
   SpriteEntry,
 } from '../types';
-import { fetchWithRetry, processBatch, createProgressTracker } from '../utils';
+import { fetchWithRetry, processBatch, createProgressTracker, logger } from '../utils';
+
+const spriteLogger = logger.scope('SpriteService');
 
 export class SpriteService {
   private db = dbPromise;
@@ -25,7 +27,7 @@ export class SpriteService {
       storageQuotaCheck = true,
       prioritySprites = [],
       bandwidthLimit,
-      enableValidation = true
+      enableValidation = true,
     } = options;
 
     const startTime = Date.now();
@@ -97,15 +99,15 @@ export class SpriteService {
     }
 
     // Process sprites in batches
-    console.warn(
+    spriteLogger.debug(
       `Starting to download ${urlsToDownload.length} sprites in batches of ${batchSize}`
     );
 
     // Debug: Show all sprite URLs and their generated keys
-    console.warn('Sprite URLs and their generated keys:');
+    spriteLogger.debug('Sprite URLs and their generated keys:');
     urlsToDownload.forEach(url => {
       const key = this.createSpriteKey(url, styleName);
-      console.warn(`  ${url} -> ${key}`);
+      spriteLogger.debug(`  ${url} -> ${key}`);
     });
 
     await processBatch(
@@ -115,7 +117,7 @@ export class SpriteService {
           const spriteName = this.extractSpriteName(spriteUrl);
           const spriteKey = this.createSpriteKey(spriteUrl, styleName);
 
-          console.warn(`Downloading sprite: ${spriteUrl}`);
+          spriteLogger.debug(`Downloading sprite: ${spriteUrl}`);
 
           progressTracker.update(1, spriteName);
 
@@ -158,14 +160,19 @@ export class SpriteService {
               if (decompressedStream) {
                 const originalSize = spriteData.byteLength;
                 spriteData = await new Response(decompressedStream).arrayBuffer();
-                console.warn(`Decompressed gzipped sprite ${spriteName}: ${originalSize} -> ${spriteData.byteLength} bytes`);
+                spriteLogger.debug(
+                  `Decompressed gzipped sprite ${spriteName}: ${originalSize} -> ${spriteData.byteLength} bytes`
+                );
               }
             } catch (decompressError) {
-              console.warn(`Failed to decompress sprite ${spriteName}, storing as-is:`, decompressError);
+              spriteLogger.warn(
+                `Failed to decompress sprite ${spriteName}, storing as-is:`,
+                decompressError
+              );
             }
           }
 
-          console.warn(
+          spriteLogger.debug(
             `Downloaded sprite ${spriteUrl}: ${spriteData.byteLength} bytes, type: ${contentType}`
           );
 
@@ -193,7 +200,7 @@ export class SpriteService {
             },
           };
 
-          console.warn(`Storing sprite with key: ${spriteKey} for URL: ${spriteUrl}`);
+          spriteLogger.debug(`Storing sprite with key: ${spriteKey} for URL: ${spriteUrl}`);
 
           // Store sprite in database
           await db.put('sprites', spriteEntry);
@@ -201,16 +208,16 @@ export class SpriteService {
           // Verify the sprite was stored
           const storedSprite = await db.get('sprites', spriteKey);
           if (storedSprite) {
-            console.warn(
+            spriteLogger.debug(
               `✓ Verified sprite stored with key: ${spriteKey}, size: ${storedSprite.size} bytes`
             );
           } else {
-            console.error(`✗ Failed to verify sprite storage for key: ${spriteKey}`);
+            spriteLogger.error(`✗ Failed to verify sprite storage for key: ${spriteKey}`);
           }
 
           // Show total sprite count in database
           const allSprites = await db.getAll('sprites');
-          console.warn(`Database now contains ${allSprites.length} sprites total`);
+          spriteLogger.debug(`Database now contains ${allSprites.length} sprites total`);
 
           totalSize += spriteData.byteLength;
           downloadedSprites++;
@@ -232,7 +239,7 @@ export class SpriteService {
             url: spriteUrl,
             error: errorMessage,
           });
-          console.error(`Failed to download sprite ${spriteUrl}:`, error);
+          spriteLogger.error(`Failed to download sprite ${spriteUrl}:`, error);
 
           // Update progress even on failure
           if (onProgress) {
@@ -264,7 +271,7 @@ export class SpriteService {
       });
     }
 
-    console.warn(
+    spriteLogger.info(
       `Sprite download completed: ${downloadedSprites}/${spriteUrls.length} sprites downloaded in ${duration}ms`
     );
 
@@ -429,11 +436,12 @@ export class SpriteService {
           await this.validateSprite(spriteEntry.data, spriteEntry.contentType || 'image/png');
           verified++;
         }
-        } catch (repairError: unknown) {
-          console.warn('Failed to repair corrupted sprites:', repairError);
-          // Repair failed, return empty result
-          return { verified: 0, repaired: 0, removed: 0 };
-        }      cursor = await cursor.continue();
+      } catch (repairError: unknown) {
+        spriteLogger.warn('Failed to repair corrupted sprites:', repairError);
+        // Repair failed, return empty result
+        return { verified: 0, repaired: 0, removed: 0 };
+      }
+      cursor = await cursor.continue();
     }
 
     return { verified, repaired, removed };

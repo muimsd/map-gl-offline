@@ -78,31 +78,34 @@ export class OfflineManagerControl implements IControl {
 
       // Development proxy for CORS issues (when running on localhost)
       if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
-        // Proxy Carto tile requests (handle all subdomains)
-        if (url.includes('tiles-a.basemaps.cartocdn.com')) {
+        // Proxy Carto tile requests ONLY (not fonts/glyphs/sprites)
+        // Only proxy URLs that match the tile pattern: /tiles/.../{z}/{x}/{y}
+        const isTileRequest = /\/\d+\/\d+\/\d+\.(pbf|mvt|png|jpg|jpeg|webp)/.test(url);
+
+        if (isTileRequest && url.includes('tiles-a.basemaps.cartocdn.com')) {
           const proxyUrl = url.replace('https://tiles-a.basemaps.cartocdn.com', '/tiles/carto-a');
           return originalFetch(proxyUrl, init);
         }
-        if (url.includes('tiles-b.basemaps.cartocdn.com')) {
+        if (isTileRequest && url.includes('tiles-b.basemaps.cartocdn.com')) {
           const proxyUrl = url.replace('https://tiles-b.basemaps.cartocdn.com', '/tiles/carto-b');
           return originalFetch(proxyUrl, init);
         }
-        if (url.includes('tiles-c.basemaps.cartocdn.com')) {
+        if (isTileRequest && url.includes('tiles-c.basemaps.cartocdn.com')) {
           const proxyUrl = url.replace('https://tiles-c.basemaps.cartocdn.com', '/tiles/carto-c');
           return originalFetch(proxyUrl, init);
         }
-        if (url.includes('tiles-d.basemaps.cartocdn.com')) {
+        if (isTileRequest && url.includes('tiles-d.basemaps.cartocdn.com')) {
           const proxyUrl = url.replace('https://tiles-d.basemaps.cartocdn.com', '/tiles/carto-d');
           return originalFetch(proxyUrl, init);
         }
-        
+
         // Fallback for old format
-        if (url.includes('tiles.basemaps.cartocdn.com')) {
+        if (isTileRequest && url.includes('tiles.basemaps.cartocdn.com')) {
           const proxyUrl = url.replace('https://tiles.basemaps.cartocdn.com', '/tiles/carto-a');
           return originalFetch(proxyUrl, init);
         }
-        
-        // Proxy OpenStreetMap tile requests  
+
+        // Proxy OpenStreetMap tile requests
         if (url.includes('tile.openstreetmap.org')) {
           const proxyUrl = url.replace('https://tile.openstreetmap.org', '/tiles/osm');
           return originalFetch(proxyUrl, init);

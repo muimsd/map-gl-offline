@@ -1,6 +1,12 @@
 import { dbPromise } from '../storage/indexedDbManager';
 import * as tilebelt from '@mapbox/tilebelt';
-import { fetchResourceWithRetry, processBatch, createProgressTracker, validateResource } from '../utils';
+import {
+  fetchResourceWithRetry,
+  processBatch,
+  createProgressTracker,
+  validateResource,
+  logger,
+} from '../utils';
 import type { FetchResourceResult } from '../utils';
 import type {
   TileDownloadOptions,
@@ -10,6 +16,9 @@ import type {
   MapboxStyle,
   TileEntry,
 } from '../types';
+
+const tileLogger = logger.scope('TileService');
+
 export class TileService {
   private db = dbPromise;
 
@@ -31,7 +40,7 @@ export class TileService {
       storageQuotaCheck = true,
       validateTiles = false,
       compressTiles = false,
-      bandwidthLimit
+      bandwidthLimit,
     } = options;
 
     const startTime = Date.now();
@@ -85,20 +94,20 @@ export class TileService {
     const downloadPlans: TileDownloadPlan[] = [];
     let totalTilesToDownload = 0;
 
-    console.warn(`📋 Processing ${tileSources.size} tile sources for download planning`);
-    
+    tileLogger.debug(`Processing ${tileSources.size} tile sources for download planning`);
+
     for (const [sourceId, sourceConfig] of tileSources) {
-      console.warn(`  🔍 Checking source ${sourceId}:`, {
+      tileLogger.debug(`Checking source ${sourceId}:`, {
         hasTiles: !!sourceConfig.tiles,
         tilesLength: sourceConfig.tiles?.length || 0,
         minzoom: sourceConfig.minzoom,
         maxzoom: sourceConfig.maxzoom,
       });
-      
+
       const tiles = sourceConfig.tiles;
 
       if (!tiles || tiles.length === 0) {
-        console.warn(`  ⚠️ Skipping source ${sourceId}: no tiles array`);
+        tileLogger.debug(`Skipping source ${sourceId}: no tiles array`);
         continue;
       }
 
@@ -109,36 +118,33 @@ export class TileService {
         coord => coord.z >= sourceMinZ && coord.z <= sourceMaxZ
       );
 
-      console.warn(`  📍 After zoom filter (${sourceMinZ}-${sourceMaxZ}): ${coordsForSource.length} tiles`);
+      tileLogger.debug(
+        `After zoom filter (${sourceMinZ}-${sourceMaxZ}): ${coordsForSource.length} tiles`
+      );
 
       if (coordsForSource.length === 0) {
-        console.warn(`  ⚠️ Skipping source ${sourceId}: no tiles in zoom range`);
+        tileLogger.debug(`Skipping source ${sourceId}: no tiles in zoom range`);
         continue;
       }
 
       const extension = this.extractExtension(tiles[0]);
-      console.warn(`  📦 Extension extracted: ${extension}`);
+      tileLogger.debug(`Extension extracted: ${extension}`);
 
       if (skipExisting) {
         const existingTiles = await this.getExistingTileKeys(styleId, sourceId);
         const originalCount = coordsForSource.length;
         coordsForSource = coordsForSource.filter(coord => {
-          const key = this.createTileKey(
-            coord.x,
-            coord.y,
-            coord.z,
-            styleId,
-            sourceId,
-            extension
-          );
+          const key = this.createTileKey(coord.x, coord.y, coord.z, styleId, sourceId, extension);
           return !existingTiles.has(key);
         });
         skippedTiles += originalCount - coordsForSource.length;
-        console.warn(`  🔄 After skipExisting filter: ${coordsForSource.length} tiles (${originalCount - coordsForSource.length} skipped)`);
+        tileLogger.debug(
+          `After skipExisting filter: ${coordsForSource.length} tiles (${originalCount - coordsForSource.length} skipped)`
+        );
       }
 
       if (coordsForSource.length === 0) {
-        console.warn(`  ⚠️ Skipping source ${sourceId}: all tiles already exist`);
+        tileLogger.debug(`Skipping source ${sourceId}: all tiles already exist`);
         continue;
       }
 
@@ -154,9 +160,13 @@ export class TileService {
       totalTilesToDownload += coordsForSource.length;
     }
 
-    console.warn(`📊 Download plan summary: ${downloadPlans.length} plans, ${totalTilesToDownload} total tiles`);
+    tileLogger.info(
+      `Download plan summary: ${downloadPlans.length} plans, ${totalTilesToDownload} total tiles`
+    );
     for (const plan of downloadPlans) {
-      console.warn(`  - ${plan.sourceId}: ${plan.coords.length} tiles, ${plan.templates.length} templates`);
+      tileLogger.debug(
+        `- ${plan.sourceId}: ${plan.coords.length} tiles, ${plan.templates.length} templates`
+      );
     }
 
     const progressTracker = createProgressTracker(totalTilesToDownload);
@@ -203,16 +213,18 @@ export class TileService {
             let view: Uint8Array | null = null;
             if (tileData.byteLength > 0) {
               view = new Uint8Array(tileData);
-              
+
               // Check for HTML/XML signatures
               if (
                 (view[0] === 0x3c && view[1] === 0x21) || // <!
                 (view[0] === 0x3c && view[1] === 0x3f) || // <?
                 (view[0] === 0x3c && view[1] === 0x68) || // <h (html)
-                (view[0] === 0x3c && view[1] === 0x48)    // <H (HTML)
+                (view[0] === 0x3c && view[1] === 0x48) // <H (HTML)
               ) {
                 const textDecoder = new TextDecoder();
-                const preview = textDecoder.decode(tileData.slice(0, Math.min(200, tileData.byteLength)));
+                const preview = textDecoder.decode(
+                  tileData.slice(0, Math.min(200, tileData.byteLength))
+                );
                 throw new Error(
                   `Received HTML/XML instead of tile data. Preview: ${preview.substring(0, 100)}...`
                 );
@@ -223,14 +235,17 @@ export class TileService {
                 // PBF tiles should not start with common text/HTML bytes
                 if (view[0] < 0x08) {
                   // Valid protobuf field numbers are 1-15 in first byte (0x08-0x78 range typically)
-                  console.warn(`⚠️ Suspicious vector tile format for ${label}, first bytes: [${view[0]}, ${view[1]}]`);
+                  tileLogger.warn(
+                    `Suspicious vector tile format for ${label}, first bytes: [${view[0]}, ${view[1]}]`
+                  );
                 }
               }
 
               // Decompress gzipped tiles before storage for reliable offline serving
               // Check both content-encoding header AND gzip magic bytes
-              const isGzipped = (view[0] === 0x1f && view[1] === 0x8b) || contentEncoding === 'gzip';
-              
+              const isGzipped =
+                (view[0] === 0x1f && view[1] === 0x8b) || contentEncoding === 'gzip';
+
               if (isGzipped) {
                 try {
                   const decompressedStream = new Response(tileData).body?.pipeThrough(
@@ -240,10 +255,13 @@ export class TileService {
                     const decompressed = await new Response(decompressedStream).arrayBuffer();
                     tileData = decompressed;
                   } else {
-                    console.warn(`⚠️ Response body is null for tile ${label}, storing as-is`);
+                    tileLogger.warn(`Response body is null for tile ${label}, storing as-is`);
                   }
                 } catch (decompressError) {
-                  console.warn(`Failed to decompress tile ${label}, storing as-is:`, decompressError);
+                  tileLogger.warn(
+                    `Failed to decompress tile ${label}, storing as-is:`,
+                    decompressError
+                  );
                 }
               }
             }
@@ -285,15 +303,14 @@ export class TileService {
           } catch (_error) {
             failedTiles++;
             const errorObject = _error as unknown;
-            errorMessage =
-              errorObject instanceof Error ? errorObject.message : String(errorObject);
+            errorMessage = errorObject instanceof Error ? errorObject.message : String(errorObject);
 
             errors.push({
               url: tileUrl || label,
               error: errorMessage,
             });
 
-            console.error(
+            tileLogger.error(
               `Failed to download tile ${z}/${x}/${y} from ${plan.sourceId}:`,
               errorObject
             );
@@ -313,6 +330,9 @@ export class TileService {
       emitProgress();
     }
 
+    // Get the tile extension from the first download plan
+    const tileExtension = downloadPlans.length > 0 ? downloadPlans[0].ext : undefined;
+
     return {
       totalTiles: totalTilesToDownload + skippedTiles,
       downloadedTiles,
@@ -322,6 +342,7 @@ export class TileService {
       downloadTime,
       averageSpeed,
       errors,
+      tileExtension, // Return the extension used for tiles
     };
   }
 
@@ -435,9 +456,9 @@ export class TileService {
     const tiles: Array<{ x: number; y: number; z: number }> = [];
     const tilesByZoom: Record<number, number> = {};
 
-    console.warn('=== TILE COORDINATE GENERATION DEBUG ===');
-    console.warn('Region bounds:', region.bounds);
-    console.warn('Zoom range:', region.minZoom, 'to', region.maxZoom);
+    tileLogger.debug('=== TILE COORDINATE GENERATION DEBUG ===');
+    tileLogger.debug('Region bounds:', region.bounds);
+    tileLogger.debug('Zoom range:', region.minZoom, 'to', region.maxZoom);
 
     // Calculate area for reference - more accurate calculation
     const [[west, south], [east, north]] = region.bounds;
@@ -451,8 +472,8 @@ export class TileService {
     const heightKm = heightDeg * 110.54; // 110.54 km per degree of latitude
     const areaApproxKm2 = widthKm * heightKm;
 
-    console.warn(`Approximate area: ${areaApproxKm2.toFixed(2)} km² (improved calculation)`);
-    console.warn(`Region dimensions: ${widthKm.toFixed(1)}km × ${heightKm.toFixed(1)}km`);
+    tileLogger.debug(`Approximate area: ${areaApproxKm2.toFixed(2)} km² (improved calculation)`);
+    tileLogger.debug(`Region dimensions: ${widthKm.toFixed(1)}km × ${heightKm.toFixed(1)}km`);
 
     for (let z = region.minZoom; z <= region.maxZoom; z++) {
       const bounds = region.bounds;
@@ -467,7 +488,7 @@ export class TileService {
       const tilesAtZoom = (maxX - minX + 1) * (maxY - minY + 1);
       tilesByZoom[z] = tilesAtZoom;
 
-      console.warn(`Zoom ${z}: ${tilesAtZoom} tiles (X: ${minX}-${maxX}, Y: ${minY}-${maxY})`);
+      tileLogger.debug(`Zoom ${z}: ${tilesAtZoom} tiles (X: ${minX}-${maxX}, Y: ${minY}-${maxY})`);
 
       for (let x = minX; x <= maxX; x++) {
         for (let y = minY; y <= maxY; y++) {
@@ -477,19 +498,21 @@ export class TileService {
     }
 
     const totalTiles = tiles.length;
-    console.warn('=== TILE COUNT SUMMARY ===');
-    console.warn('Tiles by zoom level:', tilesByZoom);
-    console.warn(`Total tile coordinates generated: ${totalTiles}`);
-    console.warn('=============================');
+    tileLogger.debug('=== TILE COUNT SUMMARY ===');
+    tileLogger.debug('Tiles by zoom level:', tilesByZoom);
+    tileLogger.debug(`Total tile coordinates generated: ${totalTiles}`);
+    tileLogger.debug('=============================');
 
     return tiles;
   }
 
-  private async extractTileSources(style: MapboxStyle): Promise<Map<string, { tiles: string[]; minzoom?: number; maxzoom?: number }>> {
+  private async extractTileSources(
+    style: MapboxStyle
+  ): Promise<Map<string, { tiles: string[]; minzoom?: number; maxzoom?: number }>> {
     const tileSources = new Map();
 
     if (!style || !style.sources) {
-      console.warn('Style or sources missing in extractTileSources', {
+      tileLogger.warn('Style or sources missing in extractTileSources', {
         hasStyle: !!style,
         hasSources: !!(style && style.sources),
         sourceKeys: style && style.sources ? Object.keys(style.sources) : [],
@@ -497,7 +520,7 @@ export class TileService {
       return tileSources;
     }
 
-    console.warn('Processing sources in extractTileSources:', Object.keys(style.sources));
+    tileLogger.debug('Processing sources in extractTileSources:', Object.keys(style.sources));
 
     for (const [sourceId, sourceConfig] of Object.entries(style.sources)) {
       const config = sourceConfig as {
@@ -508,7 +531,7 @@ export class TileService {
         maxzoom?: number;
       };
 
-      console.warn(`Processing source ${sourceId}:`, {
+      tileLogger.debug(`Processing source ${sourceId}:`, {
         type: config.type,
         hasTiles: !!config.tiles,
         hasUrl: !!config.url,
@@ -524,27 +547,34 @@ export class TileService {
           const httpTiles = config.tiles.filter((tile: string) => !tile.startsWith('idb://'));
           if (httpTiles.length > 0) {
             tileSources.set(sourceId, { ...config, tiles: httpTiles });
-            console.warn(`Found tile source: ${sourceId} with direct tiles URLs:`, httpTiles[0]);
+            tileLogger.debug(
+              `Found tile source: ${sourceId} with direct tiles URLs:`,
+              httpTiles[0]
+            );
           } else {
-            console.warn(`Source ${sourceId} has only idb:// URLs, skipping for download`);
+            tileLogger.debug(`Source ${sourceId} has only idb:// URLs, skipping for download`);
           }
           continue;
         }
 
         // Handle TileJSON URL sources
         if (config.url) {
-          console.warn(`Processing TileJSON URL for source ${sourceId}:`, config.url);
+          tileLogger.debug(`Processing TileJSON URL for source ${sourceId}:`, config.url);
 
           // Check if we have the original URL stored (from patched styles)
           let urlToFetch = config.url;
           if (config.url.startsWith('idb://') && '__originalTilesetUrl' in config) {
-            urlToFetch = (config as { __originalTilesetUrl?: string }).__originalTilesetUrl || config.url;
-            console.warn(`Found original URL for patched source ${sourceId}:`, urlToFetch);
+            urlToFetch =
+              (config as { __originalTilesetUrl?: string }).__originalTilesetUrl || config.url;
+            tileLogger.debug(`Found original URL for patched source ${sourceId}:`, urlToFetch);
           }
 
           // Filter out idb:// URLs if we don't have an original URL
           if (urlToFetch.startsWith('idb://')) {
-            console.warn(`Source ${sourceId} has idb:// URL and no original URL, skipping for download:`, config.url);
+            tileLogger.debug(
+              `Source ${sourceId} has idb:// URL and no original URL, skipping for download:`,
+              config.url
+            );
             continue;
           }
 
@@ -558,12 +588,12 @@ export class TileService {
                 // Fetch the TileJSON
                 const tilejsonUrl = urlToFetch.replace('tilejson+', '');
                 console.warn(`Fetching TileJSON from: ${tilejsonUrl}`);
-                
+
                 const response = await fetchResourceWithRetry(tilejsonUrl, {
                   timeout: 10000,
-                  retries: 2
+                  retries: 2,
                 });
-                
+
                 if (response.type === 'json') {
                   const jsonData = response.data;
                   if (
@@ -585,8 +615,11 @@ export class TileService {
                   throw new Error('Invalid TileJSON response');
                 }
               } catch (tilejsonError) {
-                console.warn(`Failed to fetch TileJSON from ${urlToFetch}, falling back to pattern generation:`, tilejsonError);
-                
+                console.warn(
+                  `Failed to fetch TileJSON from ${urlToFetch}, falling back to pattern generation:`,
+                  tilejsonError
+                );
+
                 // Fallback to pattern generation
                 if (urlToFetch.includes('tilejson+')) {
                   tileUrlPattern = urlToFetch
@@ -717,10 +750,7 @@ export class TileService {
     return templates[index];
   }
 
-  private populateTemplate(
-    template: string,
-    coord: { x: number; y: number; z: number }
-  ): string {
+  private populateTemplate(template: string, coord: { x: number; y: number; z: number }): string {
     return template
       .replace('{x}', coord.x.toString())
       .replace('{y}', coord.y.toString())

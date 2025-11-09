@@ -4,6 +4,9 @@ import { dbPromise } from '../storage/indexedDbManager';
 import type { IDBPDatabase } from 'idb';
 import type { OfflineMapDB } from '../types/database';
 import type { StyleStorageItem } from '../types/style';
+import { logger } from './logger';
+
+const idbLogger = logger.scope('IDBFetch');
 
 // idb://{downloadId}/tile/{sourceKey}/{url}
 // idb://{downloadId}/glyph/{fontstack}/{range}.pbf
@@ -27,15 +30,15 @@ async function findStyleByRegionId(
           (r: { regionId?: string; id?: string }) => r.regionId === regionId || r.id === regionId
         );
         if (hasRegion) {
-          console.warn(`✅ Found style "${styleEntry.key}" containing region: ${regionId}`);
+          idbLogger.debug(`Found style "${styleEntry.key}" containing region: ${regionId}`);
           return styleEntry;
         }
       }
     }
-    console.warn(`⚠️ No style found containing region: ${regionId}`);
+    idbLogger.debug(`No style found containing region: ${regionId}`);
     return null;
   } catch (error) {
-    console.error(`💥 Error searching for style by region ID: ${regionId}`, error);
+    idbLogger.error(`Error searching for style by region ID: ${regionId}`, error);
     return null;
   }
 }
@@ -122,17 +125,19 @@ async function createTileResponse(resource: {
   }
 
   let finalData = resource.data;
-  
+
   // Check if data is actually gzipped (even if not marked as such)
   const view = new Uint8Array(resource.data);
   const isGzipped = view.length >= 2 && view[0] === 0x1f && view[1] === 0x8b;
-  
-  console.warn(`🔍 Tile check: type=${resource.type}, size=${view.length}, first2bytes=[0x${view[0]?.toString(16)}, 0x${view[1]?.toString(16)}], isGzipped=${isGzipped}`);
-  
+
+  idbLogger.debug(
+    `Tile check: type=${resource.type}, size=${view.length}, first2bytes=[0x${view[0]?.toString(16)}, 0x${view[1]?.toString(16)}], isGzipped=${isGzipped}`
+  );
+
   if (isGzipped && resource.type === 'vector') {
-    console.warn(`⚠️ Found gzipped vector tile! Decompressing on-the-fly...`);
-    console.warn(`   For better performance, delete this region and re-download.`);
-    
+    idbLogger.warn(`Found gzipped vector tile! Decompressing on-the-fly...`);
+    idbLogger.warn(`For better performance, delete this region and re-download.`);
+
     try {
       // Decompress using DecompressionStream
       const decompressedStream = new Response(resource.data).body?.pipeThrough(
@@ -140,14 +145,16 @@ async function createTileResponse(resource: {
       );
       if (decompressedStream) {
         finalData = await new Response(decompressedStream).arrayBuffer();
-        console.warn(`✅ Decompressed tile: ${resource.data.byteLength} -> ${finalData.byteLength} bytes`);
+        idbLogger.debug(
+          `Decompressed tile: ${resource.data.byteLength} -> ${finalData.byteLength} bytes`
+        );
       }
     } catch (error) {
-      console.error(`❌ Failed to decompress tile:`, error);
-      console.error(`   DELETE the region and re-download to fix this permanently.`);
+      idbLogger.error(`Failed to decompress tile:`, error);
+      idbLogger.error(`DELETE the region and re-download to fix this permanently.`);
     }
   } else if (isGzipped) {
-    console.warn(`⚠️ Found gzipped data but type is '${resource.type}', not decompressing`);
+    idbLogger.debug(`Found gzipped data but type is '${resource.type}', not decompressing`);
   }
 
   // Only set Content-Encoding if we have compressed data stored
@@ -169,15 +176,15 @@ async function createTileResponse(resource: {
 }
 
 export async function idbFetchHandler(url: string, init?: RequestInit): Promise<Response> {
-  console.warn(`🔍 IDB Fetch Handler called for URL: ${url}`);
+  idbLogger.debug(`IDB Fetch Handler called for URL: ${url}`);
   const method = init?.method || 'GET';
-  console.warn(`📋 Method: ${method}`);
+  idbLogger.debug(`Method: ${method}`);
 
   // You can handle different HTTP methods here
   if (method === 'POST') {
-    console.warn(`📝 POST request to: ${url}`);
+    idbLogger.debug(`POST request to: ${url}`);
     if (init?.body) {
-      console.warn(`📝 POST body:`, init.body);
+      idbLogger.debug(`POST body:`, init.body);
     }
   }
 
@@ -188,8 +195,8 @@ export async function idbFetchHandler(url: string, init?: RequestInit): Promise<
   const decodedResourcePath = decodeURIComponent(resourcePath);
   const key = `${downloadId}::${decodedResourcePath}`;
 
-  console.warn(
-    `📋 Parsed - downloadId: ${downloadId}, type: ${type}, resourcePath: ${resourcePath}, key: ${key}`
+  idbLogger.debug(
+    `Parsed - downloadId: ${downloadId}, type: ${type}, resourcePath: ${resourcePath}, key: ${key}`
   );
 
   try {
@@ -198,15 +205,17 @@ export async function idbFetchHandler(url: string, init?: RequestInit): Promise<
         // Find which style this region belongs to (for region-based downloads)
         const styleEntry = await findStyleByRegionId(db, downloadId);
         const actualStyleId = styleEntry?.key || downloadId;
-        
+
         if (styleEntry && downloadId !== actualStyleId) {
-          console.warn(`🔄 Region "${downloadId}" belongs to style "${actualStyleId}", using style ID for tile lookup`);
+          idbLogger.debug(
+            `Region "${downloadId}" belongs to style "${actualStyleId}", using style ID for tile lookup`
+          );
         }
-        
+
         // New format: idb://downloadId/tile/sourceKey/z/x/y.ext
         const pathParts = rest; // ['sourceKey', 'z', 'x', 'y.ext']
-        console.warn(`🗺️ Tile request - pathParts:`, pathParts);
-        
+        idbLogger.debug(`Tile request - pathParts:`, pathParts);
+
         if (pathParts.length === 4) {
           const sourceKey = pathParts[0];
           const z = parseInt(pathParts[1]);
@@ -216,31 +225,71 @@ export async function idbFetchHandler(url: string, init?: RequestInit): Promise<
           if (yMatch) {
             const y = parseInt(yMatch[1]);
             const requestedExt = yMatch[2]; // Extension from URL (for logging only)
-            
+
             // Create key WITHOUT extension (new format)
             const tileKey = createTileKey(x, y, z, actualStyleId, sourceKey, requestedExt);
-            console.warn(`🗺️ Looking for tile with key: ${tileKey} (z:${z}, x:${x}, y:${y}, source:${sourceKey})`);
-            
+            idbLogger.debug(
+              `Looking for tile with key: ${tileKey} (z:${z}, x:${x}, y:${y}, source:${sourceKey})`
+            );
+
             // Debug: Check what tiles exist for this style
             const allTiles = await db.getAllKeys('tiles');
-            const matchingStyleTiles = allTiles.filter(k => typeof k === 'string' && k.startsWith(`${actualStyleId}:`));
-            console.warn(`📊 Total tiles in DB: ${allTiles.length}, tiles for style "${actualStyleId}": ${matchingStyleTiles.length}`);
+            const matchingStyleTiles = allTiles.filter(
+              k => typeof k === 'string' && k.startsWith(`${actualStyleId}:`)
+            );
+            idbLogger.debug(
+              `Total tiles in DB: ${allTiles.length}, tiles for style "${actualStyleId}": ${matchingStyleTiles.length}`
+            );
             if (matchingStyleTiles.length > 0 && matchingStyleTiles.length <= 10) {
-              console.warn(`📋 Sample tiles:`, matchingStyleTiles.slice(0, 10));
+              idbLogger.debug(`Sample tiles:`, matchingStyleTiles.slice(0, 10));
             }
-            
+
             const resource = await db.get('tiles', tileKey);
-            
+
             if (resource?.data) {
-              console.warn(`✅ Found tile: ${tileKey}, format: ${resource.format || 'unknown'}`);
+              idbLogger.debug(`Found tile: ${tileKey}, format: ${resource.format || 'unknown'}`);
               const response = await createTileResponse(resource);
-              console.warn(`📦 Serving tile: ${tileKey}, size: ${resource.data.byteLength} bytes, type: ${response.headers.get('Content-Type')}`);
+              idbLogger.debug(
+                `Serving tile: ${tileKey}, size: ${resource.data.byteLength} bytes, type: ${response.headers.get('Content-Type')}`
+              );
               return response;
+            }
+
+            idbLogger.debug(
+              `Tile not found with requested extension (${requestedExt}): ${tileKey}`
+            );
+
+            // Fallback: try to find any tile with the same coordinates but different extension
+            const baseKey = `${actualStyleId}:${sourceKey}:${z}:${x}:${y}`;
+            const fallbackMatches = matchingStyleTiles.filter(
+              (candidate): candidate is string =>
+                typeof candidate === 'string' &&
+                (candidate === baseKey || candidate.startsWith(`${baseKey}.`))
+            );
+
+            if (fallbackMatches.length > 0) {
+              idbLogger.debug(
+                `Found ${fallbackMatches.length} candidate tile(s) sharing coordinates:`,
+                fallbackMatches
+              );
+              for (const candidateKey of fallbackMatches) {
+                const fallbackResource = await db.get('tiles', candidateKey);
+                if (fallbackResource?.data) {
+                  idbLogger.debug(
+                    `Found tile via fallback key: ${candidateKey} (requested ext: ${requestedExt}, stored format: ${fallbackResource.format || 'unknown'})`
+                  );
+                  const response = await createTileResponse(fallbackResource);
+                  idbLogger.debug(
+                    `Serving fallback tile: ${candidateKey}, size: ${fallbackResource.data.byteLength} bytes, type: ${response.headers.get('Content-Type')}`
+                  );
+                  return response;
+                }
+              }
             } else {
-              console.warn(`❌ Tile not found: ${tileKey}`);
+              idbLogger.debug(`No fallback tiles found for coordinates: ${baseKey}`);
             }
           } else {
-            console.warn(`❌ Could not parse y/ext from: ${yExt}`);
+            idbLogger.warn(`Could not parse y/ext from: ${yExt}`);
           }
         } else {
           // fallback: old logic for backward compatibility
@@ -255,9 +304,9 @@ export async function idbFetchHandler(url: string, init?: RequestInit): Promise<
             // For example: https://domain.com/service/source/vt/{z}/{x}/{y}.pbf
             const urlParts = tileUrl.split('/');
             const fallbackSourceKey = urlParts[urlParts.length - 5] || 'unknown'; // Try to guess sourceKey
-            console.warn(`⚠️ Using old URL format, guessed sourceKey: ${fallbackSourceKey}`);
-            console.warn(
-              `🗺️ Looking for tile - sourceKey: ${fallbackSourceKey}, tileUrl: ${tileUrl}`
+            idbLogger.debug(`Using old URL format, guessed sourceKey: ${fallbackSourceKey}`);
+            idbLogger.debug(
+              `Looking for tile - sourceKey: ${fallbackSourceKey}, tileUrl: ${tileUrl}`
             );
             // Extract z/x/y coordinates from the tile URL
             const match = tileUrl.match(/\/(\d+)\/(\d+)\/(\d+)\.(\w+)(?:\?|$)/);
@@ -272,17 +321,17 @@ export async function idbFetchHandler(url: string, init?: RequestInit): Promise<
                 fallbackSourceKey,
                 ext
               );
-              console.warn(`🗺️ Looking for tile with key: ${tileKey}`);
+              idbLogger.debug(`Looking for tile with key: ${tileKey}`);
               const resource = await db.get('tiles', tileKey);
               if (resource?.data) {
-                console.warn(`✅ Found tile: ${tileKey}`);
+                idbLogger.debug(`Found tile: ${tileKey}`);
                 return await createTileResponse(resource);
               } else {
-                console.warn(`❌ Tile not found: ${tileKey}`);
+                idbLogger.debug(`Tile not found: ${tileKey}`);
                 // If not found with guessed sourceKey, try to find any tile with these coordinates
-                console.warn(`🔍 Searching for any tile with coordinates z:${z}, x:${x}, y:${y}`);
+                idbLogger.debug(`Searching for any tile with coordinates z:${z}, x:${x}, y:${y}`);
                 const allTiles = await db.getAll('tiles');
-                const matchingTile = allTiles.find((tile) => {
+                const matchingTile = allTiles.find(tile => {
                   const keyParts = tile.key.split(':');
                   if (keyParts.length >= 5) {
                     const [, , tz, tx, ty] = keyParts;
@@ -295,165 +344,173 @@ export async function idbFetchHandler(url: string, init?: RequestInit): Promise<
                   return false;
                 });
                 if (matchingTile) {
-                  console.warn(`✅ Found tile by coordinates: ${matchingTile.key}`);
+                  idbLogger.debug(`Found tile by coordinates: ${matchingTile.key}`);
                   return await createTileResponse(matchingTile);
                 } else {
-                  console.warn(`❌ No tile found with coordinates z:${z}, x:${x}, y:${y}`);
+                  idbLogger.warn(`No tile found with coordinates z:${z}, x:${x}, y:${y}`);
                 }
               }
             } else {
-              console.warn(`❌ Could not parse coordinates from tile URL: ${tileUrl}`);
+              idbLogger.warn(`Could not parse coordinates from tile URL: ${tileUrl}`);
             }
           }
         }
         break;
       }
       case 'glyph': {
-          console.warn(`🔤 Looking for glyph with key: ${key}`);
-          
-          // Find which style this region belongs to
-          const styleEntry = await findStyleByRegionId(db, downloadId);
-          const actualStyleId = styleEntry?.key || downloadId;
-          
-          if (styleEntry && downloadId !== actualStyleId) {
-            console.warn(`🔄 Region "${downloadId}" belongs to style "${actualStyleId}", searching with style key`);
-          }
-          
-          // Parse the resource path: "FontA,FontB,FontC/0-255.pbf"
-          // MapLibre requests glyphs with comma-separated fallback fonts
-          // but glyphs are stored individually per font
-          const pathParts = decodedResourcePath.split('/');
-          const fontstackPart = pathParts[0]; // "FontA,FontB,FontC"
-          const rangePart = pathParts[1] || '0-255.pbf'; // "0-255.pbf"
-          
-          // Split comma-separated fonts
-          const fontstacks = fontstackPart.split(',').map(f => f.trim());
-          console.warn(`🔤 Trying ${fontstacks.length} fonts in fallback order: ${fontstacks.join(', ')}`);
-          
-          // Debug: List some actual glyph keys from the database
-          const allGlyphKeys = await db.getAllKeys('glyphs');
-          console.warn(`📊 Total glyphs in DB: ${allGlyphKeys.length}`);
-          if (allGlyphKeys.length > 0 && allGlyphKeys.length <= 20) {
-            console.warn(`📋 All glyph keys:`, allGlyphKeys);
-          } else if (allGlyphKeys.length > 0) {
-            console.warn(`📋 Sample glyph keys (first 10):`, allGlyphKeys.slice(0, 10));
-          }
-          
-          // Try each font in order (this is how font fallbacks work)
-          for (const fontstack of fontstacks) {
-            const glyphPath = `${fontstack}/${rangePart}`;
-            const normalizedPath = glyphPath.endsWith('.pbf') ? glyphPath : `${glyphPath}.pbf`;
-            
-            const glyphCandidateKeys = [
-              // Try with actual style ID first
-              `${actualStyleId}::${normalizedPath}`,
-              `${actualStyleId}::${glyphPath}`,
-              // Then try with download ID
-              `${downloadId}::${normalizedPath}`,
-              `${downloadId}::${glyphPath}`,
-              // Just paths
-              normalizedPath,
-              glyphPath,
-            ];
+        idbLogger.debug(`Looking for glyph with key: ${key}`);
 
-            console.warn(`🔍 Trying keys for font "${fontstack}":`, glyphCandidateKeys);
+        // Find which style this region belongs to
+        const styleEntry = await findStyleByRegionId(db, downloadId);
+        const actualStyleId = styleEntry?.key || downloadId;
 
-            for (const candidateKey of glyphCandidateKeys) {
-              const resource = await db.get('glyphs', candidateKey);
-              if (resource?.data) {
-                console.warn(`✅ Found glyph using key: ${candidateKey} (font: ${fontstack})`);
-                return new Response(resource.data, { 
-                  status: 200,
-                  headers: {
-                    'Content-Type': 'application/x-protobuf',
-                  },
-                });
-              }
-            }
-          }
-
-          console.warn(`❌ Glyph not found for any font in: ${fontstacks.join(', ')}`);
-        break;
-      }
-      case 'sprite': {
-          console.warn(`🎨 Looking for sprite with key: ${key}`);
-          
-          // Find which style this region belongs to
-          const styleEntry = await findStyleByRegionId(db, downloadId);
-          const actualStyleId = styleEntry?.key || downloadId;
-          
-          if (styleEntry && downloadId !== actualStyleId) {
-            console.warn(`🔄 Region "${downloadId}" belongs to style "${actualStyleId}", searching with style key`);
-          }
-          
-          // The sprite service stores sprites with keys like: "voyager::sprite.json", "voyager::sprite@2x.json"
-          // MapLibre requests sprites as: "idb://region_XXX/sprite/sprite@2x.json"
-          // So we need to map the region ID to the style ID
-          
-          const spriteCandidateKeys = Array.from(
-            new Set([
-              // Try with actual style ID first (most likely to work)
-              `${actualStyleId}::${decodedResourcePath}`,
-              `${actualStyleId}:${decodedResourcePath}`,
-              `${actualStyleId}::${decodedResourcePath.replace(/\.(json|png)$/i, '')}`,
-              `${actualStyleId}:${decodedResourcePath.replace(/\.(json|png)$/i, '')}`,
-              
-              // Then try with download ID (in case it's a direct style download)
-              `${downloadId}::${decodedResourcePath}`,
-              `${downloadId}:${decodedResourcePath}`,
-              `${downloadId}::${decodedResourcePath.replace(/\.(json|png)$/i, '')}`,
-              `${downloadId}:${decodedResourcePath.replace(/\.(json|png)$/i, '')}`,
-              
-              // Just the path itself
-              decodedResourcePath,
-              
-              // Original key format
-              key,
-            ])
+        if (styleEntry && downloadId !== actualStyleId) {
+          idbLogger.debug(
+            `Region "${downloadId}" belongs to style "${actualStyleId}", searching with style key`
           );
+        }
 
-          console.warn(`🎨 Sprite candidates for "${decodedResourcePath}":`, spriteCandidateKeys);
+        // Parse the resource path: "FontA,FontB,FontC/0-255.pbf"
+        // MapLibre requests glyphs with comma-separated fallback fonts
+        // but glyphs are stored individually per font
+        const pathParts = decodedResourcePath.split('/');
+        const fontstackPart = pathParts[0]; // "FontA,FontB,FontC"
+        const rangePart = pathParts[1] || '0-255.pbf'; // "0-255.pbf"
 
-          for (const candidateKey of spriteCandidateKeys) {
-            const resource = await db.get('sprites', candidateKey);
+        // Split comma-separated fonts
+        const fontstacks = fontstackPart.split(',').map(f => f.trim());
+        idbLogger.debug(
+          `Trying ${fontstacks.length} fonts in fallback order: ${fontstacks.join(', ')}`
+        );
+
+        // Debug: List some actual glyph keys from the database
+        const allGlyphKeys = await db.getAllKeys('glyphs');
+        idbLogger.debug(`Total glyphs in DB: ${allGlyphKeys.length}`);
+        if (allGlyphKeys.length > 0 && allGlyphKeys.length <= 20) {
+          idbLogger.debug(`All glyph keys:`, allGlyphKeys);
+        } else if (allGlyphKeys.length > 0) {
+          idbLogger.debug(`Sample glyph keys (first 10):`, allGlyphKeys.slice(0, 10));
+        }
+
+        // Try each font in order (this is how font fallbacks work)
+        for (const fontstack of fontstacks) {
+          const glyphPath = `${fontstack}/${rangePart}`;
+          const normalizedPath = glyphPath.endsWith('.pbf') ? glyphPath : `${glyphPath}.pbf`;
+
+          const glyphCandidateKeys = [
+            // Try with actual style ID first
+            `${actualStyleId}::${normalizedPath}`,
+            `${actualStyleId}::${glyphPath}`,
+            // Then try with download ID
+            `${downloadId}::${normalizedPath}`,
+            `${downloadId}::${glyphPath}`,
+            // Just paths
+            normalizedPath,
+            glyphPath,
+          ];
+
+          idbLogger.debug(`Trying keys for font "${fontstack}":`, glyphCandidateKeys);
+
+          for (const candidateKey of glyphCandidateKeys) {
+            const resource = await db.get('glyphs', candidateKey);
             if (resource?.data) {
-              console.warn(`✅ Found sprite using key: ${candidateKey}`);
+              idbLogger.debug(`Found glyph using key: ${candidateKey} (font: ${fontstack})`);
               return new Response(resource.data, {
                 status: 200,
-                headers: resource.contentType ? { 'Content-Type': resource.contentType } : undefined,
+                headers: {
+                  'Content-Type': 'application/x-protobuf',
+                },
               });
             }
           }
+        }
 
-          console.warn(`❌ Sprite not found, tried keys: ${spriteCandidateKeys.join(', ')}`);
+        idbLogger.warn(`Glyph not found for any font in: ${fontstacks.join(', ')}`);
+        break;
+      }
+      case 'sprite': {
+        idbLogger.debug(`Looking for sprite with key: ${key}`);
+
+        // Find which style this region belongs to
+        const styleEntry = await findStyleByRegionId(db, downloadId);
+        const actualStyleId = styleEntry?.key || downloadId;
+
+        if (styleEntry && downloadId !== actualStyleId) {
+          idbLogger.debug(
+            `Region "${downloadId}" belongs to style "${actualStyleId}", searching with style key`
+          );
+        }
+
+        // The sprite service stores sprites with keys like: "voyager::sprite.json", "voyager::sprite@2x.json"
+        // MapLibre requests sprites as: "idb://region_XXX/sprite/sprite@2x.json"
+        // So we need to map the region ID to the style ID
+
+        const spriteCandidateKeys = Array.from(
+          new Set([
+            // Try with actual style ID first (most likely to work)
+            `${actualStyleId}::${decodedResourcePath}`,
+            `${actualStyleId}:${decodedResourcePath}`,
+            `${actualStyleId}::${decodedResourcePath.replace(/\.(json|png)$/i, '')}`,
+            `${actualStyleId}:${decodedResourcePath.replace(/\.(json|png)$/i, '')}`,
+
+            // Then try with download ID (in case it's a direct style download)
+            `${downloadId}::${decodedResourcePath}`,
+            `${downloadId}:${decodedResourcePath}`,
+            `${downloadId}::${decodedResourcePath.replace(/\.(json|png)$/i, '')}`,
+            `${downloadId}:${decodedResourcePath.replace(/\.(json|png)$/i, '')}`,
+
+            // Just the path itself
+            decodedResourcePath,
+
+            // Original key format
+            key,
+          ])
+        );
+
+        idbLogger.debug(`Sprite candidates for "${decodedResourcePath}":`, spriteCandidateKeys);
+
+        for (const candidateKey of spriteCandidateKeys) {
+          const resource = await db.get('sprites', candidateKey);
+          if (resource?.data) {
+            idbLogger.debug(`Found sprite using key: ${candidateKey}`);
+            return new Response(resource.data, {
+              status: 200,
+              headers: resource.contentType ? { 'Content-Type': resource.contentType } : undefined,
+            });
+          }
+        }
+
+        idbLogger.warn(`Sprite not found, tried keys: ${spriteCandidateKeys.join(', ')}`);
         break;
       }
       case 'font': {
-        console.warn(`📝 Looking for font with key: ${key}`);
+        idbLogger.debug(`Looking for font with key: ${key}`);
         const resource = await db.get('fonts', key);
         if (resource?.data) {
-          console.warn(`✅ Found font: ${key}`);
+          idbLogger.debug(`Found font: ${key}`);
           return new Response(resource.data, { status: 200 });
         } else {
-          console.warn(`❌ Font not found: ${key}`);
+          idbLogger.warn(`Font not found: ${key}`);
         }
         break;
       }
       case 'tilesjson': {
-        console.warn(`📄 Looking for tilejson with downloadId: ${downloadId}, resourcePath: ${decodedResourcePath}`);
-        
+        idbLogger.debug(
+          `Looking for tilejson with downloadId: ${downloadId}, resourcePath: ${decodedResourcePath}`
+        );
+
         // First try direct lookup (for style-level downloads)
         let styleEntry = await db.get('styles', downloadId);
-        
+
         // If not found, search by region ID (for region-level downloads)
         if (!styleEntry || !styleEntry.style?.sources) {
-          console.warn(`📄 Style not found with key "${downloadId}", searching by region ID...`);
+          idbLogger.debug(`Style not found with key "${downloadId}", searching by region ID...`);
           const foundStyle = await findStyleByRegionId(db, downloadId);
           if (foundStyle) {
             styleEntry = foundStyle;
           }
         }
-        
+
         if (styleEntry?.style?.sources) {
           const sources = styleEntry.style.sources as Record<string, Record<string, unknown>>;
           let matchedSourceId: string | undefined;
@@ -465,9 +522,10 @@ export async function idbFetchHandler(url: string, init?: RequestInit): Promise<
           } else {
             for (const [sourceId, sourceValue] of Object.entries(sources)) {
               const sourceUrl = typeof sourceValue.url === 'string' ? sourceValue.url : undefined;
-              const originalUrl = typeof sourceValue.__originalTilesetUrl === 'string'
-                ? sourceValue.__originalTilesetUrl
-                : undefined;
+              const originalUrl =
+                typeof sourceValue.__originalTilesetUrl === 'string'
+                  ? sourceValue.__originalTilesetUrl
+                  : undefined;
               if (sourceUrl === decodedResourcePath || originalUrl === decodedResourcePath) {
                 matchedSourceId = sourceId;
                 matchedSourceConfig = sourceValue;
@@ -478,28 +536,28 @@ export async function idbFetchHandler(url: string, init?: RequestInit): Promise<
 
           if (matchedSourceId && matchedSourceConfig) {
             const tileJson = buildOfflineTileJson(matchedSourceConfig, downloadId, matchedSourceId);
-            console.warn(`✅ Serving offline tilejson for source: ${matchedSourceId}`);
+            idbLogger.debug(`Serving offline tilejson for source: ${matchedSourceId}`);
             return new Response(JSON.stringify(tileJson), {
               status: 200,
               headers: { 'Content-Type': 'application/json' },
             });
           }
 
-          console.warn(`❌ No matching source found for tilejson: ${decodedResourcePath}`);
+          idbLogger.warn(`No matching source found for tilejson: ${decodedResourcePath}`);
         } else {
-          console.warn(`❌ Style not found or missing sources for downloadId: ${downloadId}`);
+          idbLogger.warn(`Style not found or missing sources for downloadId: ${downloadId}`);
         }
         break;
       }
       default:
-        console.warn(`❓ Unknown resource type: ${type}`);
+        idbLogger.warn(`Unknown resource type: ${type}`);
         break;
     }
   } catch (error) {
-    console.error(`💥 Error fetching resource from IDB: ${url}`, error);
+    idbLogger.error(`Error fetching resource from IDB: ${url}`, error);
   }
 
-  console.warn(`🚫 Resource not found in IDB: ${url}`);
+  idbLogger.warn(`Resource not found in IDB: ${url}`);
   return new Response('Not found in IDB', { status: 404 });
 }
 
@@ -512,8 +570,8 @@ export async function listTileKeysInIDB(styleId: string, sourceId: string, zoom:
     const parts = tile.key.split(':');
     return parts[0] === styleId && parts[1] === sourceId && parseInt(parts[2]) === zoom;
   });
-  console.warn(`Tile keys for styleId='${styleId}', sourceId='${sourceId}', zoom=${zoom}:`);
-  matching.forEach(tile => console.warn(tile.key));
+  idbLogger.debug(`Tile keys for styleId='${styleId}', sourceId='${sourceId}', zoom=${zoom}:`);
+  matching.forEach(tile => idbLogger.debug(tile.key));
   return matching.map(tile => tile.key);
 }
 

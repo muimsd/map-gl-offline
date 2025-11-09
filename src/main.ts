@@ -104,7 +104,13 @@ interface StyleSwitcherControlOptions {
   onBeforeStyleChange?: (from: StyleItem, to: StyleItem) => void;
   onAfterStyleChange?: (from: StyleItem, to: StyleItem) => void;
 }
-
+map.on('zoom', () => {
+  const zoomLevel = map.getZoom().toFixed(2);
+  // Current zoom level tracking for debugging
+  if (process.env.NODE_ENV === 'development') {
+    console.warn(`Current zoom level: ${zoomLevel}`);
+  }
+});
 const styleSwitcher: StyleSwitcherControl = new StyleSwitcherControl({
   styles: styles,
   theme: 'light',

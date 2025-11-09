@@ -133,7 +133,10 @@ export class RegionDrawing extends BaseComponent {
     this.showRegionForm(bounds);
   }
 
-  private createBoundsAroundPoint(center: { lng: number; lat: number }): [number, number, number, number] {
+  private createBoundsAroundPoint(center: {
+    lng: number;
+    lat: number;
+  }): [number, number, number, number] {
     // Create a small region around the clicked point
     const offset = 0.01; // roughly 1km
 

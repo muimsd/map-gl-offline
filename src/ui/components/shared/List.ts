@@ -207,8 +207,16 @@ export class List extends BaseComponent {
     if (this.config.items) {
       const item = this.config.items.find(item => item.id === itemId);
       if (item) {
-        if (typeof item.data === 'object' && item.data !== null && typeof newData === 'object' && newData !== null) {
-          item.data = { ...item.data as Record<string, unknown>, ...newData as Record<string, unknown> };
+        if (
+          typeof item.data === 'object' &&
+          item.data !== null &&
+          typeof newData === 'object' &&
+          newData !== null
+        ) {
+          item.data = {
+            ...(item.data as Record<string, unknown>),
+            ...(newData as Record<string, unknown>),
+          };
         } else {
           item.data = newData;
         }

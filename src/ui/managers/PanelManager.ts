@@ -102,7 +102,10 @@ export class PanelRenderer extends BaseComponent {
   /**
    * Render header section
    */
-  private async renderHeader(regions: StoredRegion[], analytics: StorageAnalyticsReport): Promise<void> {
+  private async renderHeader(
+    regions: StoredRegion[],
+    analytics: StorageAnalyticsReport
+  ): Promise<void> {
     if (this.headerContainer) {
       this.element.removeChild(this.headerContainer);
     }
@@ -198,7 +201,9 @@ export class PanelRenderer extends BaseComponent {
         'px-6 py-4 border-b border-gray-200 dark:border-gray-700';
 
       const downloads = this.downloadManager.getCurrentDownloads();
-      const progressHTML = this.createDownloadProgressHTML(downloads as unknown as Map<string, Record<string, unknown>>);
+      const progressHTML = this.createDownloadProgressHTML(
+        downloads as unknown as Map<string, Record<string, unknown>>
+      );
       this.downloadProgressContainer.innerHTML = progressHTML;
 
       this.element.appendChild(this.downloadProgressContainer);
@@ -346,7 +351,10 @@ export class PanelRenderer extends BaseComponent {
   /**
    * Create region item template
    */
-  private createRegionItemTemplate(region: StoredRegion & { downloadedAt?: number; size?: number }, isGrouped: boolean = false): string {
+  private createRegionItemTemplate(
+    region: StoredRegion & { downloadedAt?: number; size?: number },
+    isGrouped: boolean = false
+  ): string {
     const containerClass = isGrouped
       ? 'bg-slate-50 dark:bg-slate-800 px-4 py-3 border-t border-slate-200 dark:border-slate-600'
       : 'bg-white dark:bg-slate-800 rounded-lg p-4 border border-slate-200 dark:border-slate-600 shadow-sm hover:shadow-md transition-shadow duration-150';
@@ -375,7 +383,10 @@ export class PanelRenderer extends BaseComponent {
   /**
    * Create complete style template with header, HR, and regions
    */
-  private createCompleteStyleTemplate(style: { key: string; style?: { name?: string }; dbSize?: number }, regions: (StoredRegion & { size?: number })[]): string {
+  private createCompleteStyleTemplate(
+    style: { key: string; style?: { name?: string }; dbSize?: number },
+    regions: (StoredRegion & { size?: number })[]
+  ): string {
     const regionCount = regions.length;
     const totalSize = regions.reduce((sum, region) => sum + (region.size || 0), 0);
 
@@ -421,7 +432,9 @@ export class PanelRenderer extends BaseComponent {
   /**
    * Create region item specifically for embedding within a style container
    */
-  private createRegionItemForStyle(region: StoredRegion & { downloadedAt?: number; size?: number }): string {
+  private createRegionItemForStyle(
+    region: StoredRegion & { downloadedAt?: number; size?: number }
+  ): string {
     return `
       <div class="px-4 py-3 border-t border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700/50 cursor-pointer region-item transition-colors duration-150" data-region-id="${region.id}">
         <div class="flex items-center justify-between">
@@ -463,7 +476,10 @@ export class PanelRenderer extends BaseComponent {
   /**
    * Create style item template with load button
    */
-  private createStyleItemTemplate(style: { key: string; style?: { name?: string } }, regions: (StoredRegion & { size?: number })[]): string {
+  private createStyleItemTemplate(
+    style: { key: string; style?: { name?: string } },
+    regions: (StoredRegion & { size?: number })[]
+  ): string {
     const regionCount = regions.length;
     const totalSize = regions.reduce((sum, region) => sum + (region.size || 0), 0);
 
@@ -699,7 +715,9 @@ export class PanelRenderer extends BaseComponent {
             await this.refresh();
           } catch (error) {
             console.error('Failed to re-download region:', error);
-            alert(`Failed to re-download region: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            alert(
+              `Failed to re-download region: ${error instanceof Error ? error.message : 'Unknown error'}`
+            );
           }
         },
         onCancel: () => {
@@ -749,9 +767,15 @@ export class PanelRenderer extends BaseComponent {
             case 'json':
               return await this.offlineManager.exportRegionAsJSON(regionId, options);
             case 'pmtiles':
-              return await this.offlineManager.exportRegionAsPMTiles(regionId, options as Record<string, unknown>);
+              return await this.offlineManager.exportRegionAsPMTiles(
+                regionId,
+                options as Record<string, unknown>
+              );
             case 'mbtiles':
-              return await this.offlineManager.exportRegionAsMBTiles(regionId, options as Record<string, unknown>);
+              return await this.offlineManager.exportRegionAsMBTiles(
+                regionId,
+                options as Record<string, unknown>
+              );
             default:
               throw new Error(`Unsupported export format: ${format}`);
           }
@@ -1020,7 +1044,11 @@ export class PanelRenderer extends BaseComponent {
   /**
    * Handle style-specific actions
    */
-  private async handleStyleAction(action: string, styleId: string, styleData: unknown): Promise<void> {
+  private async handleStyleAction(
+    action: string,
+    styleId: string,
+    styleData: unknown
+  ): Promise<void> {
     switch (action) {
       case 'load-style':
         await this.handleLoadStyle(styleData);
@@ -1041,11 +1069,13 @@ export class PanelRenderer extends BaseComponent {
    */
   private async handleFixCompressedTiles(_styleId: string): Promise<void> {
     try {
-      const { cleanupCompressedTiles, countCompressedTiles } = await import('../../utils/cleanupCompressedTiles');
-      
+      const { cleanupCompressedTiles, countCompressedTiles } = await import(
+        '../../utils/cleanupCompressedTiles'
+      );
+
       // First count the compressed tiles
       const stats = await countCompressedTiles();
-      
+
       if (stats.gzipped === 0) {
         const confirmModal = new ConfirmationModal({
           title: 'No Issues Found',
@@ -1059,7 +1089,7 @@ export class PanelRenderer extends BaseComponent {
             this.modalManager.close();
           },
         });
-        
+
         const modal = confirmModal.show();
         this.modalManager.show(modal);
         return;
@@ -1075,9 +1105,9 @@ export class PanelRenderer extends BaseComponent {
             console.warn('🔧 Cleaning up compressed tiles...');
             const result = await cleanupCompressedTiles();
             console.warn(`✅ Cleanup complete: removed ${result.removed} tiles`);
-            
+
             this.modalManager.close();
-            
+
             // Show success message
             const successModal = new ConfirmationModal({
               title: 'Cleanup Complete',
@@ -1091,10 +1121,10 @@ export class PanelRenderer extends BaseComponent {
                 this.modalManager.close();
               },
             });
-            
+
             const modal = successModal.show();
             this.modalManager.show(modal);
-            
+
             // Refresh the panel
             await this.refresh();
           } catch (error) {
@@ -1126,7 +1156,7 @@ export class PanelRenderer extends BaseComponent {
 
     try {
       const styleEntry = styleData as StyleStorageItem;
-      
+
       if (!styleEntry || !styleEntry.style) {
         console.error('❌ Invalid style data - missing style property');
         alert('Invalid style data. The style may be corrupted.');
@@ -1167,13 +1197,15 @@ export class PanelRenderer extends BaseComponent {
       try {
         const { countCompressedTiles } = await import('../../utils/cleanupCompressedTiles');
         const compressed = await countCompressedTiles();
-        
+
         if (compressed.gzipped > 0) {
-          console.warn(`⚠️ Found ${compressed.gzipped} compressed tiles that may cause rendering issues`);
+          console.warn(
+            `⚠️ Found ${compressed.gzipped} compressed tiles that may cause rendering issues`
+          );
           const shouldContinue = confirm(
             `Warning: Found ${compressed.gzipped} compressed tiles that may cause rendering issues.\n\n` +
-            `Recommended: Use the "Re-download" button to fix this issue.\n\n` +
-            `Do you want to continue loading the style anyway?`
+              `Recommended: Use the "Re-download" button to fix this issue.\n\n` +
+              `Do you want to continue loading the style anyway?`
           );
           if (!shouldContinue) {
             return;
@@ -1188,7 +1220,28 @@ export class PanelRenderer extends BaseComponent {
       // Just use the stored style directly
       const patchedStyle = JSON.parse(JSON.stringify(styleEntry.style)) as MapboxStyle;
 
-      console.warn('Using pre-patched offline style (already contains idb:// URLs)');
+      // Enforce maxzoom for all tile sources to prevent requesting non-existent tiles
+      // Find the maximum zoom level from all regions using this style
+      let maxZoom = 14; // Default fallback
+      if (styleEntry.regions && Array.isArray(styleEntry.regions)) {
+        const regionMaxZooms = styleEntry.regions.map((r: { maxZoom?: number }) => r.maxZoom || 14);
+        maxZoom = Math.max(...regionMaxZooms);
+        console.warn(`📐 Computed maxZoom from regions: ${maxZoom}`);
+      }
+
+      // Apply maxzoom to all tile sources
+      if (patchedStyle.sources) {
+        for (const [sourceId, source] of Object.entries(patchedStyle.sources)) {
+          const src = source as { tiles?: string[]; maxzoom?: number; type?: string };
+          if (src.tiles && (src.type === 'vector' || src.type === 'raster' || !src.type)) {
+            const originalMaxzoom = src.maxzoom;
+            src.maxzoom = maxZoom;
+            console.warn(`🔢 Set maxzoom for ${sourceId}: ${originalMaxzoom} → ${maxZoom}`);
+          }
+        }
+      }
+
+      console.warn('Using pre-patched offline style with enforced maxzoom');
 
       console.warn('✅ Style patched successfully:', {
         sources: patchedStyle.sources ? Object.keys(patchedStyle.sources).length : 0,
@@ -1212,11 +1265,11 @@ export class PanelRenderer extends BaseComponent {
 
       // Apply the patched style to the map
       console.warn('🗺️ Applying patched style to map...');
-      
+
       try {
         (this.map as { setStyle?: (style: MapboxStyle) => void })?.setStyle?.(patchedStyle);
         console.warn('✅ Style loaded successfully!');
-        
+
         // Wait a bit and check if the style was applied
         setTimeout(() => {
           const currentStyle = (this.map as { getStyle?: () => MapboxStyle })?.getStyle?.();
@@ -1227,13 +1280,13 @@ export class PanelRenderer extends BaseComponent {
             });
           }
         }, 1000);
-        
       } catch (setStyleError) {
         console.error('❌ Error calling setStyle:', setStyleError);
-        alert(`Failed to apply style to map: ${setStyleError instanceof Error ? setStyleError.message : 'Unknown error'}`);
+        alert(
+          `Failed to apply style to map: ${setStyleError instanceof Error ? setStyleError.message : 'Unknown error'}`
+        );
         return;
       }
-
     } catch (error) {
       console.error('❌ Error loading style to map:', error);
       console.error('Error details:', {

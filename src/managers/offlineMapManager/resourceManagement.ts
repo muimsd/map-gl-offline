@@ -24,14 +24,10 @@ export interface ResourceManagement {
   verifyAndRepairGlyphs: ResourceService['verifyAndRepairGlyphs'];
 }
 
-export const createResourceManagement = (
-  services: OfflineManagerServices
-): ResourceManagement => ({
-  downloadTilesWithOptions: (...args) =>
-    services.resourceService.downloadTilesWithOptions(...args),
+export const createResourceManagement = (services: OfflineManagerServices): ResourceManagement => ({
+  downloadTilesWithOptions: (...args) => services.resourceService.downloadTilesWithOptions(...args),
   getTileStatistics: (...args) => services.resourceService.getTileStatistics(...args),
-  downloadFontsWithOptions: (...args) =>
-    services.resourceService.downloadFontsWithOptions(...args),
+  downloadFontsWithOptions: (...args) => services.resourceService.downloadFontsWithOptions(...args),
   getFontStatistics: (...args) => services.resourceService.getFontStatistics(...args),
   getFontAnalytics: (...args) => services.resourceService.getFontAnalytics(...args),
   cleanupOldFonts: (...args) => services.resourceService.cleanupOldFonts(...args),

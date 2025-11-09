@@ -93,15 +93,16 @@ export async function fetchResourceWithRetry(
       if (attempt === retries) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         let enhancedMessage = `Failed to fetch ${url} after ${retries + 1} attempts: ${errorMessage}`;
-        
+
         // Provide helpful CORS guidance
         if (errorMessage.includes('CORS') || errorMessage.includes('Cross-Origin')) {
-          enhancedMessage += '\n\n💡 CORS Issue Detected:\n' +
+          enhancedMessage +=
+            '\n\n💡 CORS Issue Detected:\n' +
             '• Use a local development server with proxy (check vite.config.ts)\n' +
             '• Or try a different tile provider that allows CORS\n' +
             '• For production, implement a server-side proxy';
         }
-        
+
         throw new Error(enhancedMessage);
       }
 
@@ -230,9 +231,8 @@ export function createProgressTracker(total: number): {
   };
 
   const recalculatePercentage = () => {
-    progress.percentage = progress.total > 0
-      ? Math.round((progress.completed / progress.total) * 100)
-      : 100;
+    progress.percentage =
+      progress.total > 0 ? Math.round((progress.completed / progress.total) * 100) : 100;
   };
 
   recalculatePercentage();

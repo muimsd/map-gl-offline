@@ -22,11 +22,11 @@ export class ControlButton extends BaseComponent {
     this.buttonConfig = config;
     const button = this.element.querySelector('button');
     const progressBadge = button?.querySelector('.progress-badge') as HTMLSpanElement;
-    
+
     if (!button || !progressBadge) {
       throw new Error('ControlButton: Required elements not found');
     }
-    
+
     this.button = button;
     this.progressBadge = progressBadge;
   }

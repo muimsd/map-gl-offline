@@ -104,7 +104,9 @@ export function processStyleSources(
   const sources = { ...style.sources };
 
   for (const [sourceId, sourceConfig] of Object.entries(sources)) {
-    const source = sourceConfig ? ({ ...(sourceConfig as Record<string, unknown>) } as Record<string, unknown>) : {};
+    const source = sourceConfig
+      ? ({ ...(sourceConfig as Record<string, unknown>) } as Record<string, unknown>)
+      : {};
 
     // Handle Mapbox-specific source URLs
     if (provider === 'mapbox' && source.url && typeof source.url === 'string') {
@@ -173,21 +175,17 @@ export function validateStyleForProvider(
   // Provider-specific validation
   if (provider === 'mapbox') {
     // Check for Mapbox-specific requirements
-    const hasMapboxSources = Object.values(style.sources || {}).some(
-      (source: unknown) => {
-        const s = source as { url?: string };
-        return s.url && s.url.includes('mapbox.com');
-      }
-    );
+    const hasMapboxSources = Object.values(style.sources || {}).some((source: unknown) => {
+      const s = source as { url?: string };
+      return s.url && s.url.includes('mapbox.com');
+    });
 
     if (hasMapboxSources) {
       // Check if access token might be needed
-      const hasAccessToken = Object.values(style.sources || {}).some(
-        (source: unknown) => {
-          const s = source as { url?: string };
-          return s.url && s.url.includes('access_token');
-        }
-      );
+      const hasAccessToken = Object.values(style.sources || {}).some((source: unknown) => {
+        const s = source as { url?: string };
+        return s.url && s.url.includes('access_token');
+      });
 
       if (!hasAccessToken) {
         warnings.push(

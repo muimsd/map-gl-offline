@@ -1,9 +1,12 @@
 import { dbPromise } from '../storage/indexedDbManager';
 import { patchStyleForOffline } from '../utils/styleUtils';
+import { logger } from '../utils/logger';
 import type { OfflineRegionOptions, StoredRegion } from '../types/region';
 import type { StyleEntry } from '../types/style';
 import type { TileEntry } from '../types';
 import * as tilebelt from '@mapbox/tilebelt';
+
+const regionLogger = logger.scope('RegionService');
 
 export class RegionService {
   /**
@@ -56,8 +59,8 @@ export class RegionService {
     const db = await dbPromise;
     let deletedCount = 0;
 
-    console.warn(
-      `🔍 Checking tiles for style ${styleId} against ${remainingRegions.length} remaining regions`
+    regionLogger.debug(
+      `Checking tiles for style ${styleId} against ${remainingRegions.length} remaining regions`
     );
 
     const tx = db.transaction('tiles', 'readwrite');
@@ -72,7 +75,7 @@ export class RegionService {
       // Parse tile coordinates from key: styleId:sourceId:z:x:y.ext
       const keyParts = tileEntry.key.split(':');
       if (keyParts.length < 5) {
-        console.warn(`Invalid tile key format: ${tileEntry.key}`);
+        regionLogger.warn(`Invalid tile key format: ${tileEntry.key}`);
         continue;
       }
 
@@ -82,19 +85,19 @@ export class RegionService {
       const y = parseInt(yWithExt.split('.')[0]);
 
       if (isNaN(x) || isNaN(y) || isNaN(z)) {
-        console.warn(`Invalid tile coordinates in key: ${tileEntry.key}`);
+        regionLogger.warn(`Invalid tile coordinates in key: ${tileEntry.key}`);
         continue;
       }
 
       // Check if this tile overlaps with any remaining region
       if (!this.tileOverlapsWithAnyRegion(x, y, z, remainingRegions)) {
-        console.warn(`🗑️  Deleting non-overlapping tile: ${tileEntry.key}`);
+        regionLogger.debug(`Deleting non-overlapping tile: ${tileEntry.key}`);
         await cursor.delete();
         deletedCount++;
       }
     }
 
-    console.warn(`✅ Deleted ${deletedCount} non-overlapping tiles for style ${styleId}`);
+    regionLogger.info(`Deleted ${deletedCount} non-overlapping tiles for style ${styleId}`);
     return deletedCount;
   }
 
@@ -104,7 +107,7 @@ export class RegionService {
   private async deleteStyleResources(styleId: string): Promise<void> {
     const db = await dbPromise;
 
-    console.warn(`🗑️  Deleting all resources for style: ${styleId}`);
+    regionLogger.debug(`Deleting all resources for style: ${styleId}`);
 
     // Delete fonts - fonts have keys like "styleId:fontname"
     let deletedFonts = 0;
@@ -142,8 +145,8 @@ export class RegionService {
       }
     }
 
-    console.warn(
-      `✅ Deleted style resources: ${deletedFonts} fonts, ${deletedGlyphs} glyphs, ${deletedSprites} sprites`
+    regionLogger.info(
+      `Deleted style resources: ${deletedFonts} fonts, ${deletedGlyphs} glyphs, ${deletedSprites} sprites`
     );
   }
 
@@ -154,7 +157,7 @@ export class RegionService {
     const db = await dbPromise;
     let deletedCount = 0;
 
-    console.warn(`🗑️  Deleting all tiles for style: ${styleId}`);
+    regionLogger.debug(`Deleting all tiles for style: ${styleId}`);
 
     const tx = db.transaction('tiles', 'readwrite');
     for await (const cursor of tx.store) {
@@ -165,12 +168,12 @@ export class RegionService {
       }
     }
 
-    console.warn(`✅ Deleted ${deletedCount} tiles for style ${styleId}`);
+    regionLogger.info(`Deleted ${deletedCount} tiles for style ${styleId}`);
     return deletedCount;
   }
   async addRegion(region: OfflineRegionOptions): Promise<void> {
     const db = await dbPromise;
-    console.warn('Adding region:', region);
+    regionLogger.debug('Adding region:', region);
 
     if (!region.styleUrl) {
       throw new Error('Region must have a styleUrl');
@@ -187,7 +190,8 @@ export class RegionService {
       const allStyles = await db.getAll('styles');
       styleData = allStyles.find(
         (s: { style?: { sprite?: string }; originalUrl?: string }) =>
-          (region.styleUrl && s?.style?.sprite?.includes(region.styleUrl)) || s?.originalUrl === region.styleUrl
+          (region.styleUrl && s?.style?.sprite?.includes(region.styleUrl)) ||
+          s?.originalUrl === region.styleUrl
       );
       styleId = styleData?.key;
     }
@@ -216,8 +220,8 @@ export class RegionService {
       styleEntry.regions = [];
     }
 
-    // Patch style for offline use
-    patchStyleForOffline(styleEntry.style, region.id);
+    // Patch style for offline use with the region's maxZoom and tileExtension
+    patchStyleForOffline(styleEntry.style, region.id, region.maxZoom, region.tileExtension);
 
     // Add region metadata to the style entry
     const bboxExists = styleEntry.regions.some(

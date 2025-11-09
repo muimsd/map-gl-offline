@@ -1,11 +1,13 @@
 import { dbPromise } from '../storage/indexedDbManager';
-import { fetchResourceWithRetry, processBatch, createProgressTracker } from '../utils';
+import { fetchResourceWithRetry, processBatch, createProgressTracker, logger } from '../utils';
 import type {
   EnhancedFontStats,
   FontDownloadOptions,
   FontDownloadResult,
   FontEntry,
 } from '../types';
+
+const fontLogger = logger.scope('FontService');
 
 export class FontService {
   private db = dbPromise;
@@ -91,7 +93,8 @@ export class FontService {
 
           const fontData = response.data;
           const contentType =
-            response.contentType || (response.type === 'other' ? 'font/opentype' : `font/${response.type}`);
+            response.contentType ||
+            (response.type === 'other' ? 'font/opentype' : `font/${response.type}`);
 
           // Validate font if enabled
           if (validateFonts) {
@@ -134,10 +137,10 @@ export class FontService {
 
           // Only log detailed errors if not in quiet mode
           if (!quietMode) {
-            console.error(`Failed to download font ${fontUrl}:`, errorMessage);
+            fontLogger.error(`Failed to download font ${fontUrl}:`, errorMessage);
           } else if (errors.length === 1) {
             // Log a summary message only once
-            console.warn(
+            fontLogger.warn(
               `Font download issues detected. Some fonts may not be available. Check network connectivity and CORS settings.`
             );
           }

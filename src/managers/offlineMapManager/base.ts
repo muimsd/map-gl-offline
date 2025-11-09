@@ -19,12 +19,10 @@ export const createManagerServices = (
 ): OfflineManagerServices => {
   const regionService = overrides.regionService ?? new RegionService();
   const cleanupService =
-    overrides.cleanupService ??
-    new CleanupService(regionService.deleteRegion.bind(regionService));
+    overrides.cleanupService ?? new CleanupService(regionService.deleteRegion.bind(regionService));
   const resourceService = overrides.resourceService ?? new ResourceService();
   const analyticsService = overrides.analyticsService ?? new AnalyticsService();
-  const importExportService =
-    overrides.importExportService ?? new ImportExportService();
+  const importExportService = overrides.importExportService ?? new ImportExportService();
 
   return {
     regionService,
@@ -34,4 +32,3 @@ export const createManagerServices = (
     importExportService,
   };
 };
-

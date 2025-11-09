@@ -3,10 +3,7 @@ import {
   type OfflineManagerServiceOverrides,
   type OfflineManagerServices,
 } from './base';
-import {
-  createOfflineMapManagerModules,
-  type OfflineMapManagerModules,
-} from './modules';
+import { createOfflineMapManagerModules, type OfflineMapManagerModules } from './modules';
 import type { RegionManagement } from './regionManagement';
 import type { CleanupManagement } from './cleanupManagement';
 import type { ResourceManagement } from './resourceManagement';

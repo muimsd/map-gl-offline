@@ -1,32 +1,14 @@
 import type { OfflineManagerServices } from './base';
-import {
-  createRegionManagement,
-  type RegionManagement,
-} from './regionManagement';
-import {
-  createCleanupManagement,
-  type CleanupManagement,
-} from './cleanupManagement';
-import {
-  createResourceManagement,
-  type ResourceManagement,
-} from './resourceManagement';
-import {
-  createAnalyticsManagement,
-  type AnalyticsManagement,
-} from './analyticsManagement';
-import {
-  createMaintenanceManagement,
-  type MaintenanceManagement,
-} from './maintenanceManagement';
+import { createRegionManagement, type RegionManagement } from './regionManagement';
+import { createCleanupManagement, type CleanupManagement } from './cleanupManagement';
+import { createResourceManagement, type ResourceManagement } from './resourceManagement';
+import { createAnalyticsManagement, type AnalyticsManagement } from './analyticsManagement';
+import { createMaintenanceManagement, type MaintenanceManagement } from './maintenanceManagement';
 import {
   createImportExportManagement,
   type ImportExportManagement,
 } from './importExportManagement';
-import {
-  createStyleManagement,
-  type StyleManagement,
-} from './styleManagement';
+import { createStyleManagement, type StyleManagement } from './styleManagement';
 
 export type OfflineMapManagerModules = RegionManagement &
   CleanupManagement &

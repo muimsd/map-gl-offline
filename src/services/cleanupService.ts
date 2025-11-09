@@ -1,5 +1,8 @@
 import { dbPromise } from '../storage/indexedDbManager';
+import { logger } from '../utils';
 import type { StoredRegion, RegionCleanupOptions, CleanupResult, RegionAnalytics } from '../types';
+
+const cleanupLogger = logger.scope('CleanupService');
 
 export class CleanupService {
   private db = dbPromise;
@@ -11,13 +14,7 @@ export class CleanupService {
   }
 
   async runCleanup(options: RegionCleanupOptions = {}): Promise<CleanupResult> {
-    const { 
-      onProgress,
-      maxAge,
-      maxStorageSize,
-      maxRegions,
-      priorityPatterns = []
-    } = options;
+    const { onProgress, maxAge, maxStorageSize, maxRegions, priorityPatterns = [] } = options;
 
     const result: CleanupResult = {
       scannedRegions: 0,
@@ -257,11 +254,11 @@ export class CleanupService {
     const intervalId = setInterval(
       async () => {
         try {
-          console.warn('Running automatic cleanup...');
+          cleanupLogger.info('Running automatic cleanup...');
           const result = await this.performCleanup(cleanupOptions);
-          console.warn('Auto cleanup completed:', result);
+          cleanupLogger.info('Auto cleanup completed:', result);
         } catch (error) {
-          console.error('Auto cleanup failed:', error);
+          cleanupLogger.error('Auto cleanup failed:', error);
         }
       },
       intervalHours * 60 * 60 * 1000
@@ -275,7 +272,7 @@ export class CleanupService {
   async stopAutoCleanup(cleanupId?: string): Promise<void> {
     if (cleanupId) {
       // Stop specific cleanup - would need to track IDs
-      console.warn(`Stopping cleanup ${cleanupId}`);
+      cleanupLogger.debug(`Stopping cleanup ${cleanupId}`);
     } else {
       // Stop all auto cleanups
       for (const intervalId of this.autoCleanupIntervals) {
@@ -351,7 +348,7 @@ export class CleanupService {
           cursor = await cursor.continue();
         }
       } catch (error) {
-        console.warn(`Could not calculate size for store ${storeName}:`, error);
+        cleanupLogger.warn(`Could not calculate size for store ${storeName}:`, error);
       }
     }
 
@@ -448,7 +445,7 @@ export class CleanupService {
 // Export functions for backward compatibility
 export const cleanupService = new CleanupService(async (_regionId: string, _styleId?: string) => {
   // This will be implemented by RegionService
-  console.warn('CleanupService: Region deletion not implemented');
+  cleanupLogger.warn('CleanupService: Region deletion not implemented');
 });
 
 export const performCleanup = (options?: RegionCleanupOptions) =>

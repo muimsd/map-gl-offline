@@ -120,11 +120,14 @@ export class DownloadManager {
       // Get the ORIGINAL unpatched style for downloading resources
       // The stored style is already patched with idb:// URLs, which won't work for downloads
       let originalStyle = styleData.style;
-      
+
       // If the style URLs are already patched, we need to fetch the original
-      if (styleData.style?.sprite?.startsWith('idb://') || styleData.style?.glyphs?.startsWith('idb://')) {
+      if (
+        styleData.style?.sprite?.startsWith('idb://') ||
+        styleData.style?.glyphs?.startsWith('idb://')
+      ) {
         console.warn('⚠️ Style URLs are already patched, fetching original style for downloads');
-        
+
         // Fetch the original style from the URL if available
         if (styleData.originalUrl) {
           try {
@@ -146,7 +149,7 @@ export class DownloadManager {
         try {
           const { SpriteService } = await import('../../services/spriteService');
           const spriteService = new SpriteService();
-          
+
           // Generate sprite URLs from base sprite path (use ORIGINAL style)
           const spriteBase = originalStyle.sprite;
           const spriteUrls = [
@@ -155,26 +158,25 @@ export class DownloadManager {
             `${spriteBase}@2x.json`,
             `${spriteBase}@2x.png`,
           ];
-          
+
           console.warn('📦 Sprite URLs to download:', spriteUrls);
-          
-          await spriteService.downloadSprites(
-            spriteUrls,
-            finalStyleId,
-            {
-              onProgress: (progress: { completed: number; total: number }) => {
-                console.warn(`Sprite download: ${progress.completed}/${progress.total}`);
-              },
-              enableValidation: true,
-              skipExisting: false,
-            }
-          );
+
+          await spriteService.downloadSprites(spriteUrls, finalStyleId, {
+            onProgress: (progress: { completed: number; total: number }) => {
+              console.warn(`Sprite download: ${progress.completed}/${progress.total}`);
+            },
+            enableValidation: true,
+            skipExisting: false,
+          });
           console.warn('✅ Sprites downloaded successfully');
         } catch (spriteError) {
           console.error('⚠️ Failed to download sprites (non-fatal):', spriteError);
         }
       } else if (originalStyle?.sprite?.startsWith('idb://')) {
-        console.warn('⏭️ Skipping sprite download - sprite URL is already patched:', originalStyle.sprite);
+        console.warn(
+          '⏭️ Skipping sprite download - sprite URL is already patched:',
+          originalStyle.sprite
+        );
       }
 
       // Download glyphs if the style has them
@@ -184,7 +186,7 @@ export class DownloadManager {
         try {
           const { GlyphService } = await import('../../services/glyphService');
           const glyphService = new GlyphService();
-          
+
           // Extract font families from layers
           const fontFamilies = new Set<string>();
           if (styleData.style.layers && Array.isArray(styleData.style.layers)) {
@@ -198,32 +200,32 @@ export class DownloadManager {
               }
             }
           }
-          
+
           if (fontFamilies.size > 0) {
             console.warn('📝 Fonts to download:', Array.from(fontFamilies));
-            
+
             // Download comprehensive set of glyph ranges for complete font coverage
             // These ranges cover most common Unicode blocks
             const glyphRanges = [
-              '0-255',      // Basic Latin + Latin-1 Supplement
-              '256-511',    // Latin Extended-A + Latin Extended-B
-              '512-767',    // IPA Extensions + Spacing Modifier Letters
-              '768-1023',   // Combining Diacritical Marks + Greek and Coptic
-              '1024-1279',  // Cyrillic + Cyrillic Supplement
-              '1280-1535',  // Armenian + Hebrew
-              '1536-1791',  // Arabic
-              '1792-2047',  // Syriac + Arabic Supplement + Thaana
-              '2048-2303',  // NKo + Samaritan + Mandaic
-              '2304-2559',  // Devanagari + Bengali
-              '2560-2815',  // Gurmukhi + Gujarati
-              '2816-3071',  // Oriya + Tamil
-              '3072-3327',  // Telugu + Kannada
-              '3328-3583',  // Malayalam + Sinhala
-              '3584-3839',  // Thai + Lao
-              '3840-4095',  // Tibetan + Myanmar
-              '4096-4351',  // Georgian + Hangul Jamo
-              '4352-4607',  // Ethiopic
-              '4608-4863',  // Cherokee + Canadian Aboriginal
+              '0-255', // Basic Latin + Latin-1 Supplement
+              '256-511', // Latin Extended-A + Latin Extended-B
+              '512-767', // IPA Extensions + Spacing Modifier Letters
+              '768-1023', // Combining Diacritical Marks + Greek and Coptic
+              '1024-1279', // Cyrillic + Cyrillic Supplement
+              '1280-1535', // Armenian + Hebrew
+              '1536-1791', // Arabic
+              '1792-2047', // Syriac + Arabic Supplement + Thaana
+              '2048-2303', // NKo + Samaritan + Mandaic
+              '2304-2559', // Devanagari + Bengali
+              '2560-2815', // Gurmukhi + Gujarati
+              '2816-3071', // Oriya + Tamil
+              '3072-3327', // Telugu + Kannada
+              '3328-3583', // Malayalam + Sinhala
+              '3584-3839', // Thai + Lao
+              '3840-4095', // Tibetan + Myanmar
+              '4096-4351', // Georgian + Hangul Jamo
+              '4352-4607', // Ethiopic
+              '4608-4863', // Cherokee + Canadian Aboriginal
               '11904-12031', // CJK Radicals Supplement
               '12032-12255', // Kangxi Radicals + CJK Symbols
               '12288-12543', // Hiragana + Katakana
@@ -235,7 +237,7 @@ export class DownloadManager {
               '63744-64255', // CJK Compatibility Ideographs
               '65280-65535', // Halfwidth and Fullwidth Forms
             ];
-            
+
             await glyphService.downloadGlyphs(
               originalStyle.glyphs, // Use ORIGINAL unpatched glyphs URL
               Array.from(fontFamilies),
@@ -255,7 +257,10 @@ export class DownloadManager {
           console.error('⚠️ Failed to download glyphs (non-fatal):', glyphError);
         }
       } else if (originalStyle?.glyphs?.startsWith('idb://')) {
-        console.warn('⏭️ Skipping glyph download - glyphs URL is already patched:', originalStyle.glyphs);
+        console.warn(
+          '⏭️ Skipping glyph download - glyphs URL is already patched:',
+          originalStyle.glyphs
+        );
       }
 
       // Then download tiles for the region
@@ -303,7 +308,7 @@ export class DownloadManager {
         batchSize: 20,
         maxConcurrency: 10,
       });
-      
+
       console.warn('✅ Tile download completed for region:', regionId);
       console.warn('📊 Tile download result:', {
         totalTiles: tileResult.totalTiles,
@@ -311,8 +316,29 @@ export class DownloadManager {
         failedTiles: tileResult.failedTiles,
         skippedTiles: tileResult.skippedTiles,
         totalSize: tileResult.totalSize,
+        tileExtension: tileResult.tileExtension, // Extension used for tiles (mvt, pbf, etc.)
         hasErrors: tileResult.errors?.length > 0,
       });
+
+      // Save the tile extension to the region for future use
+      if (tileResult.tileExtension) {
+        console.warn(`📝 Saving tile extension to region: ${tileResult.tileExtension}`);
+        try {
+          const { dbPromise } = await import('../../storage/indexedDbManager');
+          const db = await dbPromise;
+
+          // Get the current region
+          const currentRegion = await db.get('regions', regionId);
+          if (currentRegion) {
+            // Update with tile extension
+            currentRegion.tileExtension = tileResult.tileExtension;
+            await db.put('regions', currentRegion);
+            console.warn(`✅ Tile extension saved to region: ${tileResult.tileExtension}`);
+          }
+        } catch (saveError) {
+          console.error('Failed to save tile extension to region:', saveError);
+        }
+      }
 
       if (tileResult.failedTiles > 0 || (tileResult.errors && tileResult.errors.length > 0)) {
         console.error('⚠️ Tile download had errors:', tileResult.errors);

@@ -562,14 +562,21 @@ export class ImportExportService {
       },
       style: {},
       tiles:
-        data.tiles.map((tile: { zoom_level: number; tile_column: number; tile_row: number; tile_data: ArrayBuffer }) => ({
-          z: tile.zoom_level,
-          x: tile.tile_column,
-          y: tile.tile_row,
-          data: tile.tile_data,
-          format: 'pbf',
-          sourceId: 'imported',
-        })) || [],
+        data.tiles.map(
+          (tile: {
+            zoom_level: number;
+            tile_column: number;
+            tile_row: number;
+            tile_data: ArrayBuffer;
+          }) => ({
+            z: tile.zoom_level,
+            x: tile.tile_column,
+            y: tile.tile_row,
+            data: tile.tile_data,
+            format: 'pbf',
+            sourceId: 'imported',
+          })
+        ) || [],
       sprites: [],
       fonts: [],
     };

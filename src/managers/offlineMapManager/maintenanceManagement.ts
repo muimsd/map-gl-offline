@@ -1,9 +1,5 @@
 import { MaintenanceService } from '../../services/maintenanceService';
-import type {
-  MaintenanceOptions,
-  MaintenanceResults,
-  OfflineRegionOptions,
-} from '../../types';
+import type { MaintenanceOptions, MaintenanceResults, OfflineRegionOptions } from '../../types';
 import type { OfflineManagerServices } from './base';
 import type { CleanupManagement } from './cleanupManagement';
 import type { RegionManagement } from './regionManagement';
