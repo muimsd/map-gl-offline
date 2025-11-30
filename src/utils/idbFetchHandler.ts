@@ -177,17 +177,17 @@ async function createTileResponse(resource: {
 
 export async function idbFetchHandler(url: string, init?: RequestInit): Promise<Response> {
   const method = init?.method || 'GET';
-  
+
   // Extract zoom level from tile URL for enhanced logging
   const tileMatch = url.match(/\/(\d+)\/(\d+)\/(\d+)\./);
   const isZoom12 = tileMatch && parseInt(tileMatch[1]) === 12;
-  
+
   if (isZoom12) {
     idbLogger.debug(`🔍 IDB Fetch Handler called for Z12 tile: ${url}`);
   } else {
     idbLogger.debug(`IDB Fetch Handler called for URL: ${url}`);
   }
-  
+
   idbLogger.debug(`Method: ${method}`);
 
   // You can handle different HTTP methods here
@@ -238,7 +238,7 @@ export async function idbFetchHandler(url: string, init?: RequestInit): Promise<
 
             // Create key WITHOUT extension (new format)
             const tileKey = createTileKey(x, y, z, actualStyleId, sourceKey, requestedExt);
-            
+
             if (z === 12) {
               idbLogger.debug(
                 `🔍 Z12 tile lookup: ${tileKey} (z:${z}, x:${x}, y:${y}, source:${sourceKey})`
@@ -254,7 +254,7 @@ export async function idbFetchHandler(url: string, init?: RequestInit): Promise<
             const matchingStyleTiles = allTiles.filter(
               k => typeof k === 'string' && k.startsWith(`${actualStyleId}:`)
             );
-            
+
             if (z === 12) {
               const z12Tiles = matchingStyleTiles.filter(
                 k => typeof k === 'string' && k.includes(`:12:`)
@@ -278,7 +278,9 @@ export async function idbFetchHandler(url: string, init?: RequestInit): Promise<
 
             if (resource?.data) {
               if (z === 12) {
-                idbLogger.debug(`✓ Found Z12 tile: ${tileKey}, format: ${resource.format || 'unknown'}, size: ${resource.data.byteLength} bytes`);
+                idbLogger.debug(
+                  `✓ Found Z12 tile: ${tileKey}, format: ${resource.format || 'unknown'}, size: ${resource.data.byteLength} bytes`
+                );
               } else {
                 idbLogger.debug(`Found tile: ${tileKey}, format: ${resource.format || 'unknown'}`);
               }

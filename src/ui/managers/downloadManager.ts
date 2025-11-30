@@ -153,7 +153,10 @@ export class DownloadManager {
       }
 
       // Download sprites if the style has them
-      if (originalStyleForResources?.sprite && !originalStyleForResources.sprite.startsWith('idb://')) {
+      if (
+        originalStyleForResources?.sprite &&
+        !originalStyleForResources.sprite.startsWith('idb://')
+      ) {
         downloadLogger.debug('Downloading sprites for style:', finalStyleId);
         downloadLogger.debug('Original sprite URL:', originalStyleForResources.sprite);
         try {
@@ -190,7 +193,10 @@ export class DownloadManager {
       }
 
       // Download glyphs if the style has them
-      if (originalStyleForResources?.glyphs && !originalStyleForResources.glyphs.startsWith('idb://')) {
+      if (
+        originalStyleForResources?.glyphs &&
+        !originalStyleForResources.glyphs.startsWith('idb://')
+      ) {
         downloadLogger.debug('Downloading glyphs for style:', finalStyleId);
         downloadLogger.debug('Original glyphs URL:', originalStyleForResources.glyphs);
         try {
@@ -292,8 +298,11 @@ export class DownloadManager {
       }
 
       downloadLogger.debug('Calling downloadTiles with finalStyleId:', finalStyleId);
-      downloadLogger.debug('Stored style sources:', Object.keys(styleWithEmbeddedSources?.sources || {}));
-      
+      downloadLogger.debug(
+        'Stored style sources:',
+        Object.keys(styleWithEmbeddedSources?.sources || {})
+      );
+
       // Log source details to verify we have tile URLs
       if (styleWithEmbeddedSources?.sources) {
         for (const [sourceId, source] of Object.entries(styleWithEmbeddedSources.sources)) {
@@ -308,31 +317,36 @@ export class DownloadManager {
       }
 
       // Use stored style with embedded TileJSON (has tiles array) for tile downloads
-      const tileResult = await downloadTiles(finalRegionConfig, styleWithEmbeddedSources, finalStyleId, {
-        onProgress: progress => {
-          downloadLogger.debug(
-            `Tile download progress: ${progress.completed}/${progress.total} (${progress.percentage.toFixed(1)}%)`
-          );
-          // Update progress in UI if needed
-          this.options.onProgressUpdate?.(
-            new Map([
-              [
-                regionId,
-                {
+      const tileResult = await downloadTiles(
+        finalRegionConfig,
+        styleWithEmbeddedSources,
+        finalStyleId,
+        {
+          onProgress: progress => {
+            downloadLogger.debug(
+              `Tile download progress: ${progress.completed}/${progress.total} (${progress.percentage.toFixed(1)}%)`
+            );
+            // Update progress in UI if needed
+            this.options.onProgressUpdate?.(
+              new Map([
+                [
                   regionId,
-                  completed: progress.completed,
-                  total: progress.total,
-                  percentage: progress.percentage,
-                  currentResource: progress.message || 'Downloading tiles',
-                },
-              ],
-            ])
-          );
-        },
-        skipExisting: false, // Always download tiles to ensure fresh data
-        batchSize: 20,
-        maxConcurrency: 10,
-      });
+                  {
+                    regionId,
+                    completed: progress.completed,
+                    total: progress.total,
+                    percentage: progress.percentage,
+                    currentResource: progress.message || 'Downloading tiles',
+                  },
+                ],
+              ])
+            );
+          },
+          skipExisting: false, // Always download tiles to ensure fresh data
+          batchSize: 20,
+          maxConcurrency: 10,
+        }
+      );
 
       downloadLogger.debug('Tile download completed for region:', regionId);
       downloadLogger.debug('Tile download result:', {
