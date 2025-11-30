@@ -395,9 +395,9 @@ export class PanelRenderer extends BaseComponent {
 
     // Style header HTML
     const styleHeader = `
-      <div class="bg-gradient-to-r from-slate-50 to-gray-50 dark:from-slate-800 dark:to-gray-800 border border-slate-200 dark:border-slate-600 rounded-xl p-0 mb-4 overflow-hidden shadow-sm">
+      <div class="bg-linear-to-r from-slate-50 to-gray-50 dark:from-slate-800 dark:to-gray-800 border border-slate-200 dark:border-slate-600 rounded-xl p-0 mb-4 overflow-hidden shadow-sm">
         <!-- Style Header -->
-        <div class="p-4 bg-gradient-to-r from-slate-100 to-gray-100 dark:from-slate-700 dark:to-gray-700">
+        <div class="p-4 bg-linear-to-r from-slate-100 to-gray-100 dark:from-slate-700 dark:to-gray-700">
           <div class="flex items-center justify-between">
             <div class="flex-1">
               <h3 class="font-semibold text-slate-800 dark:text-slate-100 text-base">
@@ -523,7 +523,7 @@ export class PanelRenderer extends BaseComponent {
    */
   private createOrphanedRegionsHeaderTemplate(regions: StoredRegion[]): string {
     return `
-      <div class="bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 border border-amber-200 dark:border-amber-700 rounded-lg p-3 mb-2">
+      <div class="bg-linear-to-r from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 border border-amber-200 dark:border-amber-700 rounded-lg p-3 mb-2">
         <div class="flex items-center justify-between">
           <div>
             <h3 class="font-semibold text-amber-800 dark:text-amber-200 text-sm">
@@ -561,7 +561,7 @@ export class PanelRenderer extends BaseComponent {
                 <div class="w-24 h-2 bg-blue-200 dark:bg-blue-800 rounded-full overflow-hidden">
                   <div class="h-full bg-blue-600 transition-all duration-300" style="width: ${download.progress || 0}%"></div>
                 </div>
-                <span class="text-blue-700 dark:text-blue-300 min-w-[3rem]">${Math.round((download.progress as number) || 0)}%</span>
+                <span class="text-blue-700 dark:text-blue-300 min-w-12">${Math.round((download.progress as number) || 0)}%</span>
               </div>
             </div>
           `
