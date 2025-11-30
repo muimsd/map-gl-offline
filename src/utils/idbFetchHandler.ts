@@ -228,7 +228,9 @@ export async function idbFetchHandler(url: string, init?: RequestInit): Promise<
 
         if (pathParts.length === 4) {
           const sourceKey = pathParts[0];
-          const z = parseInt(pathParts[1]);
+          // MapLibre can request fractional zoom levels (e.g., 12.5)
+          // but tiles are stored with integer zoom levels, so floor the value
+          const z = Math.floor(parseFloat(pathParts[1]));
           const x = parseInt(pathParts[2]);
           const yExt = pathParts[3]; // e.g. '6142.pbf'
           const yMatch = yExt.match(/(\d+)\.(\w+)/);
