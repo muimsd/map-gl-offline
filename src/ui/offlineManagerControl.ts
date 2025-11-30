@@ -6,9 +6,9 @@ import { idbFetchHandler } from '../utils/idbFetchHandler';
 // Import refactored modular components
 import { ButtonManager } from './managers/ControlButtonManager';
 import { PanelRenderer } from './managers/PanelManager';
-import { RegionControl } from './controls/RegionControl';
+import { RegionControl } from './controls/regionControl';
 import { DownloadManager } from './managers/downloadManager';
-import { ModalManager } from './modals/ModalManager';
+import { ModalManager } from './modals/modalManager';
 import maplibregl from 'maplibre-gl';
 
 export interface OfflineManagerControlOptions {

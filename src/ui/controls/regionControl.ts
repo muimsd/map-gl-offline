@@ -4,10 +4,10 @@
  */
 
 import type { Map as MaplibreMap } from 'maplibre-gl';
-import { PolygonControl, PolygonControlOptions } from './PolygonControl';
+import { PolygonControl, PolygonControlOptions } from './polygonControl';
 import { RegionFormModal, RegionFormData, RegionFormOptions } from '../modals/regionFormModal';
 import { DownloadManager } from '../managers/downloadManager';
-import { ModalManager } from '../modals/ModalManager';
+import { ModalManager } from '../modals/modalManager';
 import { icons } from '../../utils/icons';
 
 export interface RegionControlOptions {

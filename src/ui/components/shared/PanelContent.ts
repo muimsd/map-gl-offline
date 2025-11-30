@@ -6,7 +6,7 @@
 import { BaseComponent } from './BaseComponent';
 import { OfflineMapManager } from '../../../managers/offlineMapManager';
 import { DownloadManager, DownloadProgress } from '../../managers/downloadManager';
-import { ModalManager } from '../../modals/ModalManager';
+import { ModalManager } from '../../modals/modalManager';
 import { RegionDetailsModal } from '../../modals/regionDetailsModal';
 import { StoredRegion } from '../../../types/region';
 import { StorageAnalyticsReport } from '../../../types/maintenance';

@@ -6,7 +6,7 @@
 
 import { OfflineMapManager } from '../../managers/offlineMapManager';
 import { DownloadManager } from './downloadManager';
-import { ModalManager } from '../modals/ModalManager';
+import { ModalManager } from '../modals/modalManager';
 import { RegionDetailsModal } from '../modals/regionDetailsModal';
 import { StoredRegion, StorageAnalyticsReport } from '../../types';
 import { ConfirmationModal } from '../modals/confirmationModal';

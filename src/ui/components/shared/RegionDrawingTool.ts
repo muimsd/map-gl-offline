@@ -6,7 +6,7 @@
 import { BaseComponent } from './BaseComponent';
 import type { Map as MaplibreMap } from 'maplibre-gl';
 import { DownloadManager } from '../../managers/downloadManager';
-import { ModalManager } from '../../modals/ModalManager';
+import { ModalManager } from '../../modals/modalManager';
 import { RegionFormModal, RegionFormData } from '../../modals/regionFormModal';
 
 export interface RegionDrawingConfig {
