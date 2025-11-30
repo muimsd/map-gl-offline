@@ -13,9 +13,7 @@ import { ConfirmationModal } from '../modals/confirmationModal';
 import { ImportExportModal } from '../modals/importExportModal';
 import { formatBytes } from '../../utils/formatting';
 import { themeManager } from '../ThemeManager';
-import { logger } from '../../utils/logger';
 
-const panelLogger = logger.scope('PanelManager');
 import { icons } from '../../utils/icons';
 import type { MapboxStyle, StyleStorageItem } from '../../types/style';
 
@@ -1072,9 +1070,8 @@ export class PanelRenderer extends BaseComponent {
    */
   private async handleFixCompressedTiles(_styleId: string): Promise<void> {
     try {
-      const { cleanupCompressedTiles, countCompressedTiles } = await import(
-        '../../utils/cleanupCompressedTiles'
-      );
+      const { cleanupCompressedTiles, countCompressedTiles } =
+        await import('../../utils/cleanupCompressedTiles');
 
       // First count the compressed tiles
       const stats = await countCompressedTiles();
