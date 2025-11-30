@@ -19,16 +19,16 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
       
+    - name: Install pnpm
+      uses: pnpm/action-setup@v3
+      with:
+        version: 8
+      
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
         node-version: ${{ matrix.node-version }}
         cache: 'pnpm'
-        
-    - name: Install pnpm
-      uses: pnpm/action-setup@v3
-      with:
-        version: 8
         
     - name: Install dependencies
       run: pnpm install --frozen-lockfile
@@ -57,16 +57,16 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
       
+    - name: Install pnpm
+      uses: pnpm/action-setup@v3
+      with:
+        version: 8
+      
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
         node-version: 20
         cache: 'pnpm'
-        
-    - name: Install pnpm
-      uses: pnpm/action-setup@v3
-      with:
-        version: 8
         
     - name: Install dependencies
       run: pnpm install --frozen-lockfile
@@ -89,17 +89,17 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
       
+    - name: Install pnpm
+      uses: pnpm/action-setup@v3
+      with:
+        version: 8
+      
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
         node-version: 20
         registry-url: 'https://registry.npmjs.org'
         cache: 'pnpm'
-        
-    - name: Install pnpm
-      uses: pnpm/action-setup@v3
-      with:
-        version: 8
         
     - name: Install dependencies
       run: pnpm install --frozen-lockfile
