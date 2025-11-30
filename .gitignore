@@ -34,8 +34,6 @@ jspm_packages/
 .vscode/
 
 # node lock
-package-lock.json
-pnpm-lock.yaml
 
 # Idea
 ./idea
