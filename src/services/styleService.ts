@@ -756,19 +756,6 @@ export async function getStyleStats(): Promise<EnhancedStyleStats> {
   }
 }
 
-// Type guard for enhanced style format (deprecated - now all styles are StyleEntry)
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-function isEnhancedStyleFormat(style: unknown): boolean {
-  return (
-    style !== null &&
-    typeof style === 'object' &&
-    ('lastModified' in style ||
-      'downloadedAt' in style ||
-      'size' in style ||
-      'sourceCount' in style ||
-      'layerCount' in style)
-  );
-}
 
 /**
  * Clean up old styles based on criteria
@@ -876,110 +863,6 @@ export async function isStyleDownloaded(styleId?: string, styleUrl?: string): Pr
     );
   }
   return false;
-}
-/**
- * Verify and validate style integrity
- */
-export async function verifyAndValidateStyles(
-  options: {
-    onProgress?: (progress: { completed: number; total: number; message: string }) => void;
-    autoRepair?: boolean;
-  } = {}
-): Promise<{
-  totalStyles: number;
-  validStyles: number;
-  invalidStyles: number;
-  repairedStyles: number;
-  errors: Array<{ id: string; error: string }>;
-}> {
-  const db = await dbPromise;
-  const { onProgress, autoRepair = false } = options;
-
-  try {
-    const allStyles = await loadStyles();
-    let validCount = 0;
-    let invalidCount = 0;
-    let repairedCount = 0;
-    const errors: Array<{ id: string; error: string }> = [];
-
-    console.warn(`Verifying ${allStyles.length} styles`);
-
-    for (let i = 0; i < allStyles.length; i++) {
-      const styleEntry = allStyles[i];
-      const style = getStyleData(styleEntry);
-
-      try {
-        const isValid = isValidStyleData(style);
-
-        if (isValid) {
-          validCount++;
-        } else {
-          invalidCount++;
-          const errorMsg = 'Invalid style data detected';
-          errors.push({ id: style.id || 'unknown', error: errorMsg });
-
-          if (autoRepair) {
-            // Basic repair attempts
-            try {
-              if (!style.version) style.version = 8;
-              if (!style.sources) style.sources = {};
-              if (!style.layers) style.layers = [];
-
-              // Re-validate after repair
-              if (isValidStyleData(style)) {
-                // Update the style in the StyleEntry
-                styleEntry.style = style;
-                await db.put('styles', styleEntry);
-                repairedCount++;
-                console.warn(`Repaired style: ${style.id}`);
-              }
-            } catch (repairError) {
-              console.warn(`Failed to repair style ${style.id}:`, repairError);
-            }
-          }
-        }
-
-        onProgress?.({
-          completed: i + 1,
-          total: allStyles.length,
-          message: `Verified style: ${style.id} (${isValid ? 'valid' : 'invalid'})`,
-        });
-      } catch (error: unknown) {
-        invalidCount++;
-        const errorMsg = error instanceof Error ? error.message : 'Unknown error';
-        errors.push({ id: style.id || 'unknown', error: errorMsg });
-
-        onProgress?.({
-          completed: i + 1,
-          total: allStyles.length,
-          message: `Error verifying style: ${style.id}`,
-        });
-      }
-    }
-
-    console.warn(
-      `Style verification completed: ${validCount} valid, ${invalidCount} invalid, ${repairedCount} repaired`
-    );
-
-    return {
-      totalStyles: allStyles.length,
-      validStyles: validCount,
-      invalidStyles: invalidCount,
-      repairedStyles: repairedCount,
-      errors,
-    };
-  } catch (error) {
-    console.error('Error during style verification:', error);
-    return {
-      totalStyles: 0,
-      validStyles: 0,
-      invalidStyles: 0,
-      repairedStyles: 0,
-      errors: [
-        { id: 'verification', error: error instanceof Error ? error.message : 'Unknown error' },
-      ],
-    };
-  }
 }
 
 /**

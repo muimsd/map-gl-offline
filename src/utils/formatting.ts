@@ -68,10 +68,3 @@ export function formatPercentage(value: number, total: number): string {
   return Math.round((value / total) * 100) + '%';
 }
 
-/**
- * Format coordinates to a readable string
- */
-export function formatCoordinates(bounds: [[number, number], [number, number]]): string {
-  const [[west, south], [east, north]] = bounds;
-  return `${south.toFixed(4)}, ${west.toFixed(4)} to ${north.toFixed(4)}, ${east.toFixed(4)}`;
-}
