@@ -320,7 +320,7 @@ export async function downloadStyles(
           },
         });
 
-        logger.debug('Font download completed:', fontResult);
+        logger.debug('Font download completed');
 
         if (includeMetadata) {
           styleStorageItem.fonts = fontUrls;
@@ -818,20 +818,26 @@ export async function cleanupOldStyles(
     };
   }
 }
+
 export async function isStyleDownloaded(styleId?: string, styleUrl?: string): Promise<boolean> {
-  const db = await dbPromise;
-  if (styleId) {
-    const style = await db.get('styles', styleId);
-    if (style) return true;
+  try {
+    const db = await dbPromise;
+    if (styleId) {
+      const style = await db.get('styles', styleId);
+      if (style) return true;
+    }
+    if (styleUrl) {
+      const allStyles = await db.getAll('styles');
+      return allStyles.some(
+        (s: Record<string, unknown> & { style?: { sprite?: string }; originalUrl?: string }) =>
+          s?.style?.sprite?.includes(styleUrl) || s?.originalUrl === styleUrl
+      );
+    }
+    return false;
+  } catch (error) {
+    logger.error('Error checking if style is downloaded:', error);
+    return false;
   }
-  if (styleUrl) {
-    const allStyles = await db.getAll('styles');
-    return allStyles.some(
-      (s: Record<string, unknown> & { style?: { sprite?: string }; originalUrl?: string }) =>
-        s?.style?.sprite?.includes(styleUrl) || s?.originalUrl === styleUrl
-    );
-  }
-  return false;
 }
 
 /**
@@ -880,11 +886,7 @@ export async function downloadStyleWithProvider(
     const style = (await response.json()) as BaseStyle;
 
     // Process style for the detected provider
-    const processedStyle = processStyleSources(
-      style,
-      detectedProvider,
-      extractedToken || undefined
-    );
+    const processedStyle = processStyleSources(style, detectedProvider, extractedToken);
 
     // Validate style
     const validation = validateStyleForProvider(processedStyle, detectedProvider);
@@ -927,7 +929,7 @@ export async function downloadStyleWithProvider(
       downloadedAt: Date.now(),
       originalUrl: styleUrl,
       validated: validation.isValid,
-      accessToken: extractedToken || undefined,
+      accessToken: extractedToken,
     });
 
     // Save style
