@@ -5,6 +5,7 @@ import type { IDBPDatabase } from 'idb';
 import type { OfflineMapDB } from '../types/database';
 import type { StyleStorageItem } from '../types/style';
 import { logger } from './logger';
+import { createTileKey, deriveTileExtension } from './tileKey';
 
 const idbLogger = logger.scope('IDBFetch');
 
@@ -43,31 +44,6 @@ async function findStyleByRegionId(
   }
 }
 
-// Create tile key including extension (same logic as TileService.createTileKey)
-function createTileKey(
-  x: number,
-  y: number,
-  z: number,
-  styleId: string,
-  sourceId: string,
-  ext: string // Extension included in key
-): string {
-  // Store keys WITH extension for consistent lookup
-  return `${styleId}:${sourceId}:${z}:${x}:${y}.${ext}`;
-}
-
-function deriveTileExtension(tiles?: unknown): string {
-  if (Array.isArray(tiles) && tiles.length > 0) {
-    const firstTile = tiles[0];
-    if (typeof firstTile === 'string') {
-      const match = firstTile.match(/\.([\w]+)(?:\?|$)/i);
-      if (match) {
-        return match[1];
-      }
-    }
-  }
-  return 'pbf';
-}
 
 function buildOfflineTileJson(
   sourceConfig: Record<string, unknown>,
@@ -241,40 +217,9 @@ export async function idbFetchHandler(url: string, init?: RequestInit): Promise<
             // Create key WITHOUT extension (new format)
             const tileKey = createTileKey(x, y, z, actualStyleId, sourceKey, requestedExt);
 
-            if (z === 12) {
-              idbLogger.debug(
-                `🔍 Z12 tile lookup: ${tileKey} (z:${z}, x:${x}, y:${y}, source:${sourceKey})`
-              );
-            } else {
-              idbLogger.debug(
-                `Looking for tile with key: ${tileKey} (z:${z}, x:${x}, y:${y}, source:${sourceKey})`
-              );
-            }
-
-            // Debug: Check what tiles exist for this style
-            const allTiles = await db.getAllKeys('tiles');
-            const matchingStyleTiles = allTiles.filter(
-              k => typeof k === 'string' && k.startsWith(`${actualStyleId}:`)
+            idbLogger.debug(
+              `Looking for tile: ${tileKey} (z:${z}, x:${x}, y:${y}, source:${sourceKey})`
             );
-
-            if (z === 12) {
-              const z12Tiles = matchingStyleTiles.filter(
-                k => typeof k === 'string' && k.includes(`:12:`)
-              );
-              idbLogger.debug(
-                `Total tiles in DB: ${allTiles.length}, tiles for style "${actualStyleId}": ${matchingStyleTiles.length}, Z12 tiles: ${z12Tiles.length}`
-              );
-              if (z12Tiles.length > 0 && z12Tiles.length <= 20) {
-                idbLogger.debug(`Z12 tiles in DB:`, z12Tiles);
-              }
-            } else {
-              idbLogger.debug(
-                `Total tiles in DB: ${allTiles.length}, tiles for style "${actualStyleId}": ${matchingStyleTiles.length}`
-              );
-              if (matchingStyleTiles.length > 0 && matchingStyleTiles.length <= 10) {
-                idbLogger.debug(`Sample tiles:`, matchingStyleTiles.slice(0, 10));
-              }
-            }
 
             const resource = await db.get('tiles', tileKey);
 
@@ -293,44 +238,24 @@ export async function idbFetchHandler(url: string, init?: RequestInit): Promise<
               return response;
             }
 
-            if (z === 12) {
-              idbLogger.warn(
-                `✗ Z12 tile NOT FOUND with requested extension (${requestedExt}): ${tileKey}`
-              );
-            } else {
-              idbLogger.debug(
-                `Tile not found with requested extension (${requestedExt}): ${tileKey}`
-              );
-            }
-
-            // Fallback: try to find any tile with the same coordinates but different extension
-            const baseKey = `${actualStyleId}:${sourceKey}:${z}:${x}:${y}`;
-            const fallbackMatches = matchingStyleTiles.filter(
-              (candidate): candidate is string =>
-                typeof candidate === 'string' &&
-                (candidate === baseKey || candidate.startsWith(`${baseKey}.`))
+            idbLogger.debug(
+              `Tile not found with extension (${requestedExt}): ${tileKey}`
             );
 
-            if (fallbackMatches.length > 0) {
-              idbLogger.debug(
-                `Found ${fallbackMatches.length} candidate tile(s) sharing coordinates:`,
-                fallbackMatches
-              );
-              for (const candidateKey of fallbackMatches) {
-                const fallbackResource = await db.get('tiles', candidateKey);
-                if (fallbackResource?.data) {
-                  idbLogger.debug(
-                    `Found tile via fallback key: ${candidateKey} (requested ext: ${requestedExt}, stored format: ${fallbackResource.format || 'unknown'})`
-                  );
-                  const response = await createTileResponse(fallbackResource);
-                  idbLogger.debug(
-                    `Serving fallback tile: ${candidateKey}, size: ${fallbackResource.data.byteLength} bytes, type: ${response.headers.get('Content-Type')}`
-                  );
-                  return response;
-                }
+            // Fallback: try common alternative extensions
+            const fallbackExtensions = ['pbf', 'mvt', 'png', 'jpg', 'webp'].filter(
+              ext => ext !== requestedExt
+            );
+
+            for (const fallbackExt of fallbackExtensions) {
+              const fallbackKey = createTileKey(x, y, z, actualStyleId, sourceKey, fallbackExt);
+              const fallbackResource = await db.get('tiles', fallbackKey);
+              if (fallbackResource?.data) {
+                idbLogger.debug(
+                  `Found tile via fallback extension: ${fallbackKey} (requested: ${requestedExt})`
+                );
+                return await createTileResponse(fallbackResource);
               }
-            } else {
-              idbLogger.debug(`No fallback tiles found for coordinates: ${baseKey}`);
             }
           } else {
             idbLogger.warn(`Could not parse y/ext from: ${yExt}`);
@@ -370,30 +295,27 @@ export async function idbFetchHandler(url: string, init?: RequestInit): Promise<
               if (resource?.data) {
                 idbLogger.debug(`Found tile: ${tileKey}`);
                 return await createTileResponse(resource);
-              } else {
-                idbLogger.debug(`Tile not found: ${tileKey}`);
-                // If not found with guessed sourceKey, try to find any tile with these coordinates
-                idbLogger.debug(`Searching for any tile with coordinates z:${z}, x:${x}, y:${y}`);
-                const allTiles = await db.getAll('tiles');
-                const matchingTile = allTiles.find(tile => {
-                  const keyParts = tile.key.split(':');
-                  if (keyParts.length >= 5) {
-                    const [, , tz, tx, ty] = keyParts;
-                    return (
-                      parseInt(tz) === parseInt(z) &&
-                      parseInt(tx) === parseInt(x) &&
-                      parseInt(ty) === parseInt(y)
-                    );
-                  }
-                  return false;
-                });
-                if (matchingTile) {
-                  idbLogger.debug(`Found tile by coordinates: ${matchingTile.key}`);
-                  return await createTileResponse(matchingTile);
-                } else {
-                  idbLogger.warn(`No tile found with coordinates z:${z}, x:${x}, y:${y}`);
+              }
+
+              // Try alternative extensions
+              const fallbackExts = ['pbf', 'mvt', 'png', 'jpg', 'webp'].filter(e => e !== ext);
+              for (const fallbackExt of fallbackExts) {
+                const fallbackKey = createTileKey(
+                  parseInt(x),
+                  parseInt(y),
+                  parseInt(z),
+                  actualStyleId,
+                  fallbackSourceKey,
+                  fallbackExt
+                );
+                const fallbackResource = await db.get('tiles', fallbackKey);
+                if (fallbackResource?.data) {
+                  idbLogger.debug(`Found tile via fallback: ${fallbackKey}`);
+                  return await createTileResponse(fallbackResource);
                 }
               }
+
+              idbLogger.debug(`Tile not found for coordinates z:${z}, x:${x}, y:${y}`);
             } else {
               idbLogger.warn(`Could not parse coordinates from tile URL: ${tileUrl}`);
             }
@@ -426,15 +348,6 @@ export async function idbFetchHandler(url: string, init?: RequestInit): Promise<
         idbLogger.debug(
           `Trying ${fontstacks.length} fonts in fallback order: ${fontstacks.join(', ')}`
         );
-
-        // Debug: List some actual glyph keys from the database
-        const allGlyphKeys = await db.getAllKeys('glyphs');
-        idbLogger.debug(`Total glyphs in DB: ${allGlyphKeys.length}`);
-        if (allGlyphKeys.length > 0 && allGlyphKeys.length <= 20) {
-          idbLogger.debug(`All glyph keys:`, allGlyphKeys);
-        } else if (allGlyphKeys.length > 0) {
-          idbLogger.debug(`Sample glyph keys (first 10):`, allGlyphKeys.slice(0, 10));
-        }
 
         // Try each font in order (this is how font fallbacks work)
         for (const fontstack of fontstacks) {

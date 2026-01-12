@@ -1,6 +1,7 @@
 import { dbPromise } from '../storage/indexedDbManager';
 import { patchStyleForOffline } from '../utils/styleUtils';
 import { logger } from '../utils/logger';
+import { parseTileKey } from '../utils/tileKey';
 import type { OfflineRegionOptions, StoredRegion } from '../types/region';
 import type { StyleEntry } from '../types/style';
 import type { TileEntry } from '../types';
@@ -18,6 +19,20 @@ export class RegionService {
     tileZ: number,
     region: OfflineRegionOptions
   ): boolean {
+    // Validate region bounds exist and have correct structure
+    if (
+      !region.bounds ||
+      !Array.isArray(region.bounds) ||
+      region.bounds.length !== 2 ||
+      !Array.isArray(region.bounds[0]) ||
+      !Array.isArray(region.bounds[1]) ||
+      region.bounds[0].length !== 2 ||
+      region.bounds[1].length !== 2
+    ) {
+      regionLogger.warn('Invalid region bounds structure:', region.bounds);
+      return false;
+    }
+
     // Get tile bounds using tilebelt
     const tileBounds = tilebelt.tileToBBOX([tileX, tileY, tileZ]);
     const [tileWest, tileSouth, tileEast, tileNorth] = tileBounds;
@@ -72,22 +87,14 @@ export class RegionService {
         continue;
       }
 
-      // Parse tile coordinates from key: styleId:sourceId:z:x:y.ext
-      const keyParts = tileEntry.key.split(':');
-      if (keyParts.length < 5) {
+      // Parse tile coordinates using shared utility
+      const parsed = parseTileKey(tileEntry.key);
+      if (!parsed) {
         regionLogger.warn(`Invalid tile key format: ${tileEntry.key}`);
         continue;
       }
 
-      const z = parseInt(keyParts[2]);
-      const x = parseInt(keyParts[3]);
-      const yWithExt = keyParts[4];
-      const y = parseInt(yWithExt.split('.')[0]);
-
-      if (isNaN(x) || isNaN(y) || isNaN(z)) {
-        regionLogger.warn(`Invalid tile coordinates in key: ${tileEntry.key}`);
-        continue;
-      }
+      const { x, y, z } = parsed;
 
       // Check if this tile overlaps with any remaining region
       if (!this.tileOverlapsWithAnyRegion(x, y, z, remainingRegions)) {
@@ -256,105 +263,92 @@ export class RegionService {
 
     // TODO: Implement loadTiles function in tileService
     // await loadTiles(region, styleId);
-    console.warn('loadTiles function not yet implemented');
+    regionLogger.warn('loadTiles function not yet implemented');
   }
 
   async deleteRegion(regionId: string): Promise<void> {
     const db = await dbPromise;
-    console.warn(`🗑️  Deleting region: ${regionId}`);
+    regionLogger.debug(`Deleting region: ${regionId}`);
 
     try {
       // Find which style contains this region
       const allStyles = await db.getAll('styles');
-      console.warn(`🔍 Found ${allStyles.length} styles to search through`);
+      regionLogger.debug(`Found ${allStyles.length} styles to search through`);
 
-      let foundStyle: unknown = null;
-      let foundRegion: unknown = null;
+      let foundStyle: StyleEntry | null = null;
+      let foundRegion: OfflineRegionOptions | null = null;
 
       for (const style of allStyles) {
-        console.warn(
-          `🔍 Checking style: ${style?.key}, regions count: ${style?.regions?.length || 0}`
+        regionLogger.debug(
+          `Checking style: ${style?.key}, regions count: ${style?.regions?.length || 0}`
         );
         if (style && Array.isArray(style.regions)) {
           const region = style.regions.find((r: { id?: string; regionId?: string }) => {
-            const match = r.id === regionId || r.regionId === regionId;
-            console.warn(`  📍 Region ${r.id || r.regionId}: match = ${match}`);
-            return match;
+            return r.id === regionId || r.regionId === regionId;
           });
           if (region) {
             foundStyle = style;
             foundRegion = region;
-            console.warn(`✅ Found region in style: ${style.key}`);
+            regionLogger.debug(`Found region in style: ${style.key}`);
             break;
           }
         }
       }
 
       if (!foundStyle || !foundRegion) {
-        console.warn(`❌ Region ${regionId} not found in any style`);
-        console.warn('Available regions:');
-        allStyles.forEach(style => {
-          if (style && Array.isArray(style.regions)) {
-            style.regions.forEach((r: { id?: string; regionId?: string; name?: string }) => {
-              console.warn(
-                `  - Style ${style.key}: Region ${r.id || r.regionId} (${r.name || 'unnamed'})`
-              );
-            });
-          }
-        });
+        regionLogger.warn(`Region ${regionId} not found in any style`);
         return;
       }
 
-      const styleObj = foundStyle as StyleEntry;
-      console.warn(`🎯 Found region in style: ${styleObj.key}`, foundRegion);
+      regionLogger.debug(`Found region in style: ${foundStyle.key}`, foundRegion);
 
       // Remove the region from the style's regions array
-      const remainingRegions = styleObj.regions.filter(
+      const remainingRegions = foundStyle.regions.filter(
         (r: OfflineRegionOptions) => r.id !== regionId
       );
 
-      styleObj.regions = remainingRegions;
-      console.warn(`📊 Remaining regions count: ${remainingRegions.length}`);
+      foundStyle.regions = remainingRegions;
+      regionLogger.debug(`Remaining regions count: ${remainingRegions.length}`);
 
       // If this was the last region for the style, delete the entire style and all its resources
       if (remainingRegions.length === 0) {
-        console.warn(
-          `🗑️  Style ${styleObj.key} has no remaining regions, deleting entire style and all resources`
+        regionLogger.info(
+          `Style ${foundStyle.key} has no remaining regions, deleting entire style and all resources`
         );
 
         // Delete all tiles for this style
-        const deletedTileCount = await this.deleteAllStyleTiles(styleObj.key);
-        console.warn(`🗑️  Deleted ${deletedTileCount} tiles`);
+        const deletedTileCount = await this.deleteAllStyleTiles(foundStyle.key);
+        regionLogger.debug(`Deleted ${deletedTileCount} tiles`);
 
         // Delete all style resources (fonts, glyphs, sprites)
-        await this.deleteStyleResources(styleObj.key);
+        await this.deleteStyleResources(foundStyle.key);
 
         // Delete the style entry itself
-        await db.delete('styles', styleObj.key);
+        await db.delete('styles', foundStyle.key);
 
-        console.warn(`✅ Completely deleted style ${styleObj.key} and all associated resources`);
+        regionLogger.info(`Completely deleted style ${foundStyle.key} and all associated resources`);
       } else {
-        console.warn(
-          `🔍 Style ${styleObj.key} has ${remainingRegions.length} remaining regions, cleaning up non-overlapping tiles`
+        regionLogger.debug(
+          `Style ${foundStyle.key} has ${remainingRegions.length} remaining regions, cleaning up non-overlapping tiles`
         );
 
         // Delete tiles that don't overlap with any remaining regions
         const deletedTileCount = await this.deleteNonOverlappingTiles(
-          styleObj.key,
+          foundStyle.key,
           remainingRegions
         );
 
         // Update the style entry with the remaining regions
-        await db.put('styles', styleObj);
+        await db.put('styles', foundStyle);
 
-        console.warn(
-          `✅ Region ${regionId} deleted successfully from style ${styleObj.key}, cleaned up ${deletedTileCount} non-overlapping tiles`
+        regionLogger.info(
+          `Region ${regionId} deleted successfully from style ${foundStyle.key}, cleaned up ${deletedTileCount} non-overlapping tiles`
         );
       }
 
-      console.warn(`🎉 Region deletion completed successfully for: ${regionId}`);
+      regionLogger.info(`Region deletion completed successfully for: ${regionId}`);
     } catch (error) {
-      console.error(`❌ Error during region deletion for ${regionId}:`, error);
+      regionLogger.error(`Error during region deletion for ${regionId}:`, error);
       throw error; // Re-throw to let UI handle the error
     }
   }
@@ -389,10 +383,10 @@ export class RegionService {
           allRegions.push(...regionsWithStyle);
         }
       }
-      console.warn('📋 Extracted regions from styles:', allRegions);
+      regionLogger.debug('Extracted regions from styles:', allRegions);
       return allRegions;
     } catch (error) {
-      console.error('Error loading regions from styles:', error);
+      regionLogger.error('Error loading regions from styles:', error);
       // Fallback to cleanup service method if available
       // return this.cleanupService.getAllRegions();
       return [];

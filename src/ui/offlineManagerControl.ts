@@ -1,7 +1,8 @@
-import type { IControl, Map as MaplibreMap } from 'maplibre-gl';
+import type { IControl, Map as MaplibreMap, StyleSpecification } from 'maplibre-gl';
 import { OfflineMapManager } from '../managers/offlineMapManager';
 import { themeManager } from './ThemeManager';
 import { idbFetchHandler } from '../utils/idbFetchHandler';
+import { logger } from '../utils/logger';
 
 // Import refactored modular components
 import { ButtonManager } from './managers/ControlButtonManager';
@@ -10,6 +11,8 @@ import { RegionControl } from './controls/regionControl';
 import { DownloadManager } from './managers/downloadManager';
 import { ModalManager } from './modals/modalManager';
 import maplibregl from 'maplibre-gl';
+
+const controlLogger = logger.scope('OfflineControl');
 
 export interface OfflineManagerControlOptions {
   styleUrl: string;
@@ -172,7 +175,7 @@ export class OfflineManagerControl implements IControl {
           this.map.removeSource('region-bbox-source');
         }
       } catch (error) {
-        console.warn('Error removing bbox layer:', error);
+        controlLogger.warn('Error removing bbox layer:', error);
       }
     }
 
@@ -274,7 +277,7 @@ export class OfflineManagerControl implements IControl {
    * Handle download error
    */
   private handleDownloadError(regionId: string, error: unknown): void {
-    console.error(`Download error for region ${regionId}:`, error);
+    controlLogger.error(`Download error for region ${regionId}:`, error);
     // Use the panel's refresh method instead of renderPanel to avoid conflicts
     if (this.panelRenderer) {
       this.panelRenderer.refresh();
@@ -317,17 +320,17 @@ export class OfflineManagerControl implements IControl {
     this.offlineManager
       .listStoredRegions()
       .then(regions => {
-        console.warn(
-          '[fitBounds] Available region IDs:',
+        controlLogger.debug(
+          'Available region IDs:',
           regions.map(r => r.id)
         );
-        console.warn('[fitBounds] Requested regionId:', regionId);
+        controlLogger.debug('Requested regionId:', regionId);
         const region = regions.find(r => r.id === regionId);
         if (!region) {
-          console.warn(`[fitBounds] Region with id ${regionId} not found.`);
+          controlLogger.warn(`Region with id ${regionId} not found.`);
           return;
         }
-        console.warn(`[fitBounds] Focusing region:`, region);
+        controlLogger.debug('Focusing region:', region);
         if (region.bounds) {
           // Validate bounds format
           const bounds = region.bounds;
@@ -341,10 +344,10 @@ export class OfflineManagerControl implements IControl {
             bounds[0].every(Number.isFinite) &&
             bounds[1].every(Number.isFinite);
           if (!isValid) {
-            console.error(`[fitBounds] Invalid bounds for region`, bounds);
+            controlLogger.error('Invalid bounds for region', bounds);
             return;
           }
-          console.warn(`[fitBounds] Calling map.fitBounds with:`, bounds);
+          controlLogger.debug('Calling map.fitBounds with:', bounds);
           // Fit map to region bounds
           this.map?.fitBounds(bounds as [[number, number], [number, number]], {
             padding: 20,
@@ -356,11 +359,11 @@ export class OfflineManagerControl implements IControl {
             this.showRegionBoundingBox(region);
           }
         } else {
-          console.warn(`[fitBounds] Region has no bounds property:`, region);
+          controlLogger.warn('Region has no bounds property:', region);
         }
       })
       .catch((error: unknown) => {
-        console.error('Error focusing region:', error);
+        controlLogger.error('Error focusing region:', error);
       });
   }
 
@@ -446,7 +449,7 @@ export class OfflineManagerControl implements IControl {
 
       this.bboxLayerAdded = true;
     } catch (error) {
-      console.warn('Could not add bbox layer:', error);
+      controlLogger.warn('Could not add bbox layer:', error);
     }
   }
 
@@ -472,7 +475,7 @@ export class OfflineManagerControl implements IControl {
    */
   async loadOfflineStyle(styleId: string): Promise<void> {
     if (!this.map) {
-      console.warn('Map not available for loading offline style');
+      controlLogger.warn('Map not available for loading offline style');
       return;
     }
 
@@ -484,7 +487,7 @@ export class OfflineManagerControl implements IControl {
       const styleEntry = await loadStyleById(styleId);
 
       if (!styleEntry) {
-        console.error(`Style ${styleId} not found in IndexedDB`);
+        controlLogger.error(`Style ${styleId} not found in IndexedDB`);
         return;
       }
 
@@ -492,10 +495,9 @@ export class OfflineManagerControl implements IControl {
       const patchedStyle = patchStyleForOffline(styleEntry.style, styleId);
 
       // Apply the patched style to the map
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      this.map.setStyle(patchedStyle as any);
+      this.map.setStyle(patchedStyle as StyleSpecification);
     } catch (error) {
-      console.error(`❌ Error loading offline style ${styleId}:`, error);
+      controlLogger.error(`Error loading offline style ${styleId}:`, error);
     }
   }
 
@@ -504,7 +506,7 @@ export class OfflineManagerControl implements IControl {
    */
   private async loadStylesFromIDB(): Promise<void> {
     if (!this.map) {
-      console.warn('Map not available for loading IDB styles');
+      controlLogger.warn('Map not available for loading IDB styles');
       return;
     }
 
@@ -516,7 +518,7 @@ export class OfflineManagerControl implements IControl {
       const styles = await loadStyles();
 
       if (styles.length === 0) {
-        console.warn('No styles found in IndexedDB');
+        controlLogger.warn('No styles found in IndexedDB');
         alert('No offline styles available. Please download a style first.');
         return;
       }
@@ -532,7 +534,7 @@ export class OfflineManagerControl implements IControl {
       // Multiple styles - show selection dialog
       this.showStyleSelectionModal(styles);
     } catch (error) {
-      console.error('Error loading styles from IDB:', error);
+      controlLogger.error('Error loading styles from IDB:', error);
     }
   }
 

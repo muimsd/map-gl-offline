@@ -6,6 +6,7 @@ import {
   createProgressTracker,
   validateResource,
   logger,
+  createTileKey,
 } from '../utils';
 import type { FetchResourceResult } from '../utils';
 import type {
@@ -147,7 +148,7 @@ export class TileService {
         const existingTiles = await this.getExistingTileKeys(styleId, sourceId);
         const originalCount = coordsForSource.length;
         coordsForSource = coordsForSource.filter(coord => {
-          const key = this.createTileKey(coord.x, coord.y, coord.z, styleId, sourceId, extension);
+          const key = createTileKey(coord.x, coord.y, coord.z, styleId, sourceId, extension);
           return !existingTiles.has(key);
         });
         skippedTiles += originalCount - coordsForSource.length;
@@ -215,7 +216,7 @@ export class TileService {
           try {
             const template = this.selectTileTemplate(plan.templates, coord);
             tileUrl = this.populateTemplate(template, coord);
-            const tileKey = this.createTileKey(x, y, z, styleId, plan.sourceId, plan.ext);
+            const tileKey = createTileKey(x, y, z, styleId, plan.sourceId, plan.ext);
 
             // Enhanced logging for zoom 12
             if (z === 12) {
@@ -792,19 +793,6 @@ export class TileService {
     }
 
     return tileSources;
-  }
-
-  // Create tile key including file extension
-  private createTileKey(
-    x: number,
-    y: number,
-    z: number,
-    styleId: string,
-    sourceId: string,
-    ext: string // Extension included in key
-  ): string {
-    // Store keys WITH extension for consistent lookup
-    return `${styleId}:${sourceId}:${z}:${x}:${y}.${ext}`;
   }
 
   private async getExistingTileKeys(styleId: string, sourceId: string): Promise<Set<string>> {
