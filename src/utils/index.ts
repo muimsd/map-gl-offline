@@ -11,3 +11,4 @@ export * from './constants';
 export * from './errorHandling';
 export * from './validation';
 export * from './tileKey';
+export * from './proxyConfig';

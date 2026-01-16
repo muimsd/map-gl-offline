@@ -1,6 +1,47 @@
 /**
- * Download Manager Component
- * Handles download operations and progress tracking
+ * Download Manager for offline map regions.
+ *
+ * This module handles the complete download workflow for offline map regions,
+ * including styles, sprites, glyphs (fonts), and map tiles. It provides
+ * progress tracking across all download phases.
+ *
+ * **Download Phases:**
+ * 1. `style` - Downloads the map style JSON and processes sources
+ * 2. `sprites` - Downloads sprite images and JSON for map icons
+ * 3. `glyphs` - Downloads font glyphs for text rendering
+ * 4. `tiles` - Downloads map tiles for the specified region bounds
+ *
+ * **Usage:**
+ * The DownloadManager is typically instantiated by the OfflineManagerControl
+ * and handles downloads triggered by user region selections.
+ *
+ * @example
+ * ```ts
+ * const downloadManager = new DownloadManager({
+ *   offlineManager,
+ *   onProgressUpdate: (downloads) => {
+ *     for (const [id, progress] of downloads) {
+ *       console.log(`${progress.phase}: ${progress.percentage}%`);
+ *     }
+ *   },
+ *   onDownloadComplete: (regionId) => {
+ *     console.log(`Region ${regionId} downloaded successfully`);
+ *   },
+ *   onDownloadError: (regionId, error) => {
+ *     console.error(`Download failed: ${error}`);
+ *   },
+ * });
+ *
+ * await downloadManager.downloadRegion({
+ *   name: 'My Region',
+ *   bounds: [-122.5, 37.7, -122.3, 37.9],
+ *   minZoom: 10,
+ *   maxZoom: 16,
+ *   styleUrl: 'https://example.com/style.json',
+ * });
+ * ```
+ *
+ * @module downloadManager
  */
 
 import { isStyleDownloaded, loadStyles } from '@/services/styleService';
@@ -11,35 +52,130 @@ import { logger } from '../../utils/logger';
 
 const downloadLogger = logger.scope('DownloadManager');
 
+/**
+ * Progress information for an active download.
+ *
+ * @example
+ * ```ts
+ * const progress: DownloadProgress = {
+ *   regionId: 'region_123',
+ *   completed: 450,
+ *   total: 1000,
+ *   percentage: 45,
+ *   currentResource: 'Downloading tiles',
+ *   phase: 'tiles',
+ * };
+ * ```
+ */
 export interface DownloadProgress {
+  /** Unique identifier for the region being downloaded */
   regionId: string;
+  /** Number of resources completed in current phase */
   completed: number;
+  /** Total number of resources in current phase */
   total: number;
+  /** Completion percentage (0-100) */
   percentage: number;
+  /** Human-readable description of current activity */
   currentResource: string;
+  /** Current download phase */
+  phase?: 'style' | 'sprites' | 'glyphs' | 'tiles';
 }
 
+/**
+ * Configuration options for the DownloadManager.
+ *
+ * @example
+ * ```ts
+ * const options: DownloadManagerOptions = {
+ *   offlineManager: myOfflineManager,
+ *   onProgressUpdate: (downloads) => updateUI(downloads),
+ *   onDownloadComplete: (id) => showSuccessMessage(id),
+ *   onDownloadError: (id, err) => showErrorMessage(err),
+ * };
+ * ```
+ */
 export interface DownloadManagerOptions {
+  /** The OfflineMapManager instance for storage operations */
   offlineManager: OfflineMapManager;
+  /** Callback fired when download progress changes */
   onProgressUpdate?: (downloads: Map<string, DownloadProgress>) => void;
+  /** Callback fired when a region download completes successfully */
   onDownloadComplete?: (regionId: string) => void;
+  /** Callback fired when a region download fails */
   onDownloadError?: (regionId: string, error: Error | string) => void;
+  /** Callback to update the UI button state */
   updateButton?: (text: string, disabled: boolean) => void;
+  /** Callback to update the progress badge display */
   updateProgressBadge?: (text: string, visible: boolean) => void;
 }
 
+/**
+ * Manages the download of offline map regions.
+ *
+ * Handles the complete workflow for downloading map resources including:
+ * - Map styles (JSON configuration)
+ * - Sprites (icons and symbols)
+ * - Glyphs (font data for text rendering)
+ * - Tiles (actual map imagery/vector data)
+ *
+ * Provides progress tracking and error handling for each phase.
+ */
 export class DownloadManager {
   private offlineManager: OfflineMapManager;
+  /** Map of region IDs to their download progress */
   private currentDownloads: Map<string, DownloadProgress> = new Map();
   private options: DownloadManagerOptions;
 
+  /**
+   * Create a new DownloadManager instance.
+   * @param options - Configuration options including callbacks and manager reference
+   */
   constructor(options: DownloadManagerOptions) {
     this.offlineManager = options.offlineManager;
     this.options = options;
   }
 
   /**
-   * Start downloading a region with progress tracking
+   * Update and broadcast progress for a download phase.
+   * Calculates percentage and notifies listeners via the onProgressUpdate callback.
+   * @internal
+   */
+  private updateProgress(
+    regionId: string,
+    phase: DownloadProgress['phase'],
+    completed: number,
+    total: number,
+    currentResource: string
+  ): void {
+    const percentage = total > 0 ? Math.round((completed / total) * 100) : 0;
+
+    this.currentDownloads.set(regionId, {
+      regionId,
+      completed,
+      total,
+      percentage,
+      currentResource,
+      phase,
+    });
+
+    this.options.onProgressUpdate?.(this.currentDownloads);
+  }
+
+  /**
+   * Download a complete offline map region.
+   *
+   * This method orchestrates the full download workflow:
+   * 1. Downloads or retrieves the map style
+   * 2. Downloads sprite resources (icons)
+   * 3. Downloads glyph resources (fonts)
+   * 4. Downloads all tiles for the specified bounds and zoom levels
+   *
+   * Progress updates are broadcast via the `onProgressUpdate` callback
+   * throughout the process.
+   *
+   * @param formData - Region configuration from the user form
+   * @throws Error if style download fails or no sources are available
    */
   public async downloadRegion(formData: RegionFormData): Promise<void> {
     const regionConfig = {
@@ -73,6 +209,7 @@ export class DownloadManager {
           accessToken: formData.accessToken,
           onProgress: (progress: { percentage?: number }) => {
             downloadLogger.debug(`Style download progress: ${progress.percentage}%`);
+            this.updateProgress(regionId, 'style', progress.percentage || 0, 100, 'Downloading style');
           },
         };
 
@@ -177,6 +314,7 @@ export class DownloadManager {
           await spriteService.downloadSprites(spriteUrls, finalStyleId, {
             onProgress: (progress: { completed: number; total: number }) => {
               downloadLogger.debug(`Sprite download: ${progress.completed}/${progress.total}`);
+              this.updateProgress(regionId, 'sprites', progress.completed, progress.total, 'Downloading sprites');
             },
             enableValidation: true,
             skipExisting: false,
@@ -262,6 +400,7 @@ export class DownloadManager {
               {
                 onProgress: (progress: { completed: number; total: number }) => {
                   downloadLogger.debug(`Glyph download: ${progress.completed}/${progress.total}`);
+                  this.updateProgress(regionId, 'glyphs', progress.completed, progress.total, 'Downloading glyphs');
                 },
               }
             );
@@ -326,20 +465,12 @@ export class DownloadManager {
             downloadLogger.debug(
               `Tile download progress: ${progress.completed}/${progress.total} (${progress.percentage.toFixed(1)}%)`
             );
-            // Update progress in UI if needed
-            this.options.onProgressUpdate?.(
-              new Map([
-                [
-                  regionId,
-                  {
-                    regionId,
-                    completed: progress.completed,
-                    total: progress.total,
-                    percentage: progress.percentage,
-                    currentResource: progress.message || 'Downloading tiles',
-                  },
-                ],
-              ])
+            this.updateProgress(
+              regionId,
+              'tiles',
+              progress.completed,
+              progress.total,
+              progress.message || 'Downloading tiles'
             );
           },
           skipExisting: false, // Always download tiles to ensure fresh data
@@ -398,21 +529,25 @@ export class DownloadManager {
   }
 
   /**
-   * Get current downloads
+   * Get a map of all current downloads and their progress.
+   * @returns Map of region IDs to their download progress information
    */
   public getCurrentDownloads(): Map<string, DownloadProgress> {
     return this.currentDownloads;
   }
 
   /**
-   * Check if any downloads are in progress
+   * Check if any downloads are currently in progress.
+   * @returns `true` if one or more downloads are active
    */
   public hasActiveDownloads(): boolean {
     return this.currentDownloads.size > 0;
   }
 
   /**
-   * Cancel a specific download
+   * Cancel a specific region download.
+   * Removes the download from tracking and resets UI if no downloads remain.
+   * @param regionId - The ID of the region download to cancel
    */
   public cancelDownload(regionId: string): void {
     this.currentDownloads.delete(regionId);
@@ -425,7 +560,8 @@ export class DownloadManager {
   }
 
   /**
-   * Cancel all downloads
+   * Cancel all active downloads.
+   * Clears all download tracking and resets the UI.
    */
   public cancelAllDownloads(): void {
     this.currentDownloads.clear();
@@ -434,7 +570,8 @@ export class DownloadManager {
   }
 
   /**
-   * Update UI for download start
+   * Update UI elements when a download starts.
+   * @internal
    */
   private updateUIForDownloadStart(): void {
     this.options.updateButton?.('Downloading...', true);
@@ -442,7 +579,9 @@ export class DownloadManager {
   }
 
   /**
-   * Handle successful download completion
+   * Handle successful completion of a region download.
+   * Removes from tracking, resets UI if needed, and notifies listeners.
+   * @internal
    */
   private handleDownloadComplete(regionId: string): void {
     this.currentDownloads.delete(regionId);
@@ -456,7 +595,9 @@ export class DownloadManager {
   }
 
   /**
-   * Handle download error
+   * Handle a download error for a region.
+   * Removes from tracking, resets UI if needed, and notifies error listeners.
+   * @internal
    */
   private handleDownloadError(regionId: string, error: Error | string | unknown): void {
     this.currentDownloads.delete(regionId);
@@ -471,7 +612,9 @@ export class DownloadManager {
   }
 
   /**
-   * Reset UI to initial state
+   * Reset UI elements to their initial state.
+   * Called when all downloads complete or are cancelled.
+   * @internal
    */
   private resetUI(): void {
     this.options.updateButton?.('Offline Maps', false);

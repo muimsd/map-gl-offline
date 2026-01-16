@@ -1,32 +1,85 @@
 /**
- * Error handling utilities
- * Provides consistent error handling patterns across the application
+ * Error handling utilities for map-gl-offline.
+ *
+ * This module provides consistent error handling patterns across the application,
+ * including error categorization, user-friendly messages, and retry logic helpers.
+ *
+ * **Error Types:**
+ * - `NETWORK`: Transient network errors (retryable)
+ * - `CORS`: Cross-origin policy errors (NOT retryable - server-side issue)
+ * - `STORAGE`: IndexedDB/storage errors
+ * - `VALIDATION`: Invalid input/configuration errors
+ * - `PARSE`: JSON/data parsing errors
+ * - `QUOTA`: Storage quota exceeded errors
+ * - `UNKNOWN`: Uncategorized errors
+ *
+ * @example
+ * ```ts
+ * import { categorizeError, getUserErrorMessage, isRetryableError } from 'map-gl-offline';
+ *
+ * try {
+ *   await downloadTiles();
+ * } catch (error) {
+ *   const type = categorizeError(error);
+ *   const message = getUserErrorMessage(error);
+ *
+ *   if (isRetryableError(error)) {
+ *     // Retry the operation
+ *   } else {
+ *     // Show error to user
+ *     showToast(message);
+ *   }
+ * }
+ * ```
+ *
+ * @module errorHandling
  */
 
 import { logger } from './logger';
 
 /**
- * Error types for categorization
+ * Error type enumeration for categorizing errors.
+ * Used to determine appropriate handling strategies and user messages.
  */
 export enum ErrorType {
-  /** Network-related errors */
+  /** Transient network errors (connection issues, timeouts) - typically retryable */
   NETWORK = 'NETWORK',
-  /** Storage/IndexedDB errors */
+  /** CORS policy errors - NOT retryable, requires server-side configuration or proxy */
+  CORS = 'CORS',
+  /** IndexedDB or storage-related errors */
   STORAGE = 'STORAGE',
-  /** Validation errors */
+  /** Input validation or configuration errors */
   VALIDATION = 'VALIDATION',
-  /** Parsing/Format errors */
+  /** JSON parsing or data format errors */
   PARSE = 'PARSE',
-  /** Quota exceeded errors */
+  /** Browser storage quota exceeded */
   QUOTA = 'QUOTA',
-  /** Unknown errors */
+  /** Errors that don't match any known category */
   UNKNOWN = 'UNKNOWN',
 }
 
 /**
- * Categorized error with additional context
+ * An error with additional categorization and context information.
+ * Extends the standard Error class with type and metadata.
+ *
+ * @example
+ * ```ts
+ * throw new CategorizedError(
+ *   'Failed to download tile',
+ *   ErrorType.NETWORK,
+ *   originalError,
+ *   { url: tileUrl, attempt: 3 }
+ * );
+ * ```
  */
 export class CategorizedError extends Error {
+  /**
+   * Create a new categorized error.
+   * @param message - Human-readable error message
+   * @param type - The error category
+   * @param originalError - The original error that was caught (if any)
+   * @param context - Additional context information for debugging
+   */
   constructor(
     message: string,
     public readonly type: ErrorType,
@@ -39,7 +92,20 @@ export class CategorizedError extends Error {
 }
 
 /**
- * Categorize an error based on its properties
+ * Automatically categorize an error based on its message content.
+ * Analyzes the error message to determine the most appropriate ErrorType.
+ *
+ * @param error - The error to categorize (can be any type)
+ * @returns The determined ErrorType
+ *
+ * @example
+ * ```ts
+ * const type = categorizeError(new Error('Failed to fetch'));
+ * // Returns: ErrorType.NETWORK
+ *
+ * const type = categorizeError(new Error('CORS policy blocked'));
+ * // Returns: ErrorType.CORS
+ * ```
  */
 export function categorizeError(error: unknown): ErrorType {
   if (error instanceof CategorizedError) {
@@ -48,6 +114,16 @@ export function categorizeError(error: unknown): ErrorType {
 
   const message =
     error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
+
+  // Check for CORS errors first (these appear as network errors but aren't retryable)
+  if (
+    message.includes('cors') ||
+    message.includes('cross-origin') ||
+    message.includes('access-control-allow-origin') ||
+    message.includes('blocked by cors policy')
+  ) {
+    return ErrorType.CORS;
+  }
 
   if (
     message.includes('fetch') ||
@@ -98,6 +174,8 @@ export function getUserErrorMessage(error: unknown): string {
   switch (type) {
     case ErrorType.NETWORK:
       return 'Network error: Unable to download resource. Please check your connection and try again.';
+    case ErrorType.CORS:
+      return 'CORS error: The server does not allow cross-origin requests. Consider using a proxy or different tile provider.';
     case ErrorType.STORAGE:
       return 'Storage error: Unable to save data. Please try clearing some space.';
     case ErrorType.QUOTA:
@@ -169,8 +247,15 @@ export function logError(error: unknown, context?: string): void {
  */
 export function isRetryableError(error: unknown): boolean {
   const type = categorizeError(error);
-  // Network errors are typically retryable
+  // Network errors are retryable, but CORS errors are not (server-side issue)
   return type === ErrorType.NETWORK;
+}
+
+/**
+ * Check if error is a CORS error
+ */
+export function isCorsError(error: unknown): boolean {
+  return categorizeError(error) === ErrorType.CORS;
 }
 
 /**
@@ -183,6 +268,7 @@ export function aggregateErrors(errors: Array<{ url: string; error: string }>): 
 } {
   const byType: Record<ErrorType, number> = {
     [ErrorType.NETWORK]: 0,
+    [ErrorType.CORS]: 0,
     [ErrorType.STORAGE]: 0,
     [ErrorType.VALIDATION]: 0,
     [ErrorType.PARSE]: 0,

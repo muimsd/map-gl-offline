@@ -4,6 +4,19 @@ import tailwindcss from '@tailwindcss/vite';
 
 export default defineConfig({
   root: '.',
+  esbuild: {
+    supported: {
+      'top-level-await': true,
+    },
+  },
+  optimizeDeps: {
+    esbuildOptions: {
+      target: 'esnext',
+    },
+  },
+  build: {
+    target: 'esnext',
+  },
   server: {
     open: true, // Automatically open the browser
     proxy: {
@@ -45,7 +58,16 @@ export default defineConfig({
         target: 'https://tile.openstreetmap.org',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/tiles\/osm/, ''),
-      }
+      },
+      // Proxy CARTO fonts to avoid CORS issues
+      '/fonts/carto': {
+        target: 'https://tiles.basemaps.cartocdn.com',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/fonts\/carto/, ''),
+        headers: {
+          'User-Agent': 'map-gl-offline-dev',
+        },
+      },
     }
   },
   plugins: [

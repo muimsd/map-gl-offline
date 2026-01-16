@@ -1,3 +1,40 @@
+/**
+ * Offline Manager Control for MapLibre GL JS.
+ *
+ * This module provides a MapLibre GL JS control for managing offline map regions.
+ * It adds a UI button and panel to the map that allows users to:
+ * - View downloaded offline regions
+ * - Download new regions by selecting areas on the map
+ * - Load offline styles for disconnected usage
+ * - Delete regions to free up storage
+ *
+ * **Features:**
+ * - Integrates seamlessly as a MapLibre GL control
+ * - Intercepts fetch requests to serve offline resources from IndexedDB
+ * - Supports light and dark themes
+ * - Shows download progress across all phases (style, sprites, glyphs, tiles)
+ * - Optional bounding box visualization for regions
+ *
+ * @example
+ * ```ts
+ * import { OfflineMapManager, OfflineManagerControl } from 'map-gl-offline';
+ *
+ * const offlineManager = new OfflineMapManager();
+ * const control = new OfflineManagerControl(offlineManager, {
+ *   styleUrl: 'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json',
+ *   theme: 'dark',
+ *   showBbox: true,
+ * });
+ *
+ * map.addControl(control, 'top-right');
+ *
+ * // Later, load offline styles when offline
+ * await control.loadOfflineStyles();
+ * ```
+ *
+ * @module offlineManagerControl
+ */
+
 import type { IControl, Map as MaplibreMap, StyleSpecification } from 'maplibre-gl';
 import { OfflineMapManager } from '../managers/offlineMapManager';
 import { themeManager } from './ThemeManager';
@@ -14,12 +51,38 @@ import maplibregl from 'maplibre-gl';
 
 const controlLogger = logger.scope('OfflineControl');
 
+/**
+ * Configuration options for the OfflineManagerControl.
+ *
+ * @example
+ * ```ts
+ * const options: OfflineManagerControlOptions = {
+ *   styleUrl: 'https://example.com/style.json',
+ *   theme: 'dark',
+ *   showBbox: true,
+ * };
+ * ```
+ */
 export interface OfflineManagerControlOptions {
+  /** URL of the map style to use for new downloads */
   styleUrl: string;
+  /** UI theme - 'light' or 'dark' */
   theme?: 'light' | 'dark';
-  showBbox?: boolean; // Optional flag to show bounding boxes on map
+  /** Whether to show bounding boxes when focusing on regions */
+  showBbox?: boolean;
 }
 
+/**
+ * MapLibre GL JS control for managing offline map regions.
+ *
+ * Implements the IControl interface to integrate with MapLibre GL maps.
+ * Provides a complete UI for downloading, managing, and loading offline map data.
+ *
+ * The control automatically intercepts fetch requests to serve offline resources
+ * from IndexedDB when available, enabling seamless offline map usage.
+ *
+ * @implements {IControl}
+ */
 export class OfflineManagerControl implements IControl {
   private map: MaplibreMap | undefined;
   private panel: HTMLDivElement | undefined;
@@ -32,11 +95,25 @@ export class OfflineManagerControl implements IControl {
   private regionControl: RegionControl | undefined;
   private downloadManager: DownloadManager;
   private modalManager: ModalManager = new ModalManager();
-  // Bounding box layer for regions
+  /** Whether the bounding box visualization layer has been added to the map */
   private bboxLayerAdded = false;
-  // Store original fetch to restore on cleanup
+  /** Original window.fetch stored for cleanup/restoration */
   private originalFetch: typeof window.fetch;
 
+  /**
+   * Create a new OfflineManagerControl.
+   *
+   * @param offlineManager - The OfflineMapManager instance for storage operations
+   * @param options - Configuration options for the control
+   *
+   * @example
+   * ```ts
+   * const control = new OfflineManagerControl(offlineManager, {
+   *   styleUrl: 'https://example.com/style.json',
+   *   theme: 'dark',
+   * });
+   * ```
+   */
   constructor(
     offlineManager: OfflineMapManager,
     options: OfflineManagerControlOptions = {
@@ -67,7 +144,14 @@ export class OfflineManagerControl implements IControl {
   }
 
   /**
-   * Setup fetch interceptor to handle idb:// URLs
+   * Setup fetch interceptor to handle idb:// URLs and development proxies.
+   *
+   * This method overrides window.fetch to:
+   * 1. Intercept `idb://` URLs and serve from IndexedDB
+   * 2. Proxy tile requests through the development server to avoid CORS issues
+   *
+   * The original fetch is restored when the control is removed.
+   * @internal
    */
   private setupFetchInterceptor(): void {
     const originalFetch = this.originalFetch;
@@ -119,6 +203,13 @@ export class OfflineManagerControl implements IControl {
     };
   }
 
+  /**
+   * Called when the control is added to a map.
+   * Implements the IControl.onAdd interface method.
+   *
+   * @param map - The MapLibre GL map instance
+   * @returns The control's container element
+   */
   onAdd(map: MaplibreMap): HTMLElement {
     this.map = map;
 
@@ -159,6 +250,16 @@ export class OfflineManagerControl implements IControl {
     return this.buttonManager.getContainer();
   }
 
+  /**
+   * Called when the control is removed from a map.
+   * Implements the IControl.onRemove interface method.
+   *
+   * Cleans up all resources including:
+   * - Component managers (button, region control, modals)
+   * - Map layers (bounding box visualization)
+   * - DOM elements (panel)
+   * - Fetch interceptor (restores original window.fetch)
+   */
   onRemove(): void {
     // Cleanup all components
     this.buttonManager?.cleanup();
@@ -254,12 +355,47 @@ export class OfflineManagerControl implements IControl {
   /**
    * Handle progress updates from download manager
    */
-  private handleProgressUpdate(_downloads: Map<string, unknown>): void {
-    // Only update the download progress section, don't refresh the entire panel
-    // The PanelRenderer will handle this through renderDownloadProgress()
-    if (this.panelRenderer) {
-      // Don't refresh the entire panel for progress updates
-      // Progress updates are handled by the PanelRenderer
+  private handleProgressUpdate(
+    downloads: Map<string, { percentage: number; phase?: string; currentResource?: string }>
+  ): void {
+    // Update the progress badge with the current download percentage
+    if (downloads.size > 0) {
+      // Get the first download's info (or average percentage if multiple)
+      const firstDownload = downloads.values().next().value;
+      let displayText = '';
+
+      if (downloads.size === 1 && firstDownload) {
+        // Show phase-specific progress for single download
+        const phase = firstDownload.phase;
+        const percentage = firstDownload.percentage;
+
+        switch (phase) {
+          case 'style':
+            displayText = 'Style';
+            break;
+          case 'sprites':
+            displayText = `Spr ${percentage}%`;
+            break;
+          case 'glyphs':
+            displayText = `Gly ${percentage}%`;
+            break;
+          case 'tiles':
+            displayText = `${percentage}%`;
+            break;
+          default:
+            displayText = `${percentage}%`;
+        }
+      } else {
+        // Multiple downloads - show average
+        let totalPercentage = 0;
+        for (const download of downloads.values()) {
+          totalPercentage += download.percentage;
+        }
+        const avgPercentage = Math.round(totalPercentage / downloads.size);
+        displayText = `${avgPercentage}%`;
+      }
+
+      this.updateProgressBadge(displayText, true);
     }
   }
 
@@ -471,7 +607,18 @@ export class OfflineManagerControl implements IControl {
   }
 
   /**
-   * Load offline style for a specific style ID
+   * Load an offline style by its ID and apply it to the map.
+   *
+   * This method retrieves the style from IndexedDB, patches it for offline use
+   * (converting resource URLs to idb:// protocol), and applies it to the map.
+   *
+   * @param styleId - The unique identifier of the stored style
+   *
+   * @example
+   * ```ts
+   * // Load a specific offline style
+   * await control.loadOfflineStyle('style_1234567890');
+   * ```
    */
   async loadOfflineStyle(styleId: string): Promise<void> {
     if (!this.map) {
@@ -604,21 +751,41 @@ export class OfflineManagerControl implements IControl {
   }
 
   /**
-   * Public method to load offline styles - can be called from outside
+   * Load offline styles from IndexedDB and apply to the map.
+   *
+   * If only one style is available, it's loaded automatically.
+   * If multiple styles exist, a selection modal is shown to the user.
+   *
+   * @example
+   * ```ts
+   * // Check for offline styles and load if available
+   * await control.loadOfflineStyles();
+   * ```
    */
   async loadOfflineStyles(): Promise<void> {
     await this.loadStylesFromIDB();
   }
 
   /**
-   * Public method to load a specific offline style by ID
+   * Load a specific offline style by its ID.
+   * Alias for `loadOfflineStyle()` for API clarity.
+   *
+   * @param styleId - The unique identifier of the stored style
    */
   async loadSpecificOfflineStyle(styleId: string): Promise<void> {
     await this.loadOfflineStyle(styleId);
   }
 
   /**
-   * Update the current style URL for the offline manager
+   * Update the style URL used for new region downloads.
+   *
+   * @param newStyleUrl - The new style URL to use
+   *
+   * @example
+   * ```ts
+   * // Switch to a different map style
+   * control.updateStyleUrl('https://example.com/dark-style.json');
+   * ```
    */
   updateStyleUrl(newStyleUrl: string): void {
     this.options.styleUrl = newStyleUrl;
@@ -631,7 +798,9 @@ export class OfflineManagerControl implements IControl {
   }
 
   /**
-   * Get the current style URL
+   * Get the current style URL configured for new downloads.
+   *
+   * @returns The currently configured style URL
    */
   getCurrentStyleUrl(): string {
     return this.options.styleUrl;

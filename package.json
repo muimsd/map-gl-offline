@@ -125,6 +125,7 @@
     "map-gl-style-switcher": "^0.9.1",
     "postcss": "^8.5.4",
     "prettier": "^3.5.3",
+    "puppeteer": "^24.35.0",
     "rimraf": "^6.0.1",
     "rollup": "^4.37.0",
     "rollup-plugin-dts": "^6.2.1",
