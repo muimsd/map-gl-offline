@@ -115,23 +115,29 @@ interface StyleSwitcherControlOptions {
   onAfterStyleChange?: (from: StyleItem, to: StyleItem) => void;
 }
 
-// Create zoom display element
+// Create chips container for bottom indicators (zoom, area, etc.)
+const mapContainer = map.getContainer();
+mapContainer.style.position = 'relative'; // Ensure map container has relative positioning
+
+const chipsContainer = document.createElement('div');
+chipsContainer.className = 'bottom-chips-container absolute bottom-8 left-1/2 transform -translate-x-1/2 flex items-center gap-3 z-[999]';
+mapContainer.appendChild(chipsContainer);
+
+// Create zoom display chip
 const zoomDisplay = document.createElement('div');
 zoomDisplay.className =
-  'offline-manager-control absolute bottom-8 left-1/2 transform -translate-x-1/2 bg-white/90 dark:bg-gray-800/90 backdrop-blur-md border border-gray-200 dark:border-gray-700 rounded-full shadow-xl px-6 py-3 z-[999] font-sans text-sm font-bold text-gray-900 dark:text-white whitespace-nowrap flex items-center gap-2 pointer-events-none';
+  'offline-manager-control bg-white/90 dark:bg-gray-800/90 backdrop-blur-md border border-gray-200 dark:border-gray-700 rounded-full shadow-xl px-4 py-2 font-sans text-sm font-medium text-gray-900 dark:text-white whitespace-nowrap flex items-center gap-2 pointer-events-none';
 
 const zoomIcon = document.createElement('span');
-zoomIcon.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.35-4.35"></path></svg>`;
+zoomIcon.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.35-4.35"></path></svg>`;
 zoomDisplay.appendChild(zoomIcon);
 
 const zoomText = document.createElement('span');
 zoomText.textContent = `Zoom: ${map.getZoom().toFixed(2)}`;
 zoomDisplay.appendChild(zoomText);
 
-// Add to map container
-const mapContainer = map.getContainer();
-mapContainer.style.position = 'relative'; // Ensure map container has relative positioning
-mapContainer.appendChild(zoomDisplay);
+// Add zoom chip to container
+chipsContainer.appendChild(zoomDisplay);
 
 // Update zoom display on zoom changes
 map.on('zoom', () => {

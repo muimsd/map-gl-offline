@@ -33,7 +33,7 @@ export class RegionDetailsModal {
 
     const modalConfig: ModalConfig = {
       title: 'Region Details',
-      size: 'md',
+      size: 'sm',
       closable: true,
       showThemeToggle: false,
       onClose: this.options.onClose,

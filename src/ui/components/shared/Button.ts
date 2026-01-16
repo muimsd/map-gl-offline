@@ -70,17 +70,18 @@ export class Button extends BaseComponent {
   }
 
   private getVariantClasses(): string {
+    const baseStyles = 'rounded-lg font-medium focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed';
     switch (this.config.variant) {
       case 'primary':
-        return 'bg-blue-600 hover:bg-blue-700 text-white border border-blue-700 rounded';
+        return `${baseStyles} bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white focus:ring-blue-500`;
       case 'secondary':
-        return 'bg-gray-500 hover:bg-gray-600 text-white border border-gray-600 rounded';
+        return `${baseStyles} bg-gray-500 hover:bg-gray-600 active:bg-gray-700 text-white focus:ring-gray-500`;
       case 'success':
-        return 'bg-green-600 hover:bg-green-700 text-white border border-green-700';
+        return `${baseStyles} bg-green-600 hover:bg-green-700 active:bg-green-800 text-white focus:ring-green-500`;
       case 'danger':
-        return 'bg-red-600 hover:bg-red-700 text-white border border-red-700';
+        return `${baseStyles} bg-red-600 hover:bg-red-700 active:bg-red-800 text-white focus:ring-red-500`;
       default:
-        return 'bg-white hover:bg-gray-50 text-gray-900 border border-gray-300 dark:bg-gray-800 dark:hover:bg-gray-700 dark:text-white dark:border-gray-600';
+        return `${baseStyles} bg-white hover:bg-gray-50 active:bg-gray-100 text-gray-700 border border-gray-300 focus:ring-blue-500 dark:bg-gray-700 dark:hover:bg-gray-600 dark:active:bg-gray-500 dark:text-white dark:border-gray-600`;
     }
   }
 
@@ -126,7 +127,13 @@ export class Button extends BaseComponent {
   public updateProgressBadge(text: string, visible: boolean): void {
     if (this.progressBadge) {
       this.progressBadge.textContent = text;
-      this.progressBadge.style.display = visible ? 'block' : 'none';
+      if (visible) {
+        this.progressBadge.classList.remove('hidden');
+        this.progressBadge.classList.add('block');
+      } else {
+        this.progressBadge.classList.remove('block');
+        this.progressBadge.classList.add('hidden');
+      }
     }
   }
 
@@ -136,7 +143,8 @@ export class Button extends BaseComponent {
   public showProgressBadge(text?: string): void {
     if (this.progressBadge) {
       if (text) this.progressBadge.textContent = text;
-      this.progressBadge.style.display = 'block';
+      this.progressBadge.classList.remove('hidden');
+      this.progressBadge.classList.add('block');
     }
   }
 
@@ -145,7 +153,8 @@ export class Button extends BaseComponent {
    */
   public hideProgressBadge(): void {
     if (this.progressBadge) {
-      this.progressBadge.style.display = 'none';
+      this.progressBadge.classList.remove('block');
+      this.progressBadge.classList.add('hidden');
     }
   }
 }

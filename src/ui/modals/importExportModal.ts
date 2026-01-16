@@ -59,7 +59,7 @@ export class ImportExportModal {
     const modalConfig: ModalConfig = {
       title: 'Import/Export Region',
       subtitle: this.options.region.name || this.options.region.id,
-      size: 'lg',
+      size: 'md',
       closable: true,
       onClose: () => this.hide(),
     };
@@ -69,6 +69,10 @@ export class ImportExportModal {
     // Create content
     const content = this.createContent();
     this.modal.setContent(content);
+
+    // Create footer with close button
+    const footer = this.createFooter();
+    this.modal.setFooter(footer);
 
     this.modal.show();
     this.attachEventListeners();
@@ -91,7 +95,7 @@ export class ImportExportModal {
 
     // Export/Import Grid
     const gridContainer = document.createElement('div');
-    gridContainer.className = 'grid grid-cols-1 lg:grid-cols-2 gap-6';
+    gridContainer.className = 'grid grid-cols-1 gap-6';
 
     // Export Section
     const exportSection = this.createExportSection();
@@ -168,7 +172,7 @@ export class ImportExportModal {
 
     this.exportFormatSelect = document.createElement('select');
     this.exportFormatSelect.className =
-      'w-full p-2 border border-gray-300 dark:border-gray-600 rounded-sm text-sm text-gray-900 dark:text-white bg-white dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent';
+      'w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-white bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors';
     this.exportFormatSelect.innerHTML = `
       <option value="json">JSON - Complete data (recommended)</option>
       <option value="pmtiles">PMTiles - Web optimized tiles</option>
@@ -201,7 +205,7 @@ export class ImportExportModal {
       input.type = 'checkbox';
       input.checked = checked;
       input.className =
-        'rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 dark:bg-gray-800';
+        'w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 focus:ring-2 dark:bg-gray-700';
 
       const span = document.createElement('span');
       span.className = 'text-sm text-gray-700 dark:text-gray-300';
@@ -297,7 +301,7 @@ export class ImportExportModal {
     this.importFileInput.type = 'file';
     this.importFileInput.accept = '.json,.pmtiles,.mbtiles';
     this.importFileInput.className =
-      'w-full p-2 border border-gray-300 dark:border-gray-600 rounded-sm text-sm text-gray-900 dark:text-white bg-white dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent file:mr-4 file:py-1 file:px-2 file:rounded-sm file:border-0 file:text-sm file:font-medium file:bg-green-50 file:text-green-700 hover:file:bg-green-100 dark:file:bg-green-900 dark:file:text-green-400';
+      'w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-white bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors file:mr-4 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 dark:file:bg-blue-900/50 dark:file:text-blue-400';
 
     const fileHint = document.createElement('p');
     fileHint.className = 'mt-1 text-xs text-gray-500 dark:text-gray-400';
@@ -318,7 +322,7 @@ export class ImportExportModal {
     this.importNameInput.type = 'text';
     this.importNameInput.placeholder = 'Leave empty to use original name';
     this.importNameInput.className =
-      'w-full p-2 border border-gray-300 dark:border-gray-600 rounded-sm text-sm text-gray-900 dark:text-white bg-white dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent';
+      'w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-white bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors';
 
     nameGroup.appendChild(nameLabel);
     nameGroup.appendChild(this.importNameInput);
@@ -331,7 +335,7 @@ export class ImportExportModal {
     this.importOverwriteCheckbox = document.createElement('input');
     this.importOverwriteCheckbox.type = 'checkbox';
     this.importOverwriteCheckbox.className =
-      'rounded border-gray-300 dark:border-gray-600 text-green-600 focus:ring-green-500 dark:bg-gray-800';
+      'w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 focus:ring-2 dark:bg-gray-700';
 
     const overwriteSpan = document.createElement('span');
     overwriteSpan.className = 'text-sm text-gray-700 dark:text-gray-300';
@@ -523,6 +527,20 @@ export class ImportExportModal {
       this.isImporting = false;
       if (this.importButton) this.importButton.disabled = false;
     }
+  }
+
+  private createFooter(): HTMLElement {
+    const footer = document.createElement('div');
+    footer.className = 'flex gap-3 justify-end';
+
+    const closeButton = new Button({
+      text: 'Close',
+      variant: 'secondary',
+      onClick: () => this.hide(),
+    });
+    footer.appendChild(closeButton.getElement());
+
+    return footer;
   }
 
   public destroy(): void {

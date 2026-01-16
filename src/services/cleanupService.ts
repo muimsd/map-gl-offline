@@ -300,13 +300,26 @@ export class CleanupService {
     const db = await this.db;
     let totalSize = 0;
 
-    // Calculate size from tiles
+    // First, get the region to find its styleId
+    const region = await db.get('regions', regionId);
+    if (!region) {
+      return 0;
+    }
+
+    const styleId = region.styleId;
+    if (!styleId) {
+      return 0;
+    }
+
+    // Calculate size from tiles that belong to this style
+    // Tile keys are formatted as: styleId:sourceId:z:x:y.ext
     const tx = db.transaction(['tiles'], 'readonly');
     let cursor = await tx.objectStore('tiles').openCursor();
 
     while (cursor) {
       const tile = cursor.value;
-      if (tile.styleId === regionId) {
+      // Check if the tile key starts with the styleId
+      if (tile.key && tile.key.startsWith(`${styleId}:`)) {
         totalSize += tile.size || 0;
       }
       cursor = await cursor.continue();

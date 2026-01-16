@@ -38,21 +38,21 @@ export class Modal extends BaseComponent {
 
   protected createElement(): HTMLElement {
     const modal = document.createElement('div');
-    modal.className = 'fixed inset-0 z-[1000] flex items-center justify-center';
+    modal.className = 'modal-backdrop';
     return modal;
   }
 
   private createModalStructure(): void {
-    // Create backdrop
+    // Create backdrop overlay (clickable area)
     if (this.config.backdrop) {
       this.backdrop = document.createElement('div');
-      this.backdrop.className = 'absolute inset-0 bg-black bg-opacity-50';
+      this.backdrop.className = 'modal-backdrop-inner';
       this.element.appendChild(this.backdrop);
     }
 
     // Create modal content
     this.modalContent = document.createElement('div');
-    this.modalContent.className = `relative bg-white dark:bg-gray-800 rounded-lg shadow-xl ${this.getSizeClasses()} max-h-[90vh] overflow-hidden flex flex-col`;
+    this.modalContent.className = `modal-content ${this.getSizeClasses()}`;
     this.element.appendChild(this.modalContent);
 
     // Create header
@@ -62,19 +62,18 @@ export class Modal extends BaseComponent {
 
     // Create body
     this.body = document.createElement('div');
-    this.body.className = 'flex-1 overflow-auto p-6';
+    this.body.className = 'modal-body';
     this.modalContent.appendChild(this.body);
 
     // Create footer
     this.footer = document.createElement('div');
-    this.footer.className = 'border-t border-gray-200 dark:border-gray-700 px-6 py-4 hidden';
+    this.footer.className = 'modal-footer hidden';
     this.modalContent.appendChild(this.footer);
   }
 
   private createHeader(): void {
     this.header = document.createElement('div');
-    this.header.className =
-      'flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700';
+    this.header.className = 'modal-header';
 
     // Title section
     const titleSection = document.createElement('div');
@@ -82,7 +81,7 @@ export class Modal extends BaseComponent {
 
     if (this.config.title) {
       const title = document.createElement('h2');
-      title.className = 'text-xl font-semibold text-gray-900 dark:text-white';
+      title.className = 'modal-title';
       title.textContent = this.config.title;
       titleSection.appendChild(title);
     }
@@ -103,8 +102,7 @@ export class Modal extends BaseComponent {
     // Theme toggle button
     if (this.config.showThemeToggle && this.config.onThemeToggle) {
       const themeButton = document.createElement('button');
-      themeButton.className =
-        'p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors';
+      themeButton.className = 'modal-close-btn';
       themeButton.innerHTML = `
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <circle cx="12" cy="12" r="5"></circle>
@@ -126,8 +124,7 @@ export class Modal extends BaseComponent {
     // Close button
     if (this.config.closable && this.config.onClose) {
       const closeButton = document.createElement('button');
-      closeButton.className =
-        'p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors';
+      closeButton.className = 'modal-close-btn';
       closeButton.innerHTML = `
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <line x1="18" y1="6" x2="6" y2="18"></line>
@@ -148,15 +145,15 @@ export class Modal extends BaseComponent {
   private getSizeClasses(): string {
     switch (this.config.size) {
       case 'sm':
-        return 'w-full max-w-md mx-4';
+        return 'modal-sm';
       case 'md':
-        return 'w-full max-w-2xl mx-4';
+        return 'modal-md';
       case 'lg':
-        return 'w-full max-w-4xl mx-4';
+        return 'modal-lg';
       case 'xl':
-        return 'w-full max-w-6xl mx-4';
+        return 'modal-lg'; // xl uses same as lg for consistency
       default:
-        return 'w-full max-w-2xl mx-4';
+        return 'modal-md';
     }
   }
 

@@ -235,8 +235,16 @@ export class PanelRenderer extends BaseComponent {
         sizeMap[s.id] = s.size;
       });
 
+      // Fetch sizes for all regions
+      const regionsWithSizes = await Promise.all(
+        regions.map(async region => {
+          const size = await this.offlineManager.getRegionSize(region.id);
+          return { ...region, size };
+        })
+      );
+
       // Group regions by style ID
-      const regionsByStyle = this.groupRegionsByStyle(regions);
+      const regionsByStyle = this.groupRegionsByStyle(regionsWithSizes);
       console.warn('📊 Regions grouped by style:', regionsByStyle);
 
       // Create styles and regions list
@@ -368,7 +376,7 @@ export class PanelRenderer extends BaseComponent {
               ${region.name}
             </h4>
             <div class="text-xs text-slate-500 dark:text-slate-400 mt-1">
-              ${region.bounds ? `${region.bounds[0][1].toFixed(4)}, ${region.bounds[0][0].toFixed(4)} to ${region.bounds[1][1].toFixed(4)}, ${region.bounds[1][0].toFixed(4)}` : 'No bounds'}
+              ${region.bounds ? `<span class="font-medium">SW:</span> ${region.bounds[0][1].toFixed(4)}, ${region.bounds[0][0].toFixed(4)} <span class="mx-1">→</span> <span class="font-medium">NE:</span> ${region.bounds[1][1].toFixed(4)}, ${region.bounds[1][0].toFixed(4)}` : 'No bounds'}
             </div>
             <div class="flex items-center gap-4 text-xs text-slate-400 dark:text-slate-500 mt-2">
               <span>Zoom: ${region.minZoom}-${region.maxZoom}</span>
@@ -444,7 +452,7 @@ export class PanelRenderer extends BaseComponent {
               ${region.name}
             </h4>
             <div class="text-xs text-slate-500 dark:text-slate-400 mt-1">
-              ${region.bounds ? `${region.bounds[0][1].toFixed(4)}, ${region.bounds[0][0].toFixed(4)} to ${region.bounds[1][1].toFixed(4)}, ${region.bounds[1][0].toFixed(4)}` : 'No bounds'}
+              ${region.bounds ? `<span class="font-medium">SW:</span> ${region.bounds[0][1].toFixed(4)}, ${region.bounds[0][0].toFixed(4)} <span class="mx-1">→</span> <span class="font-medium">NE:</span> ${region.bounds[1][1].toFixed(4)}, ${region.bounds[1][0].toFixed(4)}` : 'No bounds'}
             </div>
             <div class="flex items-center gap-4 text-xs text-slate-400 dark:text-slate-500 mt-2">
               <span>Zoom: ${region.minZoom}-${region.maxZoom}</span>
@@ -1016,8 +1024,8 @@ export class PanelRenderer extends BaseComponent {
   /**
    * Group regions by style ID
    */
-  private groupRegionsByStyle(regions: StoredRegion[]): Record<string, StoredRegion[]> {
-    const grouped: Record<string, StoredRegion[]> = {};
+  private groupRegionsByStyle<T extends StoredRegion>(regions: T[]): Record<string, T[]> {
+    const grouped: Record<string, T[]> = {};
 
     regions.forEach(region => {
       const styleId = region.styleId || 'unknown';

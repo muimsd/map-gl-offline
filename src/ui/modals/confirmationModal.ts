@@ -37,46 +37,43 @@ export class ConfirmationModal {
 
     this.modal = new Modal(modalConfig);
 
-    // Create content
+    // Create content - message only
     const content = document.createElement('div');
-    content.className = 'flex flex-col gap-6';
+    content.className = 'text-gray-600 dark:text-gray-300 leading-relaxed whitespace-pre-line';
+    content.textContent = this.options.message;
 
-    // Message
-    const message = document.createElement('p');
-    message.className = 'm-0 text-gray-900 dark:text-white leading-relaxed';
-    message.textContent = this.options.message;
-    content.appendChild(message);
+    // Set modal content
+    this.modal.setContent(content);
 
-    // Action buttons
-    const buttonContainer = document.createElement('div');
-    buttonContainer.className = 'flex gap-2 justify-end';
+    // Create footer with action buttons
+    const footer = document.createElement('div');
+    footer.className = 'flex gap-3 justify-end';
 
-    // Cancel button
-    const cancelButton = new Button({
-      text: this.options.cancelText,
-      variant: 'secondary',
-      onClick: () => {
-        this.modal?.hide();
-        this.options.onCancel();
-      },
-    });
+    // Cancel button (only show if cancelText is provided)
+    if (this.options.cancelText) {
+      const cancelButton = new Button({
+        text: this.options.cancelText,
+        variant: 'secondary',
+        onClick: () => {
+          this.modal?.hide();
+          this.options.onCancel();
+        },
+      });
+      footer.appendChild(cancelButton.getElement());
+    }
 
     // Confirm button
     const confirmButton = new Button({
       text: this.options.confirmText,
-      variant: 'danger',
+      variant: 'primary',
       onClick: () => {
         this.modal?.hide();
         this.options.onConfirm();
       },
     });
+    footer.appendChild(confirmButton.getElement());
 
-    buttonContainer.appendChild(cancelButton.getElement());
-    buttonContainer.appendChild(confirmButton.getElement());
-    content.appendChild(buttonContainer);
-
-    // Set modal content
-    this.modal.setContent(content);
+    this.modal.setFooter(footer);
     this.modal.show();
 
     return this.modal.getElement() as HTMLDivElement;

@@ -55,7 +55,7 @@ export class RegionFormModal {
     const modalConfig: ModalConfig = {
       title: 'Download Offline Region',
       subtitle: `Selected area: ${area} km²`,
-      size: 'lg',
+      size: 'md',
       closable: true,
       showThemeToggle: true,
       onClose: this.options.onCancel,
@@ -82,7 +82,6 @@ export class RegionFormModal {
   private createForm(bounds: [number, number, number, number], area: number): HTMLElement {
     const [west, south, east, north] = bounds;
     const styleUrl = this.options.styleUrl;
-    console.warn('styleURL', styleUrl);
 
     const form = document.createElement('div');
     form.className = 'flex flex-col gap-4';
@@ -98,7 +97,7 @@ export class RegionFormModal {
     this.nameInput.type = 'text';
     this.nameInput.placeholder = 'Enter region name...';
     this.nameInput.className =
-      'w-full p-2 border border-gray-300 dark:border-gray-600 rounded-sm text-sm text-gray-900 dark:text-white bg-white dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent';
+      'w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-white bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors';
     nameGroup.appendChild(this.nameInput);
     form.appendChild(nameGroup);
 
@@ -118,7 +117,7 @@ export class RegionFormModal {
     this.minZoomInput.min = '0';
     this.minZoomInput.max = '20';
     this.minZoomInput.className =
-      'w-full p-2 border border-gray-300 dark:border-gray-600 rounded-sm text-sm text-gray-900 dark:text-white bg-white dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent';
+      'w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-white bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors';
     minZoomDiv.appendChild(this.minZoomInput);
 
     const maxZoomDiv = document.createElement('div');
@@ -133,7 +132,7 @@ export class RegionFormModal {
     this.maxZoomInput.min = '0';
     this.maxZoomInput.max = '20';
     this.maxZoomInput.className =
-      'w-full p-2 border border-gray-300 dark:border-gray-600 rounded-sm text-sm text-gray-900 dark:text-white bg-white dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent';
+      'w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-white bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors';
     maxZoomDiv.appendChild(this.maxZoomInput);
 
     zoomGroup.appendChild(minZoomDiv);
@@ -151,7 +150,7 @@ export class RegionFormModal {
     this.styleUrlInput.type = 'text';
     this.styleUrlInput.value = styleUrl;
     this.styleUrlInput.className =
-      'w-full p-2 border border-gray-300 dark:border-gray-600 rounded-sm text-sm text-gray-900 dark:text-white bg-white dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent';
+      'w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-white bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors';
     this.styleUrlInput.addEventListener('input', () => this.handleStyleUrlChange());
     styleGroup.appendChild(this.styleUrlInput);
     form.appendChild(styleGroup);
@@ -165,7 +164,7 @@ export class RegionFormModal {
     `;
     this.providerSelect = document.createElement('select');
     this.providerSelect.className =
-      'w-full p-2 border border-gray-300 dark:border-gray-600 rounded-sm text-sm text-gray-900 dark:text-white bg-white dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent';
+      'w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-white bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors';
     this.providerSelect.innerHTML = `
       <option value="auto">Auto-detect</option>
       <option value="mapbox">Mapbox GL (requires access token)</option>
@@ -195,7 +194,7 @@ export class RegionFormModal {
     this.accessTokenInput.type = 'password';
     this.accessTokenInput.placeholder = 'pk.eyJ1...';
     this.accessTokenInput.className =
-      'w-full p-2 border border-gray-300 dark:border-gray-600 rounded-sm text-sm text-gray-900 dark:text-white bg-white dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent';
+      'w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-white bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors';
     this.accessTokenGroup.appendChild(this.accessTokenInput);
 
     // Add access token help text
@@ -214,7 +213,7 @@ export class RegionFormModal {
     // Region info display
     const infoGroup = document.createElement('div');
     infoGroup.className =
-      'grid grid-cols-2 gap-2 p-3 bg-gray-50 dark:bg-gray-700 rounded-sm border border-gray-200 dark:border-gray-600';
+      'grid grid-cols-2 gap-4 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700';
     infoGroup.innerHTML = `
       <div>
         <strong class="text-gray-900 dark:text-white">Area:</strong>

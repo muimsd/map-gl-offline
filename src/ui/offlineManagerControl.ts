@@ -308,6 +308,10 @@ export class OfflineManagerControl implements IControl {
     this.isOpen = !this.isOpen;
     if (this.panel) {
       if (this.isOpen) {
+        // Cancel any active region selection when opening the panel
+        if (this.regionControl?.isSelectionActive()) {
+          this.regionControl.cancelSelection();
+        }
         this.panel.classList.remove('hidden');
         this.renderPanel();
       } else {
@@ -691,44 +695,62 @@ export class OfflineManagerControl implements IControl {
   private showStyleSelectionModal(
     styles: { key: string; style: { name?: string; sources?: object }; regions?: unknown[] }[]
   ): void {
-    // Create a simple selection modal
+    // Create modal using consistent CSS classes
     const modal = document.createElement('div');
-    modal.className = 'offline-modal-overlay';
-    modal.innerHTML = `
-      <div class="offline-modal">
-        <div class="offline-modal-header">
-          <h3>Select Offline Style</h3>
-          <button class="offline-modal-close">&times;</button>
-        </div>
-        <div class="offline-modal-body">
-          <p>Choose which offline style to load:</p>
-          <div class="offline-style-list">
-            ${styles
-              .map(
-                style => `
-              <button class="offline-style-option" data-style-id="${style.key}">
-                <div class="style-name">${style.style.name || style.key}</div>
-                <div class="style-info">
-                  ${style.regions?.length || 0} regions • 
-                  ${Object.keys(style.style.sources || {}).length} sources
-                </div>
-              </button>
-            `
-              )
-              .join('')}
-          </div>
+    modal.className = 'modal-backdrop offline-manager-control';
+
+    // Create backdrop for click-to-close
+    const backdrop = document.createElement('div');
+    backdrop.className = 'modal-backdrop-inner';
+    modal.appendChild(backdrop);
+
+    // Create modal content
+    const content = document.createElement('div');
+    content.className = 'modal-content modal-sm';
+    content.innerHTML = `
+      <div class="modal-header">
+        <h3 class="modal-title">Select Offline Style</h3>
+        <button class="modal-close-btn" title="Close">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <p class="text-gray-600 dark:text-gray-300 mb-4">Choose which offline style to load:</p>
+        <div class="flex flex-col gap-2">
+          ${styles
+            .map(
+              style => `
+            <button class="w-full p-3 text-left border border-gray-200 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors" data-style-id="${style.key}">
+              <div class="font-medium text-gray-900 dark:text-white">${style.style.name || style.key}</div>
+              <div class="text-sm text-gray-500 dark:text-gray-400">
+                ${style.regions?.length || 0} regions •
+                ${Object.keys(style.style.sources || {}).length} sources
+              </div>
+            </button>
+          `
+            )
+            .join('')}
         </div>
       </div>
     `;
+    modal.appendChild(content);
 
-    // Add event listeners
-    const closeBtn = modal.querySelector('.offline-modal-close');
+    // Close on backdrop click
+    backdrop.addEventListener('click', () => {
+      document.body.removeChild(modal);
+    });
+
+    // Close button
+    const closeBtn = content.querySelector('.modal-close-btn');
     closeBtn?.addEventListener('click', () => {
       document.body.removeChild(modal);
     });
 
     // Style selection
-    const styleButtons = modal.querySelectorAll('.offline-style-option');
+    const styleButtons = content.querySelectorAll('[data-style-id]');
     styleButtons.forEach(button => {
       button.addEventListener('click', async () => {
         const styleId = button.getAttribute('data-style-id');
@@ -738,13 +760,6 @@ export class OfflineManagerControl implements IControl {
           this.renderPanel();
         }
       });
-    });
-
-    // Close on overlay click
-    modal.addEventListener('click', e => {
-      if (e.target === modal) {
-        document.body.removeChild(modal);
-      }
     });
 
     document.body.appendChild(modal);

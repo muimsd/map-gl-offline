@@ -63,22 +63,35 @@ export class PolygonControl {
   }
 
   /**
-   * Create the polygon control UI - area display at bottom center
+   * Create the polygon control UI - area display at bottom center, next to zoom chip
    */
   private createUI(): void {
-    // Create area display at bottom center
+    // Check if bottom-chips container exists, create if not
+    const mapContainer = this.map.getContainer();
+    let chipsContainer = mapContainer.querySelector('.bottom-chips-container') as HTMLDivElement;
+
+    if (!chipsContainer) {
+      chipsContainer = document.createElement('div');
+      chipsContainer.className = 'bottom-chips-container absolute bottom-8 left-1/2 transform -translate-x-1/2 flex items-center gap-3 z-[999]';
+      mapContainer.appendChild(chipsContainer);
+    }
+
+    // Create area display chip
     this.container = document.createElement('div');
     this.container.className =
-      'offline-manager-control absolute bottom-5 left-1/2 transform -translate-x-1/2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg px-4 py-2 z-[1000] font-sans text-sm font-medium text-gray-900 dark:text-white whitespace-nowrap';
+      'offline-manager-control bg-white/90 dark:bg-gray-800/90 backdrop-blur-md border border-gray-200 dark:border-gray-700 rounded-full shadow-xl px-4 py-2 font-sans text-sm font-medium text-gray-900 dark:text-white whitespace-nowrap flex items-center gap-2';
 
-    this.areaDisplay = document.createElement('div');
+    // Add area icon
+    const areaIcon = document.createElement('span');
+    areaIcon.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>`;
+    this.container.appendChild(areaIcon);
+
+    this.areaDisplay = document.createElement('span');
     this.areaDisplay.textContent = 'Area: 0 km²';
-
     this.container.appendChild(this.areaDisplay);
 
-    // Add to map container
-    const mapContainer = this.map.getContainer();
-    mapContainer.appendChild(this.container);
+    // Insert area chip at the beginning of the container (before zoom chip)
+    chipsContainer.insertBefore(this.container, chipsContainer.firstChild);
   }
 
   /**
