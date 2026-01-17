@@ -18,6 +18,9 @@ import { createRegionsList } from '../RegionList';
 import { createDownloadProgressSection } from '../DownloadProgress';
 import { formatBytes } from '../../../utils/formatting';
 import { themeManager } from '../../ThemeManager';
+import { logger } from '../../../utils/logger';
+
+const contentLogger = logger.scope('PanelContent');
 
 export interface ContentRendererConfig {
   offlineManager: OfflineMapManager;
@@ -73,7 +76,7 @@ export class PanelContentRenderer extends BaseComponent {
       // Setup event listeners for the rendered content
       this.setupContentEventListeners(container);
     } catch (error) {
-      console.error('Error rendering panel content:', error);
+      contentLogger.error('Error rendering panel content:', error);
       container.innerHTML = `
         <div class="flex items-center justify-center h-full text-red-600 dark:text-red-400">
           Error loading content. Please try again.
@@ -173,7 +176,7 @@ export class PanelContentRenderer extends BaseComponent {
         this.showRegionDetails(region);
       }
     } catch (error) {
-      console.error('Error finding region:', error);
+      contentLogger.error('Error finding region:', error);
     }
   }
 
@@ -212,7 +215,7 @@ export class PanelContentRenderer extends BaseComponent {
             await this.render(container);
           }
         } catch (error) {
-          console.error('Failed to delete region:', error);
+          contentLogger.error('Failed to delete region:', error);
           alert('Failed to delete region. Please try again.');
         }
       },
@@ -228,14 +231,14 @@ export class PanelContentRenderer extends BaseComponent {
   private downloadRegion(regionId: string): void {
     // For now, just log that we would start a download
     // In a real implementation, this would trigger a new download
-    console.warn('Download region requested:', regionId);
+    contentLogger.debug('Download region requested:', regionId);
     alert('Download feature not implemented in this refactored version');
   }
 
   private showImportExportModal(): void {
     // For this refactored version, we'll show a simple alert
     // In a real implementation, you would create and show the import/export modal
-    console.warn('Import/Export modal requested');
+    contentLogger.debug('Import/Export modal requested');
     alert('Import/Export feature not fully implemented in this refactored version');
   }
 

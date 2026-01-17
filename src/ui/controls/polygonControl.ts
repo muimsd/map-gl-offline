@@ -6,6 +6,9 @@
 import type { Map as MaplibreMap, GeoJSONSource } from 'maplibre-gl';
 import { area, bboxPolygon, difference, convertArea, featureCollection, polygon } from '@turf/turf';
 import { icons } from '../../utils/icons';
+import { logger } from '../../utils/logger';
+
+const polygonLogger = logger.scope('PolygonControl');
 
 export interface PolygonControlOptions {
   onSave: (bounds: [number, number, number, number], area: number) => void;
@@ -16,7 +19,7 @@ export class PolygonControl {
   private map: MaplibreMap;
   private container: HTMLDivElement | undefined;
   private saveButton: HTMLButtonElement | undefined;
-  private areaDisplay: HTMLDivElement | undefined;
+  private areaDisplay: HTMLSpanElement | undefined;
   private currentBounds: [number, number, number, number] | null = null;
   private currentArea = 0;
   private options: PolygonControlOptions;
@@ -228,7 +231,7 @@ export class PolygonControl {
     const leftoverPolygon = difference(featureCollection([originalPolygon, clippedPolygon]));
 
     if (!leftoverPolygon) {
-      console.error('Failed to compute the difference between polygons');
+      polygonLogger.error('Failed to compute the difference between polygons');
       return;
     }
 

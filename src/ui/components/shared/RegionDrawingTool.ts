@@ -8,6 +8,9 @@ import type { Map as MaplibreMap } from 'maplibre-gl';
 import { DownloadManager } from '../../managers/downloadManager';
 import { ModalManager } from '../../modals/modalManager';
 import { RegionFormModal, RegionFormData } from '../../modals/regionFormModal';
+import { logger } from '../../../utils/logger';
+
+const drawingLogger = logger.scope('RegionDrawingTool');
 
 export interface RegionDrawingConfig {
   map: MaplibreMap;
@@ -163,7 +166,7 @@ export class RegionDrawing extends BaseComponent {
           // For now, we'll emit an event
           this.drawingConfig.onRegionSaved();
         } catch (error) {
-          console.error('Failed to save region:', error);
+          drawingLogger.error('Failed to save region:', error);
           throw error;
         }
       },

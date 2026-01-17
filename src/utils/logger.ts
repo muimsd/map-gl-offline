@@ -142,6 +142,7 @@ class Logger {
    */
   info(message: string, ...args: unknown[]): void {
     if (this.shouldLog(LogLevel.INFO)) {
+      // eslint-disable-next-line no-console
       console.log(`ℹ️  ${message}`, ...args);
     }
   }
@@ -154,6 +155,7 @@ class Logger {
    */
   debug(message: string, ...args: unknown[]): void {
     if (this.shouldLog(LogLevel.DEBUG)) {
+      // eslint-disable-next-line no-console
       console.debug(`🔍 ${message}`, ...args);
     }
   }
@@ -166,6 +168,7 @@ class Logger {
    */
   success(message: string, ...args: unknown[]): void {
     if (this.shouldLog(LogLevel.INFO)) {
+      // eslint-disable-next-line no-console
       console.log(`✅ ${message}`, ...args);
     }
   }

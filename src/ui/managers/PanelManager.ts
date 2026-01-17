@@ -13,6 +13,9 @@ import { ConfirmationModal } from '../modals/confirmationModal';
 import { ImportExportModal } from '../modals/importExportModal';
 import { formatBytes } from '../../utils/formatting';
 import { themeManager } from '../ThemeManager';
+import { logger } from '../../utils/logger';
+
+const panelLogger = logger.scope('PanelManager');
 
 import { icons } from '../../utils/icons';
 import type { MapboxStyle, StyleStorageItem } from '../../types/style';
@@ -87,7 +90,7 @@ export class PanelRenderer extends BaseComponent {
         this.offlineManager.getComprehensiveStorageAnalytics(),
       ]);
 
-      console.warn('📊 Panel data loaded:', { regions, analytics });
+      panelLogger.debug('Panel data loaded:', { regions, analytics });
 
       // Render components
       await this.renderHeader(regions, analytics);
@@ -95,7 +98,7 @@ export class PanelRenderer extends BaseComponent {
       await this.renderDownloadProgress();
       await this.renderRegionsList(regions);
     } catch (error) {
-      console.error('Error rendering panel:', error);
+      panelLogger.error('Error rendering panel:', error);
       this.renderErrorState(panelElement);
     }
   }
@@ -215,7 +218,7 @@ export class PanelRenderer extends BaseComponent {
    * Render styles list with regions grouped under each style
    */
   private async renderRegionsList(regions: StoredRegion[]): Promise<void> {
-    console.warn('🗂️ Rendering regions list with regions:', regions);
+    panelLogger.debug('Rendering regions list with regions:', regions);
 
     // Remove existing list
     if (this.regionsList) {
@@ -227,8 +230,8 @@ export class PanelRenderer extends BaseComponent {
       const { loadStyles, getStyleStats } = await import('../../services/styleService');
       const styles = await loadStyles();
       const statsResult = await getStyleStats();
-      console.warn('🎨 Loaded styles:', styles);
-      console.warn('📈 Style stats:', statsResult);
+      panelLogger.debug('Loaded styles:', styles);
+      panelLogger.debug('Style stats:', statsResult);
 
       const sizeMap: Record<string, number> = {};
       statsResult.styles.forEach(s => {
@@ -245,7 +248,7 @@ export class PanelRenderer extends BaseComponent {
 
       // Group regions by style ID
       const regionsByStyle = this.groupRegionsByStyle(regionsWithSizes);
-      console.warn('📊 Regions grouped by style:', regionsByStyle);
+      panelLogger.debug('Regions grouped by style:', regionsByStyle);
 
       // Create styles and regions list
       const listItems: ListItemConfig[] = [];
@@ -351,7 +354,7 @@ export class PanelRenderer extends BaseComponent {
       // Add event delegation for embedded region action buttons
       this.addRegionActionEventListeners();
     } catch (error) {
-      console.error('Error loading styles or rendering list:', error);
+      panelLogger.error('Error loading styles or rendering list:', error);
       // Fallback to simple regions list
       this.renderFallbackRegionsList(regions);
     }
@@ -562,12 +565,12 @@ export class PanelRenderer extends BaseComponent {
             .map(
               download => `
             <div class="flex items-center justify-between text-sm">
-              <span class="text-blue-800 dark:text-blue-200">${download.regionName || download.id}</span>
+              <span class="text-blue-800 dark:text-blue-200">${download.regionName || download.regionId}</span>
               <div class="flex items-center gap-2">
                 <div class="w-24 h-2 bg-blue-200 dark:bg-blue-800 rounded-full overflow-hidden">
-                  <div class="h-full bg-blue-600 transition-all duration-300" style="width: ${download.progress || 0}%"></div>
+                  <div class="h-full bg-blue-600 transition-all duration-300" style="width: ${download.percentage || 0}%"></div>
                 </div>
-                <span class="text-blue-700 dark:text-blue-300 min-w-12">${Math.round((download.progress as number) || 0)}%</span>
+                <span class="text-blue-700 dark:text-blue-300 min-w-12">${Math.round((download.percentage as number) || 0)}%</span>
               </div>
             </div>
           `
@@ -599,7 +602,7 @@ export class PanelRenderer extends BaseComponent {
         this.handleDeleteRegion(regionId);
         break;
       default:
-        console.warn('Unknown region action:', action);
+        panelLogger.warn('Unknown region action:', action);
     }
   }
 
@@ -627,7 +630,7 @@ export class PanelRenderer extends BaseComponent {
       const modal = detailsModal.show();
       this.modalManager.show(modal);
     } catch (error) {
-      console.error('Error showing region details:', error);
+      panelLogger.error('Error showing region details:', error);
     }
   }
 
@@ -653,7 +656,7 @@ export class PanelRenderer extends BaseComponent {
             // Refresh the panel to show updated regions
             await this.refresh();
           } catch (error) {
-            console.error('Failed to delete region:', error);
+            panelLogger.error('Failed to delete region:', error);
             // Could show error modal here
           }
         },
@@ -665,7 +668,7 @@ export class PanelRenderer extends BaseComponent {
       const modal = confirmModal.show();
       this.modalManager.show(modal);
     } catch (error) {
-      console.error('Error deleting region:', error);
+      panelLogger.error('Error deleting region:', error);
     }
   }
 
@@ -678,7 +681,7 @@ export class PanelRenderer extends BaseComponent {
       const region = regions.find((r: StoredRegion) => r.id === regionId);
 
       if (!region) {
-        console.error('Region not found:', regionId);
+        panelLogger.error('Region not found:', regionId);
         return;
       }
 
@@ -692,7 +695,7 @@ export class PanelRenderer extends BaseComponent {
             this.modalManager.close();
 
             // First, delete the existing region
-            console.warn('Deleting region before re-download:', regionId);
+            panelLogger.debug('Deleting region before re-download:', regionId);
             await this.offlineManager.deleteRegion(regionId);
 
             // Prepare form data for re-download
@@ -710,20 +713,20 @@ export class PanelRenderer extends BaseComponent {
               provider: 'auto' as const,
             };
 
-            console.warn('Starting re-download with config:', formData);
+            panelLogger.debug('Starting re-download with config:', formData);
 
             // Use the download manager to re-download
             if (this.downloadManager) {
               await this.downloadManager.downloadRegion(formData);
             } else {
-              console.error('Download manager not available');
+              panelLogger.error('Download manager not available');
               alert('Download manager not available. Please try again.');
             }
 
             // Refresh the panel to show the new region
             await this.refresh();
           } catch (error) {
-            console.error('Failed to re-download region:', error);
+            panelLogger.error('Failed to re-download region:', error);
             alert(
               `Failed to re-download region: ${error instanceof Error ? error.message : 'Unknown error'}`
             );
@@ -737,7 +740,7 @@ export class PanelRenderer extends BaseComponent {
       const modal = confirmModal.show();
       this.modalManager.show(modal);
     } catch (error) {
-      console.error('Error re-downloading region:', error);
+      panelLogger.error('Error re-downloading region:', error);
     }
   }
 
@@ -757,12 +760,12 @@ export class PanelRenderer extends BaseComponent {
           this.modalManager.close();
         },
         onExport: result => {
-          console.warn('Export completed:', result);
+          panelLogger.debug('Export completed:', result);
           // Handle export result - could show success message
           this.offlineManager.downloadExportedRegion(result);
         },
         onImport: result => {
-          console.warn('Import completed:', result);
+          panelLogger.debug('Import completed:', result);
           // Refresh the panel to show updated regions
           this.refresh();
         },
@@ -798,7 +801,7 @@ export class PanelRenderer extends BaseComponent {
       const modal = importExportModal.show();
       this.modalManager.show(modal);
     } catch (error) {
-      console.error('Error showing import/export modal:', error);
+      panelLogger.error('Error showing import/export modal:', error);
     }
   }
 
@@ -885,14 +888,14 @@ export class PanelRenderer extends BaseComponent {
       const region = regions.find((r: StoredRegion) => r.id === regionId);
 
       if (!region) {
-        console.warn('Region not found:', regionId);
+        panelLogger.warn('Region not found:', regionId);
         return;
       }
 
       // Use the existing region action handler
       this.handleRegionAction(action, regionId, region);
     } catch (error) {
-      console.error('Error handling embedded region action:', error);
+      panelLogger.error('Error handling embedded region action:', error);
     }
   }
 
@@ -958,7 +961,7 @@ export class PanelRenderer extends BaseComponent {
     }
 
     if (this.isRefreshing) {
-      console.warn('🔄 Refresh already in progress, skipping...');
+      panelLogger.debug('Refresh already in progress, skipping...');
       return;
     }
 
@@ -996,7 +999,7 @@ export class PanelRenderer extends BaseComponent {
         this.offlineManager.getComprehensiveStorageAnalytics(),
       ]);
 
-      console.warn('🔄 Refreshing panel data:', { regions, analytics });
+      panelLogger.debug('Refreshing panel data:', { regions, analytics });
 
       // Re-render components
       await this.renderHeader(regions, analytics);
@@ -1004,7 +1007,7 @@ export class PanelRenderer extends BaseComponent {
       await this.renderDownloadProgress();
       await this.renderRegionsList(regions);
     } catch (error) {
-      console.error('Error refreshing panel:', error);
+      panelLogger.error('Error refreshing panel:', error);
       this.renderErrorState(this.element as HTMLDivElement);
     } finally {
       this.isRefreshing = false;
@@ -1069,7 +1072,7 @@ export class PanelRenderer extends BaseComponent {
         await this.handleDeleteStyle(styleId, styleData);
         break;
       default:
-        console.warn('Unknown style action:', action);
+        panelLogger.warn('Unknown style action:', action);
     }
   }
 
@@ -1110,9 +1113,9 @@ export class PanelRenderer extends BaseComponent {
         cancelText: 'Cancel',
         onConfirm: async () => {
           try {
-            console.warn('🔧 Cleaning up compressed tiles...');
+            panelLogger.debug('Cleaning up compressed tiles...');
             const result = await cleanupCompressedTiles();
-            console.warn(`✅ Cleanup complete: removed ${result.removed} tiles`);
+            panelLogger.debug(`Cleanup complete: removed ${result.removed} tiles`);
 
             this.modalManager.close();
 
@@ -1136,7 +1139,7 @@ export class PanelRenderer extends BaseComponent {
             // Refresh the panel
             await this.refresh();
           } catch (error) {
-            console.error('Failed to cleanup compressed tiles:', error);
+            panelLogger.error('Failed to cleanup compressed tiles:', error);
             this.modalManager.close();
           }
         },
@@ -1148,7 +1151,7 @@ export class PanelRenderer extends BaseComponent {
       const modal = confirmModal.show();
       this.modalManager.show(modal);
     } catch (error) {
-      console.error('Error fixing compressed tiles:', error);
+      panelLogger.error('Error fixing compressed tiles:', error);
     }
   }
 
@@ -1157,7 +1160,7 @@ export class PanelRenderer extends BaseComponent {
    */
   private async handleLoadStyle(styleData: unknown): Promise<void> {
     if (!this.map) {
-      console.warn('⚠️ Map not available for loading style');
+      panelLogger.warn('Map not available for loading style');
       alert('Map is not initialized. Please ensure the map is loaded before loading a style.');
       return;
     }
@@ -1166,18 +1169,18 @@ export class PanelRenderer extends BaseComponent {
       const styleEntry = styleData as StyleStorageItem;
 
       if (!styleEntry || !styleEntry.style) {
-        console.error('❌ Invalid style data - missing style property');
+        panelLogger.error('Invalid style data - missing style property');
         alert('Invalid style data. The style may be corrupted.');
         return;
       }
 
       if (!styleEntry.key) {
-        console.error('❌ Invalid style data - missing key property');
+        panelLogger.error('Invalid style data - missing key property');
         alert('Invalid style data. The style key is missing.');
         return;
       }
 
-      console.warn('🎨 Loading style from IndexedDB:', {
+      panelLogger.debug('Loading style from IndexedDB:', {
         key: styleEntry.key,
         provider: styleEntry.provider,
         hasStyle: !!styleEntry.style,
@@ -1190,13 +1193,13 @@ export class PanelRenderer extends BaseComponent {
 
       // Validate style structure
       if (!styleEntry.style.sources || Object.keys(styleEntry.style.sources).length === 0) {
-        console.error('❌ Style is missing sources');
+        panelLogger.error('Style is missing sources');
         alert('Style has no sources defined. The style may be incomplete.');
         return;
       }
 
       if (!styleEntry.style.layers || styleEntry.style.layers.length === 0) {
-        console.error('❌ Style is missing layers');
+        panelLogger.error('Style is missing layers');
         alert('Style has no layers defined. The style may be incomplete.');
         return;
       }
@@ -1207,8 +1210,8 @@ export class PanelRenderer extends BaseComponent {
         const compressed = await countCompressedTiles();
 
         if (compressed.gzipped > 0) {
-          console.warn(
-            `⚠️ Found ${compressed.gzipped} compressed tiles that may cause rendering issues`
+          panelLogger.warn(
+            `Found ${compressed.gzipped} compressed tiles that may cause rendering issues`
           );
           const shouldContinue = confirm(
             `Warning: Found ${compressed.gzipped} compressed tiles that may cause rendering issues.\n\n` +
@@ -1220,7 +1223,7 @@ export class PanelRenderer extends BaseComponent {
           }
         }
       } catch (cleanupError) {
-        console.warn('⚠️ Could not check for compressed tiles:', cleanupError);
+        panelLogger.warn('Could not check for compressed tiles:', cleanupError);
       }
 
       // The style is already patched with idb:// URLs when stored in regionService
@@ -1234,7 +1237,7 @@ export class PanelRenderer extends BaseComponent {
       if (styleEntry.regions && Array.isArray(styleEntry.regions)) {
         const regionMaxZooms = styleEntry.regions.map((r: { maxZoom?: number }) => r.maxZoom || 14);
         maxZoom = Math.max(...regionMaxZooms);
-        console.warn(`📐 Computed maxZoom from regions: ${maxZoom}`);
+        panelLogger.debug(`Computed maxZoom from regions: ${maxZoom}`);
       }
 
       // Apply maxzoom to all tile sources
@@ -1244,14 +1247,14 @@ export class PanelRenderer extends BaseComponent {
           if (src.tiles && (src.type === 'vector' || src.type === 'raster' || !src.type)) {
             const originalMaxzoom = src.maxzoom;
             src.maxzoom = maxZoom;
-            console.warn(`🔢 Set maxzoom for ${sourceId}: ${originalMaxzoom} → ${maxZoom}`);
+            panelLogger.debug(`Set maxzoom for ${sourceId}: ${originalMaxzoom} → ${maxZoom}`);
           }
         }
       }
 
-      console.warn('Using pre-patched offline style with enforced maxzoom');
+      panelLogger.debug('Using pre-patched offline style with enforced maxzoom');
 
-      console.warn('✅ Style patched successfully:', {
+      panelLogger.debug('Style patched successfully:', {
         sources: patchedStyle.sources ? Object.keys(patchedStyle.sources).length : 0,
         layers: patchedStyle.layers?.length || 0,
         sprite: patchedStyle.sprite,
@@ -1260,10 +1263,10 @@ export class PanelRenderer extends BaseComponent {
 
       // Log patched sources for debugging
       if (patchedStyle.sources) {
-        console.warn('� Patched sources:');
+        panelLogger.debug('Patched sources:');
         for (const [sourceId, source] of Object.entries(patchedStyle.sources)) {
           const src = source as { tiles?: string[]; url?: string; type?: string };
-          console.warn(`  - ${sourceId}:`, {
+          panelLogger.debug(`  - ${sourceId}:`, {
             type: src.type,
             tiles: src.tiles?.[0],
             url: src.url,
@@ -1272,32 +1275,32 @@ export class PanelRenderer extends BaseComponent {
       }
 
       // Apply the patched style to the map
-      console.warn('🗺️ Applying patched style to map...');
+      panelLogger.debug('Applying patched style to map...');
 
       try {
         (this.map as { setStyle?: (style: MapboxStyle) => void })?.setStyle?.(patchedStyle);
-        console.warn('✅ Style loaded successfully!');
+        panelLogger.debug('Style loaded successfully!');
 
         // Wait a bit and check if the style was applied
         setTimeout(() => {
           const currentStyle = (this.map as { getStyle?: () => MapboxStyle })?.getStyle?.();
           if (currentStyle) {
-            console.warn('✅ Style verification:', {
+            panelLogger.debug('Style verification:', {
               sources: currentStyle.sources ? Object.keys(currentStyle.sources).length : 0,
               layers: currentStyle.layers?.length || 0,
             });
           }
         }, 1000);
       } catch (setStyleError) {
-        console.error('❌ Error calling setStyle:', setStyleError);
+        panelLogger.error('Error calling setStyle:', setStyleError);
         alert(
           `Failed to apply style to map: ${setStyleError instanceof Error ? setStyleError.message : 'Unknown error'}`
         );
         return;
       }
     } catch (error) {
-      console.error('❌ Error loading style to map:', error);
-      console.error('Error details:', {
+      panelLogger.error('Error loading style to map:', error);
+      panelLogger.error('Error details:', {
         message: error instanceof Error ? error.message : String(error),
         stack: error instanceof Error ? error.stack : undefined,
       });
@@ -1324,7 +1327,7 @@ export class PanelRenderer extends BaseComponent {
             // Refresh the panel
             await this.refresh();
           } catch (error) {
-            console.error('Failed to delete style:', error);
+            panelLogger.error('Failed to delete style:', error);
           }
         },
         onCancel: () => {
@@ -1335,7 +1338,7 @@ export class PanelRenderer extends BaseComponent {
       const modal = confirmModal.show();
       this.modalManager.show(modal);
     } catch (error) {
-      console.error('Error deleting style:', error);
+      panelLogger.error('Error deleting style:', error);
     }
   }
 }

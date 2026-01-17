@@ -7,6 +7,7 @@
 import { Modal, ModalConfig } from '../components/shared/Modal';
 import { Button } from '../components/shared/Button';
 import { icons } from '../../utils/icons';
+import { logger } from '../../utils/logger';
 import type {
   StoredRegion,
   ImportExportOptions,
@@ -14,6 +15,8 @@ import type {
   ImportResult,
   RegionImportData,
 } from '../../types';
+
+const modalLogger = logger.scope('ImportExportModal');
 
 export interface ImportExportModalOptions {
   region: StoredRegion;
@@ -464,7 +467,7 @@ export class ImportExportModal {
       // Hide modal after short delay
       setTimeout(() => this.hide(), 1500);
     } catch (error) {
-      console.error('Export error:', error instanceof Error ? error.message : String(error));
+      modalLogger.error('Export error:', error instanceof Error ? error.message : String(error));
       if (this.exportProgressText) {
         this.exportProgressText.textContent = 'Export failed. Please try again.';
         this.exportProgressText.classList.add('text-red-600', 'dark:text-red-400');
@@ -518,7 +521,7 @@ export class ImportExportModal {
       // Hide modal after short delay
       setTimeout(() => this.hide(), 1500);
     } catch (error) {
-      console.error('Import error:', error instanceof Error ? error.message : String(error));
+      modalLogger.error('Import error:', error instanceof Error ? error.message : String(error));
       if (this.importProgressText) {
         this.importProgressText.textContent = 'Import failed. Please try again.';
         this.importProgressText.classList.add('text-red-600', 'dark:text-red-400');

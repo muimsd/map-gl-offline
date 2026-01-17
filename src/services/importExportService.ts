@@ -1,4 +1,5 @@
 import { dbPromise } from '../storage/indexedDbManager';
+import { logger } from '../utils/logger';
 import type {
   RegionExportData,
   RegionImportData,
@@ -14,6 +15,8 @@ import type {
   MBTilesExportOptions,
   StoredRegion,
 } from '../types';
+
+const serviceLogger = logger.scope('ImportExportService');
 
 export class ImportExportService {
   private db = dbPromise;
@@ -349,7 +352,7 @@ export class ImportExportService {
       const result = await store.get(regionId);
       return result || null;
     } catch (error) {
-      console.error('Error getting region metadata:', error);
+      serviceLogger.error('Error getting region metadata:', error);
       return null;
     }
   }
@@ -366,7 +369,7 @@ export class ImportExportService {
       const style = await store.get(regionId);
       return style || {};
     } catch (error) {
-      console.error('Error exporting style:', error);
+      serviceLogger.error('Error exporting style:', error);
       return {};
     }
   }
@@ -418,7 +421,7 @@ export class ImportExportService {
 
       return tiles;
     } catch (error) {
-      console.error('Error exporting tiles:', error);
+      serviceLogger.error('Error exporting tiles:', error);
       return [];
     }
   }
@@ -452,7 +455,7 @@ export class ImportExportService {
 
       return sprites;
     } catch (error) {
-      console.error('Error exporting sprites:', error);
+      serviceLogger.error('Error exporting sprites:', error);
       return [];
     }
   }
@@ -485,7 +488,7 @@ export class ImportExportService {
 
       return fonts;
     } catch (error) {
-      console.error('Error exporting fonts:', error);
+      serviceLogger.error('Error exporting fonts:', error);
       return [];
     }
   }

@@ -9,6 +9,9 @@ import { RegionFormModal, RegionFormData, RegionFormOptions } from '../modals/re
 import { DownloadManager } from '../managers/downloadManager';
 import { ModalManager } from '../modals/modalManager';
 import { icons } from '../../utils/icons';
+import { logger } from '../../utils/logger';
+
+const regionLogger = logger.scope('RegionControl');
 
 export interface RegionControlOptions {
   map: MaplibreMap;
@@ -142,8 +145,9 @@ export class RegionControl {
       await this.downloadManager.downloadRegion(formData);
       this.options.onRegionSaved?.();
     } catch (error) {
-      console.error('Error saving region:', error);
-      // TODO: Show error modal
+      regionLogger.error('Error saving region:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      alert(`Failed to save region: ${errorMessage}`);
     }
   }
 
@@ -159,7 +163,7 @@ export class RegionControl {
    */
   public updateStyleUrl(newStyleUrl: string): void {
     this.options.styleUrl = newStyleUrl;
-    console.warn(`📍 RegionControl style URL updated to: ${newStyleUrl}`);
+    regionLogger.debug(`RegionControl style URL updated to: ${newStyleUrl}`);
   }
 
   /**

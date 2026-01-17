@@ -8,6 +8,9 @@
 import { Modal, ModalConfig } from '../components/shared/Modal';
 import { Button } from '../components/shared/Button';
 import { icons } from '../../utils/icons';
+import { logger } from '../../utils/logger';
+
+const formLogger = logger.scope('RegionFormModal');
 // import { themeManager } from '../managers/themeManager.js';
 
 export interface RegionFormData {
@@ -333,8 +336,9 @@ export class RegionFormModal {
       this.modal?.hide();
       await this.options.onSave(formData);
     } catch (error) {
-      console.error('Error saving region:', error);
-      // TODO: Show error notification
+      formLogger.error('Error saving region:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      alert(`Failed to save region: ${errorMessage}`);
     }
   }
 

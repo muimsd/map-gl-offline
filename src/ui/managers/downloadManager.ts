@@ -70,6 +70,8 @@ const downloadLogger = logger.scope('DownloadManager');
 export interface DownloadProgress {
   /** Unique identifier for the region being downloaded */
   regionId: string;
+  /** Human-readable name of the region */
+  regionName: string;
   /** Number of resources completed in current phase */
   completed: number;
   /** Total number of resources in current phase */
@@ -143,6 +145,7 @@ export class DownloadManager {
    */
   private updateProgress(
     regionId: string,
+    regionName: string,
     phase: DownloadProgress['phase'],
     completed: number,
     total: number,
@@ -152,6 +155,7 @@ export class DownloadManager {
 
     this.currentDownloads.set(regionId, {
       regionId,
+      regionName,
       completed,
       total,
       percentage,
@@ -209,7 +213,7 @@ export class DownloadManager {
           accessToken: formData.accessToken,
           onProgress: (progress: { percentage?: number }) => {
             downloadLogger.debug(`Style download progress: ${progress.percentage}%`);
-            this.updateProgress(regionId, 'style', progress.percentage || 0, 100, 'Downloading style');
+            this.updateProgress(regionId, regionConfig.name, 'style', progress.percentage || 0, 100, 'Downloading style');
           },
         };
 
@@ -314,7 +318,7 @@ export class DownloadManager {
           await spriteService.downloadSprites(spriteUrls, finalStyleId, {
             onProgress: (progress: { completed: number; total: number }) => {
               downloadLogger.debug(`Sprite download: ${progress.completed}/${progress.total}`);
-              this.updateProgress(regionId, 'sprites', progress.completed, progress.total, 'Downloading sprites');
+              this.updateProgress(regionId, regionConfig.name, 'sprites', progress.completed, progress.total, 'Downloading sprites');
             },
             enableValidation: true,
             skipExisting: false,
@@ -400,7 +404,7 @@ export class DownloadManager {
               {
                 onProgress: (progress: { completed: number; total: number }) => {
                   downloadLogger.debug(`Glyph download: ${progress.completed}/${progress.total}`);
-                  this.updateProgress(regionId, 'glyphs', progress.completed, progress.total, 'Downloading glyphs');
+                  this.updateProgress(regionId, regionConfig.name, 'glyphs', progress.completed, progress.total, 'Downloading glyphs');
                 },
               }
             );
@@ -467,6 +471,7 @@ export class DownloadManager {
             );
             this.updateProgress(
               regionId,
+              regionConfig.name,
               'tiles',
               progress.completed,
               progress.total,
