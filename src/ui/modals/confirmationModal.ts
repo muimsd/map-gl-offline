@@ -39,7 +39,7 @@ export class ConfirmationModal {
 
     // Create content - message only
     const content = document.createElement('div');
-    content.className = 'text-gray-600 dark:text-gray-300 leading-relaxed whitespace-pre-line';
+    content.className = 'text-gray-600 dark:text-gray-300 leading-relaxed text-base font-medium py-2';
     content.textContent = this.options.message;
 
     // Set modal content

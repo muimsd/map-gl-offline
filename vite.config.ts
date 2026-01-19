@@ -68,6 +68,15 @@ export default defineConfig({
           'User-Agent': 'map-gl-offline-dev',
         },
       },
+      // Proxy CARTO TileJSON and API requests (main domain without subdomain)
+      '/carto-api': {
+        target: 'https://tiles.basemaps.cartocdn.com',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/carto-api/, ''),
+        headers: {
+          'User-Agent': 'map-gl-offline-dev',
+        },
+      },
     }
   },
   plugins: [

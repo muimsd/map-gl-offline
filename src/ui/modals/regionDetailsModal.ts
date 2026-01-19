@@ -59,31 +59,31 @@ export class RegionDetailsModal {
    */
   private createContent(region: StoredRegion): HTMLElement {
     const content = document.createElement('div');
-    content.className = 'flex flex-col gap-4';
+    content.className = 'flex flex-col gap-5';
 
     content.innerHTML = `
-      <div>
-        <h3 class="m-0 mb-2 text-gray-900 dark:text-white text-lg">
+      <div class="glass-input p-4 rounded-xl border-0 bg-gray-50/50 dark:bg-gray-800/50">
+        <h3 class="m-0 text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-gray-900 to-gray-600 dark:from-white dark:to-gray-300">
           ${region.name}
         </h3>
       </div>
       
       <div class="grid grid-cols-2 gap-4">
-        <div>
-          <label class="block mb-1 font-semibold text-gray-900 dark:text-white">
-            Bounds:
+        <div class="glass-input p-4 rounded-xl border-0 bg-gray-50/30 dark:bg-gray-800/30">
+          <label class="block mb-1.5 text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+            Bounds
           </label>
-          <div class="text-sm text-gray-600 dark:text-gray-400">
+          <div class="text-sm font-mono text-gray-700 dark:text-gray-300 leading-relaxed">
             ${region.bounds[0][1].toFixed(4)}, ${region.bounds[0][0].toFixed(4)}<br>
             ${region.bounds[1][1].toFixed(4)}, ${region.bounds[1][0].toFixed(4)}
           </div>
         </div>
         
-        <div>
-          <label class="block mb-1 font-semibold text-gray-900 dark:text-white">
-            Zoom Range:
+        <div class="glass-input p-4 rounded-xl border-0 bg-gray-50/30 dark:bg-gray-800/30">
+          <label class="block mb-1.5 text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+            Zoom Range
           </label>
-          <div class="text-sm text-gray-600 dark:text-gray-400">
+          <div class="text-lg font-semibold text-gray-900 dark:text-white">
             ${region.minZoom} - ${region.maxZoom}
           </div>
         </div>
@@ -92,11 +92,11 @@ export class RegionDetailsModal {
       ${
         region.created
           ? `
-        <div>
-          <label class="block mb-1 font-semibold text-gray-900 dark:text-white">
-            Created:
+        <div class="glass-input p-4 rounded-xl border-0 bg-gray-50/30 dark:bg-gray-800/30">
+          <label class="block mb-1.5 text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+            Created
           </label>
-          <div class="text-sm text-gray-600 dark:text-gray-400">
+          <div class="text-sm font-medium text-gray-700 dark:text-gray-300">
             ${formatDate(region.created)}
           </div>
         </div>

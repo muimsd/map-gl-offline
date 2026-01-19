@@ -165,9 +165,9 @@ export class OfflineManagerControl implements IControl {
 
       // Development proxy for CORS issues (when running on localhost)
       if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
-        // Proxy Carto tile requests ONLY (not fonts/glyphs/sprites)
-        // Only proxy URLs that match the tile pattern: /tiles/.../{z}/{x}/{y}
+        // Proxy Carto tile requests (tiles and TileJSON)
         const isTileRequest = /\/\d+\/\d+\/\d+\.(pbf|mvt|png|jpg|jpeg|webp)/.test(url);
+        const isTileJsonRequest = url.includes('.json') && url.includes('basemaps.cartocdn.com');
 
         if (isTileRequest && url.includes('tiles-a.basemaps.cartocdn.com')) {
           const proxyUrl = url.replace('https://tiles-a.basemaps.cartocdn.com', '/tiles/carto-a');
@@ -186,7 +186,13 @@ export class OfflineManagerControl implements IControl {
           return originalFetch(proxyUrl, init);
         }
 
-        // Fallback for old format
+        // Proxy TileJSON requests from tiles.basemaps.cartocdn.com
+        if (isTileJsonRequest && url.includes('tiles.basemaps.cartocdn.com')) {
+          const proxyUrl = url.replace('https://tiles.basemaps.cartocdn.com', '/carto-api');
+          return originalFetch(proxyUrl, init);
+        }
+
+        // Fallback for old format (tiles without subdomain)
         if (isTileRequest && url.includes('tiles.basemaps.cartocdn.com')) {
           const proxyUrl = url.replace('https://tiles.basemaps.cartocdn.com', '/tiles/carto-a');
           return originalFetch(proxyUrl, init);

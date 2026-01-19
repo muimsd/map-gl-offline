@@ -120,29 +120,29 @@ export class ImportExportModal {
   private createRegionInfoCard(): HTMLElement {
     const card = document.createElement('div');
     card.className =
-      'p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700';
+      'p-5 glass-input rounded-xl border-0 bg-gray-50/50 dark:bg-gray-800/50';
 
     card.innerHTML = `
-      <h4 class="text-sm font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
+      <h4 class="text-sm font-bold uppercase tracking-wider text-gray-900 dark:text-white mb-4 flex items-center gap-2">
         ${icons.mapPin({ size: 16, color: 'currentColor' })}
         Region Information
       </h4>
       <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-        <div>
-          <span class="font-medium text-gray-700 dark:text-gray-300">ID:</span>
-          <div class="text-gray-600 dark:text-gray-400 break-all">${this.options.region.id}</div>
+        <div class="p-3 rounded-lg bg-white/40 dark:bg-black/20">
+          <span class="font-medium text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">ID</span>
+          <div class="text-gray-900 dark:text-white font-mono text-xs break-all mt-1">${this.options.region.id}</div>
         </div>
-        <div>
-          <span class="font-medium text-gray-700 dark:text-gray-300">Name:</span>
-          <div class="text-gray-600 dark:text-gray-400">${this.options.region.name || 'Unnamed'}</div>
+        <div class="p-3 rounded-lg bg-white/40 dark:bg-black/20">
+          <span class="font-medium text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">Name</span>
+          <div class="text-gray-900 dark:text-white font-medium mt-1">${this.options.region.name || 'Unnamed'}</div>
         </div>
-        <div>
-          <span class="font-medium text-gray-700 dark:text-gray-300">Zoom:</span>
-          <div class="text-gray-600 dark:text-gray-400">Z${this.options.region.minZoom}-${this.options.region.maxZoom}</div>
+        <div class="p-3 rounded-lg bg-white/40 dark:bg-black/20">
+          <span class="font-medium text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">Zoom</span>
+          <div class="text-gray-900 dark:text-white font-medium mt-1">Z${this.options.region.minZoom}-${this.options.region.maxZoom}</div>
         </div>
-        <div>
-          <span class="font-medium text-gray-700 dark:text-gray-300">Created:</span>
-          <div class="text-gray-600 dark:text-gray-400">${new Date(this.options.region.created).toLocaleDateString()}</div>
+        <div class="p-3 rounded-lg bg-white/40 dark:bg-black/20">
+          <span class="font-medium text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">Created</span>
+          <div class="text-gray-900 dark:text-white font-medium mt-1">${new Date(this.options.region.created).toLocaleDateString()}</div>
         </div>
       </div>
     `;
@@ -153,29 +153,36 @@ export class ImportExportModal {
   private createExportSection(): HTMLElement {
     const section = document.createElement('div');
     section.className =
-      'bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6';
+      'glass-input p-6 rounded-xl border-0 bg-white/40 dark:bg-gray-800/40 relative overflow-hidden group hover:scale-[1.01] transition-transform duration-300';
+    
+    // Gradient accent
+    const accent = document.createElement('div');
+    accent.className = 'absolute top-0 left-0 w-1 h-full bg-blue-500 opacity-50';
+    section.appendChild(accent);
 
     const header = document.createElement('h3');
     header.className =
-      'text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2';
+      'text-lg font-bold text-gray-900 dark:text-white mb-5 flex items-center gap-2.5';
     header.innerHTML = `
-      ${icons.upload({ size: 20, color: 'rgb(59 130 246)' })}
+      <div class="p-2 bg-blue-500/10 rounded-lg text-blue-600 dark:text-blue-400">
+        ${icons.upload({ size: 20, color: 'currentColor' })}
+      </div>
       Export Region
     `;
     section.appendChild(header);
 
     const formContainer = document.createElement('div');
-    formContainer.className = 'space-y-4';
+    formContainer.className = 'space-y-5';
 
     // Format Selection
     const formatGroup = document.createElement('div');
     const formatLabel = document.createElement('label');
-    formatLabel.className = 'block text-sm font-medium text-gray-900 dark:text-white mb-2';
+    formatLabel.className = 'block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2';
     formatLabel.textContent = 'Export Format';
 
     this.exportFormatSelect = document.createElement('select');
     this.exportFormatSelect.className =
-      'w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-white bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors';
+      'w-full px-4 py-3 rounded-xl text-sm glass-input text-gray-900 dark:text-white bg-white/50 dark:bg-gray-700/50 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all';
     this.exportFormatSelect.innerHTML = `
       <option value="json">JSON - Complete data (recommended)</option>
       <option value="pmtiles">PMTiles - Web optimized tiles</option>
@@ -183,7 +190,7 @@ export class ImportExportModal {
     `;
 
     const formatHint = document.createElement('p');
-    formatHint.className = 'mt-1 text-xs text-gray-500 dark:text-gray-400';
+    formatHint.className = 'mt-2 text-xs text-gray-500 dark:text-gray-400 ml-1';
     formatHint.textContent = 'Choose format based on your use case';
 
     formatGroup.appendChild(formatLabel);
@@ -194,15 +201,15 @@ export class ImportExportModal {
     // Export Options
     const optionsGroup = document.createElement('div');
     const optionsLabel = document.createElement('label');
-    optionsLabel.className = 'block text-sm font-medium text-gray-900 dark:text-white mb-2';
+    optionsLabel.className = 'block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3';
     optionsLabel.textContent = 'Include Components';
 
     const checkboxContainer = document.createElement('div');
-    checkboxContainer.className = 'space-y-2';
+    checkboxContainer.className = 'grid grid-cols-1 sm:grid-cols-2 gap-3';
 
     const createCheckbox = (text: string, checked = true) => {
       const label = document.createElement('label');
-      label.className = 'flex items-center gap-2';
+      label.className = 'flex items-center gap-3 p-3 rounded-lg bg-gray-50/50 dark:bg-gray-800/50 cursor-pointer hover:bg-gray-100/50 dark:hover:bg-gray-700/50 transition-colors cursor-pointer';
 
       const input = document.createElement('input');
       input.type = 'checkbox';
@@ -211,7 +218,7 @@ export class ImportExportModal {
         'w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 focus:ring-2 dark:bg-gray-700';
 
       const span = document.createElement('span');
-      span.className = 'text-sm text-gray-700 dark:text-gray-300';
+      span.className = 'text-sm text-gray-700 dark:text-gray-300 font-medium';
       span.textContent = text;
 
       label.appendChild(input);
@@ -267,7 +274,7 @@ export class ImportExportModal {
       text: 'Export Region',
       variant: 'primary',
       icon: icons.download({ size: 16, color: 'white' }),
-      className: 'w-full',
+      className: 'w-full py-2.5 text-base shadow-lg shadow-blue-500/20', // Premium button styles
       onClick: () => this.handleExport(),
     });
     this.exportButton = exportButton.getElement() as HTMLButtonElement;
@@ -280,34 +287,41 @@ export class ImportExportModal {
   private createImportSection(): HTMLElement {
     const section = document.createElement('div');
     section.className =
-      'bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6';
+      'glass-input p-6 rounded-xl border-0 bg-white/40 dark:bg-gray-800/40 relative overflow-hidden group hover:scale-[1.01] transition-transform duration-300';
+
+    // Gradient accent
+    const accent = document.createElement('div');
+    accent.className = 'absolute top-0 left-0 w-1 h-full bg-green-500 opacity-50';
+    section.appendChild(accent);
 
     const header = document.createElement('h3');
     header.className =
-      'text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2';
+      'text-lg font-bold text-gray-900 dark:text-white mb-5 flex items-center gap-2.5';
     header.innerHTML = `
-      ${icons.upload({ size: 20, color: 'rgb(34 197 94)' })}
+      <div class="p-2 bg-green-500/10 rounded-lg text-green-600 dark:text-green-400">
+        ${icons.upload({ size: 20, color: 'currentColor' })}
+      </div>
       Import Region
     `;
     section.appendChild(header);
 
     const formContainer = document.createElement('div');
-    formContainer.className = 'space-y-4';
+    formContainer.className = 'space-y-5';
 
     // File Selection
     const fileGroup = document.createElement('div');
     const fileLabel = document.createElement('label');
-    fileLabel.className = 'block text-sm font-medium text-gray-900 dark:text-white mb-2';
+    fileLabel.className = 'block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2';
     fileLabel.textContent = 'Select File';
 
     this.importFileInput = document.createElement('input');
     this.importFileInput.type = 'file';
     this.importFileInput.accept = '.json,.pmtiles,.mbtiles';
     this.importFileInput.className =
-      'w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-white bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors file:mr-4 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 dark:file:bg-blue-900/50 dark:file:text-blue-400';
+      'w-full text-sm text-gray-500 file:mr-4 file:py-2.5 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-primary-50 file:text-primary-700 hover:file:bg-primary-100 dark:file:bg-primary-900/20 dark:file:text-primary-400 glass-input transition-all cursor-pointer';
 
     const fileHint = document.createElement('p');
-    fileHint.className = 'mt-1 text-xs text-gray-500 dark:text-gray-400';
+    fileHint.className = 'mt-2 text-xs text-gray-500 dark:text-gray-400 ml-1';
     fileHint.textContent = 'Supports JSON, PMTiles, and MBTiles formats';
 
     fileGroup.appendChild(fileLabel);
@@ -318,14 +332,14 @@ export class ImportExportModal {
     // New Name
     const nameGroup = document.createElement('div');
     const nameLabel = document.createElement('label');
-    nameLabel.className = 'block text-sm font-medium text-gray-900 dark:text-white mb-2';
+    nameLabel.className = 'block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2';
     nameLabel.textContent = 'New Region Name (Optional)';
 
     this.importNameInput = document.createElement('input');
     this.importNameInput.type = 'text';
     this.importNameInput.placeholder = 'Leave empty to use original name';
     this.importNameInput.className =
-      'w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-white bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors';
+      'w-full px-4 py-3 rounded-xl text-sm glass-input text-gray-900 dark:text-white bg-white/50 dark:bg-gray-700/50 focus:outline-none focus:ring-2 focus:ring-green-500/50 transition-all';
 
     nameGroup.appendChild(nameLabel);
     nameGroup.appendChild(this.importNameInput);
@@ -333,15 +347,15 @@ export class ImportExportModal {
 
     // Import Options
     const overwriteLabel = document.createElement('label');
-    overwriteLabel.className = 'flex items-center gap-2';
+    overwriteLabel.className = 'flex items-center gap-3 p-3 rounded-lg bg-gray-50/50 dark:bg-gray-800/50 cursor-pointer hover:bg-gray-100/50 dark:hover:bg-gray-700/50 transition-colors';
 
     this.importOverwriteCheckbox = document.createElement('input');
     this.importOverwriteCheckbox.type = 'checkbox';
     this.importOverwriteCheckbox.className =
-      'w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 focus:ring-2 dark:bg-gray-700';
+      'w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-green-600 focus:ring-green-500 focus:ring-2 dark:bg-gray-700';
 
     const overwriteSpan = document.createElement('span');
-    overwriteSpan.className = 'text-sm text-gray-700 dark:text-gray-300';
+    overwriteSpan.className = 'text-sm text-gray-700 dark:text-gray-300 font-medium';
     overwriteSpan.textContent = 'Overwrite if region exists';
 
     overwriteLabel.appendChild(this.importOverwriteCheckbox);
@@ -373,9 +387,9 @@ export class ImportExportModal {
     // Import Button
     const importButton = new Button({
       text: 'Import Region',
-      variant: 'success',
+      variant: 'success', // Assuming 'success' variant exists in Button component, if not might need style adjustment. Assuming it works based on previous code.
       icon: icons.upload({ size: 16, color: 'white' }),
-      className: 'w-full',
+      className: 'w-full py-2.5 text-base shadow-lg shadow-green-500/20',
       disabled: true,
       onClick: () => this.handleImport(),
     });
@@ -389,25 +403,25 @@ export class ImportExportModal {
   private createFormatGuide(): HTMLElement {
     const guide = document.createElement('div');
     guide.className =
-      'p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800';
+      'p-5 mt-4 glass-input rounded-xl border-0 bg-blue-50/40 dark:bg-blue-900/20';
 
     guide.innerHTML = `
-      <h4 class="text-sm font-semibold text-blue-900 dark:text-blue-300 mb-2 flex items-center gap-2">
+      <h4 class="text-sm font-bold uppercase tracking-wider text-blue-900 dark:text-blue-300 mb-3 flex items-center gap-2">
         ${icons.infoCircle({ size: 16, color: 'currentColor' })}
         Format Guide
       </h4>
       <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
-        <div>
-          <div class="font-medium text-blue-800 dark:text-blue-300">JSON</div>
-          <div class="text-blue-700 dark:text-blue-400">Complete data, human-readable, best for development</div>
+        <div class="p-3 rounded-lg bg-white/50 dark:bg-black/20">
+          <div class="font-bold text-base text-blue-800 dark:text-blue-300 mb-1">JSON</div>
+          <div class="text-blue-700 dark:text-blue-400 leading-relaxed">Complete data, human-readable, best for development</div>
         </div>
-        <div>
-          <div class="font-medium text-blue-800 dark:text-blue-300">PMTiles</div>
-          <div class="text-blue-700 dark:text-blue-400">Web-optimized, efficient serving, cloud-friendly</div>
+        <div class="p-3 rounded-lg bg-white/50 dark:bg-black/20">
+          <div class="font-bold text-base text-blue-800 dark:text-blue-300 mb-1">PMTiles</div>
+          <div class="text-blue-700 dark:text-blue-400 leading-relaxed">Web-optimized, efficient serving, cloud-friendly</div>
         </div>
-        <div>
-          <div class="font-medium text-blue-800 dark:text-blue-300">MBTiles</div>
-          <div class="text-blue-700 dark:text-blue-400">Industry standard, SQLite-based, cross-platform</div>
+        <div class="p-3 rounded-lg bg-white/50 dark:bg-black/20">
+          <div class="font-bold text-base text-blue-800 dark:text-blue-300 mb-1">MBTiles</div>
+          <div class="text-blue-700 dark:text-blue-400 leading-relaxed">Industry standard, SQLite-based, cross-platform</div>
         </div>
       </div>
     `;
