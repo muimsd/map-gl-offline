@@ -52,9 +52,18 @@ export class Modal extends BaseComponent {
 
     // Create modal content
     this.modalContent = document.createElement('div');
-    // FIXED DIMENSIONS: Width 600px, Height 700px (max-width/height for mobile)
+
+    // Size classes based on config
+    const sizeClasses = {
+      sm: 'max-w-sm',      // 384px - for confirmations, simple dialogs
+      md: 'max-w-xl',      // 576px - default
+      lg: 'max-w-2xl',     // 672px - for forms
+      xl: 'max-w-4xl',     // 896px - for complex content
+    };
+    const sizeClass = sizeClasses[this.config.size || 'md'];
+
     this.modalContent.className = `
-      relative w-full max-w-[600px] h-[700px] max-h-[90vh]
+      relative w-full ${sizeClass} max-h-[90vh]
       glass-panel rounded-2xl flex flex-col
       animate-modal-scale-in text-gray-900 dark:text-gray-100
       transform transition-all
