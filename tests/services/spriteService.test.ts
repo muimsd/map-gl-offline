@@ -505,4 +505,264 @@ describe('SpriteService', () => {
       expect(stats.spritesByType['svg']).toBe(1);
     });
   });
+
+  describe('cleanupOldSprites edge cases', () => {
+    it('should handle empty database', async () => {
+      const deletedCount = await service.cleanupOldSprites(30);
+      expect(deletedCount).toBe(0);
+    });
+
+    it('should handle maxAge of 1 day', async () => {
+      const db = await dbPromise;
+      const twoDaysAgo = Date.now() - 2 * 24 * 60 * 60 * 1000;
+
+      await db.put('sprites', {
+        key: 'old-sprite',
+        url: 'https://example.com/old.png',
+        data: new ArrayBuffer(100),
+        contentType: 'image/png',
+        size: 100,
+        lastModified: twoDaysAgo,
+        downloadedAt: new Date(twoDaysAgo).toISOString(),
+        styleId: 'test',
+        spriteName: 'old.png',
+      });
+
+      const deletedCount = await service.cleanupOldSprites(1);
+      expect(deletedCount).toBe(1);
+    });
+
+    it('should delete all old sprites regardless of style', async () => {
+      const db = await dbPromise;
+      const oldTime = Date.now() - 40 * 24 * 60 * 60 * 1000;
+
+      await db.put('sprites', {
+        key: 'style-a-old-sprite',
+        url: 'https://example.com/sprite-a.png',
+        data: new ArrayBuffer(100),
+        contentType: 'image/png',
+        size: 100,
+        lastModified: oldTime,
+        downloadedAt: new Date(oldTime).toISOString(),
+        styleId: 'style-a',
+        spriteName: 'sprite-a.png',
+      });
+
+      await db.put('sprites', {
+        key: 'style-b-old-sprite',
+        url: 'https://example.com/sprite-b.png',
+        data: new ArrayBuffer(100),
+        contentType: 'image/png',
+        size: 100,
+        lastModified: oldTime,
+        downloadedAt: new Date(oldTime).toISOString(),
+        styleId: 'style-b',
+        spriteName: 'sprite-b.png',
+      });
+
+      // Both old sprites should be deleted
+      const deletedCount = await service.cleanupOldSprites(30);
+      expect(deletedCount).toBe(2);
+    });
+
+    it('should delete multiple old sprites at once', async () => {
+      const db = await dbPromise;
+      const oldTime = Date.now() - 50 * 24 * 60 * 60 * 1000;
+
+      for (let i = 0; i < 5; i++) {
+        await db.put('sprites', {
+          key: `old-sprite-${i}`,
+          url: `https://example.com/sprite-${i}.png`,
+          data: new ArrayBuffer(100),
+          contentType: 'image/png',
+          size: 100,
+          lastModified: oldTime,
+          downloadedAt: new Date(oldTime).toISOString(),
+          styleId: 'test',
+          spriteName: `sprite-${i}.png`,
+        });
+      }
+
+      const deletedCount = await service.cleanupOldSprites(30);
+      expect(deletedCount).toBe(5);
+    });
+  });
+
+  describe('getSpriteAnalytics edge cases', () => {
+    it('should handle sprites with no type', async () => {
+      const db = await dbPromise;
+
+      await db.put('sprites', {
+        key: 'no-type-sprite',
+        url: 'https://example.com/sprite',
+        data: new ArrayBuffer(100),
+        contentType: undefined,
+        size: 100,
+        lastModified: Date.now(),
+        downloadedAt: new Date().toISOString(),
+        styleId: 'test',
+        spriteName: 'sprite',
+      });
+
+      const analytics = await service.getSpriteAnalytics();
+      expect(analytics).toBeDefined();
+    });
+
+    it('should calculate correct average size', async () => {
+      const db = await dbPromise;
+      const now = Date.now();
+
+      await db.put('sprites', {
+        key: 'sprite-1',
+        url: 'https://example.com/sprite1.png',
+        data: new ArrayBuffer(100),
+        contentType: 'image/png',
+        size: 100,
+        lastModified: now,
+        downloadedAt: new Date(now).toISOString(),
+        styleId: 'test',
+        spriteName: 'sprite1.png',
+      });
+
+      await db.put('sprites', {
+        key: 'sprite-2',
+        url: 'https://example.com/sprite2.png',
+        data: new ArrayBuffer(300),
+        contentType: 'image/png',
+        size: 300,
+        lastModified: now,
+        downloadedAt: new Date(now).toISOString(),
+        styleId: 'test',
+        spriteName: 'sprite2.png',
+      });
+
+      const analytics = await service.getSpriteAnalytics();
+      const basic = analytics.basic as { totalSprites: number; totalSize: number; averageSize: number };
+
+      expect(basic.totalSprites).toBe(2);
+      expect(basic.totalSize).toBe(400);
+      expect(basic.averageSize).toBe(200);
+    });
+
+    it('should track largest and smallest sprites', async () => {
+      const db = await dbPromise;
+      const now = Date.now();
+
+      await db.put('sprites', {
+        key: 'small-sprite',
+        url: 'https://example.com/small.png',
+        data: new ArrayBuffer(50),
+        contentType: 'image/png',
+        size: 50,
+        lastModified: now,
+        downloadedAt: new Date(now).toISOString(),
+        styleId: 'test',
+        spriteName: 'small.png',
+      });
+
+      await db.put('sprites', {
+        key: 'large-sprite',
+        url: 'https://example.com/large.png',
+        data: new ArrayBuffer(1000),
+        contentType: 'image/png',
+        size: 1000,
+        lastModified: now,
+        downloadedAt: new Date(now).toISOString(),
+        styleId: 'test',
+        spriteName: 'large.png',
+      });
+
+      const stats = await service.getSpriteStats();
+
+      // Find largest and smallest in the sprites array
+      const sizes = stats.sprites.map(s => s.size);
+      expect(Math.max(...sizes)).toBe(1000);
+      expect(Math.min(...sizes)).toBe(50);
+    });
+  });
+
+  describe('verifyAndRepairSprites edge cases', () => {
+    it('should return result object shape', async () => {
+      const result = await service.verifyAndRepairSprites();
+
+      // Result should have the expected shape
+      expect(result).toHaveProperty('verified');
+      expect(result).toHaveProperty('repaired');
+      expect(result).toHaveProperty('removed');
+      expect(typeof result.verified).toBe('number');
+      expect(typeof result.repaired).toBe('number');
+      expect(typeof result.removed).toBe('number');
+    });
+
+    it('should process sprites without crashing', async () => {
+      const db = await dbPromise;
+
+      // Add a sprite with valid data
+      await db.put('sprites', {
+        key: 'test-sprite',
+        url: 'https://example.com/test.png',
+        data: new ArrayBuffer(100),
+        contentType: 'image/png',
+        size: 100,
+        lastModified: Date.now(),
+        downloadedAt: new Date().toISOString(),
+        styleId: 'test',
+        spriteName: 'test.png',
+      });
+
+      // Should not throw
+      const result = await service.verifyAndRepairSprites();
+      expect(result).toBeDefined();
+    });
+
+    it('should handle empty database gracefully', async () => {
+      const result = await service.verifyAndRepairSprites();
+
+      expect(result.verified).toBe(0);
+      expect(result.repaired).toBe(0);
+      expect(result.removed).toBe(0);
+    });
+  });
+
+  describe('getSpriteStats aggregation', () => {
+    it('should aggregate sprites from multiple styles', async () => {
+      const db = await dbPromise;
+      const now = Date.now();
+
+      await db.put('sprites', {
+        key: 'style-a::sprite.png',
+        url: 'https://example.com/sprite-a.png',
+        data: new ArrayBuffer(100),
+        contentType: 'image/png',
+        size: 100,
+        lastModified: now,
+        downloadedAt: new Date(now).toISOString(),
+        styleId: 'style-a',
+        spriteName: 'sprite.png',
+      });
+
+      await db.put('sprites', {
+        key: 'style-b::sprite.png',
+        url: 'https://example.com/sprite-b.png',
+        data: new ArrayBuffer(200),
+        contentType: 'image/png',
+        size: 200,
+        lastModified: now,
+        downloadedAt: new Date(now).toISOString(),
+        styleId: 'style-b',
+        spriteName: 'sprite.png',
+      });
+
+      const allStats = await service.getSpriteStats();
+      expect(allStats.count).toBe(2);
+      expect(allStats.totalSize).toBe(300);
+    });
+
+    it('should return empty stats when no sprites exist', async () => {
+      const stats = await service.getSpriteStats();
+      expect(stats.count).toBe(0);
+      expect(stats.totalSize).toBe(0);
+      expect(stats.sprites.length).toBe(0);
+    });
+  });
 });

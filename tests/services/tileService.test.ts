@@ -564,4 +564,328 @@ describe('TileService', () => {
       expect(tileService).toBeInstanceOf(TileService);
     });
   });
+
+  describe('downloadTiles validation', () => {
+    it('should throw error when style is null', async () => {
+      const region = {
+        id: 'test-region',
+        name: 'Test Region',
+        bounds: [[-122.5, 37.5], [-122.0, 38.0]] as [[number, number], [number, number]],
+        minZoom: 0,
+        maxZoom: 10,
+      };
+
+      await expect(service.downloadTiles(region, null as unknown as { version: 8; sources: Record<string, unknown>; layers: unknown[] }, 'test-style')).rejects.toThrow(
+        'Style does not contain any sources to download tiles from'
+      );
+    });
+
+    it('should throw error when sources is empty object', async () => {
+      const region = {
+        id: 'test-region',
+        name: 'Test Region',
+        bounds: [[-122.5, 37.5], [-122.0, 38.0]] as [[number, number], [number, number]],
+        minZoom: 0,
+        maxZoom: 10,
+      };
+      const style = {
+        version: 8 as const,
+        sources: {},
+        layers: [],
+      };
+
+      await expect(service.downloadTiles(region, style, 'test-style')).rejects.toThrow(
+        'Style does not contain any sources to download tiles from'
+      );
+    });
+
+    it('should use fallback for sources without tile URLs', async () => {
+      const region = {
+        id: 'test-region',
+        name: 'Test Region',
+        bounds: [[-122.5, 37.5], [-122.0, 38.0]] as [[number, number], [number, number]],
+        minZoom: 0,
+        maxZoom: 2,
+      };
+      const style = {
+        version: 8 as const,
+        sources: {
+          'geojson-source': {
+            type: 'geojson',
+            data: { type: 'FeatureCollection', features: [] },
+          },
+        },
+        layers: [],
+      };
+
+      // GeoJSON sources are ignored, but a fallback is created from the first source
+      // The download will fail but won't throw immediately
+      const result = await service.downloadTiles(region, style, 'test-style');
+      // The result will show failed tiles due to network errors
+      expect(result.failedTiles).toBeGreaterThan(0);
+    });
+
+    it('should handle vector source with only idb:// URLs using fallback', async () => {
+      const region = {
+        id: 'test-region',
+        name: 'Test Region',
+        bounds: [[-122.5, 37.5], [-122.0, 38.0]] as [[number, number], [number, number]],
+        minZoom: 0,
+        maxZoom: 2,
+      };
+      const style = {
+        version: 8 as const,
+        sources: {
+          'vector-source': {
+            type: 'vector',
+            tiles: ['idb://tiles/{z}/{x}/{y}.pbf'],
+          },
+        },
+        layers: [],
+      };
+
+      // idb:// URLs are skipped, but a fallback is created
+      // The download will fail but won't throw immediately
+      const result = await service.downloadTiles(region, style, 'test-style');
+      // The result will show failed tiles
+      expect(result.failedTiles).toBeGreaterThan(0);
+    });
+  });
+
+  describe('getTileStats edge cases', () => {
+    it('should handle single tile correctly', async () => {
+      const db = await dbPromise;
+      const now = Date.now();
+
+      await db.put('tiles', {
+        key: 'single-tile.pbf',
+        styleId: 'style-1',
+        sourceId: 'source',
+        x: 0,
+        y: 0,
+        z: 0,
+        size: 500,
+        data: new ArrayBuffer(500),
+        downloadedAt: new Date(now).toISOString(),
+        type: 'vector',
+        url: 'https://example.com/tile.pbf',
+        lastModified: now,
+      });
+
+      const stats = await service.getTileStats();
+
+      expect(stats.count).toBe(1);
+      expect(stats.totalSize).toBe(500);
+      expect(stats.averageSize).toBe(500);
+      expect(stats.oldestTile?.getTime()).toBe(now);
+      expect(stats.newestTile?.getTime()).toBe(now);
+    });
+
+    it('should handle tiles with same timestamp', async () => {
+      const db = await dbPromise;
+      const now = Date.now();
+
+      await db.put('tiles', {
+        key: 'tile-1.pbf',
+        styleId: 'style-1',
+        sourceId: 'source',
+        x: 0,
+        y: 0,
+        z: 0,
+        size: 100,
+        data: new ArrayBuffer(100),
+        downloadedAt: new Date(now).toISOString(),
+        type: 'vector',
+        url: 'https://example.com/tile1.pbf',
+        lastModified: now,
+      });
+
+      await db.put('tiles', {
+        key: 'tile-2.pbf',
+        styleId: 'style-1',
+        sourceId: 'source',
+        x: 1,
+        y: 0,
+        z: 0,
+        size: 200,
+        data: new ArrayBuffer(200),
+        downloadedAt: new Date(now).toISOString(),
+        type: 'vector',
+        url: 'https://example.com/tile2.pbf',
+        lastModified: now,
+      });
+
+      const stats = await service.getTileStats();
+
+      expect(stats.count).toBe(2);
+      expect(stats.oldestTile?.getTime()).toBe(now);
+      expect(stats.newestTile?.getTime()).toBe(now);
+    });
+
+    it('should handle multiple zoom levels correctly', async () => {
+      const db = await dbPromise;
+      const now = Date.now();
+
+      for (let z = 0; z <= 5; z++) {
+        await db.put('tiles', {
+          key: `tile-z${z}.pbf`,
+          styleId: 'style-1',
+          sourceId: 'source',
+          x: 0,
+          y: 0,
+          z,
+          size: (z + 1) * 100,
+          data: new ArrayBuffer((z + 1) * 100),
+          downloadedAt: new Date(now).toISOString(),
+          type: 'vector',
+          url: `https://example.com/tile-z${z}.pbf`,
+          lastModified: now,
+        });
+      }
+
+      const stats = await service.getTileStats();
+
+      expect(stats.count).toBe(6);
+      expect(stats.zoomLevelStats.size).toBe(6);
+      expect(stats.zoomLevelStats.get(0)?.count).toBe(1);
+      expect(stats.zoomLevelStats.get(0)?.size).toBe(100);
+      expect(stats.zoomLevelStats.get(5)?.count).toBe(1);
+      expect(stats.zoomLevelStats.get(5)?.size).toBe(600);
+    });
+  });
+
+  describe('cleanupOldTiles edge cases', () => {
+    it('should handle empty database', async () => {
+      const deletedCount = await service.cleanupOldTiles(30);
+      expect(deletedCount).toBe(0);
+    });
+
+    it('should handle maxAge of 1 day', async () => {
+      const db = await dbPromise;
+      // Create a tile from 2 days ago
+      const twoDaysAgo = Date.now() - 2 * 24 * 60 * 60 * 1000;
+
+      await db.put('tiles', {
+        key: 'tile-old.pbf',
+        styleId: 'style-1',
+        sourceId: 'source',
+        x: 0,
+        y: 0,
+        z: 0,
+        size: 100,
+        data: new ArrayBuffer(100),
+        downloadedAt: new Date(twoDaysAgo).toISOString(),
+        type: 'vector',
+        url: 'https://example.com/tile.pbf',
+        lastModified: twoDaysAgo,
+      });
+
+      const deletedCount = await service.cleanupOldTiles(1);
+
+      // Tile older than 1 day should be deleted
+      expect(deletedCount).toBe(1);
+    });
+
+    it('should handle very old maxAge value', async () => {
+      const db = await dbPromise;
+      const now = Date.now();
+
+      await db.put('tiles', {
+        key: 'tile.pbf',
+        styleId: 'style-1',
+        sourceId: 'source',
+        x: 0,
+        y: 0,
+        z: 0,
+        size: 100,
+        data: new ArrayBuffer(100),
+        downloadedAt: new Date(now).toISOString(),
+        type: 'vector',
+        url: 'https://example.com/tile.pbf',
+        lastModified: now,
+      });
+
+      // 1000 days - nothing should be deleted
+      const deletedCount = await service.cleanupOldTiles(1000);
+      expect(deletedCount).toBe(0);
+    });
+
+    it('should delete multiple old tiles at once', async () => {
+      const db = await dbPromise;
+      const oldTime = Date.now() - 50 * 24 * 60 * 60 * 1000;
+
+      for (let i = 0; i < 5; i++) {
+        await db.put('tiles', {
+          key: `old-tile-${i}.pbf`,
+          styleId: 'style-1',
+          sourceId: 'source',
+          x: i,
+          y: 0,
+          z: 0,
+          size: 100,
+          data: new ArrayBuffer(100),
+          downloadedAt: new Date(oldTime).toISOString(),
+          type: 'vector',
+          url: `https://example.com/tile-${i}.pbf`,
+          lastModified: oldTime,
+        });
+      }
+
+      const deletedCount = await service.cleanupOldTiles(30);
+      expect(deletedCount).toBe(5);
+    });
+  });
+
+  describe('getTileAnalytics edge cases', () => {
+    it('should handle multiple styles', async () => {
+      const db = await dbPromise;
+      const now = Date.now();
+
+      await db.put('tiles', {
+        key: 'style-a-tile.pbf',
+        styleId: 'style-a',
+        sourceId: 'source',
+        x: 0,
+        y: 0,
+        z: 5,
+        size: 1000,
+        data: new ArrayBuffer(1000),
+        downloadedAt: new Date(now).toISOString(),
+        type: 'vector',
+        url: 'https://example.com/tile.pbf',
+        lastModified: now,
+      });
+
+      await db.put('tiles', {
+        key: 'style-b-tile.pbf',
+        styleId: 'style-b',
+        sourceId: 'source',
+        x: 0,
+        y: 0,
+        z: 10,
+        size: 2000,
+        data: new ArrayBuffer(2000),
+        downloadedAt: new Date(now).toISOString(),
+        type: 'vector',
+        url: 'https://example.com/tile2.pbf',
+        lastModified: now,
+      });
+
+      // Get all tiles
+      const allAnalytics = await service.getTileAnalytics();
+      const allBasic = allAnalytics.basic as { totalTiles: number };
+      expect(allBasic.totalTiles).toBe(2);
+
+      // Filter by style-a
+      const styleAAnalytics = await service.getTileAnalytics('style-a');
+      const styleABasic = styleAAnalytics.basic as { totalTiles: number };
+      expect(styleABasic.totalTiles).toBe(1);
+    });
+
+    it('should have empty distribution when no tiles', async () => {
+      const analytics = await service.getTileAnalytics();
+      const distribution = analytics.distribution as { tilesByZoom: Record<string, number> };
+      expect(Object.keys(distribution.tilesByZoom).length).toBe(0);
+    });
+  });
 });

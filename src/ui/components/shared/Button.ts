@@ -14,6 +14,10 @@ export interface ButtonConfig extends ComponentConfig {
   size?: 'sm' | 'md' | 'lg';
   onClick?: () => void;
   showProgressBadge?: boolean;
+  /** ARIA label for accessibility (required for icon-only buttons) */
+  ariaLabel?: string;
+  /** Indicates if the button is in a loading/busy state */
+  loading?: boolean;
 }
 
 export class Button extends BaseComponent {
@@ -63,6 +67,19 @@ export class Button extends BaseComponent {
       button.disabled = this.config.disabled;
     }
 
+    // Accessibility attributes
+    if (this.config.ariaLabel) {
+      button.setAttribute('aria-label', this.config.ariaLabel);
+    } else if (this.config.icon && !this.config.text && this.config.title) {
+      // For icon-only buttons, use title as aria-label
+      button.setAttribute('aria-label', this.config.title);
+    }
+
+    if (this.config.loading) {
+      button.setAttribute('aria-busy', 'true');
+      button.disabled = true;
+    }
+
     // Add click handler
     if (this.config.onClick) {
       this.addEventListener('click', this.config.onClick);
@@ -100,6 +117,10 @@ export class Button extends BaseComponent {
     this.progressBadge = document.createElement('span');
     this.progressBadge.className =
       'absolute -top-1 -right-1 bg-blue-500 text-white rounded-full px-2 py-1 text-xs font-bold hidden min-w-4 text-center shadow-md';
+    // Accessibility: badge ID for aria-describedby
+    const badgeId = `btn-badge-${Date.now()}`;
+    this.progressBadge.id = badgeId;
+    this.progressBadge.setAttribute('aria-live', 'polite');
     this.element.appendChild(this.progressBadge);
   }
 
@@ -119,6 +140,19 @@ export class Button extends BaseComponent {
    */
   public setDisabled(disabled: boolean): void {
     (this.element as HTMLButtonElement).disabled = disabled;
+  }
+
+  /**
+   * Set loading state with aria-busy attribute
+   */
+  public setLoading(loading: boolean): void {
+    const button = this.element as HTMLButtonElement;
+    button.disabled = loading;
+    if (loading) {
+      button.setAttribute('aria-busy', 'true');
+    } else {
+      button.removeAttribute('aria-busy');
+    }
   }
 
   /**

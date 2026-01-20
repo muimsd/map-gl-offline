@@ -22,12 +22,33 @@ export class Panel extends BaseComponent {
   constructor(config: PanelConfig = {}) {
     super(config);
     this.panelConfig = config;
+    this.applyPanelStyles();
     this.createPanelStructure();
   }
 
   protected createElement(): HTMLElement {
     const panel = document.createElement('div');
+    // Basic classes that don't depend on config
+    panel.className = [
+      'offline-manager-control',
+      'bg-white',
+      'dark:bg-gray-800',
+      'border',
+      'border-gray-200',
+      'dark:border-gray-700',
+      'rounded-2xl',
+      'shadow-2xl',
+      'hidden',
+      'z-[1000]',
+      'overflow-hidden',
+      'text-sm',
+      'flex',
+      'flex-col',
+    ].join(' ');
+    return panel;
+  }
 
+  private applyPanelStyles(): void {
     // Size configurations
     const sizeClasses = {
       sm: ['w-[min(80vw,400px)]', 'h-[min(70vh,350px)]'],
@@ -48,26 +69,9 @@ export class Panel extends BaseComponent {
     const size = this.panelConfig.size || 'md';
     const position = this.panelConfig.position || 'center';
 
-    panel.className = [
-      'offline-manager-control',
-      'bg-white',
-      'dark:bg-gray-800',
-      'border',
-      'border-gray-200',
-      'dark:border-gray-700',
-      'rounded-2xl',
-      'shadow-2xl',
-      'hidden',
-      'z-[1000]',
-      'overflow-hidden',
-      'text-sm',
-      'flex',
-      'flex-col',
-      ...sizeClasses[size as keyof typeof sizeClasses],
-      ...positionClasses[position as keyof typeof positionClasses],
-    ].join(' ');
-
-    return panel;
+    // Add size and position classes
+    sizeClasses[size as keyof typeof sizeClasses].forEach(cls => this.element.classList.add(cls));
+    positionClasses[position as keyof typeof positionClasses].forEach(cls => this.element.classList.add(cls));
   }
 
   private createPanelStructure(): void {

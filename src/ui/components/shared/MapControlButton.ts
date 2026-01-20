@@ -15,11 +15,9 @@ export interface ControlButtonConfig extends ComponentConfig {
 export class ControlButton extends BaseComponent {
   private button: HTMLButtonElement;
   private progressBadge: HTMLSpanElement;
-  private buttonConfig: ControlButtonConfig;
 
   constructor(config: ControlButtonConfig = {}) {
     super(config);
-    this.buttonConfig = config;
     const button = this.element.querySelector('button');
     const progressBadge = button?.querySelector('.progress-badge') as HTMLSpanElement;
 
@@ -31,15 +29,25 @@ export class ControlButton extends BaseComponent {
     this.progressBadge = progressBadge;
   }
 
+  /**
+   * Get typed config
+   */
+  private get buttonConfig(): ControlButtonConfig {
+    return this.config as ControlButtonConfig;
+  }
+
   protected createElement(): HTMLElement {
+    // Access config from base class during createElement
+    const buttonConfig = this.config as ControlButtonConfig;
+
     const container = document.createElement('div');
     container.className = 'maplibregl-ctrl maplibregl-ctrl-group offline-manager-control';
 
     const button = document.createElement('button');
     button.type = 'button';
     button.className = 'maplibregl-ctrl-icon relative';
-    button.innerHTML = this.buttonConfig.icon || icons.cloud({ size: 20, color: 'black' });
-    button.title = this.buttonConfig.title || 'Offline Map Manager';
+    button.innerHTML = buttonConfig.icon || icons.cloud({ size: 20, color: 'black' });
+    button.title = buttonConfig.title || 'Offline Map Manager';
 
     const badge = document.createElement('span');
     badge.className =
@@ -49,8 +57,8 @@ export class ControlButton extends BaseComponent {
     container.appendChild(button);
 
     // Add click handler
-    if (this.buttonConfig.onToggle) {
-      button.addEventListener('click', this.buttonConfig.onToggle);
+    if (buttonConfig.onToggle) {
+      button.addEventListener('click', buttonConfig.onToggle);
     }
 
     return container;
