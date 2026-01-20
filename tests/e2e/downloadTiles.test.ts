@@ -30,14 +30,15 @@ describe('Download Tiles Flow', () => {
     // Enable console logging from the page
     page.on('console', msg => {
       const type = msg.type();
-      if (type === 'error' || type === 'warning') {
+      if (type === 'error' || type === 'warn') {
         console.log(`[Browser ${type}]:`, msg.text());
       }
     });
 
     // Log any page errors
     page.on('pageerror', error => {
-      console.error('[Page Error]:', error.message);
+      const err = error as Error;
+      console.error('[Page Error]:', err.message);
     });
   });
 
@@ -81,7 +82,7 @@ describe('Download Tiles Flow', () => {
       console.log('Clicked control button');
 
       // Wait a moment for panel to appear
-      await page.waitForTimeout(500);
+      await new Promise(resolve => setTimeout(resolve, 500));
 
       // Check if panel opened
       const panel = await page.$('.offline-manager-control');
