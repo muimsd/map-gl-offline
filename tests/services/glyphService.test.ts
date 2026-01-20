@@ -1,7 +1,7 @@
 /**
  * Tests for Glyph Service
  */
-import { GlyphService, glyphService, getGlyphStats, getGlyphAnalytics, cleanupOldGlyphs, loadGlyphs } from '../../src/services/glyphService';
+import { GlyphService, glyphService, getGlyphStats, getGlyphAnalytics, cleanupOldGlyphs, loadGlyphs, verifyAndRepairGlyphs } from '../../src/services/glyphService';
 import { dbPromise } from '../../src/storage/indexedDbManager';
 
 describe('GlyphService', () => {
@@ -372,6 +372,134 @@ describe('GlyphService', () => {
       expect(result.repaired).toBe(0);
       expect(result.removed).toBe(0);
     });
+
+    it('should remove glyphs with empty data', async () => {
+      const db = await dbPromise;
+
+      await db.put('glyphs', {
+        key: 'corrupted-glyph/0-255.pbf',
+        data: new ArrayBuffer(0),
+        url: 'https://example.com/fonts/corrupted-glyph/0-255.pbf',
+        size: 0,
+        lastModified: Date.now(),
+        downloadedAt: new Date().toISOString(),
+        fontstack: 'corrupted-glyph',
+        range: '0-255',
+      });
+
+      const result = await service.verifyAndRepairGlyphs();
+
+      expect(result.removed).toBe(1);
+
+      // Verify glyph was deleted
+      const glyph = await db.get('glyphs', 'corrupted-glyph/0-255.pbf');
+      expect(glyph).toBeUndefined();
+    });
+
+    it('should remove glyphs with null data', async () => {
+      const db = await dbPromise;
+
+      await db.put('glyphs', {
+        key: 'null-glyph/0-255.pbf',
+        data: null as unknown as ArrayBuffer,
+        url: 'https://example.com/fonts/null-glyph/0-255.pbf',
+        size: 100,
+        lastModified: Date.now(),
+        downloadedAt: new Date().toISOString(),
+        fontstack: 'null-glyph',
+        range: '0-255',
+      });
+
+      const result = await service.verifyAndRepairGlyphs();
+
+      expect(result.removed).toBe(1);
+    });
+
+    it('should handle multiple corrupted glyphs', async () => {
+      const db = await dbPromise;
+
+      await db.put('glyphs', {
+        key: 'corrupted-1/0-255.pbf',
+        data: new ArrayBuffer(0),
+        url: 'https://example.com/fonts/corrupted-1/0-255.pbf',
+        size: 0,
+        lastModified: Date.now(),
+        downloadedAt: new Date().toISOString(),
+        fontstack: 'corrupted-1',
+        range: '0-255',
+      });
+
+      await db.put('glyphs', {
+        key: 'corrupted-2/0-255.pbf',
+        data: new ArrayBuffer(0),
+        url: 'https://example.com/fonts/corrupted-2/0-255.pbf',
+        size: 0,
+        lastModified: Date.now(),
+        downloadedAt: new Date().toISOString(),
+        fontstack: 'corrupted-2',
+        range: '0-255',
+      });
+
+      const result = await service.verifyAndRepairGlyphs();
+
+      expect(result.removed).toBe(2);
+    });
+  });
+
+  describe('getGlyphAnalytics edge cases', () => {
+    it('should calculate age span correctly', async () => {
+      const db = await dbPromise;
+      const oldTime = Date.now() - 100000;
+      const newTime = Date.now();
+
+      await db.put('glyphs', {
+        key: 'old-font/0-255.pbf',
+        data: new ArrayBuffer(100),
+        url: 'https://example.com/fonts/old-font/0-255.pbf',
+        size: 100,
+        lastModified: oldTime,
+        downloadedAt: new Date(oldTime).toISOString(),
+        fontstack: 'old-font',
+        range: '0-255',
+      });
+
+      await db.put('glyphs', {
+        key: 'new-font/0-255.pbf',
+        data: new ArrayBuffer(100),
+        url: 'https://example.com/fonts/new-font/0-255.pbf',
+        size: 100,
+        lastModified: newTime,
+        downloadedAt: new Date(newTime).toISOString(),
+        fontstack: 'new-font',
+        range: '0-255',
+      });
+
+      const analytics = await service.getGlyphAnalytics();
+      const temporal = analytics.temporal as { ageSpan: number };
+
+      expect(temporal.ageSpan).toBe(newTime - oldTime);
+    });
+
+    it('should return zero age span when only one glyph exists', async () => {
+      const db = await dbPromise;
+      const now = Date.now();
+
+      await db.put('glyphs', {
+        key: 'only-font/0-255.pbf',
+        data: new ArrayBuffer(100),
+        url: 'https://example.com/fonts/only-font/0-255.pbf',
+        size: 100,
+        lastModified: now,
+        downloadedAt: new Date(now).toISOString(),
+        fontstack: 'only-font',
+        range: '0-255',
+      });
+
+      const analytics = await service.getGlyphAnalytics();
+      const temporal = analytics.temporal as { ageSpan: number };
+
+      expect(temporal.ageSpan).toBe(0);
+    });
   });
 
   describe('exported functions', () => {
@@ -400,6 +528,14 @@ describe('GlyphService', () => {
     it('should export glyphService singleton', () => {
       expect(glyphService).toBeDefined();
       expect(glyphService).toBeInstanceOf(GlyphService);
+    });
+
+    it('should export verifyAndRepairGlyphs function', async () => {
+      const result = await verifyAndRepairGlyphs();
+      expect(result).toBeDefined();
+      expect(result).toHaveProperty('verified');
+      expect(result).toHaveProperty('repaired');
+      expect(result).toHaveProperty('removed');
     });
   });
 });

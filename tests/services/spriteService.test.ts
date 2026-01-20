@@ -1,7 +1,7 @@
 /**
  * Tests for Sprite Service
  */
-import { SpriteService, spriteService, getSpriteStats, getSpriteAnalytics, cleanupOldSprites } from '../../src/services/spriteService';
+import { SpriteService, spriteService, getSpriteStats, getSpriteAnalytics, cleanupOldSprites, verifyAndRepairSprites } from '../../src/services/spriteService';
 import { dbPromise } from '../../src/storage/indexedDbManager';
 
 describe('SpriteService', () => {
@@ -289,6 +289,85 @@ describe('SpriteService', () => {
       expect(result.repaired).toBe(0);
       expect(result.removed).toBe(0);
     });
+
+    it('should remove corrupted sprites with empty data', async () => {
+      const db = await dbPromise;
+
+      await db.put('sprites', {
+        key: 'corrupted-sprite',
+        url: 'https://example.com/corrupted.png',
+        data: new ArrayBuffer(0),
+        contentType: 'image/png',
+        size: 0,
+        lastModified: Date.now(),
+        downloadedAt: new Date().toISOString(),
+        styleId: 'test',
+        spriteName: 'corrupted.png',
+      });
+
+      const result = await service.verifyAndRepairSprites();
+
+      expect(result.removed).toBe(1);
+      expect(result.verified).toBe(0);
+
+      // Verify sprite was actually deleted
+      const sprite = await db.get('sprites', 'corrupted-sprite');
+      expect(sprite).toBeUndefined();
+    });
+
+    it('should remove sprites with null data', async () => {
+      const db = await dbPromise;
+
+      await db.put('sprites', {
+        key: 'null-data-sprite',
+        url: 'https://example.com/null.png',
+        data: null as unknown as ArrayBuffer,
+        contentType: 'image/png',
+        size: 100,
+        lastModified: Date.now(),
+        downloadedAt: new Date().toISOString(),
+        styleId: 'test',
+        spriteName: 'null.png',
+      });
+
+      const result = await service.verifyAndRepairSprites();
+
+      expect(result.removed).toBe(1);
+    });
+
+    it('should handle only corrupted sprites', async () => {
+      const db = await dbPromise;
+
+      // Only add corrupted sprites with size: 0
+      await db.put('sprites', {
+        key: 'corrupted-sprite-1',
+        url: 'https://example.com/corrupted1.png',
+        data: new ArrayBuffer(0),
+        contentType: 'image/png',
+        size: 0,
+        lastModified: Date.now(),
+        downloadedAt: new Date().toISOString(),
+        styleId: 'test',
+        spriteName: 'corrupted1.png',
+      });
+
+      await db.put('sprites', {
+        key: 'corrupted-sprite-2',
+        url: 'https://example.com/corrupted2.png',
+        data: new ArrayBuffer(0),
+        contentType: 'image/png',
+        size: 0,
+        lastModified: Date.now(),
+        downloadedAt: new Date().toISOString(),
+        styleId: 'test',
+        spriteName: 'corrupted2.png',
+      });
+
+      const result = await service.verifyAndRepairSprites();
+
+      expect(result.removed).toBe(2);
+      expect(result.verified).toBe(0);
+    });
   });
 
   describe('exported functions', () => {
@@ -312,6 +391,118 @@ describe('SpriteService', () => {
     it('should export spriteService singleton', () => {
       expect(spriteService).toBeDefined();
       expect(spriteService).toBeInstanceOf(SpriteService);
+    });
+
+    it('should export verifyAndRepairSprites function', async () => {
+      const result = await verifyAndRepairSprites();
+      expect(result).toBeDefined();
+      expect(result).toHaveProperty('verified');
+      expect(result).toHaveProperty('repaired');
+      expect(result).toHaveProperty('removed');
+    });
+  });
+
+  describe('getSpriteStats edge cases', () => {
+    it('should handle sprites with missing contentType', async () => {
+      const db = await dbPromise;
+
+      await db.put('sprites', {
+        key: 'no-content-type-sprite',
+        url: 'https://example.com/sprite.png',
+        data: new ArrayBuffer(100),
+        // contentType intentionally omitted
+        size: 100,
+        lastModified: Date.now(),
+        downloadedAt: new Date().toISOString(),
+        styleId: 'test',
+        spriteName: 'sprite.png',
+      });
+
+      const stats = await service.getSpriteStats();
+
+      expect(stats.count).toBe(1);
+      expect(stats.spritesByType['png']).toBe(1);
+    });
+
+    it('should handle sprites with unknown type', async () => {
+      const db = await dbPromise;
+
+      await db.put('sprites', {
+        key: 'unknown-type-sprite',
+        url: 'https://example.com/sprite.xyz',
+        data: new ArrayBuffer(100),
+        contentType: 'application/octet-stream',
+        size: 100,
+        lastModified: Date.now(),
+        downloadedAt: new Date().toISOString(),
+        styleId: 'test',
+        spriteName: 'sprite.xyz',
+      });
+
+      const stats = await service.getSpriteStats();
+
+      expect(stats.count).toBe(1);
+      expect(stats.spritesByType['unknown']).toBe(1);
+    });
+
+    it('should correctly identify jpeg sprites', async () => {
+      const db = await dbPromise;
+
+      await db.put('sprites', {
+        key: 'jpeg-sprite',
+        url: 'https://example.com/sprite.jpg',
+        data: new ArrayBuffer(100),
+        contentType: 'image/jpeg',
+        size: 100,
+        lastModified: Date.now(),
+        downloadedAt: new Date().toISOString(),
+        styleId: 'test',
+        spriteName: 'sprite.jpg',
+      });
+
+      const stats = await service.getSpriteStats();
+
+      expect(stats.spritesByType['jpeg']).toBe(1);
+    });
+
+    it('should correctly identify webp sprites', async () => {
+      const db = await dbPromise;
+
+      await db.put('sprites', {
+        key: 'webp-sprite',
+        url: 'https://example.com/sprite.webp',
+        data: new ArrayBuffer(100),
+        contentType: 'image/webp',
+        size: 100,
+        lastModified: Date.now(),
+        downloadedAt: new Date().toISOString(),
+        styleId: 'test',
+        spriteName: 'sprite.webp',
+      });
+
+      const stats = await service.getSpriteStats();
+
+      expect(stats.spritesByType['webp']).toBe(1);
+    });
+
+    it('should correctly identify svg sprites', async () => {
+      const db = await dbPromise;
+
+      await db.put('sprites', {
+        key: 'svg-sprite',
+        url: 'https://example.com/sprite.svg',
+        data: new ArrayBuffer(100),
+        contentType: 'image/svg+xml',
+        size: 100,
+        lastModified: Date.now(),
+        downloadedAt: new Date().toISOString(),
+        styleId: 'test',
+        spriteName: 'sprite.svg',
+      });
+
+      const stats = await service.getSpriteStats();
+
+      expect(stats.spritesByType['svg']).toBe(1);
     });
   });
 });

@@ -1,7 +1,7 @@
 /**
  * Tests for Font Service
  */
-import { FontService, fontService, getFontStats, getFontAnalytics, cleanupOldFonts } from '../../src/services/fontService';
+import { FontService, fontService, getFontStats, getFontAnalytics, cleanupOldFonts, verifyAndRepairFonts } from '../../src/services/fontService';
 import { dbPromise } from '../../src/storage/indexedDbManager';
 
 describe('FontService', () => {
@@ -251,6 +251,84 @@ describe('FontService', () => {
       expect(result.repaired).toBe(0);
       expect(result.removed).toBe(0);
     });
+
+    it('should remove fonts with empty data', async () => {
+      const db = await dbPromise;
+
+      await db.put('fonts', {
+        key: 'corrupted-font',
+        url: 'https://example.com/corrupted.woff2',
+        originalUrl: 'https://example.com/corrupted.woff2',
+        data: new ArrayBuffer(0),
+        contentType: 'font/woff2',
+        type: 'woff2',
+        size: 0,
+        lastModified: Date.now(),
+        downloadedAt: new Date().toISOString(),
+      });
+
+      const result = await service.verifyAndRepairFonts();
+
+      expect(result.removed).toBe(1);
+
+      // Verify font was deleted
+      const font = await db.get('fonts', 'corrupted-font');
+      expect(font).toBeUndefined();
+    });
+
+    it('should remove fonts with null data', async () => {
+      const db = await dbPromise;
+
+      await db.put('fonts', {
+        key: 'null-font',
+        url: 'https://example.com/null.woff2',
+        originalUrl: 'https://example.com/null.woff2',
+        data: null as unknown as ArrayBuffer,
+        contentType: 'font/woff2',
+        type: 'woff2',
+        size: 100,
+        lastModified: Date.now(),
+        downloadedAt: new Date().toISOString(),
+      });
+
+      const result = await service.verifyAndRepairFonts();
+
+      expect(result.removed).toBe(1);
+    });
+
+    it('should handle only corrupted fonts', async () => {
+      const db = await dbPromise;
+
+      // Only add corrupted fonts with empty data
+      await db.put('fonts', {
+        key: 'corrupted-font-1',
+        url: 'https://example.com/corrupted1.woff2',
+        originalUrl: 'https://example.com/corrupted1.woff2',
+        data: new ArrayBuffer(0),
+        contentType: 'font/woff2',
+        type: 'woff2',
+        size: 0,
+        lastModified: Date.now(),
+        downloadedAt: new Date().toISOString(),
+      });
+
+      await db.put('fonts', {
+        key: 'corrupted-font-2',
+        url: 'https://example.com/corrupted2.woff2',
+        originalUrl: 'https://example.com/corrupted2.woff2',
+        data: new ArrayBuffer(0),
+        contentType: 'font/woff2',
+        type: 'woff2',
+        size: 0,
+        lastModified: Date.now(),
+        downloadedAt: new Date().toISOString(),
+      });
+
+      const result = await service.verifyAndRepairFonts();
+
+      expect(result.removed).toBe(2);
+      expect(result.verified).toBe(0);
+    });
   });
 
   describe('exported functions', () => {
@@ -274,6 +352,137 @@ describe('FontService', () => {
     it('should export fontService singleton', () => {
       expect(fontService).toBeDefined();
       expect(fontService).toBeInstanceOf(FontService);
+    });
+
+    it('should export verifyAndRepairFonts function', async () => {
+      const result = await verifyAndRepairFonts();
+      expect(result).toBeDefined();
+      expect(result).toHaveProperty('verified');
+      expect(result).toHaveProperty('repaired');
+      expect(result).toHaveProperty('removed');
+    });
+  });
+
+  describe('getFontStats edge cases', () => {
+    it('should correctly identify woff fonts', async () => {
+      const db = await dbPromise;
+
+      await db.put('fonts', {
+        key: 'woff-font',
+        url: 'https://example.com/font.woff',
+        originalUrl: 'https://example.com/font.woff',
+        data: new ArrayBuffer(100),
+        contentType: 'font/woff',
+        type: 'woff',
+        size: 100,
+        lastModified: Date.now(),
+        downloadedAt: new Date().toISOString(),
+      });
+
+      const stats = await service.getFontStats();
+
+      expect(stats.fontsByType['woff']).toBe(1);
+    });
+
+    it('should correctly identify otf fonts', async () => {
+      const db = await dbPromise;
+
+      await db.put('fonts', {
+        key: 'otf-font',
+        url: 'https://example.com/font.otf',
+        originalUrl: 'https://example.com/font.otf',
+        data: new ArrayBuffer(100),
+        contentType: 'font/opentype',
+        type: 'otf',
+        size: 100,
+        lastModified: Date.now(),
+        downloadedAt: new Date().toISOString(),
+      });
+
+      const stats = await service.getFontStats();
+
+      expect(stats.fontsByType['otf']).toBe(1);
+    });
+
+    it('should handle fonts with unknown type', async () => {
+      const db = await dbPromise;
+
+      await db.put('fonts', {
+        key: 'unknown-font',
+        url: 'https://example.com/font.xyz',
+        originalUrl: 'https://example.com/font.xyz',
+        data: new ArrayBuffer(100),
+        contentType: 'application/octet-stream',
+        type: 'unknown',
+        size: 100,
+        lastModified: Date.now(),
+        downloadedAt: new Date().toISOString(),
+      });
+
+      const stats = await service.getFontStats();
+
+      expect(stats.fontsByType['unknown']).toBe(1);
+    });
+  });
+
+  describe('getFontAnalytics edge cases', () => {
+    it('should calculate age span correctly', async () => {
+      const db = await dbPromise;
+      const oldTime = Date.now() - 100000;
+      const newTime = Date.now();
+
+      await db.put('fonts', {
+        key: 'old-font',
+        url: 'https://example.com/old.woff2',
+        originalUrl: 'https://example.com/old.woff2',
+        data: new ArrayBuffer(100),
+        contentType: 'font/woff2',
+        type: 'woff2',
+        size: 100,
+        lastModified: oldTime,
+        downloadedAt: new Date(oldTime).toISOString(),
+      });
+
+      await db.put('fonts', {
+        key: 'new-font',
+        url: 'https://example.com/new.woff2',
+        originalUrl: 'https://example.com/new.woff2',
+        data: new ArrayBuffer(100),
+        contentType: 'font/woff2',
+        type: 'woff2',
+        size: 100,
+        lastModified: newTime,
+        downloadedAt: new Date(newTime).toISOString(),
+      });
+
+      const analytics = await service.getFontAnalytics();
+      const temporal = analytics.temporal as { oldestFont: { key: string; timestamp: number }; newestFont: { key: string; timestamp: number }; ageSpan: number };
+
+      expect(temporal.ageSpan).toBe(newTime - oldTime);
+      expect(temporal.oldestFont.key).toBe('old-font');
+      expect(temporal.newestFont.key).toBe('new-font');
+    });
+
+    it('should return zero age span when only one font exists', async () => {
+      const db = await dbPromise;
+      const now = Date.now();
+
+      await db.put('fonts', {
+        key: 'only-font',
+        url: 'https://example.com/only.woff2',
+        originalUrl: 'https://example.com/only.woff2',
+        data: new ArrayBuffer(100),
+        contentType: 'font/woff2',
+        type: 'woff2',
+        size: 100,
+        lastModified: now,
+        downloadedAt: new Date(now).toISOString(),
+      });
+
+      const analytics = await service.getFontAnalytics();
+      const temporal = analytics.temporal as { ageSpan: number };
+
+      expect(temporal.ageSpan).toBe(0);
     });
   });
 });
