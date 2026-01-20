@@ -313,6 +313,183 @@ describe('CleanupService', () => {
       // Priority region should be preserved even though expired
       expect(result.deletedRegions).toBe(0);
     });
+
+    it('should delete expired non-priority regions', async () => {
+      const db = await dbPromise;
+      const now = Date.now();
+      const day = 24 * 60 * 60 * 1000;
+
+      // Add expired non-priority region
+      await db.put('regions', {
+        key: 'expired-region',
+        id: 'expired-region',
+        name: 'Old Region',
+        bounds: [[0, 0], [1, 1]],
+        styleId: 'style',
+        styleUrl: 'https://example.com/style.json',
+        minZoom: 0,
+        maxZoom: 10,
+        created: now - 40 * day,
+        lastModified: now - 40 * day,
+        expiry: now - 10 * day,
+      });
+
+      const result = await service.runCleanup({ maxAge: 30 });
+
+      expect(result.deletedRegions).toBe(1);
+      expect(mockDeleteRegion).toHaveBeenCalledWith('expired-region', 'style');
+    });
+
+    it('should apply maxRegions limit', async () => {
+      const db = await dbPromise;
+      const now = Date.now();
+      const day = 24 * 60 * 60 * 1000;
+
+      // Add 3 regions with different ages
+      await db.put('regions', {
+        key: 'old-region',
+        id: 'old-region',
+        name: 'Old',
+        bounds: [[0, 0], [1, 1]],
+        styleId: 'style',
+        styleUrl: 'https://example.com/style.json',
+        minZoom: 0,
+        maxZoom: 10,
+        created: now - 20 * day,
+        lastModified: now - 20 * day,
+        expiry: now + 10 * day,
+      });
+
+      await db.put('regions', {
+        key: 'middle-region',
+        id: 'middle-region',
+        name: 'Middle',
+        bounds: [[0, 0], [1, 1]],
+        styleId: 'style',
+        styleUrl: 'https://example.com/style.json',
+        minZoom: 0,
+        maxZoom: 10,
+        created: now - 10 * day,
+        lastModified: now - 10 * day,
+        expiry: now + 20 * day,
+      });
+
+      await db.put('regions', {
+        key: 'new-region',
+        id: 'new-region',
+        name: 'New',
+        bounds: [[0, 0], [1, 1]],
+        styleId: 'style',
+        styleUrl: 'https://example.com/style.json',
+        minZoom: 0,
+        maxZoom: 10,
+        created: now - 1 * day,
+        lastModified: now - 1 * day,
+        expiry: now + 29 * day,
+      });
+
+      const result = await service.runCleanup({ maxRegions: 2 });
+
+      expect(result.scannedRegions).toBe(3);
+      expect(result.deletedRegions).toBe(1);
+      // Should delete the oldest region
+      expect(mockDeleteRegion).toHaveBeenCalledWith('old-region', 'style');
+    });
+
+    it('should handle deletion errors gracefully', async () => {
+      const db = await dbPromise;
+      const now = Date.now();
+      const day = 24 * 60 * 60 * 1000;
+
+      await db.put('regions', {
+        key: 'error-region',
+        id: 'error-region',
+        name: 'Error Region',
+        bounds: [[0, 0], [1, 1]],
+        styleId: 'style',
+        styleUrl: 'https://example.com/style.json',
+        minZoom: 0,
+        maxZoom: 10,
+        created: now - 40 * day,
+        lastModified: now - 40 * day,
+        expiry: now - 10 * day,
+      });
+
+      // Mock delete to throw error
+      mockDeleteRegion.mockRejectedValueOnce(new Error('Deletion failed'));
+
+      const result = await service.runCleanup({ maxAge: 30 });
+
+      expect(result.errors.length).toBeGreaterThan(0);
+      expect(result.errors[0]).toContain('Failed to delete region');
+    });
+
+    it('should track freed space when deleting regions', async () => {
+      const db = await dbPromise;
+      const now = Date.now();
+      const day = 24 * 60 * 60 * 1000;
+
+      await db.put('regions', {
+        key: 'region-with-tiles',
+        id: 'region-with-tiles',
+        name: 'Region With Tiles',
+        bounds: [[0, 0], [1, 1]],
+        styleId: 'test-style',
+        styleUrl: 'https://example.com/style.json',
+        minZoom: 0,
+        maxZoom: 10,
+        created: now - 40 * day,
+        lastModified: now - 40 * day,
+        expiry: now - 10 * day,
+      });
+
+      await db.put('tiles', {
+        key: 'test-style:source:10:100:200.pbf',
+        styleId: 'test-style',
+        sourceId: 'source',
+        x: 100,
+        y: 200,
+        z: 10,
+        size: 5000,
+        data: new ArrayBuffer(5000),
+        downloadedAt: new Date().toISOString(),
+        type: 'vector',
+        url: 'https://example.com/tile.pbf',
+        lastModified: Date.now(),
+      });
+
+      const result = await service.runCleanup({ maxAge: 30 });
+
+      expect(result.freedSpace).toBe(5000);
+    });
+
+    it('should preserve non-expired priority regions by name', async () => {
+      const db = await dbPromise;
+      const now = Date.now();
+      const day = 24 * 60 * 60 * 1000;
+
+      await db.put('regions', {
+        key: 'region-1',
+        id: 'region-1',
+        name: 'Important Home Region',
+        bounds: [[0, 0], [1, 1]],
+        styleId: 'style',
+        styleUrl: 'https://example.com/style.json',
+        minZoom: 0,
+        maxZoom: 10,
+        created: now - 5 * day,
+        lastModified: now - 5 * day,
+        expiry: now + 25 * day,
+      });
+
+      const result = await service.runCleanup({
+        priorityPatterns: ['Important'],
+        maxAge: 30,
+      });
+
+      expect(result.deletedRegions).toBe(0);
+      expect(result.preservedRegions).toBe(1);
+    });
   });
 
   describe('performCleanup', () => {

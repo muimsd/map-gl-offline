@@ -5,9 +5,273 @@ import {
   processBatch,
   createProgressTracker,
   validateResource,
+  fetchResource,
+  fetchResourceWithRetry,
+  fetchWithRetry,
 } from '../../src/utils/download';
 
+// Mock global fetch
+const mockFetch = jest.fn();
+global.fetch = mockFetch;
+
 describe('download utilities', () => {
+  beforeEach(() => {
+    mockFetch.mockClear();
+  });
+
+  describe('fetchResource', () => {
+    it('should fetch and return image data', async () => {
+      const imageData = new ArrayBuffer(100);
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        headers: new Headers({ 'content-type': 'image/png' }),
+        arrayBuffer: () => Promise.resolve(imageData),
+      });
+
+      const result = await fetchResource('https://example.com/image.png');
+
+      expect(result.type).toBe('image');
+      expect(result.data).toBe(imageData);
+      expect(mockFetch).toHaveBeenCalledWith('https://example.com/image.png', { mode: 'cors' });
+    });
+
+    it('should fetch and return pbf data', async () => {
+      const pbfData = new ArrayBuffer(100);
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        headers: new Headers({ 'content-type': 'application/x-protobuf' }),
+        arrayBuffer: () => Promise.resolve(pbfData),
+      });
+
+      const result = await fetchResource('https://example.com/tile.pbf');
+
+      expect(result.type).toBe('pbf');
+      expect(result.data).toBe(pbfData);
+    });
+
+    it('should throw error for failed fetch', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        statusText: 'Not Found',
+      });
+
+      await expect(fetchResource('https://example.com/missing.png')).rejects.toThrow(
+        'Failed to fetch resource: Not Found'
+      );
+    });
+
+    it('should throw error for unsupported content type', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        headers: new Headers({ 'content-type': 'text/html' }),
+        arrayBuffer: () => Promise.resolve(new ArrayBuffer(100)),
+      });
+
+      await expect(fetchResource('https://example.com/page.html')).rejects.toThrow(
+        'Unsupported content type: text/html'
+      );
+    });
+  });
+
+  describe('fetchResourceWithRetry', () => {
+    it('should return JSON data for JSON content type', async () => {
+      const jsonData = { tiles: ['https://example.com/{z}/{x}/{y}.pbf'] };
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        headers: new Headers({ 'content-type': 'application/json' }),
+        json: () => Promise.resolve(jsonData),
+      });
+
+      const result = await fetchResourceWithRetry('https://example.com/tilejson.json');
+
+      expect(result.type).toBe('json');
+      expect(result.data).toEqual(jsonData);
+    });
+
+    it('should return image data for image content type', async () => {
+      const imageData = new ArrayBuffer(100);
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        headers: new Headers({ 'content-type': 'image/png' }),
+        arrayBuffer: () => Promise.resolve(imageData),
+      });
+
+      const result = await fetchResourceWithRetry('https://example.com/image.png');
+
+      expect(result.type).toBe('image');
+    });
+
+    it('should return pbf data for protobuf content type', async () => {
+      const pbfData = new ArrayBuffer(100);
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        headers: new Headers({ 'content-type': 'application/x-protobuf' }),
+        arrayBuffer: () => Promise.resolve(pbfData),
+      });
+
+      const result = await fetchResourceWithRetry('https://example.com/tile.pbf');
+
+      expect(result.type).toBe('pbf');
+    });
+
+    it('should return other type for unknown content type', async () => {
+      const data = new ArrayBuffer(100);
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        headers: new Headers({ 'content-type': 'application/octet-stream' }),
+        arrayBuffer: () => Promise.resolve(data),
+      });
+
+      const result = await fetchResourceWithRetry('https://example.com/file.bin');
+
+      expect(result.type).toBe('other');
+    });
+
+    it('should include content encoding in result', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        headers: new Headers({
+          'content-type': 'application/x-protobuf',
+          'content-encoding': 'gzip',
+        }),
+        arrayBuffer: () => Promise.resolve(new ArrayBuffer(100)),
+      });
+
+      const result = await fetchResourceWithRetry('https://example.com/tile.pbf');
+
+      expect(result.contentEncoding).toBe('gzip');
+    });
+
+    it('should retry on failure', async () => {
+      mockFetch
+        .mockRejectedValueOnce(new Error('Network error'))
+        .mockResolvedValueOnce({
+          ok: true,
+          headers: new Headers({ 'content-type': 'image/png' }),
+          arrayBuffer: () => Promise.resolve(new ArrayBuffer(100)),
+        });
+
+      const result = await fetchResourceWithRetry('https://example.com/image.png', {
+        retries: 2,
+        retryDelay: 10,
+      });
+
+      expect(result.type).toBe('image');
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+    });
+
+    it('should throw after all retries exhausted', async () => {
+      mockFetch.mockRejectedValue(new Error('Network error'));
+
+      await expect(
+        fetchResourceWithRetry('https://example.com/image.png', {
+          retries: 2,
+          retryDelay: 10,
+        })
+      ).rejects.toThrow('Failed to fetch');
+    });
+
+    it('should throw specific error for 404', async () => {
+      mockFetch.mockResolvedValue({
+        ok: false,
+        status: 404,
+        statusText: 'Not Found',
+      });
+
+      await expect(
+        fetchResourceWithRetry('https://example.com/missing.png', { retries: 0 })
+      ).rejects.toThrow('Font not found (404)');
+    });
+
+    it('should throw specific error for 403', async () => {
+      mockFetch.mockResolvedValue({
+        ok: false,
+        status: 403,
+        statusText: 'Forbidden',
+      });
+
+      await expect(
+        fetchResourceWithRetry('https://example.com/protected.png', { retries: 0 })
+      ).rejects.toThrow('Access denied (403)');
+    });
+
+    it('should throw specific error for 401', async () => {
+      mockFetch.mockResolvedValue({
+        ok: false,
+        status: 401,
+        statusText: 'Unauthorized',
+      });
+
+      await expect(
+        fetchResourceWithRetry('https://example.com/protected.png', { retries: 0 })
+      ).rejects.toThrow('Access denied (401)');
+    });
+
+    it('should handle +json content type', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        headers: new Headers({ 'content-type': 'application/geo+json' }),
+        json: () => Promise.resolve({ type: 'FeatureCollection' }),
+      });
+
+      const result = await fetchResourceWithRetry('https://example.com/data.geojson');
+
+      expect(result.type).toBe('json');
+    });
+  });
+
+  describe('fetchWithRetry', () => {
+    it('should return response on success', async () => {
+      const mockResponse = {
+        ok: true,
+        status: 200,
+      };
+      mockFetch.mockResolvedValueOnce(mockResponse);
+
+      const result = await fetchWithRetry('https://example.com/resource');
+
+      expect(result).toBe(mockResponse);
+    });
+
+    it('should retry on failure and succeed', async () => {
+      const mockResponse = { ok: true, status: 200 };
+      mockFetch
+        .mockRejectedValueOnce(new Error('Network error'))
+        .mockResolvedValueOnce(mockResponse);
+
+      const result = await fetchWithRetry('https://example.com/resource', {
+        retries: 2,
+        retryDelay: 10,
+      });
+
+      expect(result).toBe(mockResponse);
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+    });
+
+    it('should throw after all retries exhausted', async () => {
+      mockFetch.mockRejectedValue(new Error('Network error'));
+
+      await expect(
+        fetchWithRetry('https://example.com/resource', {
+          retries: 1,
+          retryDelay: 10,
+        })
+      ).rejects.toThrow('Failed to fetch');
+    });
+
+    it('should throw on HTTP error', async () => {
+      mockFetch.mockResolvedValue({
+        ok: false,
+        status: 500,
+        statusText: 'Internal Server Error',
+      });
+
+      await expect(
+        fetchWithRetry('https://example.com/resource', { retries: 0 })
+      ).rejects.toThrow('HTTP 500');
+    });
+  });
+
   describe('processBatch', () => {
     it('should process all items', async () => {
       const items = [1, 2, 3, 4, 5];
