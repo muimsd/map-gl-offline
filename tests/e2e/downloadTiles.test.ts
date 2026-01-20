@@ -1,6 +1,7 @@
 /**
  * E2E test for download tiles flow
  * Tests the offline map manager's tile download functionality
+ * @jest-environment node
  */
 import puppeteer, { Browser, Page } from 'puppeteer';
 
