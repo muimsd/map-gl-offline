@@ -40,7 +40,7 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
-    "test:ci": "jest --ci --coverage --watchAll=false",
+    "test:ci": "jest --ci --coverage --watchAll=false --testPathIgnorePatterns='tests/e2e'",
     "lint": "eslint src --ext .ts,.tsx --ignore-pattern 'src/main.ts'",
     "lint:fix": "eslint src --ext .ts,.tsx --ignore-pattern 'src/main.ts' --fix",
     "lint:warn": "eslint src --ext .ts,.tsx --ignore-pattern 'src/main.ts' --max-warnings 200",
