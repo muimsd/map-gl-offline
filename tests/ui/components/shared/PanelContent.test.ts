@@ -7,8 +7,10 @@ import { PanelContentRenderer, ContentRendererConfig } from '../../../../src/ui/
 // Mock the theme manager
 jest.mock('../../../../src/ui/ThemeManager', () => ({
   themeManager: {
-    getTheme: jest.fn().mockReturnValue({ mode: 'light' }),
+    getTheme: jest.fn().mockReturnValue({ mode: 'light', preference: 'light' }),
+    getPreference: jest.fn().mockReturnValue('light'),
     setTheme: jest.fn(),
+    cycleTheme: jest.fn(),
   },
 }));
 

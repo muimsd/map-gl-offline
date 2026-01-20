@@ -4,7 +4,7 @@
  */
 
 import { icons } from '../../utils/icons';
-import { Theme } from '../ThemeManager';
+import { Theme, themeManager, ThemePreference } from '../ThemeManager';
 import { Button } from './shared/Button';
 
 export interface HeaderProps {
@@ -15,6 +15,38 @@ export interface HeaderProps {
   onToggleTheme?: () => void;
   showThemeToggle?: boolean;
   theme?: Theme;
+}
+
+/**
+ * Get the appropriate icon for the current theme preference
+ */
+function getThemeIcon(preference: ThemePreference): string {
+  switch (preference) {
+    case 'light':
+      return icons.sun({ size: 16, color: 'white' });
+    case 'dark':
+      return icons.moon({ size: 16, color: 'white' });
+    case 'system':
+      return icons.deviceDesktop({ size: 16, color: 'white' });
+    default:
+      return icons.sun({ size: 16, color: 'white' });
+  }
+}
+
+/**
+ * Get the tooltip text for the theme toggle button
+ */
+function getThemeTooltip(preference: ThemePreference): string {
+  switch (preference) {
+    case 'light':
+      return 'Light theme (click for dark)';
+    case 'dark':
+      return 'Dark theme (click for system)';
+    case 'system':
+      return 'System theme (click for light)';
+    default:
+      return 'Toggle theme';
+  }
 }
 
 export function createHeader(props: HeaderProps): HTMLDivElement {
@@ -41,11 +73,13 @@ export function createHeader(props: HeaderProps): HTMLDivElement {
 
   // Theme toggle button
   if (showThemeToggle && themeToggleHandler) {
+    const currentPreference = themeManager.getPreference();
+
     const themeButton = new Button({
       className:
         'w-9 h-9 p-0 bg-white/10 text-white rounded-full backdrop-blur-sm hover:bg-black/20 dark:hover:bg-white/20 transition-colors',
-      icon: icons.moon({ size: 16, color: 'white' }),
-      title: 'Toggle theme',
+      icon: getThemeIcon(currentPreference),
+      title: getThemeTooltip(currentPreference),
       onClick: themeToggleHandler,
     });
 

@@ -124,8 +124,9 @@ export class OfflineManagerControl implements IControl {
   ) {
     this.offlineManager = offlineManager;
 
-    // Set initial theme if provided
-    if (options?.theme) {
+    // Set initial theme only if no saved preference exists
+    const savedTheme = localStorage.getItem('offline-manager-theme');
+    if (!savedTheme && options?.theme) {
       themeManager.setTheme(options.theme);
     }
     this.options = options;

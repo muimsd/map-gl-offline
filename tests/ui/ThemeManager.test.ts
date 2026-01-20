@@ -20,7 +20,7 @@ Object.defineProperty(window, 'matchMedia', {
 });
 
 // Import after mock is set up
-import { themeManager, lightTheme, darkTheme } from '../../src/ui/ThemeManager';
+import { themeManager, lightTheme, darkTheme, systemTheme } from '../../src/ui/ThemeManager';
 
 describe('ThemeManager', () => {
   // Store original values
@@ -53,7 +53,7 @@ describe('ThemeManager', () => {
     });
 
     // Reset theme to light
-    themeManager.setTheme('light');
+    themeManager.setThemePreference('light');
     document.documentElement.classList.remove('dark');
   });
 
@@ -66,12 +66,18 @@ describe('ThemeManager', () => {
   });
 
   describe('Theme constants', () => {
-    it('should have light theme with mode light', () => {
+    it('should have light theme with mode light and preference light', () => {
       expect(lightTheme.mode).toBe('light');
+      expect(lightTheme.preference).toBe('light');
     });
 
-    it('should have dark theme with mode dark', () => {
+    it('should have dark theme with mode dark and preference dark', () => {
       expect(darkTheme.mode).toBe('dark');
+      expect(darkTheme.preference).toBe('dark');
+    });
+
+    it('should have system theme with preference system', () => {
+      expect(systemTheme.preference).toBe('system');
     });
   });
 
@@ -80,10 +86,62 @@ describe('ThemeManager', () => {
       const theme = themeManager.getTheme();
       expect(theme).toBeDefined();
       expect(theme.mode).toBeDefined();
+      expect(theme.preference).toBeDefined();
     });
   });
 
-  describe('setTheme', () => {
+  describe('getEffectiveMode', () => {
+    it('should return the effective mode', () => {
+      themeManager.setThemePreference('dark');
+      expect(themeManager.getEffectiveMode()).toBe('dark');
+    });
+  });
+
+  describe('getPreference', () => {
+    it('should return the preference', () => {
+      themeManager.setThemePreference('system');
+      expect(themeManager.getPreference()).toBe('system');
+    });
+  });
+
+  describe('setThemePreference', () => {
+    it('should set light theme preference', () => {
+      themeManager.setThemePreference('light');
+      expect(themeManager.getTheme().mode).toBe('light');
+      expect(themeManager.getTheme().preference).toBe('light');
+    });
+
+    it('should set dark theme preference', () => {
+      themeManager.setThemePreference('dark');
+      expect(themeManager.getTheme().mode).toBe('dark');
+      expect(themeManager.getTheme().preference).toBe('dark');
+    });
+
+    it('should set system theme preference', () => {
+      themeManager.setThemePreference('system');
+      expect(themeManager.getTheme().preference).toBe('system');
+      // Mode will depend on system preference (mocked as false/light)
+      expect(themeManager.getTheme().mode).toBe('light');
+    });
+
+    it('should save preference to localStorage', () => {
+      themeManager.setThemePreference('dark');
+      expect(localStorage.setItem).toHaveBeenCalledWith('offline-manager-theme', 'dark');
+    });
+
+    it('should add dark class to document when setting dark theme', () => {
+      themeManager.setThemePreference('dark');
+      expect(document.documentElement.classList.contains('dark')).toBe(true);
+    });
+
+    it('should remove dark class from document when setting light theme', () => {
+      themeManager.setThemePreference('dark');
+      themeManager.setThemePreference('light');
+      expect(document.documentElement.classList.contains('dark')).toBe(false);
+    });
+  });
+
+  describe('setTheme (backwards compatibility)', () => {
     it('should set light theme', () => {
       themeManager.setTheme('light');
       expect(themeManager.getTheme().mode).toBe('light');
@@ -93,35 +151,33 @@ describe('ThemeManager', () => {
       themeManager.setTheme('dark');
       expect(themeManager.getTheme().mode).toBe('dark');
     });
+  });
 
-    it('should save theme to localStorage', () => {
-      themeManager.setTheme('dark');
-      expect(localStorage.setItem).toHaveBeenCalledWith('offline-manager-theme', 'dark');
+  describe('cycleTheme', () => {
+    it('should cycle from light to dark', () => {
+      themeManager.setThemePreference('light');
+      themeManager.cycleTheme();
+      expect(themeManager.getTheme().preference).toBe('dark');
     });
 
-    it('should add dark class to document when setting dark theme', () => {
-      themeManager.setTheme('dark');
-      expect(document.documentElement.classList.contains('dark')).toBe(true);
+    it('should cycle from dark to system', () => {
+      themeManager.setThemePreference('dark');
+      themeManager.cycleTheme();
+      expect(themeManager.getTheme().preference).toBe('system');
     });
 
-    it('should remove dark class from document when setting light theme', () => {
-      themeManager.setTheme('dark');
-      themeManager.setTheme('light');
-      expect(document.documentElement.classList.contains('dark')).toBe(false);
+    it('should cycle from system to light', () => {
+      themeManager.setThemePreference('system');
+      themeManager.cycleTheme();
+      expect(themeManager.getTheme().preference).toBe('light');
     });
   });
 
-  describe('toggleTheme', () => {
-    it('should toggle from light to dark', () => {
-      themeManager.setTheme('light');
+  describe('toggleTheme (backwards compatibility)', () => {
+    it('should cycle through themes', () => {
+      themeManager.setThemePreference('light');
       themeManager.toggleTheme();
-      expect(themeManager.getTheme().mode).toBe('dark');
-    });
-
-    it('should toggle from dark to light', () => {
-      themeManager.setTheme('dark');
-      themeManager.toggleTheme();
-      expect(themeManager.getTheme().mode).toBe('light');
+      expect(themeManager.getTheme().preference).toBe('dark');
     });
   });
 
@@ -130,9 +186,9 @@ describe('ThemeManager', () => {
       const listener = jest.fn();
       themeManager.subscribe(listener);
 
-      themeManager.setTheme('dark');
+      themeManager.setThemePreference('dark');
 
-      expect(listener).toHaveBeenCalledWith(expect.objectContaining({ mode: 'dark' }));
+      expect(listener).toHaveBeenCalledWith(expect.objectContaining({ mode: 'dark', preference: 'dark' }));
     });
 
     it('should allow unsubscribing', () => {
@@ -142,7 +198,7 @@ describe('ThemeManager', () => {
       unsubscribe();
       listener.mockClear();
 
-      themeManager.setTheme('light');
+      themeManager.setThemePreference('light');
 
       expect(listener).not.toHaveBeenCalled();
     });
@@ -154,7 +210,7 @@ describe('ThemeManager', () => {
       themeManager.subscribe(listener1);
       themeManager.subscribe(listener2);
 
-      themeManager.setTheme('dark');
+      themeManager.setThemePreference('dark');
 
       expect(listener1).toHaveBeenCalled();
       expect(listener2).toHaveBeenCalled();

@@ -89,7 +89,7 @@ export class PanelContentRenderer extends BaseComponent {
     regions: StoredRegion[],
     analytics: StorageAnalyticsReport,
     downloads: Map<string, DownloadProgress>,
-    currentTheme: { mode: string }
+    _currentTheme: { mode: string }
   ): HTMLElement {
     const mainContent = document.createElement('div');
     mainContent.className = 'h-full flex flex-col';
@@ -100,8 +100,7 @@ export class PanelContentRenderer extends BaseComponent {
       subtitle: `${regions.length} regions • ${formatBytes(analytics.totalStorageSize)}`,
       onClose: this.contentConfig.onClose,
       onThemeToggle: () => {
-        const newTheme = currentTheme.mode === 'dark' ? 'light' : 'dark';
-        themeManager.setTheme(newTheme);
+        themeManager.cycleTheme();
         // Re-render to update theme
         if (mainContent.parentElement) {
           this.render(mainContent.parentElement);
@@ -190,9 +189,7 @@ export class PanelContentRenderer extends BaseComponent {
         this.contentConfig.onFocusRegion(regionId);
       },
       onThemeToggle: () => {
-        const currentTheme = themeManager.getTheme();
-        const newTheme = currentTheme.mode === 'dark' ? 'light' : 'dark';
-        themeManager.setTheme(newTheme);
+        themeManager.cycleTheme();
       },
     });
 
