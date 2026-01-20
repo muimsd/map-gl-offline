@@ -9,9 +9,20 @@ import { fetchWithRetry, processBatch, createProgressTracker, logger } from '../
 
 const spriteLogger = logger.scope('SpriteService');
 
+/**
+ * Service for managing map sprite assets
+ * Handles downloading, storing, and retrieving sprite images and JSON metadata
+ */
 export class SpriteService {
   private db = dbPromise;
 
+  /**
+   * Downloads sprite assets for a map style
+   * @param spriteUrls - Array of sprite URLs to download
+   * @param styleName - Name of the style these sprites belong to
+   * @param options - Download configuration options
+   * @returns Promise resolving to download result with statistics
+   */
   async downloadSprites(
     spriteUrls: string[],
     styleName: string,
@@ -293,6 +304,10 @@ export class SpriteService {
     };
   }
 
+  /**
+   * Retrieves comprehensive statistics about stored sprites
+   * @returns Promise resolving to sprite statistics including count, size, types, and corruption info
+   */
   async getSpriteStats(): Promise<EnhancedSpriteStats> {
     const db = await this.db;
 
@@ -365,6 +380,10 @@ export class SpriteService {
     };
   }
 
+  /**
+   * Generates detailed analytics about stored sprites
+   * @returns Promise resolving to analytics object with distribution, health, and temporal data
+   */
   async getSpriteAnalytics(): Promise<Record<string, unknown>> {
     const stats = await this.getSpriteStats();
 
@@ -393,6 +412,11 @@ export class SpriteService {
     };
   }
 
+  /**
+   * Removes sprites older than the specified age
+   * @param maxAge - Maximum age in days (default: 30)
+   * @returns Promise resolving to number of deleted sprites
+   */
   async cleanupOldSprites(maxAge: number = 30): Promise<number> {
     const db = await this.db;
     const cutoffTime = Date.now() - maxAge * 24 * 60 * 60 * 1000;
@@ -414,6 +438,10 @@ export class SpriteService {
     return deletedCount;
   }
 
+  /**
+   * Verifies integrity of stored sprites and removes corrupted ones
+   * @returns Promise resolving to counts of verified, repaired, and removed sprites
+   */
   async verifyAndRepairSprites(): Promise<{ verified: number; repaired: number; removed: number }> {
     const db = await this.db;
     const tx = db.transaction(['sprites'], 'readwrite');

@@ -328,6 +328,39 @@ describe('StyleService', () => {
     });
   });
 
+  describe('loadStyles', () => {
+    it('should handle styles with different providers', async () => {
+      const db = await dbPromise;
+
+      await db.put('styles', {
+        key: 'mapbox-style',
+        style: { version: 8, sources: {}, layers: [] },
+        provider: 'mapbox' as StyleProvider,
+        regions: [],
+        fonts: [],
+        glyphs: [],
+        sprites: [],
+      });
+
+      await db.put('styles', {
+        key: 'maplibre-style',
+        style: { version: 8, sources: {}, layers: [] },
+        provider: 'maplibre' as StyleProvider,
+        regions: [],
+        fonts: [],
+        glyphs: [],
+        sprites: [],
+      });
+
+      const styles = await loadStyles();
+      expect(styles.length).toBe(2);
+
+      const providers = styles.map(s => s.provider);
+      expect(providers).toContain('mapbox');
+      expect(providers).toContain('maplibre');
+    });
+  });
+
   describe('cleanupOldStyles', () => {
     it('should return zero counts when no styles exist', async () => {
       const result = await cleanupOldStyles();

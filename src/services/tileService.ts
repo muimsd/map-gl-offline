@@ -20,9 +20,22 @@ import type {
 
 const tileLogger = logger.scope('TileService');
 
+/**
+ * Service for managing offline map tiles
+ * Handles downloading, storing, and retrieving map tiles from IndexedDB
+ */
 export class TileService {
   private db = dbPromise;
 
+  /**
+   * Downloads map tiles for a specified region and style
+   * @param region - The geographic region to download tiles for
+   * @param style - The MapLibre/Mapbox style containing tile sources
+   * @param styleId - Unique identifier for the style
+   * @param options - Download configuration options
+   * @returns Promise resolving to download result with statistics
+   * @throws Error if style has no valid tile sources
+   */
   async downloadTiles(
     region: OfflineRegionOptions,
     style: MapboxStyle,
@@ -403,6 +416,11 @@ export class TileService {
     };
   }
 
+  /**
+   * Retrieves statistics about stored tiles
+   * @param styleId - Optional style ID to filter statistics
+   * @returns Promise resolving to tile statistics including count, size, and zoom level breakdown
+   */
   async getTileStats(styleId?: string): Promise<TileStats> {
     const db = await this.db;
 
@@ -451,6 +469,12 @@ export class TileService {
     };
   }
 
+  /**
+   * Removes tiles older than the specified age
+   * @param maxAge - Maximum age in days (default: 30)
+   * @param styleId - Optional style ID to limit cleanup scope
+   * @returns Promise resolving to number of deleted tiles
+   */
   async cleanupOldTiles(maxAge: number = 30, styleId?: string): Promise<number> {
     const db = await this.db;
     const cutoffTime = Date.now() - maxAge * 24 * 60 * 60 * 1000;
@@ -475,6 +499,11 @@ export class TileService {
     return deletedCount;
   }
 
+  /**
+   * Generates detailed analytics about stored tiles
+   * @param styleId - Optional style ID to filter analytics
+   * @returns Promise resolving to analytics object with basic stats, distribution, and temporal data
+   */
   async getTileAnalytics(styleId?: string): Promise<Record<string, unknown>> {
     const stats = await this.getTileStats(styleId);
 
