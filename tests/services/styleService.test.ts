@@ -8,6 +8,7 @@ import {
   deleteStyleById,
   getStyleStats,
   isStyleDownloaded,
+  cleanupOldStyles,
 } from '../../src/services/styleService';
 import { dbPromise } from '../../src/storage/indexedDbManager';
 import type { StyleProvider } from '../../src/types/style';
@@ -324,6 +325,242 @@ describe('StyleService', () => {
 
       const result = await isStyleDownloaded(undefined, 'https://other.com/styles/other.json');
       expect(result).toBe(false);
+    });
+  });
+
+  describe('cleanupOldStyles', () => {
+    it('should return zero counts when no styles exist', async () => {
+      const result = await cleanupOldStyles();
+
+      expect(result.deletedCount).toBe(0);
+      expect(result.freedSpace).toBe(0);
+      expect(result.errors).toEqual([]);
+    });
+
+    it('should delete styles older than maxAge', async () => {
+      const db = await dbPromise;
+      const oldTime = Date.now() - 40 * 24 * 60 * 60 * 1000; // 40 days ago
+      const recentTime = Date.now() - 5 * 24 * 60 * 60 * 1000; // 5 days ago
+
+      const oldStyle = {
+        key: 'old-style',
+        style: { version: 8, sources: {}, layers: [{ id: 'l', type: 'fill' }] },
+        provider: 'auto' as StyleProvider,
+        regions: [],
+        fonts: [],
+        glyphs: [],
+        sprites: [],
+        lastModified: oldTime,
+        size: 1000,
+      };
+      const recentStyle = {
+        key: 'recent-style',
+        style: { version: 8, sources: {}, layers: [{ id: 'l', type: 'fill' }] },
+        provider: 'auto' as StyleProvider,
+        regions: [],
+        fonts: [],
+        glyphs: [],
+        sprites: [],
+        lastModified: recentTime,
+        size: 2000,
+      };
+
+      await db.put('styles', oldStyle);
+      await db.put('styles', recentStyle);
+
+      const result = await cleanupOldStyles({
+        maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+      });
+
+      expect(result.deletedCount).toBe(1);
+      expect(result.freedSpace).toBe(1000);
+
+      // Verify recent style still exists
+      const remaining = await loadStyles();
+      expect(remaining.length).toBe(1);
+      expect(remaining[0].key).toBe('recent-style');
+    });
+
+    it('should preserve styles in keepIds', async () => {
+      const db = await dbPromise;
+      const oldTime = Date.now() - 40 * 24 * 60 * 60 * 1000;
+
+      const protectedStyle = {
+        key: 'protected-style',
+        style: { version: 8, sources: {}, layers: [{ id: 'l', type: 'fill' }] },
+        provider: 'auto' as StyleProvider,
+        regions: [],
+        fonts: [],
+        glyphs: [],
+        sprites: [],
+        lastModified: oldTime,
+        size: 1000,
+      };
+
+      await db.put('styles', protectedStyle);
+
+      const result = await cleanupOldStyles({
+        maxAge: 30 * 24 * 60 * 60 * 1000,
+        keepIds: ['protected-style'],
+      });
+
+      expect(result.deletedCount).toBe(0);
+
+      const remaining = await loadStyles();
+      expect(remaining.length).toBe(1);
+    });
+
+    it('should delete oldest styles when maxCount is exceeded', async () => {
+      const db = await dbPromise;
+      const now = Date.now();
+
+      const style1 = {
+        key: 'style-1',
+        style: { version: 8, sources: {}, layers: [{ id: 'l', type: 'fill' }] },
+        provider: 'auto' as StyleProvider,
+        regions: [],
+        fonts: [],
+        glyphs: [],
+        sprites: [],
+        lastModified: now - 30000, // oldest
+        size: 1000,
+      };
+      const style2 = {
+        key: 'style-2',
+        style: { version: 8, sources: {}, layers: [{ id: 'l', type: 'fill' }] },
+        provider: 'auto' as StyleProvider,
+        regions: [],
+        fonts: [],
+        glyphs: [],
+        sprites: [],
+        lastModified: now - 20000, // middle
+        size: 2000,
+      };
+      const style3 = {
+        key: 'style-3',
+        style: { version: 8, sources: {}, layers: [{ id: 'l', type: 'fill' }] },
+        provider: 'auto' as StyleProvider,
+        regions: [],
+        fonts: [],
+        glyphs: [],
+        sprites: [],
+        lastModified: now - 10000, // newest
+        size: 3000,
+      };
+
+      await db.put('styles', style1);
+      await db.put('styles', style2);
+      await db.put('styles', style3);
+
+      const result = await cleanupOldStyles({
+        maxCount: 2,
+      });
+
+      expect(result.deletedCount).toBe(1);
+      expect(result.freedSpace).toBe(1000);
+
+      const remaining = await loadStyles();
+      expect(remaining.length).toBe(2);
+      expect(remaining.map(s => s.key).sort()).toEqual(['style-2', 'style-3'].sort());
+    });
+
+    it('should delete largest styles when maxSize is exceeded', async () => {
+      const db = await dbPromise;
+      const now = Date.now();
+
+      const smallStyle = {
+        key: 'small-style',
+        style: { version: 8, sources: {}, layers: [{ id: 'l', type: 'fill' }] },
+        provider: 'auto' as StyleProvider,
+        regions: [],
+        fonts: [],
+        glyphs: [],
+        sprites: [],
+        lastModified: now,
+        size: 1000,
+      };
+      const largeStyle = {
+        key: 'large-style',
+        style: { version: 8, sources: {}, layers: [{ id: 'l', type: 'fill' }] },
+        provider: 'auto' as StyleProvider,
+        regions: [],
+        fonts: [],
+        glyphs: [],
+        sprites: [],
+        lastModified: now,
+        size: 5000,
+      };
+
+      await db.put('styles', smallStyle);
+      await db.put('styles', largeStyle);
+
+      const result = await cleanupOldStyles({
+        maxSize: 3000,
+      });
+
+      expect(result.deletedCount).toBe(1);
+      expect(result.freedSpace).toBe(5000);
+
+      const remaining = await loadStyles();
+      expect(remaining.length).toBe(1);
+      expect(remaining[0].key).toBe('small-style');
+    });
+
+    it('should call onProgress callback', async () => {
+      const db = await dbPromise;
+      const oldTime = Date.now() - 40 * 24 * 60 * 60 * 1000;
+      const progressCalls: Array<{ completed: number; total: number }> = [];
+
+      const oldStyle = {
+        key: 'old-style',
+        style: { version: 8, sources: {}, layers: [{ id: 'l', type: 'fill' }] },
+        provider: 'auto' as StyleProvider,
+        regions: [],
+        fonts: [],
+        glyphs: [],
+        sprites: [],
+        lastModified: oldTime,
+        size: 1000,
+      };
+
+      await db.put('styles', oldStyle);
+
+      await cleanupOldStyles({
+        maxAge: 30 * 24 * 60 * 60 * 1000,
+        onProgress: (progress) => {
+          progressCalls.push({
+            completed: progress.completed,
+            total: progress.total,
+          });
+        },
+      });
+
+      expect(progressCalls.length).toBe(1);
+      expect(progressCalls[0].completed).toBe(1);
+      expect(progressCalls[0].total).toBe(1);
+    });
+
+    it('should return empty result when no options specified', async () => {
+      const db = await dbPromise;
+
+      const style = {
+        key: 'style-1',
+        style: { version: 8, sources: {}, layers: [{ id: 'l', type: 'fill' }] },
+        provider: 'auto' as StyleProvider,
+        regions: [],
+        fonts: [],
+        glyphs: [],
+        sprites: [],
+        lastModified: Date.now(),
+        size: 1000,
+      };
+
+      await db.put('styles', style);
+
+      const result = await cleanupOldStyles({});
+
+      expect(result.deletedCount).toBe(0);
+      expect(result.freedSpace).toBe(0);
     });
   });
 });
