@@ -4,6 +4,8 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![TypeScript](https://img.shields.io/badge/TypeScript-100%25-blue.svg)](https://www.typescriptlang.org/)
 
+**[Documentation](https://map-gl-offline.netlify.app)** | **[Live Demo](https://map-gl-offline-demo.netlify.app)**
+
 > **⚠️ Development Notice**: This package is currently under active development and is optimized for **MapLibre GL JS**. Mapbox GL JS support is planned for future releases.
 
 A comprehensive **TypeScript** library for **MapLibre GL JS** that enables complete offline map functionality with vector/raster tiles, styles, fonts, sprites, and glyphs stored in IndexedDB. Features include advanced analytics, import/export capabilities, intelligent cleanup, and a modern glassmorphic UI control.
@@ -546,9 +548,10 @@ map-gl-offline/
 
 ## 📞 Support & Links
 
+- 📚 [Documentation](https://map-gl-offline.netlify.app)
+- 🎮 [Live Demo](https://map-gl-offline-demo.netlify.app)
 - 🐛 [Report Issues](https://github.com/muimsd/map-gl-offline/issues)
 - 💬 [Discussions](https://github.com/muimsd/map-gl-offline/discussions)
-- 📚 [Documentation](https://github.com/muimsd/map-gl-offline)
 - ⭐ [Feature Requests](https://github.com/muimsd/map-gl-offline/issues/new)
 - 🌟 [Star on GitHub](https://github.com/muimsd/map-gl-offline)
 
@@ -585,6 +588,6 @@ MIT © [Muhammad Imran Siddique](https://github.com/muimsd)
 
 **Made with ❤️ for the mapping community**
 
-[⭐ Star on GitHub](https://github.com/muimsd/map-gl-offline) • [📖 Documentation](https://github.com/muimsd/map-gl-offline) • [🐛 Report Bug](https://github.com/muimsd/map-gl-offline/issues)
+[📖 Documentation](https://map-gl-offline.netlify.app) • [🎮 Live Demo](https://map-gl-offline-demo.netlify.app) • [⭐ Star on GitHub](https://github.com/muimsd/map-gl-offline)
 
 </div>
