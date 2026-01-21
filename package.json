@@ -56,7 +56,11 @@
     "release": "npm version patch && npm publish",
     "release:minor": "npm version minor && npm publish",
     "release:major": "npm version major && npm publish",
-    "release:dry": "npm publish --dry-run"
+    "release:dry": "npm publish --dry-run",
+    "docs": "cd docs && npm start",
+    "docs:build": "cd docs && npm run build",
+    "docs:serve": "cd docs && npm run serve",
+    "docs:deploy": "cd docs && npm run deploy"
   },
   "keywords": [
     "mapbox-gl",
