@@ -19,6 +19,9 @@ export default defineConfig({
   },
   server: {
     open: true, // Automatically open the browser
+    watch: {
+      ignored: ['**/docs/**'],
+    },
     proxy: {
       // Proxy Carto tile requests to avoid CORS issues
       '/tiles/carto-a': {

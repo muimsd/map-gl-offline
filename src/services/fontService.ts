@@ -85,6 +85,7 @@ export class FontService {
             retries: maxRetries,
             retryDelay,
             timeout,
+            proxyType: 'fonts',
           });
 
           if (response.type === 'json') {

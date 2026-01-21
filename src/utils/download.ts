@@ -1,5 +1,6 @@
 import type { DownloadProgress } from '@/types';
 import { logger } from './logger';
+import { applyProxy, type ProxyType } from './proxyConfig';
 
 const downloadLogger = logger.scope('Download');
 
@@ -46,16 +47,23 @@ export async function fetchResourceWithRetry(
     retries?: number;
     retryDelay?: number;
     timeout?: number;
+    proxyType?: ProxyType;
   } = {}
 ): Promise<FetchResourceResult> {
-  const { retries = 3, retryDelay = 1000, timeout = 30000 } = options;
+  const { retries = 3, retryDelay = 1000, timeout = 30000, proxyType } = options;
+
+  // Apply proxy if configured
+  const fetchUrl = proxyType ? applyProxy(url, proxyType) : url;
+  if (fetchUrl !== url) {
+    downloadLogger.debug(`Proxying ${proxyType} request: ${url.substring(0, 60)}... -> ${fetchUrl.substring(0, 60)}...`);
+  }
 
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), timeout);
 
-      const response = await fetch(url, {
+      const response = await fetch(fetchUrl, {
         mode: 'cors',
         signal: controller.signal,
       });
@@ -65,7 +73,7 @@ export async function fetchResourceWithRetry(
       if (!response.ok) {
         // Provide more specific error messages
         if (response.status === 404) {
-          throw new Error(`Font not found (404): ${url}`);
+          throw new Error(`Resource not found (404): ${url}`);
         }
         if (response.status === 403 || response.status === 401) {
           throw new Error(`Access denied (${response.status}): ${url}`);

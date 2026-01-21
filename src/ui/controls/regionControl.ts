@@ -28,6 +28,7 @@ export class RegionControl {
   private modalManager: ModalManager;
   private container: HTMLDivElement;
   private saveButton: HTMLButtonElement | undefined;
+  private cancelButton: HTMLButtonElement | undefined;
   private polygonControl: PolygonControl | undefined;
   private regionFormModal: RegionFormModal | undefined;
   private options: RegionControlOptions;
@@ -48,7 +49,7 @@ export class RegionControl {
     if (this.isActive) return;
 
     this.isActive = true;
-    this.createSaveButton();
+    this.createSelectionButtons();
 
     const polygonOptions: PolygonControlOptions = {
       onSave: (bounds, area) => this.showRegionForm(bounds, area),
@@ -68,16 +69,26 @@ export class RegionControl {
     this.isActive = false;
     this.polygonControl?.exit();
     this.polygonControl = undefined;
-    this.removeSaveButton();
+    this.removeSelectionButtons();
     this.modalManager.close();
   }
 
   /**
-   * Create save polygon button
+   * Create save and cancel buttons for polygon selection
    */
-  private createSaveButton(): void {
-    if (this.saveButton) return;
+  private createSelectionButtons(): void {
+    if (this.saveButton || this.cancelButton) return;
 
+    // Create cancel button (red X)
+    this.cancelButton = document.createElement('button');
+    this.cancelButton.type = 'button';
+    this.cancelButton.className =
+      'maplibregl-ctrl-icon offline-manager-control mt-0.5 bg-gradient-to-br from-red-600 to-red-700 border border-red-700 rounded-sm cursor-pointer relative w-[29px] h-[29px] flex items-center justify-center hover:from-red-700 hover:to-red-800 transition-all duration-200';
+    this.cancelButton.innerHTML = icons.x({ size: 16, color: 'white' });
+    this.cancelButton.title = 'Cancel Selection';
+    this.cancelButton.addEventListener('click', () => this.cancelSelection());
+
+    // Create save button (green checkmark)
     this.saveButton = document.createElement('button');
     this.saveButton.type = 'button';
     this.saveButton.className =
@@ -86,13 +97,19 @@ export class RegionControl {
     this.saveButton.title = 'Save Selected Region';
     this.saveButton.addEventListener('click', () => this.handleSaveClick());
 
+    // Add cancel button first, then save button
+    this.container.appendChild(this.cancelButton);
     this.container.appendChild(this.saveButton);
   }
 
   /**
-   * Remove save button
+   * Remove selection buttons
    */
-  private removeSaveButton(): void {
+  private removeSelectionButtons(): void {
+    if (this.cancelButton && this.cancelButton.parentNode) {
+      this.cancelButton.parentNode.removeChild(this.cancelButton);
+      this.cancelButton = undefined;
+    }
     if (this.saveButton && this.saveButton.parentNode) {
       this.saveButton.parentNode.removeChild(this.saveButton);
       this.saveButton = undefined;

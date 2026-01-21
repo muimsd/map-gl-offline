@@ -246,6 +246,7 @@ export class TileService {
               retries: maxRetries,
               retryDelay,
               timeout,
+              proxyType: 'tiles',
             });
 
             if (response.type === 'json') {

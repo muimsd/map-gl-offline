@@ -1,8 +1,22 @@
 import * as maplibregl from 'maplibre-gl';
-import { OfflineMapManager, OfflineManagerControl } from './index';
+import { OfflineMapManager, OfflineManagerControl, configureProxy } from './index';
 import { StyleSwitcherControl, type StyleItem } from 'map-gl-style-switcher';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import 'map-gl-style-switcher/dist/map-gl-style-switcher.css';
+
+// Configure proxy for CARTO tiles (required for local development)
+configureProxy({
+  tiles: {
+    'tiles-a.basemaps.cartocdn.com': '/tiles/carto-a',
+    'tiles-b.basemaps.cartocdn.com': '/tiles/carto-b',
+    'tiles-c.basemaps.cartocdn.com': '/tiles/carto-c',
+    'tiles-d.basemaps.cartocdn.com': '/tiles/carto-d',
+    'tiles.basemaps.cartocdn.com': '/tiles/carto-a',
+  },
+  fonts: {
+    'tiles.basemaps.cartocdn.com': '/fonts/carto',
+  },
+});
 
 const MAPTILER_API_KEY = import.meta.env.VITE_MAPTILER_API_KEY || '';
 
