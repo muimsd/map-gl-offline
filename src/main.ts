@@ -22,28 +22,28 @@ const MAPTILER_API_KEY = import.meta.env.VITE_MAPTILER_API_KEY || '';
 
 const styles: StyleItem[] = [
   {
-    id: 'voyager',
-    name: 'Voyager',
+    id: 'liberty',
+    name: 'Liberty',
     image:
-      'https://raw.githubusercontent.com/muimsd/map-gl-style-switcher/refs/heads/main/public/voyager.png',
-    styleUrl: 'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json',
-    description: 'Voyager style from Carto',
+      'https://raw.githubusercontent.com/muimsd/map-gl-style-switcher/refs/heads/main/public/osm.png',
+    styleUrl: 'https://tiles.openfreemap.org/styles/liberty',
+    description: 'Liberty style from OpenFreeMap',
+  },
+  {
+    id: 'bright',
+    name: 'Bright',
+    image:
+      'https://raw.githubusercontent.com/muimsd/map-gl-style-switcher/refs/heads/main/public/positron.png',
+    styleUrl: 'https://tiles.openfreemap.org/styles/bright',
+    description: 'Bright style from OpenFreeMap',
   },
   {
     id: 'positron',
     name: 'Positron',
     image:
       'https://raw.githubusercontent.com/muimsd/map-gl-style-switcher/refs/heads/main/public/positron.png',
-    styleUrl: 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json',
-    description: 'Positron style from Carto',
-  },
-  {
-    id: 'dark-matter',
-    name: 'Dark Matter',
-    image:
-      'https://raw.githubusercontent.com/muimsd/map-gl-style-switcher/refs/heads/main/public/dark.png',
-    styleUrl: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
-    description: 'Dark style from Carto',
+    styleUrl: 'https://tiles.openfreemap.org/styles/positron',
+    description: 'Positron style from OpenFreeMap',
   },
   {
     id: 'arcgis-hybrid',
@@ -55,29 +55,12 @@ const styles: StyleItem[] = [
     description: 'Hybrid Satellite style from ESRI',
   },
   {
-    id: 'osm',
-    name: 'OSM',
-    image:
-      'https://raw.githubusercontent.com/muimsd/map-gl-style-switcher/refs/heads/main/public/osm.png',
-    styleUrl:
-      'https://raw.githubusercontent.com/go2garret/maps/main/src/assets/json/openStreetMap.json',
-    description: 'OSM style',
-  },
-  {
     id: 'osm-maptiler',
     name: 'OSM-MapTiler',
     image:
       'https://raw.githubusercontent.com/muimsd/map-gl-style-switcher/refs/heads/main/public/osm.png',
     styleUrl: `https://api.maptiler.com/maps/openstreetmap/style.json?key=${MAPTILER_API_KEY}`,
-    description: 'OSM style',
-  },
-  {
-    id: 'basic',
-    name: 'Basic',
-    image:
-      'https://raw.githubusercontent.com/muimsd/map-gl-style-switcher/refs/heads/main/public/positron.png',
-    styleUrl: `https://api.maptiler.com/maps/basic-v2/style.json?key=${MAPTILER_API_KEY}`,
-    description: 'Basic style from MapTiler',
+    description: 'OSM style from MapTiler',
   },
 ];
 const defaultStyle = styles[0];
