@@ -88,6 +88,13 @@ jobs:
       run: npm run build
       
     - name: Publish to NPM
-      run: npm publish
+      run: |
+        # Check if version contains prerelease identifier (alpha, beta, rc)
+        VERSION=$(node -p "require('./package.json').version")
+        if [[ "$VERSION" == *"-alpha"* ]] || [[ "$VERSION" == *"-beta"* ]] || [[ "$VERSION" == *"-rc"* ]]; then
+          npm publish --tag next
+        else
+          npm publish
+        fi
       env:
         NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
