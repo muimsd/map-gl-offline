@@ -199,7 +199,8 @@ export class RegionFormModal {
 
     // Add provider info
     const providerInfo = document.createElement('div');
-    providerInfo.className = 'text-xs text-gray-500 dark:text-gray-400 mt-2 ml-1 flex items-center gap-1';
+    providerInfo.className =
+      'text-xs text-gray-500 dark:text-gray-400 mt-2 ml-1 flex items-center gap-1';
     providerInfo.innerHTML = `${icons.infoCircle({ size: 12 })} Auto-detect will analyze the style URL to determine the provider`;
     providerGroup.appendChild(providerInfo);
 

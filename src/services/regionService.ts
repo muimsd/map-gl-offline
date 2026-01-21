@@ -326,7 +326,9 @@ export class RegionService {
         // Delete the style entry itself
         await db.delete('styles', foundStyle.key);
 
-        regionLogger.info(`Completely deleted style ${foundStyle.key} and all associated resources`);
+        regionLogger.info(
+          `Completely deleted style ${foundStyle.key} and all associated resources`
+        );
       } else {
         regionLogger.debug(
           `Style ${foundStyle.key} has ${remainingRegions.length} remaining regions, cleaning up non-overlapping tiles`

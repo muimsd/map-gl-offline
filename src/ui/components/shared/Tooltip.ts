@@ -47,7 +47,9 @@ export class Tooltip extends BaseComponent {
       opacity-0 invisible
       transition-opacity duration-200
       pointer-events-none
-    `.replace(/\s+/g, ' ').trim();
+    `
+      .replace(/\s+/g, ' ')
+      .trim();
 
     this.element.style.maxWidth = `${this.tooltipConfig.maxWidth}px`;
     this.element.textContent = this.tooltipConfig.content;

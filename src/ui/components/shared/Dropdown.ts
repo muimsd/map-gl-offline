@@ -55,7 +55,9 @@ export class Dropdown extends BaseComponent {
       rounded-lg shadow-lg
       py-1
       hidden
-    `.replace(/\s+/g, ' ').trim();
+    `
+      .replace(/\s+/g, ' ')
+      .trim();
 
     // Render items
     this.renderItems();
@@ -65,7 +67,7 @@ export class Dropdown extends BaseComponent {
       container: this.element,
       itemSelector: '[role="menuitem"]:not([aria-disabled="true"])',
       orientation: 'vertical',
-      onSelect: (element) => {
+      onSelect: element => {
         const itemId = element.dataset.itemId;
         const item = this.dropdownConfig.items.find(i => i.id === itemId);
         if (item) {
@@ -122,14 +124,17 @@ export class Dropdown extends BaseComponent {
 
       menuItem.className = `
         w-full px-4 py-2 text-left text-sm
-        ${item.disabled
-          ? 'text-gray-400 dark:text-gray-500 cursor-not-allowed'
-          : 'text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer'
+        ${
+          item.disabled
+            ? 'text-gray-400 dark:text-gray-500 cursor-not-allowed'
+            : 'text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer'
         }
         flex items-center gap-2
         transition-colors
         focus:outline-none focus:bg-gray-100 dark:focus:bg-gray-700
-      `.replace(/\s+/g, ' ').trim();
+      `
+        .replace(/\s+/g, ' ')
+        .trim();
 
       if (item.icon) {
         const iconSpan = document.createElement('span');
@@ -206,7 +211,9 @@ export class Dropdown extends BaseComponent {
     this.focusTrap?.activate();
 
     // Focus first item
-    const firstItem = this.element.querySelector('[role="menuitem"]:not([aria-disabled="true"])') as HTMLElement;
+    const firstItem = this.element.querySelector(
+      '[role="menuitem"]:not([aria-disabled="true"])'
+    ) as HTMLElement;
     firstItem?.focus();
   }
 
@@ -299,7 +306,7 @@ export class Dropdown extends BaseComponent {
       container: this.element,
       itemSelector: '[role="menuitem"]:not([aria-disabled="true"])',
       orientation: 'vertical',
-      onSelect: (element) => {
+      onSelect: element => {
         const itemId = element.dataset.itemId;
         const item = this.dropdownConfig.items.find(i => i.id === itemId);
         if (item) {

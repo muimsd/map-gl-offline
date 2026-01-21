@@ -38,7 +38,8 @@ export class Modal extends BaseComponent {
 
   protected createElement(): HTMLElement {
     const modal = document.createElement('div');
-    modal.className = 'modal-backdrop fixed inset-0 z-[2000] flex items-center justify-center p-4 animate-modal-fade-in';
+    modal.className =
+      'modal-backdrop fixed inset-0 z-[2000] flex items-center justify-center p-4 animate-modal-fade-in';
     return modal;
   }
 
@@ -55,10 +56,10 @@ export class Modal extends BaseComponent {
 
     // Size classes based on config
     const sizeClasses = {
-      sm: 'max-w-sm',      // 384px - for confirmations, simple dialogs
-      md: 'max-w-xl',      // 576px - default
-      lg: 'max-w-2xl',     // 672px - for forms
-      xl: 'max-w-4xl',     // 896px - for complex content
+      sm: 'max-w-sm', // 384px - for confirmations, simple dialogs
+      md: 'max-w-xl', // 576px - default
+      lg: 'max-w-2xl', // 672px - for forms
+      xl: 'max-w-4xl', // 896px - for complex content
     };
     const sizeClass = sizeClasses[this.config.size || 'md'];
 
@@ -82,13 +83,15 @@ export class Modal extends BaseComponent {
 
     // Create footer
     this.footer = document.createElement('div');
-    this.footer.className = 'p-6 border-t border-gray-200/20 dark:border-gray-700/30 bg-gray-50/50 dark:bg-gray-800/30 rounded-b-2xl hidden shrink-0';
+    this.footer.className =
+      'p-6 border-t border-gray-200/20 dark:border-gray-700/30 bg-gray-50/50 dark:bg-gray-800/30 rounded-b-2xl hidden shrink-0';
     this.modalContent.appendChild(this.footer);
   }
 
   private createHeader(): void {
     this.header = document.createElement('div');
-    this.header.className = 'flex items-center justify-between p-6 border-b border-gray-200/20 dark:border-gray-700/30 shrink-0';
+    this.header.className =
+      'flex items-center justify-between p-6 border-b border-gray-200/20 dark:border-gray-700/30 shrink-0';
 
     // Title section
     const titleSection = document.createElement('div');
@@ -96,7 +99,8 @@ export class Modal extends BaseComponent {
 
     if (this.config.title) {
       const title = document.createElement('h2');
-      title.className = 'text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-gray-900 to-gray-600 dark:from-white dark:to-gray-300';
+      title.className =
+        'text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-gray-900 to-gray-600 dark:from-white dark:to-gray-300';
       title.textContent = this.config.title;
       titleSection.appendChild(title);
     }
@@ -142,7 +146,8 @@ export class Modal extends BaseComponent {
 
   private createIconButton(svg: string, title: string): HTMLButtonElement {
     const btn = document.createElement('button');
-    btn.className = 'p-2 rounded-lg text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors';
+    btn.className =
+      'p-2 rounded-lg text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors';
     btn.innerHTML = svg;
     btn.title = title;
     return btn;
@@ -151,9 +156,9 @@ export class Modal extends BaseComponent {
   private setupEventListeners(): void {
     // Close on backdrop click
     if (this.backdrop && this.config.onClose) {
-      this.backdrop.addEventListener('click', (e) => {
+      this.backdrop.addEventListener('click', e => {
         if (e.target === this.backdrop) {
-           this.config.onClose?.();
+          this.config.onClose?.();
         }
       });
     }

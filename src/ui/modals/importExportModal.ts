@@ -119,8 +119,7 @@ export class ImportExportModal {
 
   private createRegionInfoCard(): HTMLElement {
     const card = document.createElement('div');
-    card.className =
-      'p-5 glass-input rounded-xl border-0 bg-gray-50/50 dark:bg-gray-800/50';
+    card.className = 'p-5 glass-input rounded-xl border-0 bg-gray-50/50 dark:bg-gray-800/50';
 
     card.innerHTML = `
       <h4 class="text-sm font-bold uppercase tracking-wider text-gray-900 dark:text-white mb-4 flex items-center gap-2">
@@ -154,7 +153,7 @@ export class ImportExportModal {
     const section = document.createElement('div');
     section.className =
       'glass-input p-6 rounded-xl border-0 bg-white/40 dark:bg-gray-800/40 relative overflow-hidden group hover:scale-[1.01] transition-transform duration-300';
-    
+
     // Gradient accent
     const accent = document.createElement('div');
     accent.className = 'absolute top-0 left-0 w-1 h-full bg-blue-500 opacity-50';
@@ -209,7 +208,8 @@ export class ImportExportModal {
 
     const createCheckbox = (text: string, checked = true) => {
       const label = document.createElement('label');
-      label.className = 'flex items-center gap-3 p-3 rounded-lg bg-gray-50/50 dark:bg-gray-800/50 cursor-pointer hover:bg-gray-100/50 dark:hover:bg-gray-700/50 transition-colors cursor-pointer';
+      label.className =
+        'flex items-center gap-3 p-3 rounded-lg bg-gray-50/50 dark:bg-gray-800/50 cursor-pointer hover:bg-gray-100/50 dark:hover:bg-gray-700/50 transition-colors cursor-pointer';
 
       const input = document.createElement('input');
       input.type = 'checkbox';
@@ -347,7 +347,8 @@ export class ImportExportModal {
 
     // Import Options
     const overwriteLabel = document.createElement('label');
-    overwriteLabel.className = 'flex items-center gap-3 p-3 rounded-lg bg-gray-50/50 dark:bg-gray-800/50 cursor-pointer hover:bg-gray-100/50 dark:hover:bg-gray-700/50 transition-colors';
+    overwriteLabel.className =
+      'flex items-center gap-3 p-3 rounded-lg bg-gray-50/50 dark:bg-gray-800/50 cursor-pointer hover:bg-gray-100/50 dark:hover:bg-gray-700/50 transition-colors';
 
     this.importOverwriteCheckbox = document.createElement('input');
     this.importOverwriteCheckbox.type = 'checkbox';
@@ -402,8 +403,7 @@ export class ImportExportModal {
 
   private createFormatGuide(): HTMLElement {
     const guide = document.createElement('div');
-    guide.className =
-      'p-5 mt-4 glass-input rounded-xl border-0 bg-blue-50/40 dark:bg-blue-900/20';
+    guide.className = 'p-5 mt-4 glass-input rounded-xl border-0 bg-blue-50/40 dark:bg-blue-900/20';
 
     guide.innerHTML = `
       <h4 class="text-sm font-bold uppercase tracking-wider text-blue-900 dark:text-blue-300 mb-3 flex items-center gap-2">

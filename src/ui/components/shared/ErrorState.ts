@@ -42,7 +42,12 @@ export class ErrorState extends BaseComponent {
     return container;
   }
 
-  private getTypeStyles(): { iconColor: string; bgColor: string; borderColor: string; icon: string } {
+  private getTypeStyles(): {
+    iconColor: string;
+    bgColor: string;
+    borderColor: string;
+    icon: string;
+  } {
     switch (this.errorConfig.type) {
       case 'warning':
         return {

@@ -124,9 +124,9 @@ describe('RegionControl', () => {
       control.startSelection();
       control.startSelection(); // Second call should be no-op
 
-      // Should only have one save button
+      // Should only have two buttons (cancel + save)
       const buttons = container.querySelectorAll('button');
-      expect(buttons.length).toBe(1);
+      expect(buttons.length).toBe(2);
     });
   });
 
@@ -266,8 +266,9 @@ describe('RegionControl', () => {
 
       control.startSelection();
 
-      const button = container.querySelector('button') as HTMLButtonElement;
-      expect(button.title).toBe('Save Selected Region');
+      const saveButton = container.querySelector('button[title="Save Selected Region"]') as HTMLButtonElement;
+      expect(saveButton).not.toBeNull();
+      expect(saveButton.title).toBe('Save Selected Region');
     });
   });
 

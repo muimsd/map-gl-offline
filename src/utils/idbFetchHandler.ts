@@ -44,7 +44,6 @@ async function findStyleByRegionId(
   }
 }
 
-
 function buildOfflineTileJson(
   sourceConfig: Record<string, unknown>,
   downloadId: string,
@@ -238,9 +237,7 @@ export async function idbFetchHandler(url: string, init?: RequestInit): Promise<
               return response;
             }
 
-            idbLogger.debug(
-              `Tile not found with extension (${requestedExt}): ${tileKey}`
-            );
+            idbLogger.debug(`Tile not found with extension (${requestedExt}): ${tileKey}`);
 
             // Fallback: try common alternative extensions
             const fallbackExtensions = ['pbf', 'mvt', 'png', 'jpg', 'webp'].filter(

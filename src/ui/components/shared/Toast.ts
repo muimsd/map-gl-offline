@@ -6,7 +6,13 @@
 import { BaseComponent, ComponentConfig } from './BaseComponent';
 
 export type ToastType = 'success' | 'error' | 'warning' | 'info';
-export type ToastPosition = 'top-right' | 'top-left' | 'bottom-right' | 'bottom-left' | 'top-center' | 'bottom-center';
+export type ToastPosition =
+  | 'top-right'
+  | 'top-left'
+  | 'bottom-right'
+  | 'bottom-left'
+  | 'top-center'
+  | 'bottom-center';
 
 export interface ToastConfig extends ComponentConfig {
   message: string;
@@ -105,7 +111,9 @@ export class Toast extends BaseComponent {
       transform transition-all duration-300 ease-out
       animate-toast-in
       max-w-sm
-    `.replace(/\s+/g, ' ').trim();
+    `
+      .replace(/\s+/g, ' ')
+      .trim();
 
     // Icon
     const iconContainer = document.createElement('div');
@@ -127,7 +135,9 @@ export class Toast extends BaseComponent {
         text-gray-400 hover:text-gray-600 dark:hover:text-gray-200
         hover:bg-gray-200/50 dark:hover:bg-gray-700/50
         transition-colors focus:outline-none focus:ring-2 focus:ring-gray-400
-      `.replace(/\s+/g, ' ').trim();
+      `
+        .replace(/\s+/g, ' ')
+        .trim();
       dismissButton.setAttribute('aria-label', 'Dismiss notification');
       dismissButton.innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>

@@ -213,7 +213,14 @@ export class DownloadManager {
           accessToken: formData.accessToken,
           onProgress: (progress: { percentage?: number }) => {
             downloadLogger.debug(`Style download progress: ${progress.percentage}%`);
-            this.updateProgress(regionId, regionConfig.name, 'style', progress.percentage || 0, 100, 'Downloading style');
+            this.updateProgress(
+              regionId,
+              regionConfig.name,
+              'style',
+              progress.percentage || 0,
+              100,
+              'Downloading style'
+            );
           },
         };
 
@@ -318,7 +325,14 @@ export class DownloadManager {
           await spriteService.downloadSprites(spriteUrls, finalStyleId, {
             onProgress: (progress: { completed: number; total: number }) => {
               downloadLogger.debug(`Sprite download: ${progress.completed}/${progress.total}`);
-              this.updateProgress(regionId, regionConfig.name, 'sprites', progress.completed, progress.total, 'Downloading sprites');
+              this.updateProgress(
+                regionId,
+                regionConfig.name,
+                'sprites',
+                progress.completed,
+                progress.total,
+                'Downloading sprites'
+              );
             },
             enableValidation: true,
             skipExisting: false,
@@ -404,7 +418,14 @@ export class DownloadManager {
               {
                 onProgress: (progress: { completed: number; total: number }) => {
                   downloadLogger.debug(`Glyph download: ${progress.completed}/${progress.total}`);
-                  this.updateProgress(regionId, regionConfig.name, 'glyphs', progress.completed, progress.total, 'Downloading glyphs');
+                  this.updateProgress(
+                    regionId,
+                    regionConfig.name,
+                    'glyphs',
+                    progress.completed,
+                    progress.total,
+                    'Downloading glyphs'
+                  );
                 },
               }
             );

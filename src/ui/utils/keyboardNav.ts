@@ -19,7 +19,7 @@ export const Keys = {
   END: 'End',
 } as const;
 
-export type KeyCode = typeof Keys[keyof typeof Keys];
+export type KeyCode = (typeof Keys)[keyof typeof Keys];
 
 /**
  * Check if a key event matches a specific key
@@ -134,7 +134,9 @@ export function createArrowKeyNavigation(options: {
   };
 
   const getCurrentIndex = (items: HTMLElement[]): number => {
-    return items.findIndex((item) => item === document.activeElement || item.contains(document.activeElement));
+    return items.findIndex(
+      item => item === document.activeElement || item.contains(document.activeElement)
+    );
   };
 
   const focusItem = (items: HTMLElement[], index: number): void => {

@@ -807,7 +807,9 @@ export async function cleanupOldStyles(
       }
     }
 
-    logger.info(`Style cleanup completed: ${deletedCount} styles deleted, ${(freedSpace / 1024).toFixed(1)}KB freed`);
+    logger.info(
+      `Style cleanup completed: ${deletedCount} styles deleted, ${(freedSpace / 1024).toFixed(1)}KB freed`
+    );
     return { deletedCount, freedSpace, errors };
   } catch (error) {
     logger.error('Error during style cleanup:', error);

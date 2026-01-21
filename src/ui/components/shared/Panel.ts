@@ -71,7 +71,9 @@ export class Panel extends BaseComponent {
 
     // Add size and position classes
     sizeClasses[size as keyof typeof sizeClasses].forEach(cls => this.element.classList.add(cls));
-    positionClasses[position as keyof typeof positionClasses].forEach(cls => this.element.classList.add(cls));
+    positionClasses[position as keyof typeof positionClasses].forEach(cls =>
+      this.element.classList.add(cls)
+    );
   }
 
   private createPanelStructure(): void {

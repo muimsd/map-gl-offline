@@ -483,7 +483,9 @@ export function createValidatedInput(options: {
     dark:border-gray-600 dark:bg-gray-700 dark:text-white
     focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500
     transition-colors
-  `.replace(/\s+/g, ' ').trim();
+  `
+    .replace(/\s+/g, ' ')
+    .trim();
 
   const validate = (): void => {
     const result = validator(input.value);

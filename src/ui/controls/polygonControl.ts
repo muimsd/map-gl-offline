@@ -75,7 +75,8 @@ export class PolygonControl {
 
     if (!chipsContainer) {
       chipsContainer = document.createElement('div');
-      chipsContainer.className = 'bottom-chips-container absolute bottom-8 left-1/2 transform -translate-x-1/2 flex items-center gap-3 z-[999]';
+      chipsContainer.className =
+        'bottom-chips-container absolute bottom-8 left-1/2 transform -translate-x-1/2 flex items-center gap-3 z-[999]';
       mapContainer.appendChild(chipsContainer);
     }
 

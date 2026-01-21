@@ -180,7 +180,7 @@ describe('download utilities', () => {
 
       await expect(
         fetchResourceWithRetry('https://example.com/missing.png', { retries: 0 })
-      ).rejects.toThrow('Font not found (404)');
+      ).rejects.toThrow('Resource not found (404)');
     });
 
     it('should throw specific error for 403', async () => {

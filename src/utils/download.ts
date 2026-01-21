@@ -1,4 +1,4 @@
-import type { DownloadProgress } from '@/types';
+import type { DownloadProgress } from '../types';
 import { logger } from './logger';
 import { applyProxy, type ProxyType } from './proxyConfig';
 
@@ -55,7 +55,9 @@ export async function fetchResourceWithRetry(
   // Apply proxy if configured
   const fetchUrl = proxyType ? applyProxy(url, proxyType) : url;
   if (fetchUrl !== url) {
-    downloadLogger.debug(`Proxying ${proxyType} request: ${url.substring(0, 60)}... -> ${fetchUrl.substring(0, 60)}...`);
+    downloadLogger.debug(
+      `Proxying ${proxyType} request: ${url.substring(0, 60)}... -> ${fetchUrl.substring(0, 60)}...`
+    );
   }
 
   for (let attempt = 0; attempt <= retries; attempt++) {
