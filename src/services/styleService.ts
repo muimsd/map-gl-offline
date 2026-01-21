@@ -2,6 +2,7 @@ import { dbPromise } from '../storage/indexedDbManager';
 import { downloadFonts } from './fontService';
 import { downloadSprites } from './spriteService';
 import { generateGlyphUrlsFromStyle, fetchWithRetry, logger } from '../utils';
+import { GLYPH_CONFIG } from '../utils/constants';
 import {
   detectStyleProvider,
   extractAccessToken,
@@ -242,6 +243,12 @@ export async function downloadStyles(
 
     // Process style for the detected provider
     const processedStyle = processStyleSources(style, provider, accessToken);
+
+    // Set default glyphs URL if not present
+    if (!processedStyle.glyphs) {
+      processedStyle.glyphs = GLYPH_CONFIG.DEFAULT_URL;
+      logger.debug(`Using default glyphs URL: ${GLYPH_CONFIG.DEFAULT_URL}`);
+    }
 
     // Validate style for the provider
     const validation = validateStyleForProvider(processedStyle, provider);
@@ -889,6 +896,12 @@ export async function downloadStyleWithProvider(
 
     // Process style for the detected provider
     const processedStyle = processStyleSources(style, detectedProvider, extractedToken);
+
+    // Set default glyphs URL if not present
+    if (!processedStyle.glyphs) {
+      processedStyle.glyphs = GLYPH_CONFIG.DEFAULT_URL;
+      logger.debug(`Using default glyphs URL: ${GLYPH_CONFIG.DEFAULT_URL}`);
+    }
 
     // Validate style
     const validation = validateStyleForProvider(processedStyle, detectedProvider);

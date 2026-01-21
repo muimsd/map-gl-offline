@@ -36,6 +36,7 @@ export const TILE_CONFIG = {
 
 // Glyph Configuration
 export const GLYPH_CONFIG = {
+  DEFAULT_URL: 'https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf',
   DEFAULT_RANGES: ['0-255'] as const,
   COMPREHENSIVE_RANGES: [
     '0-255', // Basic Latin + Latin-1 Supplement
@@ -68,6 +69,16 @@ export const GLYPH_CONFIG = {
     '63744-64255', // CJK Compatibility Ideographs
     '65280-65535', // Halfwidth and Fullwidth Forms
   ] as const,
+} as const;
+
+// Style Configuration
+export const STYLE_CONFIG = {
+  OPENFREEMAP_BASE: 'https://tiles.openfreemap.org/styles',
+  STYLES: {
+    LIBERTY: 'https://tiles.openfreemap.org/styles/liberty',
+    BRIGHT: 'https://tiles.openfreemap.org/styles/bright',
+    POSITRON: 'https://tiles.openfreemap.org/styles/positron',
+  },
 } as const;
 
 // Storage Configuration
