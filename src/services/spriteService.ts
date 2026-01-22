@@ -484,28 +484,26 @@ export class SpriteService {
   }
 
   private extractSpriteName(url?: string): string {
-    // Extract sprite name from URL, including variants like @2x
+    // Extract and NORMALIZE sprite name from URL
+    // Always return normalized names (sprite.json, sprite.png, sprite@2x.json, sprite@2x.png)
+    // This ensures the stored keys match what MapLibre expects when loading
     if (!url || typeof url !== 'string') {
       return 'unknown';
     }
 
     const parts = url.split('/');
     const filename = parts[parts.length - 1];
-    const nameWithExtension = filename.split('.')[0] || 'unknown';
+    const extension = filename.split('.').pop()?.toLowerCase() || 'json';
 
-    // Handle sprite variants (e.g., sprite, sprite@2x)
-    // If it's just "sprite", add the file extension to differentiate JSON from PNG
-    const extension = filename.split('.').pop()?.toLowerCase();
-    if (nameWithExtension === 'sprite') {
+    // Check if this is a @2x variant
+    const is2x = filename.includes('@2x');
+
+    // Normalize to standard sprite names that MapLibre expects
+    if (is2x) {
+      return extension === 'json' ? 'sprite@2x.json' : `sprite@2x.${extension}`;
+    } else {
       return extension === 'json' ? 'sprite.json' : `sprite.${extension}`;
-    } else if (nameWithExtension.includes('@')) {
-      // For sprite@2x, add extension to differentiate JSON from PNG
-      return extension === 'json'
-        ? `${nameWithExtension}.json`
-        : `${nameWithExtension}.${extension}`;
     }
-
-    return nameWithExtension;
   }
 
   private detectSpriteType(contentType: string, url?: string): string {

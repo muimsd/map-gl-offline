@@ -46,6 +46,9 @@ export type StyleEntry = {
   // Additional metadata for Mapbox GL
   accessToken?: string;
   originalUrl?: string;
+  // Original resource URLs before patching (for re-downloads)
+  originalSpriteUrl?: string;
+  originalGlyphsUrl?: string;
 };
 
 export interface StyleDownloadOptions {

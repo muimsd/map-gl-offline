@@ -275,8 +275,8 @@ export class DownloadManager {
 
       // Use original sprite/glyph URLs stored in the style metadata
       // These are preserved from when the style was first downloaded
-      const originalSpriteUrl = (styleData as { originalSpriteUrl?: string }).originalSpriteUrl;
-      const originalGlyphsUrl = (styleData as { originalGlyphsUrl?: string }).originalGlyphsUrl;
+      const originalSpriteUrl = styleData.originalSpriteUrl;
+      const originalGlyphsUrl = styleData.originalGlyphsUrl;
 
       downloadLogger.debug('Original URLs from style metadata:', {
         sprite: originalSpriteUrl,
