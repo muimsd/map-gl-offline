@@ -32,6 +32,8 @@ function createStyleEntry(
     lastModified?: number;
     downloadedAt?: number;
     originalUrl?: string;
+    originalSpriteUrl?: string;
+    originalGlyphsUrl?: string;
     validated?: boolean;
     size?: number;
     sourceCount?: number;
@@ -260,6 +262,7 @@ export async function downloadStyles(
     }
 
     // Create enhanced style storage item
+    // Save original sprite/glyph URLs before they might get patched later
     const styleStorageItem = createStyleEntry(
       style.id,
       processedStyle,
@@ -269,6 +272,8 @@ export async function downloadStyles(
             lastModified: Date.now(),
             downloadedAt: Date.now(),
             originalUrl: stylesUrl,
+            originalSpriteUrl: style.sprite,
+            originalGlyphsUrl: style.glyphs,
             validated: validateStyle && validation.isValid,
             size: styleSize,
             sourceCount: sourcesProcessed,
@@ -939,10 +944,13 @@ export async function downloadStyleWithProvider(
     }
 
     // Create style entry
+    // Save original sprite/glyph URLs before they might get patched later
     const styleEntry = createStyleEntry(styleId, processedStyle, detectedProvider, {
       lastModified: Date.now(),
       downloadedAt: Date.now(),
       originalUrl: styleUrl,
+      originalSpriteUrl: style.sprite,
+      originalGlyphsUrl: style.glyphs,
       validated: validation.isValid,
       accessToken: extractedToken,
     });

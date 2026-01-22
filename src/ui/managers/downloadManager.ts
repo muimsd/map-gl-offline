@@ -259,7 +259,7 @@ export class DownloadManager {
       // Update UI to show download starting
       this.updateUIForDownloadStart();
 
-      // First, add the region metadata
+      // Add the region metadata (this patches the style URLs)
       await this.offlineManager.addRegion(finalRegionConfig);
 
       // Get the style data for resource downloads
@@ -273,32 +273,22 @@ export class DownloadManager {
       // This is the style we'll use for tile downloads (it has the tiles array)
       const styleWithEmbeddedSources = styleData.style;
 
-      // For sprites and glyphs, we need the original unpatched URLs
-      // If the stored style is patched, fetch the original style from URL
-      let originalStyleForResources = styleData.style;
+      // Use original sprite/glyph URLs stored in the style metadata
+      // These are preserved from when the style was first downloaded
+      const originalSpriteUrl = (styleData as { originalSpriteUrl?: string }).originalSpriteUrl;
+      const originalGlyphsUrl = (styleData as { originalGlyphsUrl?: string }).originalGlyphsUrl;
 
-      // If the style URLs are already patched, we need to fetch the original for sprite/glyph URLs
-      if (
-        styleData.style?.sprite?.startsWith('idb://') ||
-        styleData.style?.glyphs?.startsWith('idb://')
-      ) {
-        downloadLogger.debug(
-          'Style URLs are already patched, fetching original style for sprite/glyph URLs'
-        );
+      downloadLogger.debug('Original URLs from style metadata:', {
+        sprite: originalSpriteUrl,
+        glyphs: originalGlyphsUrl,
+      });
 
-        // Fetch the original style from the URL if available
-        if (styleData.originalUrl) {
-          try {
-            const response = await fetch(styleData.originalUrl);
-            if (response.ok) {
-              originalStyleForResources = await response.json();
-              downloadLogger.debug('Fetched original style from:', styleData.originalUrl);
-            }
-          } catch (error) {
-            downloadLogger.error('Failed to fetch original style, will use stored style:', error);
-          }
-        }
-      }
+      // Create a copy of the style with original URLs for resource downloads
+      const originalStyleForResources = {
+        ...styleData.style,
+        sprite: originalSpriteUrl,
+        glyphs: originalGlyphsUrl,
+      };
 
       // Download sprites if the style has them
       if (
