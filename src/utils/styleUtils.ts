@@ -5,12 +5,20 @@ const styleLogger = logger.scope('StyleUtils');
 
 /**
  * Patches a MapboxStyle for offline use by replacing URLs with IndexedDB references
+ * @param style - The style to patch
+ * @param downloadId - The download/region ID for tiles and other resources
+ * @param maxZoom - Optional max zoom level for sources
+ * @param tileExtension - Optional tile extension
+ * @param styleId - Optional style ID for sprites (if different from downloadId). Sprites are shared
+ *                  across regions and stored with the style ID, so this parameter allows the sprite
+ *                  URLs to correctly reference the style ID.
  */
 export function patchStyleForOffline(
   style: MapboxStyle,
   downloadId: string,
   maxZoom?: number,
-  tileExtension?: string
+  tileExtension?: string,
+  styleId?: string
 ): MapboxStyle {
   styleLogger.debug(
     `Patching style for offline use with downloadId: ${downloadId}, maxZoom: ${maxZoom}, tileExtension: ${tileExtension}`
@@ -74,10 +82,17 @@ export function patchStyleForOffline(
   }
 
   // Patch sprite
+  // Use styleId for sprites since they're shared across regions and stored with the style ID
   if (style.sprite) {
     const originalSprite = style.sprite;
-    style.sprite = `idb://${downloadId}/sprite/sprite`;
-    styleLogger.debug(`Patched sprite:`, { original: originalSprite, patched: style.sprite });
+    const spriteBaseId = styleId || downloadId;
+    style.sprite = `idb://${spriteBaseId}/sprite/sprite`;
+    styleLogger.debug(`Patched sprite:`, {
+      original: originalSprite,
+      patched: style.sprite,
+      spriteBaseId,
+      usingStyleId: !!styleId
+    });
   }
 
   styleLogger.debug(`Final patched style:`, style);

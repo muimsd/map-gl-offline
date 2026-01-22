@@ -228,7 +228,8 @@ export class RegionService {
     }
 
     // Patch style for offline use with the region's maxZoom and tileExtension
-    patchStyleForOffline(styleEntry.style, region.id, region.maxZoom, region.tileExtension);
+    // Pass styleId for sprites since they're stored with the style ID, not region ID
+    patchStyleForOffline(styleEntry.style, region.id, region.maxZoom, region.tileExtension, styleId);
 
     // Add region metadata to the style entry
     const bboxExists = styleEntry.regions.some(
