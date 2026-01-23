@@ -91,7 +91,7 @@ export function patchStyleForOffline(
       original: originalSprite,
       patched: style.sprite,
       spriteBaseId,
-      usingStyleId: !!styleId
+      usingStyleId: !!styleId,
     });
   }
 

@@ -744,7 +744,10 @@ export class TileService {
                 tileUrlPattern = urlToFetch
                   .replace('tilejson+', '')
                   .replace('.json', '/{z}/{x}/{y}.pbf');
-              } else if (urlToFetch.includes('/tiles.json') || (isJsonUrl && urlToFetch.endsWith('.json'))) {
+              } else if (
+                urlToFetch.includes('/tiles.json') ||
+                (isJsonUrl && urlToFetch.endsWith('.json'))
+              ) {
                 // Handle Maptiler-style TileJSON URLs that end with /tiles.json or /style.json
                 // Remove the JSON filename and query params, then append tile pattern
                 let baseUrl = urlToFetch;

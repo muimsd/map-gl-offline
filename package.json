@@ -110,6 +110,7 @@
     }
   },
   "devDependencies": {
+    "@babel/preset-env": "^7.28.6",
     "@eslint/js": "^9.28.0",
     "@rollup/plugin-commonjs": "^29.0.0",
     "@rollup/plugin-node-resolve": "^16.0.1",

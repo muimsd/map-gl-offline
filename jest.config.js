@@ -10,8 +10,14 @@ export default {
   transform: {
     '^.+\\.(ts|tsx)$': ['ts-jest', {
       useESM: true
-    }]
+    }],
+    // Transform ESM JavaScript modules
+    '^.+\\.js$': 'babel-jest'
   },
+  // Transform ESM packages from node_modules that Jest can't handle
+  transformIgnorePatterns: [
+    'node_modules/(?!(@turf|kdbush|geojson-rbush|rbush|geokdbush|tinyqueue|quickselect)/)'
+  ],
   collectCoverageFrom: [
     'src/**/*.{ts,tsx}',
     '!src/**/*.d.ts',

@@ -15,7 +15,10 @@ const idbLogger = logger.scope('IDBFetch');
 // idb://{downloadId}/tilesjson/{url}
 
 // Cache for region ID to style mapping to avoid repeated DB queries
-const regionToStyleCache = new Map<string, { styleEntry: StyleStorageItem | null; timestamp: number }>();
+const regionToStyleCache = new Map<
+  string,
+  { styleEntry: StyleStorageItem | null; timestamp: number }
+>();
 const CACHE_TTL_MS = 60000; // Cache for 60 seconds
 
 // LRU cache for tiles to avoid repeated IndexedDB lookups

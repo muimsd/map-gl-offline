@@ -1,12 +1,15 @@
 /**
  * Tests for IDB Fetch Handler
  */
-import { idbFetchHandler, listTileKeysInIDB } from '../../src/utils/idbFetchHandler';
+import { idbFetchHandler, listTileKeysInIDB, clearAllCaches } from '../../src/utils/idbFetchHandler';
 import { dbPromise } from '../../src/storage/indexedDbManager';
 import type { StyleProvider } from '../../src/types/style';
 
 describe('IDBFetchHandler', () => {
   beforeEach(async () => {
+    // Clear in-memory caches first to avoid stale data from previous tests
+    clearAllCaches();
+
     const db = await dbPromise;
     await db.clear('tiles');
     await db.clear('fonts');
