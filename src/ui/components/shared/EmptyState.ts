@@ -4,6 +4,7 @@
  */
 
 import { BaseComponent, ComponentConfig } from './BaseComponent';
+import { t } from '../../translations';
 
 export interface EmptyStateConfig extends ComponentConfig {
   title?: string;
@@ -20,8 +21,8 @@ export class EmptyState extends BaseComponent {
   constructor(config: EmptyStateConfig = {}) {
     super(config);
     this.emptyConfig = {
-      title: 'No items',
-      message: 'There are no items to display',
+      title: t('emptyState.title'),
+      message: t('emptyState.message'),
       showIcon: true,
       ...config,
     };

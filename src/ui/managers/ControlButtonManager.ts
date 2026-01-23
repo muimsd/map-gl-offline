@@ -6,6 +6,7 @@
 
 import { icons } from '../../utils/icons';
 import { Button, ButtonConfig } from '../components/shared/Button';
+import { t } from '../translations';
 
 export interface ButtonManagerOptions {
   onTogglePanel: () => void;
@@ -70,7 +71,7 @@ export class ButtonManager {
     const buttonConfig: ButtonConfig = {
       className: 'maplibregl-ctrl-icon relative',
       icon: icons.cloud({ size: 20, color: 'black' }),
-      title: 'Offline Map Manager',
+      title: t('control.offlineMapManager'),
       showProgressBadge: true,
       onClick: this.options.onTogglePanel,
     };

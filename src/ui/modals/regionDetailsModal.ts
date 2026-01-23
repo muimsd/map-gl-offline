@@ -9,6 +9,7 @@ import { Button } from '../components/shared/Button';
 import { icons } from '../../utils/icons';
 import { formatDate } from '../../utils/formatting';
 import { StoredRegion } from '../../types/region';
+import { t, i18n } from '../translations';
 
 export interface RegionDetailsOptions {
   region: StoredRegion;
@@ -32,7 +33,7 @@ export class RegionDetailsModal {
     const { region } = this.options;
 
     const modalConfig: ModalConfig = {
-      title: 'Region Details',
+      title: t('regionDetails.title'),
       size: 'sm',
       closable: true,
       showThemeToggle: false,
@@ -60,6 +61,9 @@ export class RegionDetailsModal {
   private createContent(region: StoredRegion): HTMLElement {
     const content = document.createElement('div');
     content.className = 'flex flex-col gap-5';
+    if (i18n.isRTL()) {
+      content.setAttribute('dir', 'rtl');
+    }
 
     content.innerHTML = `
       <div class="glass-input p-4 rounded-xl border-0 bg-gray-50/50 dark:bg-gray-800/50">
@@ -67,34 +71,34 @@ export class RegionDetailsModal {
           ${region.name}
         </h3>
       </div>
-      
+
       <div class="grid grid-cols-2 gap-4">
         <div class="glass-input p-4 rounded-xl border-0 bg-gray-50/30 dark:bg-gray-800/30">
           <label class="block mb-1.5 text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
-            Bounds
+            ${t('regionDetails.bounds')}
           </label>
           <div class="text-sm font-mono text-gray-700 dark:text-gray-300 leading-relaxed">
             ${region.bounds[0][1].toFixed(4)}, ${region.bounds[0][0].toFixed(4)}<br>
             ${region.bounds[1][1].toFixed(4)}, ${region.bounds[1][0].toFixed(4)}
           </div>
         </div>
-        
+
         <div class="glass-input p-4 rounded-xl border-0 bg-gray-50/30 dark:bg-gray-800/30">
           <label class="block mb-1.5 text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
-            Zoom Range
+            ${t('regionDetails.zoomRange')}
           </label>
           <div class="text-lg font-semibold text-gray-900 dark:text-white">
             ${region.minZoom} - ${region.maxZoom}
           </div>
         </div>
       </div>
-      
+
       ${
         region.created
           ? `
         <div class="glass-input p-4 rounded-xl border-0 bg-gray-50/30 dark:bg-gray-800/30">
           <label class="block mb-1.5 text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
-            Created
+            ${t('regionDetails.created')}
           </label>
           <div class="text-sm font-medium text-gray-700 dark:text-gray-300">
             ${formatDate(region.created)}
@@ -114,10 +118,13 @@ export class RegionDetailsModal {
   private createFooter(): HTMLElement {
     const footer = document.createElement('div');
     footer.className = 'flex gap-2 justify-end';
+    if (i18n.isRTL()) {
+      footer.setAttribute('dir', 'rtl');
+    }
 
     // Focus button
     const focusButton = new Button({
-      text: 'Focus on Map',
+      text: t('regionDetails.focusOnMap'),
       variant: 'secondary',
       icon: icons.focus({ size: 16, color: 'currentColor' }),
       onClick: () => this.focusRegion(),
@@ -125,7 +132,7 @@ export class RegionDetailsModal {
 
     // Close button
     const closeButton = new Button({
-      text: 'Close',
+      text: t('app.close'),
       variant: 'primary',
       onClick: () => this.close(),
     });

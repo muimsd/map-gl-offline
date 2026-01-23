@@ -40,6 +40,7 @@ import { OfflineMapManager } from '../managers/offlineMapManager';
 import { themeManager } from './ThemeManager';
 import { idbFetchHandler } from '../utils/idbFetchHandler';
 import { logger } from '../utils/logger';
+import { i18n } from './translations';
 
 // Import refactored modular components
 import { ButtonManager } from './managers/ControlButtonManager';
@@ -318,6 +319,14 @@ export class OfflineManagerControl implements IControl {
         // Cancel any active region selection when opening the panel
         if (this.regionControl?.isSelectionActive()) {
           this.regionControl.cancelSelection();
+        }
+        // Apply RTL direction if needed
+        if (i18n.isRTL()) {
+          this.panel.setAttribute('dir', 'rtl');
+          this.panel.classList.add('rtl');
+        } else {
+          this.panel.setAttribute('dir', 'ltr');
+          this.panel.classList.remove('rtl');
         }
         this.panel.classList.remove('hidden');
         this.renderPanel();

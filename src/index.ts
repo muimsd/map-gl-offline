@@ -30,3 +30,7 @@ export { OfflineMapManager as default } from './managers/offlineMapManager';
 
 // Export UI controls
 export { OfflineManagerControl } from './ui/offlineManagerControl';
+
+// Export i18n (internationalization) utilities
+export { i18n, t } from './ui/translations';
+export type { SupportedLanguage, TranslationKey } from './ui/translations';

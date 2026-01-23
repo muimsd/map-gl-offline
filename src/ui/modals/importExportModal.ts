@@ -8,6 +8,7 @@ import { Modal, ModalConfig } from '../components/shared/Modal';
 import { Button } from '../components/shared/Button';
 import { icons } from '../../utils/icons';
 import { logger } from '../../utils/logger';
+import { t, i18n } from '../translations';
 import type {
   StoredRegion,
   ImportExportOptions,
@@ -60,7 +61,7 @@ export class ImportExportModal {
 
   public show(): HTMLDivElement {
     const modalConfig: ModalConfig = {
-      title: 'Import/Export Region',
+      title: t('importExport.regionTitle'),
       subtitle: this.options.region.name || this.options.region.id,
       size: 'md',
       closable: true,
@@ -91,6 +92,9 @@ export class ImportExportModal {
   private createContent(): HTMLElement {
     const content = document.createElement('div');
     content.className = 'flex flex-col gap-6';
+    if (i18n.isRTL()) {
+      content.setAttribute('dir', 'rtl');
+    }
 
     // Region Info Card
     const infoCard = this.createRegionInfoCard();
@@ -124,23 +128,23 @@ export class ImportExportModal {
     card.innerHTML = `
       <h4 class="text-sm font-bold uppercase tracking-wider text-gray-900 dark:text-white mb-4 flex items-center gap-2">
         ${icons.mapPin({ size: 16, color: 'currentColor' })}
-        Region Information
+        ${t('importExport.regionInfo')}
       </h4>
       <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
         <div class="p-3 rounded-lg bg-white/40 dark:bg-black/20">
-          <span class="font-medium text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">ID</span>
+          <span class="font-medium text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">${t('importExport.id')}</span>
           <div class="text-gray-900 dark:text-white font-mono text-xs break-all mt-1">${this.options.region.id}</div>
         </div>
         <div class="p-3 rounded-lg bg-white/40 dark:bg-black/20">
-          <span class="font-medium text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">Name</span>
-          <div class="text-gray-900 dark:text-white font-medium mt-1">${this.options.region.name || 'Unnamed'}</div>
+          <span class="font-medium text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">${t('importExport.name')}</span>
+          <div class="text-gray-900 dark:text-white font-medium mt-1">${this.options.region.name || t('importExport.unnamed')}</div>
         </div>
         <div class="p-3 rounded-lg bg-white/40 dark:bg-black/20">
-          <span class="font-medium text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">Zoom</span>
+          <span class="font-medium text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">${t('importExport.zoom')}</span>
           <div class="text-gray-900 dark:text-white font-medium mt-1">Z${this.options.region.minZoom}-${this.options.region.maxZoom}</div>
         </div>
         <div class="p-3 rounded-lg bg-white/40 dark:bg-black/20">
-          <span class="font-medium text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">Created</span>
+          <span class="font-medium text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">${t('importExport.created')}</span>
           <div class="text-gray-900 dark:text-white font-medium mt-1">${new Date(this.options.region.created).toLocaleDateString()}</div>
         </div>
       </div>
@@ -156,7 +160,7 @@ export class ImportExportModal {
 
     // Gradient accent
     const accent = document.createElement('div');
-    accent.className = 'absolute top-0 left-0 w-1 h-full bg-blue-500 opacity-50';
+    accent.className = `absolute top-0 ${i18n.isRTL() ? 'right-0' : 'left-0'} w-1 h-full bg-blue-500 opacity-50`;
     section.appendChild(accent);
 
     const header = document.createElement('h3');
@@ -166,7 +170,7 @@ export class ImportExportModal {
       <div class="p-2 bg-blue-500/10 rounded-lg text-blue-600 dark:text-blue-400">
         ${icons.upload({ size: 20, color: 'currentColor' })}
       </div>
-      Export Region
+      ${t('importExport.exportRegion')}
     `;
     section.appendChild(header);
 
@@ -177,20 +181,20 @@ export class ImportExportModal {
     const formatGroup = document.createElement('div');
     const formatLabel = document.createElement('label');
     formatLabel.className = 'block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2';
-    formatLabel.textContent = 'Export Format';
+    formatLabel.textContent = t('importExport.exportFormat');
 
     this.exportFormatSelect = document.createElement('select');
     this.exportFormatSelect.className =
       'w-full px-4 py-3 rounded-xl text-sm glass-input text-gray-900 dark:text-white bg-white/50 dark:bg-gray-700/50 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all';
     this.exportFormatSelect.innerHTML = `
-      <option value="json">JSON - Complete data (recommended)</option>
-      <option value="pmtiles">PMTiles - Web optimized tiles</option>
-      <option value="mbtiles">MBTiles - Industry standard</option>
+      <option value="json">${t('importExport.formatJson')}</option>
+      <option value="pmtiles">${t('importExport.formatPmtiles')}</option>
+      <option value="mbtiles">${t('importExport.formatMbtiles')}</option>
     `;
 
     const formatHint = document.createElement('p');
     formatHint.className = 'mt-2 text-xs text-gray-500 dark:text-gray-400 ml-1';
-    formatHint.textContent = 'Choose format based on your use case';
+    formatHint.textContent = t('importExport.formatHint');
 
     formatGroup.appendChild(formatLabel);
     formatGroup.appendChild(this.exportFormatSelect);
@@ -201,7 +205,7 @@ export class ImportExportModal {
     const optionsGroup = document.createElement('div');
     const optionsLabel = document.createElement('label');
     optionsLabel.className = 'block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3';
-    optionsLabel.textContent = 'Include Components';
+    optionsLabel.textContent = t('importExport.includeComponents');
 
     const checkboxContainer = document.createElement('div');
     checkboxContainer.className = 'grid grid-cols-1 sm:grid-cols-2 gap-3';
@@ -227,19 +231,19 @@ export class ImportExportModal {
       return { label, input };
     };
 
-    const styleCheck = createCheckbox('Style Configuration');
+    const styleCheck = createCheckbox(t('importExport.styleConfig'));
     this.includeStyleCheckbox = styleCheck.input;
     checkboxContainer.appendChild(styleCheck.label);
 
-    const tilesCheck = createCheckbox('Map Tiles');
+    const tilesCheck = createCheckbox(t('importExport.mapTiles'));
     this.includeTilesCheckbox = tilesCheck.input;
     checkboxContainer.appendChild(tilesCheck.label);
 
-    const spritesCheck = createCheckbox('Sprites & Icons');
+    const spritesCheck = createCheckbox(t('importExport.spritesIcons'));
     this.includeSpritesCheckbox = spritesCheck.input;
     checkboxContainer.appendChild(spritesCheck.label);
 
-    const fontsCheck = createCheckbox('Fonts & Glyphs');
+    const fontsCheck = createCheckbox(t('importExport.fontsGlyphs'));
     this.includeFontsCheckbox = fontsCheck.input;
     checkboxContainer.appendChild(fontsCheck.label);
 
@@ -263,7 +267,7 @@ export class ImportExportModal {
 
     this.exportProgressText = document.createElement('p');
     this.exportProgressText.className = 'text-sm text-gray-600 dark:text-gray-400';
-    this.exportProgressText.textContent = 'Preparing export...';
+    this.exportProgressText.textContent = t('importExport.preparingExport');
 
     progressContainer.appendChild(progressBarContainer);
     progressContainer.appendChild(this.exportProgressText);
@@ -271,7 +275,7 @@ export class ImportExportModal {
 
     // Export Button
     const exportButton = new Button({
-      text: 'Export Region',
+      text: t('importExport.exportRegion'),
       variant: 'primary',
       icon: icons.download({ size: 16, color: 'white' }),
       className: 'w-full py-2.5 text-base shadow-lg shadow-blue-500/20', // Premium button styles
@@ -291,7 +295,7 @@ export class ImportExportModal {
 
     // Gradient accent
     const accent = document.createElement('div');
-    accent.className = 'absolute top-0 left-0 w-1 h-full bg-green-500 opacity-50';
+    accent.className = `absolute top-0 ${i18n.isRTL() ? 'right-0' : 'left-0'} w-1 h-full bg-green-500 opacity-50`;
     section.appendChild(accent);
 
     const header = document.createElement('h3');
@@ -301,7 +305,7 @@ export class ImportExportModal {
       <div class="p-2 bg-green-500/10 rounded-lg text-green-600 dark:text-green-400">
         ${icons.upload({ size: 20, color: 'currentColor' })}
       </div>
-      Import Region
+      ${t('importExport.importRegion')}
     `;
     section.appendChild(header);
 
@@ -312,7 +316,7 @@ export class ImportExportModal {
     const fileGroup = document.createElement('div');
     const fileLabel = document.createElement('label');
     fileLabel.className = 'block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2';
-    fileLabel.textContent = 'Select File';
+    fileLabel.textContent = t('importExport.selectFile');
 
     this.importFileInput = document.createElement('input');
     this.importFileInput.type = 'file';
@@ -322,7 +326,7 @@ export class ImportExportModal {
 
     const fileHint = document.createElement('p');
     fileHint.className = 'mt-2 text-xs text-gray-500 dark:text-gray-400 ml-1';
-    fileHint.textContent = 'Supports JSON, PMTiles, and MBTiles formats';
+    fileHint.textContent = t('importExport.fileFormatsHint');
 
     fileGroup.appendChild(fileLabel);
     fileGroup.appendChild(this.importFileInput);
@@ -333,11 +337,11 @@ export class ImportExportModal {
     const nameGroup = document.createElement('div');
     const nameLabel = document.createElement('label');
     nameLabel.className = 'block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2';
-    nameLabel.textContent = 'New Region Name (Optional)';
+    nameLabel.textContent = t('importExport.newRegionName');
 
     this.importNameInput = document.createElement('input');
     this.importNameInput.type = 'text';
-    this.importNameInput.placeholder = 'Leave empty to use original name';
+    this.importNameInput.placeholder = t('importExport.newRegionNamePlaceholder');
     this.importNameInput.className =
       'w-full px-4 py-3 rounded-xl text-sm glass-input text-gray-900 dark:text-white bg-white/50 dark:bg-gray-700/50 focus:outline-none focus:ring-2 focus:ring-green-500/50 transition-all';
 
@@ -357,7 +361,7 @@ export class ImportExportModal {
 
     const overwriteSpan = document.createElement('span');
     overwriteSpan.className = 'text-sm text-gray-700 dark:text-gray-300 font-medium';
-    overwriteSpan.textContent = 'Overwrite if region exists';
+    overwriteSpan.textContent = t('importExport.overwriteIfExists');
 
     overwriteLabel.appendChild(this.importOverwriteCheckbox);
     overwriteLabel.appendChild(overwriteSpan);
@@ -379,7 +383,7 @@ export class ImportExportModal {
 
     this.importProgressText = document.createElement('p');
     this.importProgressText.className = 'text-sm text-gray-600 dark:text-gray-400';
-    this.importProgressText.textContent = 'Preparing import...';
+    this.importProgressText.textContent = t('importExport.preparingImport');
 
     progressContainer.appendChild(progressBarContainer);
     progressContainer.appendChild(this.importProgressText);
@@ -387,7 +391,7 @@ export class ImportExportModal {
 
     // Import Button
     const importButton = new Button({
-      text: 'Import Region',
+      text: t('importExport.importRegion'),
       variant: 'success', // Assuming 'success' variant exists in Button component, if not might need style adjustment. Assuming it works based on previous code.
       icon: icons.upload({ size: 16, color: 'white' }),
       className: 'w-full py-2.5 text-base shadow-lg shadow-green-500/20',
@@ -408,20 +412,20 @@ export class ImportExportModal {
     guide.innerHTML = `
       <h4 class="text-sm font-bold uppercase tracking-wider text-blue-900 dark:text-blue-300 mb-3 flex items-center gap-2">
         ${icons.infoCircle({ size: 16, color: 'currentColor' })}
-        Format Guide
+        ${t('importExport.formatGuide')}
       </h4>
       <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
         <div class="p-3 rounded-lg bg-white/50 dark:bg-black/20">
           <div class="font-bold text-base text-blue-800 dark:text-blue-300 mb-1">JSON</div>
-          <div class="text-blue-700 dark:text-blue-400 leading-relaxed">Complete data, human-readable, best for development</div>
+          <div class="text-blue-700 dark:text-blue-400 leading-relaxed">${t('importExport.jsonDesc')}</div>
         </div>
         <div class="p-3 rounded-lg bg-white/50 dark:bg-black/20">
           <div class="font-bold text-base text-blue-800 dark:text-blue-300 mb-1">PMTiles</div>
-          <div class="text-blue-700 dark:text-blue-400 leading-relaxed">Web-optimized, efficient serving, cloud-friendly</div>
+          <div class="text-blue-700 dark:text-blue-400 leading-relaxed">${t('importExport.pmtilesDesc')}</div>
         </div>
         <div class="p-3 rounded-lg bg-white/50 dark:bg-black/20">
           <div class="font-bold text-base text-blue-800 dark:text-blue-300 mb-1">MBTiles</div>
-          <div class="text-blue-700 dark:text-blue-400 leading-relaxed">Industry standard, SQLite-based, cross-platform</div>
+          <div class="text-blue-700 dark:text-blue-400 leading-relaxed">${t('importExport.mbtilesDesc')}</div>
         </div>
       </div>
     `;
@@ -473,7 +477,7 @@ export class ImportExportModal {
         this.exportProgressBar.style.width = '100%';
       }
       if (this.exportProgressText) {
-        this.exportProgressText.textContent = 'Export complete!';
+        this.exportProgressText.textContent = t('importExport.exportComplete');
       }
 
       this.options.onExport?.(result);
@@ -483,7 +487,7 @@ export class ImportExportModal {
     } catch (error) {
       modalLogger.error('Export error:', error instanceof Error ? error.message : String(error));
       if (this.exportProgressText) {
-        this.exportProgressText.textContent = 'Export failed. Please try again.';
+        this.exportProgressText.textContent = t('importExport.exportFailed');
         this.exportProgressText.classList.add('text-red-600', 'dark:text-red-400');
       }
     } finally {
@@ -527,7 +531,7 @@ export class ImportExportModal {
         this.importProgressBar.style.width = '100%';
       }
       if (this.importProgressText) {
-        this.importProgressText.textContent = 'Import complete!';
+        this.importProgressText.textContent = t('importExport.importComplete');
       }
 
       this.options.onImport?.(result);
@@ -537,7 +541,7 @@ export class ImportExportModal {
     } catch (error) {
       modalLogger.error('Import error:', error instanceof Error ? error.message : String(error));
       if (this.importProgressText) {
-        this.importProgressText.textContent = 'Import failed. Please try again.';
+        this.importProgressText.textContent = t('importExport.importFailed');
         this.importProgressText.classList.add('text-red-600', 'dark:text-red-400');
       }
     } finally {
@@ -549,9 +553,12 @@ export class ImportExportModal {
   private createFooter(): HTMLElement {
     const footer = document.createElement('div');
     footer.className = 'flex gap-3 justify-end';
+    if (i18n.isRTL()) {
+      footer.setAttribute('dir', 'rtl');
+    }
 
     const closeButton = new Button({
-      text: 'Close',
+      text: t('app.close'),
       variant: 'secondary',
       onClick: () => this.hide(),
     });

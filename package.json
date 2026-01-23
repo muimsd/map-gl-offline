@@ -96,6 +96,7 @@
     "@tabler/icons": "^3.34.0",
     "@tailwindcss/vite": "^4.1.8",
     "@turf/turf": "^7.2.0",
+    "i18next": "^25.8.0",
     "idb": "^8.0.2"
   },
   "peerDependencies": {

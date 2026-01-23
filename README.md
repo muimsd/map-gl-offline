@@ -10,6 +10,12 @@
 
 A comprehensive **TypeScript** library for **MapLibre GL JS** that enables complete offline map functionality with vector/raster tiles, styles, fonts, sprites, and glyphs stored in IndexedDB. Features include advanced analytics, import/export capabilities, intelligent cleanup, and a modern glassmorphic UI control.
 
+## 🎬 Demo
+
+![Map GL Offline Demo](assets/map-gl-offline-demo.gif)
+
+*Download regions, load offline styles, and navigate maps without an internet connection.*
+
 ## ✨ Features
 
 ### 🎯 Core Offline Capabilities
