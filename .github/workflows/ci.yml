@@ -135,13 +135,13 @@ jobs:
 
       - name: Publish to npm (dry run)
         if: github.event_name == 'workflow_dispatch' && inputs.dry_run
-        run: npm publish --dry-run
+        run: npm publish --dry-run --tag latest
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Publish to npm
         if: "!(github.event_name == 'workflow_dispatch' && inputs.dry_run)"
-        run: npm publish --provenance --access public
+        run: npm publish --provenance --access public --tag latest
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
