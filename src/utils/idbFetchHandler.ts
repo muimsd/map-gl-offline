@@ -14,15 +14,70 @@ const idbLogger = logger.scope('IDBFetch');
 // idb://{downloadId}/sprite/{spriteName}
 // idb://{downloadId}/tilesjson/{url}
 
+// Cache for region ID to style mapping to avoid repeated DB queries
+const regionToStyleCache = new Map<string, { styleEntry: StyleStorageItem | null; timestamp: number }>();
+const CACHE_TTL_MS = 60000; // Cache for 60 seconds
+
+// LRU cache for tiles to avoid repeated IndexedDB lookups
+const tileCache = new Map<string, { response: Response; timestamp: number }>();
+const TILE_CACHE_MAX_SIZE = 500; // Max number of tiles to cache in memory
+const TILE_CACHE_TTL_MS = 300000; // Cache tiles for 5 minutes
+
+function getTileFromCache(key: string): Response | null {
+  const cached = tileCache.get(key);
+  if (cached && Date.now() - cached.timestamp < TILE_CACHE_TTL_MS) {
+    // Clone the response since Response can only be consumed once
+    return cached.response.clone();
+  }
+  if (cached) {
+    tileCache.delete(key); // Remove expired entry
+  }
+  return null;
+}
+
+function setTileInCache(key: string, response: Response): void {
+  // Implement simple LRU eviction
+  if (tileCache.size >= TILE_CACHE_MAX_SIZE) {
+    // Remove oldest entries (first 100)
+    const keysToDelete = Array.from(tileCache.keys()).slice(0, 100);
+    keysToDelete.forEach(k => tileCache.delete(k));
+  }
+  tileCache.set(key, { response: response.clone(), timestamp: Date.now() });
+}
+
+/**
+ * Clear all caches (call when offline data is modified)
+ */
+export function clearAllCaches(): void {
+  regionToStyleCache.clear();
+  tileCache.clear();
+  idbLogger.debug('All IDB caches cleared');
+}
+
+/**
+ * Clear the region-to-style cache (call when styles are modified)
+ */
+export function clearRegionStyleCache(): void {
+  regionToStyleCache.clear();
+  idbLogger.debug('Region-to-style cache cleared');
+}
+
 /**
  * Find a style entry that contains the given region ID
  * Since styles are stored by style key but patched with region IDs,
  * we need to search all styles to find which one contains this region
+ * Results are cached to avoid repeated DB queries during tile fetching
  */
 async function findStyleByRegionId(
   db: IDBPDatabase<OfflineMapDB>,
   regionId: string
 ): Promise<StyleStorageItem | null> {
+  // Check cache first
+  const cached = regionToStyleCache.get(regionId);
+  if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
+    return cached.styleEntry;
+  }
+
   try {
     const allStyles = await db.getAll('styles');
     for (const styleEntry of allStyles) {
@@ -32,11 +87,15 @@ async function findStyleByRegionId(
         );
         if (hasRegion) {
           idbLogger.debug(`Found style "${styleEntry.key}" containing region: ${regionId}`);
+          // Cache the result
+          regionToStyleCache.set(regionId, { styleEntry, timestamp: Date.now() });
           return styleEntry;
         }
       }
     }
     idbLogger.debug(`No style found containing region: ${regionId}`);
+    // Cache negative results too
+    regionToStyleCache.set(regionId, { styleEntry: null, timestamp: Date.now() });
     return null;
   } catch (error) {
     idbLogger.error(`Error searching for style by region ID: ${regionId}`, error);
@@ -153,24 +212,17 @@ async function createTileResponse(resource: {
 export async function idbFetchHandler(url: string, init?: RequestInit): Promise<Response> {
   const method = init?.method || 'GET';
 
-  // Extract zoom level from tile URL for enhanced logging
-  const tileMatch = url.match(/\/(\d+)\/(\d+)\/(\d+)\./);
-  const isZoom12 = tileMatch && parseInt(tileMatch[1]) === 12;
-
-  if (isZoom12) {
-    idbLogger.debug(`🔍 IDB Fetch Handler called for Z12 tile: ${url}`);
-  } else {
-    idbLogger.debug(`IDB Fetch Handler called for URL: ${url}`);
+  // Check memory cache first for tiles (fast path)
+  if (url.includes('/tile/')) {
+    const cachedResponse = getTileFromCache(url);
+    if (cachedResponse) {
+      return cachedResponse;
+    }
   }
 
-  idbLogger.debug(`Method: ${method}`);
-
-  // You can handle different HTTP methods here
+  // Handle POST requests (rare)
   if (method === 'POST') {
     idbLogger.debug(`POST request to: ${url}`);
-    if (init?.body) {
-      idbLogger.debug(`POST body:`, init.body);
-    }
   }
 
   const db = await dbPromise;
@@ -180,26 +232,16 @@ export async function idbFetchHandler(url: string, init?: RequestInit): Promise<
   const decodedResourcePath = decodeURIComponent(resourcePath);
   const key = `${downloadId}::${decodedResourcePath}`;
 
-  idbLogger.debug(
-    `Parsed - downloadId: ${downloadId}, type: ${type}, resourcePath: ${resourcePath}, key: ${key}`
-  );
-
   try {
     switch (type) {
       case 'tile': {
         // Find which style this region belongs to (for region-based downloads)
+        // This is now cached, so subsequent calls are fast
         const styleEntry = await findStyleByRegionId(db, downloadId);
         const actualStyleId = styleEntry?.key || downloadId;
 
-        if (styleEntry && downloadId !== actualStyleId) {
-          idbLogger.debug(
-            `Region "${downloadId}" belongs to style "${actualStyleId}", using style ID for tile lookup`
-          );
-        }
-
         // New format: idb://downloadId/tile/sourceKey/z/x/y.ext
         const pathParts = rest; // ['sourceKey', 'z', 'x', 'y.ext']
-        idbLogger.debug(`Tile request - pathParts:`, pathParts);
 
         if (pathParts.length === 4) {
           const sourceKey = pathParts[0];
@@ -216,28 +258,16 @@ export async function idbFetchHandler(url: string, init?: RequestInit): Promise<
             // Create key WITHOUT extension (new format)
             const tileKey = createTileKey(x, y, z, actualStyleId, sourceKey, requestedExt);
 
-            idbLogger.debug(
-              `Looking for tile: ${tileKey} (z:${z}, x:${x}, y:${y}, source:${sourceKey})`
-            );
-
             const resource = await db.get('tiles', tileKey);
 
             if (resource?.data) {
-              if (z === 12) {
-                idbLogger.debug(
-                  `✓ Found Z12 tile: ${tileKey}, format: ${resource.format || 'unknown'}, size: ${resource.data.byteLength} bytes`
-                );
-              } else {
-                idbLogger.debug(`Found tile: ${tileKey}, format: ${resource.format || 'unknown'}`);
-              }
               const response = await createTileResponse(resource);
-              idbLogger.debug(
-                `Serving tile: ${tileKey}, size: ${resource.data.byteLength} bytes, type: ${response.headers.get('Content-Type')}`
-              );
-              return response;
+              // Cache the response for future requests
+              setTileInCache(url, response);
+              return response.clone();
             }
 
-            idbLogger.debug(`Tile not found with extension (${requestedExt}): ${tileKey}`);
+            idbLogger.debug(`Tile not found: ${tileKey}`);
 
             // Fallback: try common alternative extensions
             const fallbackExtensions = ['pbf', 'mvt', 'png', 'jpg', 'webp'].filter(
@@ -248,10 +278,9 @@ export async function idbFetchHandler(url: string, init?: RequestInit): Promise<
               const fallbackKey = createTileKey(x, y, z, actualStyleId, sourceKey, fallbackExt);
               const fallbackResource = await db.get('tiles', fallbackKey);
               if (fallbackResource?.data) {
-                idbLogger.debug(
-                  `Found tile via fallback extension: ${fallbackKey} (requested: ${requestedExt})`
-                );
-                return await createTileResponse(fallbackResource);
+                const response = await createTileResponse(fallbackResource);
+                setTileInCache(url, response);
+                return response.clone();
               }
             }
           } else {

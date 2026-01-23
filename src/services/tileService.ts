@@ -684,98 +684,94 @@ export class TileService {
 
           try {
             // For TileJSON URLs, fetch the actual TileJSON to get real tile URLs
-            let tileUrlPattern: string;
+            let tileUrlPattern: string = '';
             let tiles: string[] = [];
 
-            // Check if URL points to a JSON file (before query params)
-            const urlWithoutQuery = urlToFetch.split('?')[0];
-            const isTileJsonUrl =
-              urlWithoutQuery.endsWith('.json') || urlToFetch.includes('tilejson');
+            // Always try to fetch TileJSON first, regardless of URL extension
+            // Many providers (like OpenFreeMap) serve TileJSON from URLs without .json extension
+            const tilejsonUrl = urlToFetch.replace('tilejson+', '');
+            let tilejsonFetched = false;
 
-            if (isTileJsonUrl) {
-              try {
-                // Fetch the TileJSON
-                const tilejsonUrl = urlToFetch.replace('tilejson+', '');
-                tileLogger.debug(`🌐 Fetching TileJSON from: ${tilejsonUrl}`);
+            try {
+              tileLogger.debug(`🌐 Attempting to fetch TileJSON from: ${tilejsonUrl}`);
 
-                const response = await fetchResourceWithRetry(tilejsonUrl, {
-                  timeout: 10000,
-                  retries: 2,
-                });
+              const response = await fetchResourceWithRetry(tilejsonUrl, {
+                timeout: 10000,
+                retries: 2,
+              });
 
-                tileLogger.debug(`TileJSON fetch response type: ${response.type}`);
+              tileLogger.debug(`TileJSON fetch response type: ${response.type}`);
 
-                if (response.type === 'json') {
-                  const jsonData = response.data;
-                  tileLogger.debug(`TileJSON data keys: ${Object.keys(jsonData || {}).join(', ')}`);
+              if (response.type === 'json') {
+                const jsonData = response.data;
+                tileLogger.debug(`TileJSON data keys: ${Object.keys(jsonData || {}).join(', ')}`);
 
-                  if (
-                    jsonData &&
-                    typeof jsonData === 'object' &&
-                    'tiles' in jsonData &&
-                    Array.isArray((jsonData as { tiles?: unknown }).tiles)
-                  ) {
-                    tiles = (jsonData as { tiles?: string[] }).tiles ?? [];
-                    tileLogger.debug(`Extracted ${tiles.length} tile URLs from TileJSON`);
+                if (
+                  jsonData &&
+                  typeof jsonData === 'object' &&
+                  'tiles' in jsonData &&
+                  Array.isArray((jsonData as { tiles?: unknown }).tiles)
+                ) {
+                  tiles = (jsonData as { tiles?: string[] }).tiles ?? [];
+                  tileLogger.debug(`Extracted ${tiles.length} tile URLs from TileJSON`);
+
+                  if (tiles.length > 0) {
+                    tileUrlPattern = tiles[0];
+                    tilejsonFetched = true;
+                    tileLogger.debug(
+                      `✅ SUCCESS: Got ${tiles.length} tile URLs from TileJSON. First URL: ${tiles[0]}`
+                    );
                   }
-
-                  if (tiles.length === 0) {
-                    tileLogger.error('TileJSON does not contain any tile templates!', jsonData);
-                    throw new Error('TileJSON does not contain any tile templates');
-                  }
-
-                  tileUrlPattern = tiles[0];
-                  tileLogger.debug(
-                    `✅ SUCCESS: Got ${tiles.length} tile URLs from TileJSON. First URL: ${tiles[0]}`
-                  );
-                } else {
-                  tileLogger.error(`Invalid TileJSON response type: ${response.type}`);
-                  throw new Error('Invalid TileJSON response');
                 }
-              } catch (tilejsonError) {
-                tileLogger.warn(
-                  `Failed to fetch TileJSON from ${urlToFetch}, falling back to pattern generation:`,
-                  tilejsonError
-                );
-
-                // Fallback to pattern generation
-                if (urlToFetch.includes('tilejson+')) {
-                  tileUrlPattern = urlToFetch
-                    .replace('tilejson+', '')
-                    .replace('.json', '/{z}/{x}/{y}.pbf');
-                } else if (urlToFetch.includes('/tiles.json') || urlToFetch.endsWith('.json')) {
-                  // Handle Maptiler-style TileJSON URLs that end with /tiles.json or /style.json
-                  // Remove the JSON filename and query params, then append tile pattern
-                  let baseUrl = urlToFetch;
-
-                  // Extract query params if present
-                  let queryParams = '';
-                  const queryIndex = baseUrl.indexOf('?');
-                  if (queryIndex !== -1) {
-                    queryParams = baseUrl.substring(queryIndex);
-                    baseUrl = baseUrl.substring(0, queryIndex);
-                  }
-
-                  // Remove .json filename
-                  if (baseUrl.includes('/tiles.json')) {
-                    // For URLs like: https://api.maptiler.com/tiles/v3/tiles.json
-                    // Extract base path before /tiles.json
-                    const tilesJsonIndex = baseUrl.lastIndexOf('/tiles.json');
-                    baseUrl = baseUrl.substring(0, tilesJsonIndex);
-                  } else {
-                    // For other .json files, remove from last /
-                    baseUrl = baseUrl.substring(0, baseUrl.lastIndexOf('/'));
-                  }
-
-                  tileUrlPattern = `${baseUrl}/{z}/{x}/{y}.pbf${queryParams}`;
-                } else {
-                  tileUrlPattern = `${urlToFetch}/{z}/{x}/{y}.pbf`;
-                }
-                tiles = [tileUrlPattern];
               }
-            } else {
-              // Handle non-JSON URLs
-              tileUrlPattern = `${urlToFetch}/{z}/{x}/{y}.pbf`;
+            } catch (tilejsonError) {
+              tileLogger.debug(
+                `TileJSON fetch failed for ${urlToFetch}, will fall back to pattern generation:`,
+                tilejsonError
+              );
+            }
+
+            // Fallback to pattern generation if TileJSON fetch didn't work
+            if (!tilejsonFetched) {
+              tileLogger.debug(`Falling back to pattern generation for ${urlToFetch}`);
+
+              // Check if URL points to a JSON file (before query params)
+              const urlWithoutQuery = urlToFetch.split('?')[0];
+              const isJsonUrl =
+                urlWithoutQuery.endsWith('.json') || urlToFetch.includes('tilejson');
+
+              if (urlToFetch.includes('tilejson+')) {
+                tileUrlPattern = urlToFetch
+                  .replace('tilejson+', '')
+                  .replace('.json', '/{z}/{x}/{y}.pbf');
+              } else if (urlToFetch.includes('/tiles.json') || (isJsonUrl && urlToFetch.endsWith('.json'))) {
+                // Handle Maptiler-style TileJSON URLs that end with /tiles.json or /style.json
+                // Remove the JSON filename and query params, then append tile pattern
+                let baseUrl = urlToFetch;
+
+                // Extract query params if present
+                let queryParams = '';
+                const queryIndex = baseUrl.indexOf('?');
+                if (queryIndex !== -1) {
+                  queryParams = baseUrl.substring(queryIndex);
+                  baseUrl = baseUrl.substring(0, queryIndex);
+                }
+
+                // Remove .json filename
+                if (baseUrl.includes('/tiles.json')) {
+                  // For URLs like: https://api.maptiler.com/tiles/v3/tiles.json
+                  // Extract base path before /tiles.json
+                  const tilesJsonIndex = baseUrl.lastIndexOf('/tiles.json');
+                  baseUrl = baseUrl.substring(0, tilesJsonIndex);
+                } else {
+                  // For other .json files, remove from last /
+                  baseUrl = baseUrl.substring(0, baseUrl.lastIndexOf('/'));
+                }
+
+                tileUrlPattern = `${baseUrl}/{z}/{x}/{y}.pbf${queryParams}`;
+              } else {
+                tileUrlPattern = `${urlToFetch}/{z}/{x}/{y}.pbf`;
+              }
               tiles = [tileUrlPattern];
             }
 

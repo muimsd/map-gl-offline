@@ -259,10 +259,8 @@ export class DownloadManager {
       // Update UI to show download starting
       this.updateUIForDownloadStart();
 
-      // Add the region metadata (this patches the style URLs)
-      await this.offlineManager.addRegion(finalRegionConfig);
-
-      // Get the style data for resource downloads
+      // IMPORTANT: Get the style data BEFORE calling addRegion(), which patches URLs to idb://
+      // We need the original HTTP URLs for downloading resources
       const styles = await loadStyles();
       const styleData = styles.find((s: { key?: string }) => s.key === finalStyleId);
       if (!styleData) {
@@ -271,6 +269,7 @@ export class DownloadManager {
 
       // Get the stored style which has embedded TileJSON data
       // This is the style we'll use for tile downloads (it has the tiles array)
+      // MUST be loaded before addRegion() patches the URLs
       const styleWithEmbeddedSources = styleData.style;
 
       // Use original sprite/glyph URLs stored in the style metadata
@@ -535,6 +534,14 @@ export class DownloadManager {
           'WARNING: No tiles were downloaded! Check the style sources and TileJSON.'
         );
       }
+
+      // NOW add the region metadata - this patches the style URLs to idb:// for offline use
+      // This MUST happen AFTER all downloads are complete since patching converts URLs to idb://
+      downloadLogger.debug('Adding region metadata and patching style for offline use');
+      await this.offlineManager.addRegion({
+        ...finalRegionConfig,
+        tileExtension: tileResult.tileExtension,
+      });
 
       // Download complete
       this.handleDownloadComplete(regionId);
