@@ -296,33 +296,49 @@ export class CleanupService {
     return await db.getAll('regions');
   }
 
-  async getRegionSize(regionId: string): Promise<number> {
+  async getRegionSize(regionId: string, styleIdParam?: string): Promise<number> {
     const db = await this.db;
     let totalSize = 0;
 
-    // First, get the region to find its styleId
-    const region = await db.get('regions', regionId);
-    if (!region) {
-      return 0;
+    let styleId = styleIdParam;
+
+    // If styleId not provided, try to find it
+    if (!styleId) {
+      // First try the legacy regions table (for backward compatibility)
+      const region = await db.get('regions', regionId);
+      if (region) {
+        styleId = region.styleId;
+      }
+
+      // If not found, search in styles.regions[] (current storage model)
+      if (!styleId) {
+        const styles = await db.getAll('styles');
+        for (const style of styles) {
+          const styleEntry = style as { key?: string; regions?: Array<{ id?: string }> };
+          if (styleEntry.regions && Array.isArray(styleEntry.regions)) {
+            const found = styleEntry.regions.find(r => r.id === regionId);
+            if (found) {
+              styleId = styleEntry.key;
+              break;
+            }
+          }
+        }
+      }
     }
 
-    const styleId = region.styleId;
     if (!styleId) {
       return 0;
     }
 
     // Calculate size from tiles that belong to this style
-    // Tile keys are formatted as: styleId:sourceId:z:x:y.ext
+    // Filter by tile.styleId property (consistent with getTileStats in tileService)
     const tx = db.transaction(['tiles'], 'readonly');
-    let cursor = await tx.objectStore('tiles').openCursor();
-
-    while (cursor) {
+    for await (const cursor of tx.objectStore('tiles')) {
       const tile = cursor.value;
-      // Check if the tile key starts with the styleId
-      if (tile.key && tile.key.startsWith(`${styleId}:`)) {
+      // Check if the tile's styleId matches the region's styleId
+      if (tile.styleId === styleId) {
         totalSize += tile.size || 0;
       }
-      cursor = await cursor.continue();
     }
 
     return totalSize;

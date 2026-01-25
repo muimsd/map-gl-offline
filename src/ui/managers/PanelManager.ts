@@ -262,16 +262,17 @@ export class PanelRenderer extends BaseComponent {
       panelLogger.debug('Loaded styles:', styles);
       panelLogger.debug('Style stats:', statsResult);
 
-      const sizeMap: Record<string, number> = {};
+      // Build style size map from stats
+      const styleSizeMap: Record<string, number> = {};
       statsResult.styles.forEach(s => {
-        sizeMap[s.id] = s.size;
+        styleSizeMap[s.id] = s.size;
       });
 
-      // Fetch sizes for all regions
+      // Fetch tile sizes for all regions (pass styleId for efficient lookup)
       const regionsWithSizes = await Promise.all(
         regions.map(async region => {
-          const size = await this.offlineManager.getRegionSize(region.id);
-          return { ...region, size };
+          const tileSize = await this.offlineManager.getRegionSize(region.id, region.styleId);
+          return { ...region, tileSize };
         })
       );
 
@@ -286,13 +287,24 @@ export class PanelRenderer extends BaseComponent {
       if (styles.length > 0) {
         for (const style of styles) {
           const styleRegions = regionsByStyle[style.key] || [];
-          const dbSize = sizeMap[style.key] || 0;
-          // Add style item with embedded regions and DB size
-          const styleWithSize = { ...style, dbSize };
+          const styleJsonSize = styleSizeMap[style.key] || 0;
+          const regionTilesSize = styleRegions.reduce(
+            (sum, r) => sum + ((r as { tileSize?: number }).tileSize || 0),
+            0
+          );
+          const totalSize = styleJsonSize + regionTilesSize;
+
+          // Add style item with computed sizes
+          const styleWithSizes = {
+            ...style,
+            styleJsonSize,
+            regionTilesSize,
+            totalSize,
+          };
           listItems.push({
             id: `style-${style.key}`,
-            data: { ...styleWithSize, isStyle: true },
-            template: this.createCompleteStyleTemplate(styleWithSize, styleRegions),
+            data: { ...styleWithSizes, isStyle: true },
+            template: this.createCompleteStyleTemplate(styleWithSizes, styleRegions),
             actions: [
               {
                 label: t('actions.loadStyle'),
@@ -425,11 +437,16 @@ export class PanelRenderer extends BaseComponent {
    * Create complete style template with header, HR, and regions
    */
   private createCompleteStyleTemplate(
-    style: { key: string; style?: { name?: string }; dbSize?: number },
-    regions: (StoredRegion & { size?: number })[]
+    style: {
+      key: string;
+      style?: { name?: string };
+      styleJsonSize: number;
+      regionTilesSize: number;
+      totalSize: number;
+    },
+    regions: (StoredRegion & { tileSize?: number })[]
   ): string {
     const regionCount = regions.length;
-    const totalSize = regions.reduce((sum, region) => sum + (region.size || 0), 0);
 
     // Style header HTML
     const styleHeader = `
@@ -445,10 +462,10 @@ export class PanelRenderer extends BaseComponent {
                 ${t('regionList.styleId')}: ${style.key}
               </p>
               <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">
-                ${regionCount} region${regionCount === 1 ? '' : 's'} • ${formatBytes(totalSize)}
+                ${regionCount} region${regionCount === 1 ? '' : 's'} • ${t('regionList.totalSize')}: ${formatBytes(style.totalSize)}
               </p>
-              <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">
-                ${t('regionList.storedStyleSize')}: ${formatBytes(style.dbSize || 0)}
+              <p class="text-xs text-slate-400 dark:text-slate-500 mt-1">
+                ${t('regionList.tiles')}: ${formatBytes(style.regionTilesSize)} • ${t('regionList.styleData')}: ${formatBytes(style.styleJsonSize)}
               </p>
             </div>
             <div class="flex items-center gap-2">
@@ -458,10 +475,10 @@ export class PanelRenderer extends BaseComponent {
             </div>
           </div>
         </div>
-        
+
         <!-- HR Separator -->
         <hr class="border-slate-200 dark:border-slate-600 border-t">
-        
+
         <!-- Regions List -->
         ${regions.map(region => this.createRegionItemForStyle(region)).join('')}
       </div>
@@ -474,7 +491,7 @@ export class PanelRenderer extends BaseComponent {
    * Create region item specifically for embedding within a style container
    */
   private createRegionItemForStyle(
-    region: StoredRegion & { downloadedAt?: number; size?: number }
+    region: StoredRegion & { downloadedAt?: number; tileSize?: number }
   ): string {
     return `
       <div class="px-4 py-3 border-t border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700/50 cursor-pointer region-item transition-colors duration-150" data-region-id="${region.id}">
@@ -489,7 +506,7 @@ export class PanelRenderer extends BaseComponent {
             <div class="flex items-center gap-4 text-xs text-slate-400 dark:text-slate-500 mt-2">
               <span>${t('regionList.zoom')}: ${region.minZoom}-${region.maxZoom}</span>
               ${region.downloadedAt ? `<span>${t('regionList.downloaded')}: ${new Date(region.downloadedAt).toLocaleDateString()}</span>` : ''}
-              ${region.size ? `<span>${t('regionList.size')}: ${formatBytes(region.size)}</span>` : ''}
+              ${region.tileSize ? `<span>${t('regionList.tiles')}: ${formatBytes(region.tileSize)}</span>` : ''}
             </div>
           </div>
           <div class="flex items-center gap-1 ml-2">
@@ -518,11 +535,16 @@ export class PanelRenderer extends BaseComponent {
    * Create style item template with load button
    */
   private createStyleItemTemplate(
-    style: { key: string; style?: { name?: string } },
-    regions: (StoredRegion & { size?: number })[]
+    style: {
+      key: string;
+      style?: { name?: string };
+      styleJsonSize: number;
+      regionTilesSize: number;
+      totalSize: number;
+    },
+    regions: (StoredRegion & { tileSize?: number })[]
   ): string {
     const regionCount = regions.length;
-    const totalSize = regions.reduce((sum, region) => sum + (region.size || 0), 0);
 
     return `
       <div class="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-0 mb-4 overflow-hidden">
@@ -537,7 +559,10 @@ export class PanelRenderer extends BaseComponent {
                 ${t('regionList.styleId')}: ${style.key}
               </p>
               <p class="text-sm text-blue-600 dark:text-blue-400 mt-1">
-                ${regionCount} region${regionCount === 1 ? '' : 's'} • ${formatBytes(totalSize)}
+                ${regionCount} region${regionCount === 1 ? '' : 's'} • ${t('regionList.totalSize')}: ${formatBytes(style.totalSize)}
+              </p>
+              <p class="text-xs text-blue-500 dark:text-blue-500 mt-1">
+                ${t('regionList.tiles')}: ${formatBytes(style.regionTilesSize)} • ${t('regionList.styleData')}: ${formatBytes(style.styleJsonSize)}
               </p>
             </div>
             <div class="flex items-center gap-2">
@@ -547,10 +572,10 @@ export class PanelRenderer extends BaseComponent {
             </div>
           </div>
         </div>
-        
+
         <!-- HR Separator -->
         <hr class="border-blue-200 dark:border-blue-800 border-t">
-        
+
         <!-- Regions will be added after this div -->
       </div>
     `;

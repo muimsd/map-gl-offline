@@ -2,7 +2,7 @@ import type { CleanupResult, RegionAnalytics, RegionCleanupOptions } from '../..
 import type { OfflineManagerServices } from './base';
 
 export interface CleanupManagement {
-  getRegionSize(regionId: string): Promise<number>;
+  getRegionSize(regionId: string, styleId?: string): Promise<number>;
   cleanupExpiredRegions(): Promise<number>;
   forceCleanupExpiredRegions(): Promise<number>;
   setupAutoCleanup(options?: RegionCleanupOptions & { intervalHours?: number }): Promise<string>;
@@ -14,7 +14,8 @@ export interface CleanupManagement {
 }
 
 export const createCleanupManagement = (services: OfflineManagerServices): CleanupManagement => ({
-  getRegionSize: async (regionId: string) => services.cleanupService.getRegionSize(regionId),
+  getRegionSize: async (regionId: string, styleId?: string) =>
+    services.cleanupService.getRegionSize(regionId, styleId),
   cleanupExpiredRegions: async () => {
     const result = await services.cleanupService.performCleanup({ maxAge: 30 });
     return result.deletedRegions;

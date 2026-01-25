@@ -70,8 +70,10 @@ export const en = {
   'regionList.zoom': 'Zoom',
   'regionList.downloaded': 'Downloaded',
   'regionList.size': 'Size',
+  'regionList.tiles': 'Tiles',
+  'regionList.styleData': 'Style',
+  'regionList.totalSize': 'Total',
   'regionList.styleId': 'Style ID',
-  'regionList.storedStyleSize': 'Stored Style Size',
 
   // Region Details
   'regionDetails.title': 'Region Details',

@@ -71,8 +71,10 @@ export const ar = {
   'regionList.zoom': 'التكبير',
   'regionList.downloaded': 'تم التحميل',
   'regionList.size': 'الحجم',
+  'regionList.tiles': 'البلاطات',
+  'regionList.styleData': 'النمط',
+  'regionList.totalSize': 'الإجمالي',
   'regionList.styleId': 'معرف النمط',
-  'regionList.storedStyleSize': 'حجم النمط المخزن',
 
   // Region Details - تفاصيل المنطقة
   'regionDetails.title': 'تفاصيل المنطقة',
