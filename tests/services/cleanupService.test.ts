@@ -45,7 +45,6 @@ describe('CleanupService', () => {
     jest.clearAllMocks();
     service = new CleanupService(mockDeleteRegion);
     const db = await dbPromise;
-    await db.clear('regions');
     await db.clear('tiles');
     await db.clear('styles');
   });

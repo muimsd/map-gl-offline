@@ -2,18 +2,19 @@
  * Tests for IndexedDB Manager
  */
 import { dbPromise } from '../../src/storage/indexedDbManager';
+import { DB_NAME, DB_VERSION } from '../../src/utils/constants';
 import type { StyleProvider } from '../../src/types/style';
 
 describe('IndexedDB Manager', () => {
   it('should open the database', async () => {
     const db = await dbPromise;
     expect(db).toBeDefined();
-    expect(db.name).toBe('offline-map-db');
+    expect(db.name).toBe(DB_NAME);
   });
 
   it('should have the correct version', async () => {
     const db = await dbPromise;
-    expect(db.version).toBe(2);
+    expect(db.version).toBe(DB_VERSION);
   });
 
   it('should have all required object stores', async () => {

@@ -7,6 +7,11 @@ import type { SpriteEntry } from './sprite';
 import type { GlyphEntry } from './glyph';
 
 export interface OfflineMapDB extends DBSchema {
+  /**
+   * @deprecated Regions are now stored inside styles.regions[] array.
+   * This store is kept for backward compatibility and migration purposes only.
+   * Do not write to this store - it will be cleaned up during DB migration.
+   */
   regions: {
     key: string;
     value: StoredRegion;

@@ -13,7 +13,6 @@ describe('RegionService', () => {
 
     // Clear all relevant stores before each test
     const db = await dbPromise;
-    await db.clear('regions');
     await db.clear('styles');
     await db.clear('tiles');
     await db.clear('fonts');

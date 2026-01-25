@@ -44,7 +44,6 @@ describe('ImportExportService', () => {
   beforeEach(async () => {
     service = new ImportExportService();
     const db = await dbPromise;
-    await db.clear('regions'); // Keep for backward compatibility
     await db.clear('styles');
     await db.clear('tiles');
     await db.clear('sprites');

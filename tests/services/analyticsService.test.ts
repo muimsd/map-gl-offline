@@ -16,7 +16,6 @@ describe('AnalyticsService', () => {
     await db.clear('fonts');
     await db.clear('sprites');
     await db.clear('glyphs');
-    await db.clear('regions');
   });
 
   describe('getAllTileStats', () => {

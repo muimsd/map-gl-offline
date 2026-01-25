@@ -16,7 +16,6 @@ describe('Service Integration', () => {
     await db.clear('fonts');
     await db.clear('glyphs');
     await db.clear('styles');
-    await db.clear('regions');
   });
 
   describe('TileService and ResourceService interaction', () => {
