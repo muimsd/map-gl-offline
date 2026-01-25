@@ -363,9 +363,18 @@ export class RegionService {
   }
 
   async listRegions(): Promise<OfflineRegionOptions[]> {
-    const db = await dbPromise;
-    const regions = await db.getAll('regions');
-    return regions as OfflineRegionOptions[];
+    // Regions are stored inside styles.regions[], not in a separate regions table
+    const { loadStyles } = await import('./styleService');
+    const styles = await loadStyles();
+    const allRegions: OfflineRegionOptions[] = [];
+
+    for (const style of styles) {
+      if (style.regions && Array.isArray(style.regions)) {
+        allRegions.push(...(style.regions as OfflineRegionOptions[]));
+      }
+    }
+
+    return allRegions;
   }
 
   /**

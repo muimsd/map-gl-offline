@@ -7,9 +7,8 @@
 export const DB_NAME = 'offline-map-db';
 export const DB_VERSION = 2;
 
-// Store Names
+// Store Names (regions are stored inside styles.regions[], not as a separate store)
 export const STORE_NAMES = {
-  REGIONS: 'regions',
   TILES: 'tiles',
   STYLES: 'styles',
   SPRITES: 'sprites',

@@ -3,6 +3,40 @@
  */
 import { ImportExportService } from '../../src/services/importExportService';
 import { dbPromise } from '../../src/storage/indexedDbManager';
+import type { StyleProvider } from '../../src/types/style';
+
+// Helper function to store a region inside a style entry
+async function storeRegionInStyle(
+  db: Awaited<typeof dbPromise>,
+  styleId: string,
+  region: {
+    id: string;
+    name: string;
+    bounds: [[number, number], [number, number]];
+    styleUrl: string;
+    minZoom: number;
+    maxZoom: number;
+    created: number;
+    expiry: number;
+  }
+) {
+  const existingStyle = await db.get('styles', styleId);
+  if (existingStyle) {
+    existingStyle.regions = existingStyle.regions || [];
+    existingStyle.regions.push(region);
+    await db.put('styles', existingStyle);
+  } else {
+    await db.put('styles', {
+      key: styleId,
+      style: { version: 8, sources: {}, layers: [] },
+      provider: 'auto' as StyleProvider,
+      regions: [region],
+      fonts: [],
+      glyphs: [],
+      sprites: [],
+    });
+  }
+}
 
 describe('ImportExportService', () => {
   let service: ImportExportService;
@@ -10,7 +44,7 @@ describe('ImportExportService', () => {
   beforeEach(async () => {
     service = new ImportExportService();
     const db = await dbPromise;
-    await db.clear('regions');
+    await db.clear('regions'); // Keep for backward compatibility
     await db.clear('styles');
     await db.clear('tiles');
     await db.clear('sprites');
@@ -27,18 +61,15 @@ describe('ImportExportService', () => {
     it('should export region with metadata', async () => {
       const db = await dbPromise;
 
-      // Create a test region
-      await db.put('regions', {
-        key: 'test-region',
+      // Create a test region inside a style
+      await storeRegionInStyle(db, 'test-style', {
         id: 'test-region',
         name: 'Test Region',
         bounds: [[-122.5, 37.5], [-122.0, 38.0]],
-        styleId: 'test-style',
         styleUrl: 'https://example.com/style.json',
         minZoom: 0,
         maxZoom: 14,
         created: Date.now(),
-        lastModified: Date.now(),
         expiry: Date.now() + 30 * 24 * 60 * 60 * 1000,
       });
 
@@ -55,17 +86,14 @@ describe('ImportExportService', () => {
       const db = await dbPromise;
       const progressCalls: Array<{ stage: string; percentage: number }> = [];
 
-      await db.put('regions', {
-        key: 'test-region',
+      await storeRegionInStyle(db, 'test-style', {
         id: 'test-region',
         name: 'Test Region',
         bounds: [[-122.5, 37.5], [-122.0, 38.0]],
-        styleId: 'test-style',
         styleUrl: 'https://example.com/style.json',
         minZoom: 0,
         maxZoom: 14,
         created: Date.now(),
-        lastModified: Date.now(),
         expiry: Date.now() + 30 * 24 * 60 * 60 * 1000,
       });
 
@@ -87,17 +115,14 @@ describe('ImportExportService', () => {
     it('should export tiles when includeTiles is true', async () => {
       const db = await dbPromise;
 
-      await db.put('regions', {
-        key: 'test-region',
+      await storeRegionInStyle(db, 'test-region', {
         id: 'test-region',
         name: 'Test Region',
         bounds: [[-122.5, 37.5], [-122.0, 38.0]],
-        styleId: 'test-region',
         styleUrl: 'https://example.com/style.json',
         minZoom: 0,
         maxZoom: 14,
         created: Date.now(),
-        lastModified: Date.now(),
         expiry: Date.now() + 30 * 24 * 60 * 60 * 1000,
       });
 
@@ -127,17 +152,14 @@ describe('ImportExportService', () => {
     it('should skip tiles when includeTiles is false', async () => {
       const db = await dbPromise;
 
-      await db.put('regions', {
-        key: 'test-region',
+      await storeRegionInStyle(db, 'test-region', {
         id: 'test-region',
         name: 'Test Region',
         bounds: [[-122.5, 37.5], [-122.0, 38.0]],
-        styleId: 'test-region',
         styleUrl: 'https://example.com/style.json',
         minZoom: 0,
         maxZoom: 14,
         created: Date.now(),
-        lastModified: Date.now(),
         expiry: Date.now() + 30 * 24 * 60 * 60 * 1000,
       });
 
@@ -167,28 +189,16 @@ describe('ImportExportService', () => {
     it('should export style when includeStyle is true', async () => {
       const db = await dbPromise;
 
-      await db.put('regions', {
-        key: 'test-region',
+      // Style already exists with region inside
+      await storeRegionInStyle(db, 'test-region', {
         id: 'test-region',
         name: 'Test Region',
         bounds: [[-122.5, 37.5], [-122.0, 38.0]],
-        styleId: 'test-region',
         styleUrl: 'https://example.com/style.json',
         minZoom: 0,
         maxZoom: 14,
         created: Date.now(),
-        lastModified: Date.now(),
         expiry: Date.now() + 30 * 24 * 60 * 60 * 1000,
-      });
-
-      await db.put('styles', {
-        key: 'test-region',
-        style: { version: 8, sources: {}, layers: [] },
-        provider: 'auto',
-        regions: [],
-        fonts: [],
-        glyphs: [],
-        sprites: [],
       });
 
       const result = await service.exportRegionAsJSON('test-region', {
@@ -201,17 +211,14 @@ describe('ImportExportService', () => {
     it('should export sprites when includeSprites is true', async () => {
       const db = await dbPromise;
 
-      await db.put('regions', {
-        key: 'test-region',
+      await storeRegionInStyle(db, 'test-region', {
         id: 'test-region',
         name: 'Test Region',
         bounds: [[-122.5, 37.5], [-122.0, 38.0]],
-        styleId: 'test-region',
         styleUrl: 'https://example.com/style.json',
         minZoom: 0,
         maxZoom: 14,
         created: Date.now(),
-        lastModified: Date.now(),
         expiry: Date.now() + 30 * 24 * 60 * 60 * 1000,
       });
 
@@ -235,17 +242,14 @@ describe('ImportExportService', () => {
     it('should export fonts when includeFonts is true', async () => {
       const db = await dbPromise;
 
-      await db.put('regions', {
-        key: 'test-region',
+      await storeRegionInStyle(db, 'test-region', {
         id: 'test-region',
         name: 'Test Region',
         bounds: [[-122.5, 37.5], [-122.0, 38.0]],
-        styleId: 'test-region',
         styleUrl: 'https://example.com/style.json',
         minZoom: 0,
         maxZoom: 14,
         created: Date.now(),
-        lastModified: Date.now(),
         expiry: Date.now() + 30 * 24 * 60 * 60 * 1000,
       });
 
@@ -280,17 +284,14 @@ describe('ImportExportService', () => {
     it('should export region as PMTiles format', async () => {
       const db = await dbPromise;
 
-      await db.put('regions', {
-        key: 'test-region',
+      await storeRegionInStyle(db, 'test-style', {
         id: 'test-region',
         name: 'Test Region',
         bounds: [[-122.5, 37.5], [-122.0, 38.0]],
-        styleId: 'test-style',
         styleUrl: 'https://example.com/style.json',
         minZoom: 0,
         maxZoom: 14,
         created: Date.now(),
-        lastModified: Date.now(),
         expiry: Date.now() + 30 * 24 * 60 * 60 * 1000,
       });
 
@@ -306,17 +307,14 @@ describe('ImportExportService', () => {
       const db = await dbPromise;
       const progressCalls: string[] = [];
 
-      await db.put('regions', {
-        key: 'test-region',
+      await storeRegionInStyle(db, 'test-style', {
         id: 'test-region',
         name: 'Test Region',
         bounds: [[-122.5, 37.5], [-122.0, 38.0]],
-        styleId: 'test-style',
         styleUrl: 'https://example.com/style.json',
         minZoom: 0,
         maxZoom: 14,
         created: Date.now(),
-        lastModified: Date.now(),
         expiry: Date.now() + 30 * 24 * 60 * 60 * 1000,
       });
 
@@ -333,17 +331,14 @@ describe('ImportExportService', () => {
     it('should include custom metadata in PMTiles export', async () => {
       const db = await dbPromise;
 
-      await db.put('regions', {
-        key: 'test-region',
+      await storeRegionInStyle(db, 'test-style', {
         id: 'test-region',
         name: 'Test Region',
         bounds: [[-122.5, 37.5], [-122.0, 38.0]],
-        styleId: 'test-style',
         styleUrl: 'https://example.com/style.json',
         minZoom: 0,
         maxZoom: 14,
         created: Date.now(),
-        lastModified: Date.now(),
         expiry: Date.now() + 30 * 24 * 60 * 60 * 1000,
       });
 
@@ -365,17 +360,14 @@ describe('ImportExportService', () => {
     it('should export region as MBTiles format', async () => {
       const db = await dbPromise;
 
-      await db.put('regions', {
-        key: 'test-region',
+      await storeRegionInStyle(db, 'test-style', {
         id: 'test-region',
         name: 'Test Region',
         bounds: [[-122.5, 37.5], [-122.0, 38.0]],
-        styleId: 'test-style',
         styleUrl: 'https://example.com/style.json',
         minZoom: 0,
         maxZoom: 14,
         created: Date.now(),
-        lastModified: Date.now(),
         expiry: Date.now() + 30 * 24 * 60 * 60 * 1000,
       });
 
@@ -390,17 +382,14 @@ describe('ImportExportService', () => {
     it('should export tiles with MBTiles structure', async () => {
       const db = await dbPromise;
 
-      await db.put('regions', {
-        key: 'test-region',
+      await storeRegionInStyle(db, 'test-region', {
         id: 'test-region',
         name: 'Test Region',
         bounds: [[-122.5, 37.5], [-122.0, 38.0]],
-        styleId: 'test-region',
         styleUrl: 'https://example.com/style.json',
         minZoom: 0,
         maxZoom: 14,
         created: Date.now(),
-        lastModified: Date.now(),
         expiry: Date.now() + 30 * 24 * 60 * 60 * 1000,
       });
 
@@ -512,18 +501,15 @@ describe('ImportExportService', () => {
     it('should fail when region exists and overwrite is false', async () => {
       const db = await dbPromise;
 
-      // Create existing region
-      await db.put('regions', {
-        key: 'existing-region',
+      // Create existing region inside a style
+      await storeRegionInStyle(db, 'test-style', {
         id: 'existing-region',
         name: 'Existing Region',
         bounds: [[-122.5, 37.5], [-122.0, 38.0]],
-        styleId: 'test-style',
         styleUrl: 'https://example.com/style.json',
         minZoom: 0,
         maxZoom: 14,
         created: Date.now(),
-        lastModified: Date.now(),
         expiry: Date.now() + 30 * 24 * 60 * 60 * 1000,
       });
 
@@ -564,18 +550,15 @@ describe('ImportExportService', () => {
     it('should succeed when region exists and overwrite is true', async () => {
       const db = await dbPromise;
 
-      // Create existing region
-      await db.put('regions', {
-        key: 'existing-region',
+      // Create existing region inside a style
+      await storeRegionInStyle(db, 'test-style', {
         id: 'existing-region',
         name: 'Existing Region',
         bounds: [[-122.5, 37.5], [-122.0, 38.0]],
-        styleId: 'test-style',
         styleUrl: 'https://example.com/style.json',
         minZoom: 0,
         maxZoom: 14,
         created: Date.now(),
-        lastModified: Date.now(),
         expiry: Date.now() + 30 * 24 * 60 * 60 * 1000,
       });
 

@@ -30,37 +30,37 @@ describe('RegionService', () => {
     it('should return all stored regions', async () => {
       const db = await dbPromise;
 
-      // Use type assertion for test data
-      const region1 = {
-        key: 'region-1',
-        id: 'region-1',
-        name: 'Region One',
-        bounds: [[-122.5, 37.5], [-122.0, 38.0]] as [[number, number], [number, number]],
-        styleId: 'test-style',
-        styleUrl: 'https://example.com/style.json',
-        minZoom: 0,
-        maxZoom: 10,
-        created: Date.now(),
-        lastModified: Date.now(),
-        expiry: Date.now() + 30 * 24 * 60 * 60 * 1000,
-      };
-
-      const region2 = {
-        key: 'region-2',
-        id: 'region-2',
-        name: 'Region Two',
-        bounds: [[-73.5, 40.5], [-73.0, 41.0]] as [[number, number], [number, number]],
-        styleId: 'test-style',
-        styleUrl: 'https://example.com/style.json',
-        minZoom: 0,
-        maxZoom: 10,
-        created: Date.now(),
-        lastModified: Date.now(),
-        expiry: Date.now() + 30 * 24 * 60 * 60 * 1000,
-      };
-
-      await db.put('regions', region1);
-      await db.put('regions', region2);
+      // Regions are now stored inside styles.regions[]
+      await db.put('styles', {
+        key: 'test-style',
+        style: { version: 8, sources: {}, layers: [] },
+        provider: 'auto' as StyleProvider,
+        regions: [
+          {
+            id: 'region-1',
+            name: 'Region One',
+            bounds: [[-122.5, 37.5], [-122.0, 38.0]] as [[number, number], [number, number]],
+            styleUrl: 'https://example.com/style.json',
+            minZoom: 0,
+            maxZoom: 10,
+            created: Date.now(),
+            expiry: Date.now() + 30 * 24 * 60 * 60 * 1000,
+          },
+          {
+            id: 'region-2',
+            name: 'Region Two',
+            bounds: [[-73.5, 40.5], [-73.0, 41.0]] as [[number, number], [number, number]],
+            styleUrl: 'https://example.com/style.json',
+            minZoom: 0,
+            maxZoom: 10,
+            created: Date.now(),
+            expiry: Date.now() + 30 * 24 * 60 * 60 * 1000,
+          },
+        ],
+        fonts: [],
+        glyphs: [],
+        sprites: [],
+      });
 
       const regions = await regionService.listRegions();
       expect(regions.length).toBe(2);

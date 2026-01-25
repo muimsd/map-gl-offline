@@ -505,26 +505,6 @@ export class DownloadManager {
         hasErrors: tileResult.errors?.length > 0,
       });
 
-      // Save the tile extension to the region for future use
-      if (tileResult.tileExtension) {
-        downloadLogger.debug(`Saving tile extension to region: ${tileResult.tileExtension}`);
-        try {
-          const { dbPromise } = await import('../../storage/indexedDbManager');
-          const db = await dbPromise;
-
-          // Get the current region
-          const currentRegion = await db.get('regions', regionId);
-          if (currentRegion) {
-            // Update with tile extension
-            currentRegion.tileExtension = tileResult.tileExtension;
-            await db.put('regions', currentRegion);
-            downloadLogger.debug(`Tile extension saved to region: ${tileResult.tileExtension}`);
-          }
-        } catch (saveError) {
-          downloadLogger.error('Failed to save tile extension to region:', saveError);
-        }
-      }
-
       if (tileResult.failedTiles > 0 || (tileResult.errors && tileResult.errors.length > 0)) {
         downloadLogger.error('Tile download had errors:', tileResult.errors);
       }

@@ -3,6 +3,8 @@ import { OfflineMapDB } from '../types';
 
 export const dbPromise = openDB<OfflineMapDB>('offline-map-db', 2, {
   upgrade(db, _oldVersion, _newVersion, _transaction) {
+    // Note: 'regions' store is deprecated - regions are now stored inside styles.regions[]
+    // Keeping for backward compatibility with existing databases
     if (!db.objectStoreNames.contains('regions')) {
       db.createObjectStore('regions', { keyPath: 'key' });
     }

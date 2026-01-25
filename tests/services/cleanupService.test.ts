@@ -4,6 +4,39 @@
 import { CleanupService, cleanupService, getRegionAnalytics, optimizeStorage } from '../../src/services/cleanupService';
 import { dbPromise } from '../../src/storage/indexedDbManager';
 
+// Helper to store region inside styles.regions[] (the new storage pattern)
+async function storeRegionInStyle(
+  db: Awaited<typeof dbPromise>,
+  styleId: string,
+  region: {
+    id: string;
+    name: string;
+    bounds: [[number, number], [number, number]];
+    styleUrl: string;
+    minZoom: number;
+    maxZoom: number;
+    created: number;
+    expiry: number;
+  }
+) {
+  const existingStyle = await db.get('styles', styleId);
+  if (existingStyle) {
+    existingStyle.regions = existingStyle.regions || [];
+    existingStyle.regions.push(region);
+    await db.put('styles', existingStyle);
+  } else {
+    await db.put('styles', {
+      key: styleId,
+      style: { version: 8, sources: {}, layers: [] },
+      provider: 'auto',
+      regions: [region],
+      fonts: [],
+      glyphs: [],
+      sprites: [],
+    });
+  }
+}
+
 describe('CleanupService', () => {
   let service: CleanupService;
   const mockDeleteRegion = jest.fn().mockResolvedValue(undefined);
@@ -26,31 +59,25 @@ describe('CleanupService', () => {
     it('should return all stored regions', async () => {
       const db = await dbPromise;
 
-      await db.put('regions', {
-        key: 'region-1',
+      await storeRegionInStyle(db, 'test-style', {
         id: 'region-1',
         name: 'Test Region 1',
         bounds: [[-122.5, 37.5], [-122.0, 38.0]],
-        styleId: 'test-style',
         styleUrl: 'https://example.com/style.json',
         minZoom: 0,
         maxZoom: 10,
         created: Date.now(),
-        lastModified: Date.now(),
         expiry: Date.now() + 30 * 24 * 60 * 60 * 1000,
       });
 
-      await db.put('regions', {
-        key: 'region-2',
+      await storeRegionInStyle(db, 'test-style', {
         id: 'region-2',
         name: 'Test Region 2',
         bounds: [[-73.5, 40.5], [-73.0, 41.0]],
-        styleId: 'test-style',
         styleUrl: 'https://example.com/style.json',
         minZoom: 0,
         maxZoom: 10,
         created: Date.now(),
-        lastModified: Date.now(),
         expiry: Date.now() + 30 * 24 * 60 * 60 * 1000,
       });
 
@@ -66,22 +93,7 @@ describe('CleanupService', () => {
     });
 
     it('should return 0 for region with empty styleId', async () => {
-      const db = await dbPromise;
-
-      await db.put('regions', {
-        key: 'region-no-style',
-        id: 'region-no-style',
-        name: 'No Style Region',
-        bounds: [[-122.5, 37.5], [-122.0, 38.0]] as [[number, number], [number, number]],
-        styleId: '', // Empty styleId
-        styleUrl: 'https://example.com/style.json',
-        minZoom: 0,
-        maxZoom: 10,
-        created: Date.now(),
-        lastModified: Date.now(),
-        expiry: Date.now() + 30 * 24 * 60 * 60 * 1000,
-      });
-
+      // When styleId is empty, region won't be found
       const size = await service.getRegionSize('region-no-style');
       expect(size).toBe(0);
     });
@@ -89,17 +101,14 @@ describe('CleanupService', () => {
     it('should calculate size from associated tiles', async () => {
       const db = await dbPromise;
 
-      await db.put('regions', {
-        key: 'region-with-tiles',
+      await storeRegionInStyle(db, 'test-style', {
         id: 'region-with-tiles',
         name: 'Region With Tiles',
         bounds: [[-122.5, 37.5], [-122.0, 38.0]],
-        styleId: 'test-style',
         styleUrl: 'https://example.com/style.json',
         minZoom: 0,
         maxZoom: 10,
         created: Date.now(),
-        lastModified: Date.now(),
         expiry: Date.now() + 30 * 24 * 60 * 60 * 1000,
       });
 
@@ -153,31 +162,25 @@ describe('CleanupService', () => {
       const db = await dbPromise;
       const now = Date.now();
 
-      await db.put('regions', {
-        key: 'region-1',
+      await storeRegionInStyle(db, 'style-1', {
         id: 'region-1',
         name: 'Test Region',
         bounds: [[-122.5, 37.5], [-122.0, 38.0]],
-        styleId: 'style-1',
         styleUrl: 'https://example.com/style.json',
         minZoom: 0,
         maxZoom: 10,
         created: now - 10000,
-        lastModified: now - 10000,
         expiry: now + 30 * 24 * 60 * 60 * 1000,
       });
 
-      await db.put('regions', {
-        key: 'region-2',
+      await storeRegionInStyle(db, 'style-2', {
         id: 'region-2',
         name: 'Test Region 2',
         bounds: [[-73.5, 40.5], [-73.0, 41.0]],
-        styleId: 'style-2',
         styleUrl: 'https://example.com/style2.json',
         minZoom: 0,
         maxZoom: 10,
         created: now,
-        lastModified: now,
         expiry: now + 30 * 24 * 60 * 60 * 1000,
       });
 
@@ -196,32 +199,26 @@ describe('CleanupService', () => {
       const day = 24 * 60 * 60 * 1000;
 
       // Expired region (modified more than 30 days ago)
-      await db.put('regions', {
-        key: 'expired-region',
+      await storeRegionInStyle(db, 'style', {
         id: 'expired-region',
         name: 'Expired',
         bounds: [[0, 0], [1, 1]],
-        styleId: 'style',
         styleUrl: 'https://example.com/style.json',
         minZoom: 0,
         maxZoom: 10,
         created: now - 40 * day,
-        lastModified: now - 40 * day,
         expiry: now - 10 * day,
       });
 
       // Recent region
-      await db.put('regions', {
-        key: 'recent-region',
+      await storeRegionInStyle(db, 'style', {
         id: 'recent-region',
         name: 'Recent',
         bounds: [[0, 0], [1, 1]],
-        styleId: 'style',
         styleUrl: 'https://example.com/style.json',
         minZoom: 0,
         maxZoom: 10,
         created: now - 5 * day,
-        lastModified: now - 5 * day,
         expiry: now + 25 * day,
       });
 
@@ -248,18 +245,14 @@ describe('CleanupService', () => {
       const now = Date.now();
       const day = 24 * 60 * 60 * 1000;
 
-      // Add expired region
-      await db.put('regions', {
-        key: 'expired-region',
+      await storeRegionInStyle(db, 'style', {
         id: 'expired-region',
         name: 'Expired',
         bounds: [[0, 0], [1, 1]],
-        styleId: 'style',
         styleUrl: 'https://example.com/style.json',
         minZoom: 0,
         maxZoom: 10,
         created: now - 40 * day,
-        lastModified: now - 40 * day,
         expiry: now - 10 * day,
       });
 
@@ -290,18 +283,14 @@ describe('CleanupService', () => {
       const now = Date.now();
       const day = 24 * 60 * 60 * 1000;
 
-      // Add expired priority region
-      await db.put('regions', {
-        key: 'priority-region',
+      await storeRegionInStyle(db, 'style', {
         id: 'priority-region',
         name: 'Important Region',
         bounds: [[0, 0], [1, 1]],
-        styleId: 'style',
         styleUrl: 'https://example.com/style.json',
         minZoom: 0,
         maxZoom: 10,
         created: now - 40 * day,
-        lastModified: now - 40 * day,
         expiry: now - 10 * day,
       });
 
@@ -319,18 +308,14 @@ describe('CleanupService', () => {
       const now = Date.now();
       const day = 24 * 60 * 60 * 1000;
 
-      // Add expired non-priority region
-      await db.put('regions', {
-        key: 'expired-region',
+      await storeRegionInStyle(db, 'style', {
         id: 'expired-region',
         name: 'Old Region',
         bounds: [[0, 0], [1, 1]],
-        styleId: 'style',
         styleUrl: 'https://example.com/style.json',
         minZoom: 0,
         maxZoom: 10,
         created: now - 40 * day,
-        lastModified: now - 40 * day,
         expiry: now - 10 * day,
       });
 
@@ -345,46 +330,36 @@ describe('CleanupService', () => {
       const now = Date.now();
       const day = 24 * 60 * 60 * 1000;
 
-      // Add 3 regions with different ages
-      await db.put('regions', {
-        key: 'old-region',
+      await storeRegionInStyle(db, 'style', {
         id: 'old-region',
         name: 'Old',
         bounds: [[0, 0], [1, 1]],
-        styleId: 'style',
         styleUrl: 'https://example.com/style.json',
         minZoom: 0,
         maxZoom: 10,
         created: now - 20 * day,
-        lastModified: now - 20 * day,
         expiry: now + 10 * day,
       });
 
-      await db.put('regions', {
-        key: 'middle-region',
+      await storeRegionInStyle(db, 'style', {
         id: 'middle-region',
         name: 'Middle',
         bounds: [[0, 0], [1, 1]],
-        styleId: 'style',
         styleUrl: 'https://example.com/style.json',
         minZoom: 0,
         maxZoom: 10,
         created: now - 10 * day,
-        lastModified: now - 10 * day,
         expiry: now + 20 * day,
       });
 
-      await db.put('regions', {
-        key: 'new-region',
+      await storeRegionInStyle(db, 'style', {
         id: 'new-region',
         name: 'New',
         bounds: [[0, 0], [1, 1]],
-        styleId: 'style',
         styleUrl: 'https://example.com/style.json',
         minZoom: 0,
         maxZoom: 10,
         created: now - 1 * day,
-        lastModified: now - 1 * day,
         expiry: now + 29 * day,
       });
 
@@ -401,17 +376,14 @@ describe('CleanupService', () => {
       const now = Date.now();
       const day = 24 * 60 * 60 * 1000;
 
-      await db.put('regions', {
-        key: 'error-region',
+      await storeRegionInStyle(db, 'style', {
         id: 'error-region',
         name: 'Error Region',
         bounds: [[0, 0], [1, 1]],
-        styleId: 'style',
         styleUrl: 'https://example.com/style.json',
         minZoom: 0,
         maxZoom: 10,
         created: now - 40 * day,
-        lastModified: now - 40 * day,
         expiry: now - 10 * day,
       });
 
@@ -429,17 +401,14 @@ describe('CleanupService', () => {
       const now = Date.now();
       const day = 24 * 60 * 60 * 1000;
 
-      await db.put('regions', {
-        key: 'region-with-tiles',
+      await storeRegionInStyle(db, 'test-style', {
         id: 'region-with-tiles',
         name: 'Region With Tiles',
         bounds: [[0, 0], [1, 1]],
-        styleId: 'test-style',
         styleUrl: 'https://example.com/style.json',
         minZoom: 0,
         maxZoom: 10,
         created: now - 40 * day,
-        lastModified: now - 40 * day,
         expiry: now - 10 * day,
       });
 
@@ -468,17 +437,14 @@ describe('CleanupService', () => {
       const now = Date.now();
       const day = 24 * 60 * 60 * 1000;
 
-      await db.put('regions', {
-        key: 'region-1',
+      await storeRegionInStyle(db, 'style', {
         id: 'region-1',
         name: 'Important Home Region',
         bounds: [[0, 0], [1, 1]],
-        styleId: 'style',
         styleUrl: 'https://example.com/style.json',
         minZoom: 0,
         maxZoom: 10,
         created: now - 5 * day,
-        lastModified: now - 5 * day,
         expiry: now + 25 * day,
       });
 

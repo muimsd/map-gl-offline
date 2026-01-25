@@ -341,16 +341,32 @@ export class ImportExportService {
   }
 
   /**
-   * Get region metadata
+   * Get region metadata from styles.regions[]
    */
   private async getRegionMetadata(regionId: string): Promise<StoredRegion | null> {
     const db = await this.db;
-    const transaction = db.transaction(['regions'], 'readonly');
-    const store = transaction.objectStore('regions');
 
     try {
-      const result = await store.get(regionId);
-      return result || null;
+      // Regions are stored inside styles.regions[], not in a separate regions table
+      const styles = await db.getAll('styles');
+      for (const style of styles) {
+        const styleEntry = style as { key?: string; regions?: Array<{ id?: string }> };
+        if (styleEntry.regions && Array.isArray(styleEntry.regions)) {
+          const region = styleEntry.regions.find(r => r.id === regionId);
+          if (region) {
+            return {
+              ...region,
+              key: region.id,
+              styleId: styleEntry.key,
+              created: (region as { created?: number }).created || Date.now(),
+              lastModified: (region as { created?: number }).created || Date.now(),
+              expiry:
+                (region as { expiry?: number }).expiry || Date.now() + 30 * 24 * 60 * 60 * 1000,
+            } as StoredRegion;
+          }
+        }
+      }
+      return null;
     } catch (error) {
       serviceLogger.error('Error getting region metadata:', error);
       return null;
@@ -605,33 +621,39 @@ export class ImportExportService {
         }
       }
 
-      // Import region metadata
-      const transaction = db.transaction(['regions'], 'readwrite');
-      const regionStore = transaction.objectStore('regions');
-
-      await regionStore.put({
+      // Create region metadata object
+      const regionMetadata = {
         id: regionId,
-        key: regionId, // StoredRegion requires key property
         name: regionName,
         bounds: regionData.metadata.bounds,
         minZoom: regionData.metadata.minZoom,
         maxZoom: regionData.metadata.maxZoom,
         styleUrl: regionData.metadata.styleUrl,
-        styleId: regionId, // StoredRegion requires styleId
-        created: Date.now(), // StoredRegion uses 'created' not 'createdAt'
-        lastModified: Date.now(), // Required by StoredRegion
+        created: Date.now(),
         expiry: Date.now() + 30 * 24 * 60 * 60 * 1000, // Default 30 days expiry
-      });
+      };
 
-      // Import style
+      // Import style with region metadata stored inside styles.regions[]
+      const styleTransaction = db.transaction(['styles'], 'readwrite');
+      const styleStore = styleTransaction.objectStore('styles');
+
       if (regionData.style && Object.keys(regionData.style).length > 0) {
-        const styleTransaction = db.transaction(['styles'], 'readwrite');
-        const styleStore = styleTransaction.objectStore('styles');
         await styleStore.put({
           key: regionId,
           style: regionData.style as BaseStyle,
           provider: 'auto',
-          regions: [],
+          regions: [regionMetadata],
+          fonts: [],
+          glyphs: [],
+          sprites: [],
+        });
+      } else {
+        // Create minimal style entry with region
+        await styleStore.put({
+          key: regionId,
+          style: { version: 8, sources: {}, layers: [] } as BaseStyle,
+          provider: 'auto',
+          regions: [regionMetadata],
           fonts: [],
           glyphs: [],
           sprites: [],

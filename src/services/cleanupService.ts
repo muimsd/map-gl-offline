@@ -293,7 +293,41 @@ export class CleanupService {
 
   async getAllRegions(): Promise<StoredRegion[]> {
     const db = await this.db;
-    return await db.getAll('regions');
+    const allRegions: StoredRegion[] = [];
+
+    // Regions are stored inside styles.regions[], not in a separate regions table
+    const styles = await db.getAll('styles');
+    for (const style of styles) {
+      const styleEntry = style as {
+        key?: string;
+        regions?: Array<{
+          id?: string;
+          name?: string;
+          bounds?: [[number, number], [number, number]];
+          minZoom?: number;
+          maxZoom?: number;
+          styleUrl?: string;
+          created?: number;
+          expiry?: number;
+        }>;
+      };
+      if (styleEntry.regions && Array.isArray(styleEntry.regions)) {
+        const regionsWithStyle = styleEntry.regions.map(
+          region =>
+            ({
+              ...region,
+              key: region.id,
+              styleId: styleEntry.key,
+              created: region.created || Date.now(),
+              lastModified: region.created || Date.now(),
+              expiry: region.expiry || Date.now() + 30 * 24 * 60 * 60 * 1000,
+            }) as StoredRegion
+        );
+        allRegions.push(...regionsWithStyle);
+      }
+    }
+
+    return allRegions;
   }
 
   async getRegionSize(regionId: string, styleIdParam?: string): Promise<number> {
@@ -302,25 +336,16 @@ export class CleanupService {
 
     let styleId = styleIdParam;
 
-    // If styleId not provided, try to find it
+    // If styleId not provided, search in styles.regions[]
     if (!styleId) {
-      // First try the legacy regions table (for backward compatibility)
-      const region = await db.get('regions', regionId);
-      if (region) {
-        styleId = region.styleId;
-      }
-
-      // If not found, search in styles.regions[] (current storage model)
-      if (!styleId) {
-        const styles = await db.getAll('styles');
-        for (const style of styles) {
-          const styleEntry = style as { key?: string; regions?: Array<{ id?: string }> };
-          if (styleEntry.regions && Array.isArray(styleEntry.regions)) {
-            const found = styleEntry.regions.find(r => r.id === regionId);
-            if (found) {
-              styleId = styleEntry.key;
-              break;
-            }
+      const styles = await db.getAll('styles');
+      for (const style of styles) {
+        const styleEntry = style as { key?: string; regions?: Array<{ id?: string }> };
+        if (styleEntry.regions && Array.isArray(styleEntry.regions)) {
+          const found = styleEntry.regions.find(r => r.id === regionId);
+          if (found) {
+            styleId = styleEntry.key;
+            break;
           }
         }
       }
@@ -354,8 +379,7 @@ export class CleanupService {
     const db = await this.db;
     let totalSize = 0;
 
-    const stores: Array<'regions' | 'tiles' | 'fonts' | 'sprites' | 'glyphs' | 'styles'> = [
-      'regions',
+    const stores: Array<'tiles' | 'fonts' | 'sprites' | 'glyphs' | 'styles'> = [
       'tiles',
       'fonts',
       'sprites',
