@@ -4,6 +4,7 @@
  */
 
 import { BaseComponent, ComponentConfig } from './BaseComponent';
+import { t } from '../../translations';
 
 export interface ListItemConfig {
   id: string;
@@ -32,7 +33,7 @@ export class List extends BaseComponent {
   constructor(config: ListConfig = {}) {
     super(config);
     this.config = {
-      emptyText: 'No items to display',
+      emptyText: t('list.empty'),
       ...config,
     };
     this.createListStructure();
@@ -70,7 +71,7 @@ export class List extends BaseComponent {
   private renderEmptyState(): void {
     const emptyElement = document.createElement('div');
     emptyElement.className = 'text-center py-8 text-gray-500 dark:text-gray-400';
-    emptyElement.textContent = this.config.emptyText || 'No items found';
+    emptyElement.textContent = this.config.emptyText || t('list.noItemsFound');
     this.listContainer?.appendChild(emptyElement);
   }
 

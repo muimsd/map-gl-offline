@@ -84,7 +84,7 @@ describe('ErrorState', () => {
       const error = new ErrorState({ onDismiss });
       const buttons = error.getElement().querySelectorAll('button');
       expect(buttons.length).toBe(1);
-      expect(buttons[0].textContent).toBe('Dismiss');
+      expect(buttons[0].textContent).toBe('Cancel');
     });
 
     it('should call onDismiss when dismiss button is clicked', () => {

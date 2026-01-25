@@ -9,6 +9,7 @@ import { Modal, ModalConfig } from '../components/shared/Modal';
 import { Button } from '../components/shared/Button';
 import { icons } from '../../utils/icons';
 import { logger } from '../../utils/logger';
+import { t, i18n } from '../translations';
 
 const formLogger = logger.scope('RegionFormModal');
 // import { themeManager } from '../managers/themeManager.js';
@@ -56,8 +57,8 @@ export class RegionFormModal {
     const { bounds, area } = this.options;
 
     const modalConfig: ModalConfig = {
-      title: 'Download Offline Region',
-      subtitle: `Selected area: ${area} km²`,
+      title: t('regionForm.title'),
+      subtitle: t('regionForm.subtitle', { area: area.toString() }),
       size: 'md',
       closable: true,
       showThemeToggle: true,
@@ -88,6 +89,9 @@ export class RegionFormModal {
 
     const form = document.createElement('div');
     form.className = 'flex flex-col gap-6 py-2';
+    if (i18n.isRTL()) {
+      form.setAttribute('dir', 'rtl');
+    }
 
     // Region info display (Moved to top for better context)
     const infoGroup = document.createElement('div');
@@ -95,13 +99,13 @@ export class RegionFormModal {
       'grid grid-cols-2 gap-4 p-4 rounded-xl glass-input border border-gray-100/50 dark:border-gray-700/50 bg-gray-50/50 dark:bg-gray-800/50';
     infoGroup.innerHTML = `
       <div class="flex flex-col justify-center">
-        <strong class="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1">Area</strong>
+        <strong class="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1">${t('regionForm.area')}</strong>
         <div class="text-xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-gray-900 to-gray-700 dark:from-white dark:to-gray-300">
           ${area.toLocaleString()} <span class="text-sm font-medium text-gray-500">km²</span>
         </div>
       </div>
       <div>
-        <strong class="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1">Bounds</strong>
+        <strong class="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1">${t('regionForm.bounds')}</strong>
         <div class="text-xs font-mono text-gray-600 dark:text-gray-300 leading-relaxed bg-white/50 dark:bg-black/20 p-2 rounded-lg">
           ${west.toFixed(4)}, ${south.toFixed(4)}<br>
           ${east.toFixed(4)}, ${north.toFixed(4)}
@@ -114,12 +118,12 @@ export class RegionFormModal {
     const nameGroup = document.createElement('div');
     nameGroup.innerHTML = `
       <label class="block mb-2 text-sm font-semibold text-gray-700 dark:text-gray-300">
-        Region Name
+        ${t('regionForm.name')}
       </label>
     `;
     this.nameInput = document.createElement('input');
     this.nameInput.type = 'text';
-    this.nameInput.placeholder = 'e.g., Downtown District';
+    this.nameInput.placeholder = t('regionForm.namePlaceholder');
     this.nameInput.className =
       'w-full px-4 py-3 rounded-xl text-base glass-input text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500/50 transition-all shadow-sm';
     nameGroup.appendChild(this.nameInput);
@@ -132,7 +136,7 @@ export class RegionFormModal {
     const minZoomDiv = document.createElement('div');
     minZoomDiv.innerHTML = `
       <label class="block mb-2 text-sm font-semibold text-gray-700 dark:text-gray-300">
-        Min Zoom
+        ${t('regionForm.minZoom')}
       </label>
     `;
     this.minZoomInput = document.createElement('input');
@@ -147,7 +151,7 @@ export class RegionFormModal {
     const maxZoomDiv = document.createElement('div');
     maxZoomDiv.innerHTML = `
       <label class="block mb-2 text-sm font-semibold text-gray-700 dark:text-gray-300">
-        Max Zoom
+        ${t('regionForm.maxZoom')}
       </label>
     `;
     this.maxZoomInput = document.createElement('input');
@@ -167,7 +171,7 @@ export class RegionFormModal {
     const styleGroup = document.createElement('div');
     styleGroup.innerHTML = `
       <label class="block mb-2 text-sm font-semibold text-gray-700 dark:text-gray-300">
-        Style URL
+        ${t('regionForm.styleUrl')}
       </label>
     `;
     this.styleUrlInput = document.createElement('input');
@@ -183,16 +187,16 @@ export class RegionFormModal {
     const providerGroup = document.createElement('div');
     providerGroup.innerHTML = `
       <label class="block mb-2 text-sm font-semibold text-gray-700 dark:text-gray-300">
-        Style Provider
+        ${t('regionForm.provider')}
       </label>
     `;
     this.providerSelect = document.createElement('select');
     this.providerSelect.className =
       'w-full px-4 py-3 rounded-xl text-base glass-input text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500/50 transition-all appearance-none cursor-pointer shadow-sm';
     this.providerSelect.innerHTML = `
-      <option value="auto">Auto-detect</option>
-      <option value="mapbox">Mapbox GL (requires access token)</option>
-      <option value="maplibre">MapLibre GL (open source)</option>
+      <option value="auto">${t('regionForm.providerAuto')}</option>
+      <option value="mapbox">${t('regionForm.providerMapbox')}</option>
+      <option value="maplibre">${t('regionForm.providerMaplibre')}</option>
     `;
     this.providerSelect.addEventListener('change', () => this.handleProviderChange());
     providerGroup.appendChild(this.providerSelect);
@@ -201,7 +205,7 @@ export class RegionFormModal {
     const providerInfo = document.createElement('div');
     providerInfo.className =
       'text-xs text-gray-500 dark:text-gray-400 mt-2 ml-1 flex items-center gap-1';
-    providerInfo.innerHTML = `${icons.infoCircle({ size: 12 })} Auto-detect will analyze the style URL to determine the provider`;
+    providerInfo.innerHTML = `${icons.infoCircle({ size: 12 })} ${t('regionForm.providerInfo')}`;
     providerGroup.appendChild(providerInfo);
 
     form.appendChild(providerGroup);
@@ -211,8 +215,8 @@ export class RegionFormModal {
     this.accessTokenGroup.className = 'hidden';
     this.accessTokenGroup.innerHTML = `
       <label class="block mb-2 text-sm font-semibold text-gray-700 dark:text-gray-300">
-        Mapbox Access Token
-        <span class="ml-2 text-xs font-normal text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/30 px-2 py-0.5 rounded-full border border-amber-200 dark:border-amber-800">Required</span>
+        ${t('regionForm.accessToken')}
+        <span class="ml-2 text-xs font-normal text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/30 px-2 py-0.5 rounded-full border border-amber-200 dark:border-amber-800">${t('regionForm.accessTokenRequired')}</span>
       </label>
     `;
     this.accessTokenInput = document.createElement('input');
@@ -226,7 +230,7 @@ export class RegionFormModal {
     const tokenHelp = document.createElement('div');
     tokenHelp.className = 'text-xs text-gray-500 dark:text-gray-400 mt-2 ml-1';
     tokenHelp.innerHTML = `
-      Get your access token from <a href="https://account.mapbox.com/access-tokens/" target="_blank" rel="noopener noreferrer" class="text-primary-600 dark:text-primary-400 hover:underline font-medium">Mapbox Account</a>
+      ${t('regionForm.accessTokenHelp')} <a href="https://account.mapbox.com/access-tokens/" target="_blank" rel="noopener noreferrer" class="text-primary-600 dark:text-primary-400 hover:underline font-medium">Mapbox Account</a>
     `;
     this.accessTokenGroup.appendChild(tokenHelp);
 
@@ -295,10 +299,13 @@ export class RegionFormModal {
   private createFooter(): HTMLElement {
     const footer = document.createElement('div');
     footer.className = 'flex gap-2 justify-end';
+    if (i18n.isRTL()) {
+      footer.setAttribute('dir', 'rtl');
+    }
 
     // Cancel button
     const cancelButton = new Button({
-      text: 'Cancel',
+      text: t('app.cancel'),
       variant: 'secondary',
       onClick: () => {
         this.modal?.hide();
@@ -308,7 +315,7 @@ export class RegionFormModal {
 
     // Save button
     const saveButton = new Button({
-      text: 'Download Region',
+      text: t('regionForm.downloadRegion'),
       variant: 'primary',
       icon: icons.download({ size: 16, color: 'white' }),
       onClick: () => this.handleSave(),

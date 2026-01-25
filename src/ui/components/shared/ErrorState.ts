@@ -4,6 +4,7 @@
  */
 
 import { BaseComponent, ComponentConfig } from './BaseComponent';
+import { t } from '../../translations';
 
 export interface ErrorStateConfig extends ComponentConfig {
   title?: string;
@@ -24,12 +25,12 @@ export class ErrorState extends BaseComponent {
   constructor(config: ErrorStateConfig = {}) {
     super(config);
     this.errorConfig = {
-      title: 'Error',
-      message: 'Something went wrong',
+      title: t('app.error'),
+      message: t('errorState.message'),
       type: 'error',
       showIcon: true,
-      retryLabel: 'Try Again',
-      dismissLabel: 'Dismiss',
+      retryLabel: t('errorState.retry'),
+      dismissLabel: t('app.cancel'),
       ...config,
     };
     this.setupErrorState();

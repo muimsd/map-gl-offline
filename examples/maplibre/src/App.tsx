@@ -1,8 +1,19 @@
 import { useRef, useEffect } from 'react';
-import { Map, NavigationControl } from 'maplibre-gl';
+import maplibregl, { Map, NavigationControl } from 'maplibre-gl';
 import { OfflineMapManager, OfflineManagerControl } from 'map-gl-offline';
 //@ts-ignore
 import 'maplibre-gl/dist/maplibre-gl.css';
+
+// Set up RTL text plugin ONCE at module level (before any map is created)
+// This must be outside of React components to avoid multiple calls
+const rtlPluginUrl = 'https://unpkg.com/@mapbox/mapbox-gl-rtl-text@0.3.0/dist/mapbox-gl-rtl-text.js';
+try {
+  maplibregl.setRTLTextPlugin(rtlPluginUrl, true);
+  console.log('RTL Text Plugin registered');
+} catch (e) {
+  // Plugin might already be loaded
+  console.log('RTL Text Plugin already registered or error:', e);
+}
 
 function App() {
   const mapContainer = useRef<HTMLDivElement | null>(null);
@@ -11,12 +22,15 @@ function App() {
 
   useEffect(() => {
     if (map.current || !mapContainer.current) return; // stops map from initializing more than once
-    const lng = 35;
-    const lat = 41;
-    const zoom = 10;
+    // Center on Baghdad, Iraq to see Arabic labels
+    const lng = 44.3763;
+    const lat = 33.2788;
+    const zoom = 11;
+
     map.current = new Map({
       container: mapContainer.current,
-      style: 'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json',
+      // Using OpenFreeMap which has Arabic labels
+      style: 'https://tiles.openfreemap.org/styles/bright',
       center: [lng, lat],
       zoom: zoom,
     });
@@ -35,24 +49,16 @@ function App() {
     );
 
     // Add the offline manager control with dark theme
+    const styleUrl = 'https://tiles.openfreemap.org/styles/bright';
     map.current.addControl(
-      new OfflineManagerControl(offlineManager.current, { theme: 'dark' }) as any, 
+      new OfflineManagerControl(offlineManager.current, {
+        styleUrl,
+        theme: 'dark'
+      }) as unknown as maplibregl.IControl,
       'top-right'
     );
   }, []);
-
-
-
-  // For testing: manual cleanup
-  const handleCleanup = async () => {
-    // const offlineManager = new OfflineMapManager();
-    // const cleanedCount = await offlineManager.cleanupExpiredRegions();
-    // alert(`Manual cleanup removed ${cleanedCount} expired regions`);
-  };
-  return (
-    <div style={{ width: '100vw', height: '100vh' }} ref={mapContainer}>
-    </div>
-  );
+  return <div style={{ width: '100vw', height: '100vh' }} ref={mapContainer}></div>;
 }
 
 export default App;

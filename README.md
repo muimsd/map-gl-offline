@@ -8,7 +8,13 @@
 
 > **⚠️ Development Notice**: This package is currently under active development and is optimized for **MapLibre GL JS**. Mapbox GL JS support is planned for future releases.
 
-A comprehensive **TypeScript** library for **MapLibre GL JS** that enables complete offline map functionality with vector/raster tiles, styles, fonts, sprites, and glyphs stored in IndexedDB. Features include advanced analytics, import/export capabilities, intelligent cleanup, and a modern glassmorphic UI control.
+A comprehensive **TypeScript** library for **MapLibre GL JS** that enables complete offline map functionality with vector/raster tiles, styles, fonts, sprites, and glyphs stored in IndexedDB. Features include advanced analytics, intelligent cleanup, and a modern glassmorphic UI control.
+
+## 🎬 Demo
+
+![Map GL Offline Demo](assets/map-gl-offline-demo.gif)
+
+*Download regions, load offline styles, and navigate maps without an internet connection.*
 
 ## ✨ Features
 
@@ -19,8 +25,6 @@ A comprehensive **TypeScript** library for **MapLibre GL JS** that enables compl
 - 🔤 **Font & Glyph Support**: Comprehensive font and glyph management with Unicode range support
 - 🎨 **Sprite Management**: Handle map sprites and icons offline with multi-resolution support (@1x, @2x)
 - 📊 **Real-time Analytics**: Detailed storage analytics, performance metrics, and optimization recommendations
-- 📤 **Import/Export**: Export regions to JSON, PMTiles, and MBTiles formats for data portability
-- 🔄 **Data Portability**: Seamless transfer of offline maps between devices and applications
 
 ### 🎨 Modern UI Control
 
@@ -38,7 +42,6 @@ A comprehensive **TypeScript** library for **MapLibre GL JS** that enables compl
 - ⚡ **Performance Optimized**: Concurrent downloads, async/await patterns, and memory-efficient operations
 - 🧹 **Intelligent Cleanup**: Smart cleanup of expired data with customizable policies
 - 🔄 **Robust Error Handling**: Comprehensive error recovery, retry mechanisms, and graceful degradation
-- 🗜️ **Multiple Formats**: Support for JSON, PMTiles, and MBTiles export/import
 - 🔍 **Enhanced Logging**: Detailed debugging with zoom-level specific logging (Z12 tracking)
 
 ## 📦 Installation
@@ -92,7 +95,7 @@ The UI control provides:
 
 - 📍 **Polygon drawing** for region selection
 - 📊 **Download progress** tracking
-- 🗂️ **Region management** (view, delete, export)
+- 🗂️ **Region management** (view, delete)
 - 🌓 **Theme toggle** (dark/light mode)
 - 📈 **Storage analytics**
 
@@ -134,72 +137,6 @@ console.log(`Stored regions:`, regions);
 // Delete a region
 await offlineManager.deleteRegion('downtown');
 ```
-
-### Import/Export Functionality
-
-Export and import offline regions for backup, sharing, or cross-device usage:
-
-```typescript
-// Export region to JSON
-const jsonExport = await offlineManager.exportRegionAsJSON('downtown', {
-  includeStyle: true,
-  includeTiles: true,
-  includeSprites: true,
-  includeFonts: true,
-  onProgress: progress => {
-    console.log(`Export: ${progress.percentage}% - ${progress.stage}`);
-  },
-});
-
-// Download exported file
-const url = URL.createObjectURL(jsonExport.blob);
-const a = document.createElement('a');
-a.href = url;
-a.download = jsonExport.filename;
-a.click();
-URL.revokeObjectURL(url);
-
-// Export to PMTiles (web-optimized format)
-const pmtilesExport = await offlineManager.exportRegionAsPMTiles('downtown', {
-  compression: 'gzip',
-  metadata: { attribution: 'Custom map data', version: '1.0' },
-});
-
-// Export to MBTiles (SQLite-based, industry standard)
-const mbtilesExport = await offlineManager.exportRegionAsMBTiles('downtown', {
-  format: 'pbf',
-  compression: 'gzip',
-  metadata: { description: 'Offline map for mobile app' },
-});
-
-// Import region from file
-const fileInput = document.querySelector('#fileInput');
-fileInput.addEventListener('change', async event => {
-  const file = event.target.files?.[0];
-  if (file) {
-    const result = await offlineManager.importRegion({
-      file,
-      format: 'json', // or 'pmtiles', 'mbtiles'
-      overwrite: true,
-      newRegionId: 'imported-downtown',
-      newRegionName: 'Imported Downtown',
-    });
-
-    if (result.success) {
-      console.log(`Imported: ${result.regionId}`);
-      console.log(`Stats:`, result.statistics);
-    }
-  }
-});
-```
-
-**Export Format Comparison:**
-
-| Format  | Best For                      | Pros                                     | Cons                   |
-| ------- | ----------------------------- | ---------------------------------------- | ---------------------- |
-| JSON    | Development, debugging        | Human-readable, easy to inspect          | Larger file size       |
-| PMTiles | Web deployment, CDN           | Efficient HTTP range requests, optimized | Specialized format     |
-| MBTiles | GIS tools, cross-platform use | SQLite-based, widely supported, mature   | Requires SQLite parser |
 
 ### Analytics & Monitoring
 
@@ -262,13 +199,6 @@ const manager = new OfflineMapManager(options?: {
 - `getFontStats()` - Get font statistics
 - `getSpriteStats()` - Get sprite statistics
 
-**Import/Export Methods:**
-
-- `exportRegionAsJSON(regionId: string, options?)` - Export to JSON format
-- `exportRegionAsPMTiles(regionId: string, options?)` - Export to PMTiles format
-- `exportRegionAsMBTiles(regionId: string, options?)` - Export to MBTiles format
-- `importRegion(data: RegionImportData)` - Import from file (JSON/PMTiles/MBTiles)
-
 **Maintenance Methods:**
 
 - `cleanupOldTiles(maxAge: number)` - Remove tiles older than specified age
@@ -295,7 +225,7 @@ const control = new OfflineManagerControl({
 
 - Interactive polygon drawing for region selection
 - Real-time download progress tracking
-- Region management (view, delete, export)
+- Region management (view, delete)
 - Theme toggle (dark/light mode)
 - Storage analytics display
 - Responsive mobile-friendly design
@@ -318,38 +248,6 @@ interface OfflineRegionOptions {
 }
 ```
 
-### Import/Export Options
-
-```typescript
-interface ExportOptions {
-  includeStyle?: boolean; // Include style data (default: true)
-  includeTiles?: boolean; // Include tiles (default: true)
-  includeSprites?: boolean; // Include sprites (default: true)
-  includeFonts?: boolean; // Include fonts (default: true)
-  onProgress?: (progress: ExportProgress) => void;
-}
-
-interface PMTilesExportOptions extends ExportOptions {
-  compression?: 'gzip' | 'brotli' | 'none';
-  clustered?: boolean;
-  metadata?: Record<string, any>;
-}
-
-interface MBTilesExportOptions extends ExportOptions {
-  format?: 'pbf' | 'png' | 'jpg';
-  compression?: 'gzip' | 'none';
-  metadata?: Record<string, any>;
-}
-
-interface RegionImportData {
-  file: File;
-  format: 'json' | 'pmtiles' | 'mbtiles';
-  overwrite?: boolean;
-  newRegionId?: string;
-  newRegionName?: string;
-}
-```
-
 ## 🎯 Use Cases
 
 - 🏔️ **Outdoor & Recreation Apps**: Hiking, camping, and adventure apps with offline trail maps
@@ -361,7 +259,6 @@ interface RegionImportData {
 - 🎓 **Educational Apps**: Geography and learning apps with downloadable maps
 - 🏗️ **Construction & Engineering**: Site management with offline blueprints
 - 💾 **Bandwidth Optimization**: Reduce data costs by pre-downloading maps
-- 🔄 **Multi-Device Sync**: Share offline maps across devices and platforms
 
 ## 💡 Best Practices
 
@@ -443,23 +340,6 @@ if (usage / quota > 0.9) {
 if (navigator.storage?.persist) {
   const isPersisted = await navigator.storage.persist();
   console.log(`Persistent storage: ${isPersisted}`);
-}
-```
-
-### Import/Export Issues
-
-```typescript
-// Validate file before import
-const validFormats = ['json', 'pmtiles', 'mbtiles'];
-const ext = file.name.split('.').pop();
-if (!validFormats.includes(ext)) {
-  throw new Error(`Unsupported format: ${ext}`);
-}
-
-// Handle large files
-if (file.size > 100 * 1024 * 1024) {
-  // 100MB
-  console.warn('Large file - import may take time');
 }
 ```
 
@@ -562,7 +442,6 @@ map-gl-offline/
 - ✅ **Fractional Zoom Fix**: Fixed tile loading at fractional zoom levels
 - ✅ **Modern UI**: Glassmorphic design with dark/light theme
 - ✅ **Polygon Drawing**: Interactive region selection tool
-- ✅ **Import/Export**: JSON, PMTiles, and MBTiles support
 - ✅ **Enhanced Analytics**: Comprehensive storage insights
 - ✅ **Performance**: Optimized downloads and memory usage
 - ✅ **TypeScript**: Full type safety throughout
@@ -572,7 +451,6 @@ See [CHANGELOG.md](CHANGELOG.md) for complete version history.
 ## 🙏 Acknowledgments
 
 - [MapLibre GL JS](https://github.com/maplibre/maplibre-gl-js) - Open-source map rendering engine
-- [PMTiles](https://github.com/protomaps/PMTiles) - Cloud-optimized map tile format
 - [IndexedDB](https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API) - Browser storage API
 - [Tilebelt](https://github.com/mapbox/tilebelt) - Tile coordinate utilities
 

@@ -64,7 +64,10 @@ const styles: StyleItem[] = [
   },
 ];
 const defaultStyle = styles[0];
-
+maplibregl.setRTLTextPlugin(
+  'https://unpkg.com/@mapbox/mapbox-gl-rtl-text@0.3.0/dist/mapbox-gl-rtl-text.js',
+  true // Lazy load the plugin
+);
 const map = new maplibregl.Map({
   container: 'map',
   style: defaultStyle.styleUrl, // Example style

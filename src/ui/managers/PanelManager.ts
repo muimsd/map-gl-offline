@@ -14,6 +14,7 @@ import { ImportExportModal } from '../modals/importExportModal';
 import { formatBytes } from '../../utils/formatting';
 import { themeManager } from '../ThemeManager';
 import { logger } from '../../utils/logger';
+import { i18n, t } from '../translations';
 
 const panelLogger = logger.scope('PanelManager');
 
@@ -24,6 +25,7 @@ import type { MapboxStyle, StyleStorageItem } from '../../types/style';
 import { List, ListItemConfig } from '../components/shared/List';
 import { Button } from '../components/shared/Button';
 import { BaseComponent } from '../components/shared/BaseComponent';
+import { LanguageSelector } from '../components/shared/LanguageSelector';
 
 // Map type for MapLibre GL
 type MaplibreMap = unknown;
@@ -52,10 +54,14 @@ export class PanelRenderer extends BaseComponent {
   private actionButtonsContainer?: HTMLElement;
   private regionsList?: List;
   private downloadProgressContainer?: HTMLElement;
+  private languageSelector?: LanguageSelector;
 
   // Debounce mechanism
   private refreshTimeout?: NodeJS.Timeout;
   private isRefreshing = false;
+
+  // Language change unsubscribe function
+  private unsubscribeLanguage?: () => void;
 
   constructor(options: PanelRendererOptions) {
     super({});
@@ -64,6 +70,11 @@ export class PanelRenderer extends BaseComponent {
     this.modalManager = options.modalManager;
     this.options = options;
     this.map = options.map;
+
+    // Subscribe to language changes
+    this.unsubscribeLanguage = i18n.subscribe(() => {
+      this.refresh();
+    });
   }
 
   protected createElement(): HTMLElement {
@@ -118,12 +129,17 @@ export class PanelRenderer extends BaseComponent {
     this.headerContainer.className =
       'flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700';
 
+    // Apply RTL direction if needed
+    if (i18n.isRTL()) {
+      this.headerContainer.setAttribute('dir', 'rtl');
+    }
+
     // Title section
     const titleSection = document.createElement('div');
     titleSection.innerHTML = `
-      <h2 class="text-xl font-semibold text-gray-900 dark:text-white">Offline Manager</h2>
+      <h2 class="text-xl font-semibold text-gray-900 dark:text-white">${t('header.title')}</h2>
       <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
-        ${regions.length} regions • ${formatBytes(analytics.totalStorageSize)} total
+        ${t('header.subtitle', { count: regions.length, size: formatBytes(analytics.totalStorageSize) })}
       </p>
     `;
 
@@ -131,11 +147,18 @@ export class PanelRenderer extends BaseComponent {
     const actionsSection = document.createElement('div');
     actionsSection.className = 'flex items-center gap-2';
 
+    // Language selector
+    this.languageSelector = new LanguageSelector({
+      onChange: () => {
+        // Language change is handled by subscription in constructor
+      },
+    });
+
     // Theme toggle button
     const themeButton = new Button({
       className: 'p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded-full',
       icon: this.getThemeIcon(),
-      title: 'Toggle theme',
+      title: t('theme.toggle'),
       onClick: () => this.handleThemeToggle(),
     });
 
@@ -143,10 +166,11 @@ export class PanelRenderer extends BaseComponent {
     const closeButton = new Button({
       className: 'p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded-full',
       icon: icons.x({ size: 16, color: 'currentColor' }),
-      title: 'Close',
+      title: t('app.close'),
       onClick: this.options.onClose,
     });
 
+    actionsSection.appendChild(this.languageSelector.getElement());
     actionsSection.appendChild(themeButton.getElement());
     actionsSection.appendChild(closeButton.getElement());
 
@@ -167,9 +191,14 @@ export class PanelRenderer extends BaseComponent {
     this.actionButtonsContainer.className =
       'flex gap-3 px-6 py-4 border-b border-gray-200 dark:border-gray-700';
 
+    // Apply RTL direction if needed
+    if (i18n.isRTL()) {
+      this.actionButtonsContainer.setAttribute('dir', 'rtl');
+    }
+
     // Add Region button
     const addRegionButton = new Button({
-      text: 'Add Region',
+      text: t('actions.addRegion'),
       variant: 'primary',
       icon: icons.plus({ size: 16, color: 'white' }),
       onClick: this.options.onAddRegion,
@@ -177,7 +206,7 @@ export class PanelRenderer extends BaseComponent {
 
     // Refresh button
     const refreshButton = new Button({
-      text: 'Refresh',
+      text: t('actions.refresh'),
       variant: 'secondary',
       icon: icons.refresh({ size: 16, color: 'currentColor' }),
       onClick: () => this.refresh(),
@@ -266,18 +295,18 @@ export class PanelRenderer extends BaseComponent {
             template: this.createCompleteStyleTemplate(styleWithSize, styleRegions),
             actions: [
               {
-                label: 'Load Style',
+                label: t('actions.loadStyle'),
                 action: 'load-style',
                 icon: icons.cloud({ size: 12, color: 'currentColor' }),
               },
               {
-                label: 'Fix Tiles',
+                label: t('actions.fixTiles'),
                 action: 'fix-compressed-tiles',
                 variant: 'secondary',
                 icon: icons.settings({ size: 12, color: 'currentColor' }),
               },
               {
-                label: 'Delete Style',
+                label: t('actions.deleteStyle'),
                 action: 'delete-style',
                 variant: 'danger',
                 icon: icons.trash({ size: 12, color: 'currentColor' }),
@@ -306,12 +335,12 @@ export class PanelRenderer extends BaseComponent {
             template: this.createRegionItemTemplate(region, false),
             actions: [
               {
-                label: 'Details',
+                label: t('app.details'),
                 action: 'show-details',
                 icon: icons.infoCircle({ size: 12, color: 'currentColor' }),
               },
               {
-                label: 'Focus',
+                label: t('app.focus'),
                 action: 'focus-region',
                 icon: icons.focus({ size: 12, color: 'currentColor' }),
               },
@@ -321,7 +350,7 @@ export class PanelRenderer extends BaseComponent {
               //   icon: icons.deviceFloppy({ size: 12, color: 'currentColor' })
               // },
               {
-                label: 'Delete',
+                label: t('app.delete'),
                 action: 'delete-region',
                 variant: 'danger',
                 icon: icons.trash({ size: 12, color: 'currentColor' }),
@@ -335,7 +364,7 @@ export class PanelRenderer extends BaseComponent {
       this.regionsList = new List({
         className: 'flex-1 px-6 py-4 overflow-y-auto',
         items: listItems,
-        emptyText: 'No offline styles or regions found. Click "Add Region" to get started.',
+        emptyText: t('regionList.empty'),
         onItemAction: this.handleItemAction.bind(this),
         onItemClick: (itemId: string, item: unknown) => {
           const itemObj = item as Record<string, unknown>;
@@ -379,12 +408,12 @@ export class PanelRenderer extends BaseComponent {
               ${region.name}
             </h4>
             <div class="text-xs text-slate-500 dark:text-slate-400 mt-1">
-              ${region.bounds ? `<span class="font-medium">SW:</span> ${region.bounds[0][1].toFixed(4)}, ${region.bounds[0][0].toFixed(4)} <span class="mx-1">→</span> <span class="font-medium">NE:</span> ${region.bounds[1][1].toFixed(4)}, ${region.bounds[1][0].toFixed(4)}` : 'No bounds'}
+              ${region.bounds ? `<span class="font-medium">SW:</span> ${region.bounds[0][1].toFixed(4)}, ${region.bounds[0][0].toFixed(4)} <span class="mx-1">→</span> <span class="font-medium">NE:</span> ${region.bounds[1][1].toFixed(4)}, ${region.bounds[1][0].toFixed(4)}` : t('panel.noBounds')}
             </div>
             <div class="flex items-center gap-4 text-xs text-slate-400 dark:text-slate-500 mt-2">
-              <span>Zoom: ${region.minZoom}-${region.maxZoom}</span>
-              ${region.downloadedAt ? `<span>Downloaded: ${new Date(region.downloadedAt).toLocaleDateString()}</span>` : ''}
-              ${region.size ? `<span>Size: ${formatBytes(region.size)}</span>` : ''}
+              <span>${t('regionList.zoom')}: ${region.minZoom}-${region.maxZoom}</span>
+              ${region.downloadedAt ? `<span>${t('regionList.downloaded')}: ${new Date(region.downloadedAt).toLocaleDateString()}</span>` : ''}
+              ${region.size ? `<span>${t('regionList.size')}: ${formatBytes(region.size)}</span>` : ''}
             </div>
           </div>
         </div>
@@ -410,16 +439,16 @@ export class PanelRenderer extends BaseComponent {
           <div class="flex items-center justify-between">
             <div class="flex-1">
               <h3 class="font-semibold text-slate-800 dark:text-slate-100 text-base">
-                ${style.style?.name || style.key || 'Unnamed Style'}
+                ${style.style?.name || style.key || t('style.unnamedStyle')}
               </h3>
               <p class="text-sm text-slate-600 dark:text-slate-300 mt-1">
-                Style ID: ${style.key}
+                ${t('regionList.styleId')}: ${style.key}
               </p>
               <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">
                 ${regionCount} region${regionCount === 1 ? '' : 's'} • ${formatBytes(totalSize)}
               </p>
               <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">
-                Stored Style Size: ${formatBytes(style.dbSize || 0)}
+                ${t('regionList.storedStyleSize')}: ${formatBytes(style.dbSize || 0)}
               </p>
             </div>
             <div class="flex items-center gap-2">
@@ -455,28 +484,28 @@ export class PanelRenderer extends BaseComponent {
               ${region.name}
             </h4>
             <div class="text-xs text-slate-500 dark:text-slate-400 mt-1">
-              ${region.bounds ? `<span class="font-medium">SW:</span> ${region.bounds[0][1].toFixed(4)}, ${region.bounds[0][0].toFixed(4)} <span class="mx-1">→</span> <span class="font-medium">NE:</span> ${region.bounds[1][1].toFixed(4)}, ${region.bounds[1][0].toFixed(4)}` : 'No bounds'}
+              ${region.bounds ? `<span class="font-medium">SW:</span> ${region.bounds[0][1].toFixed(4)}, ${region.bounds[0][0].toFixed(4)} <span class="mx-1">→</span> <span class="font-medium">NE:</span> ${region.bounds[1][1].toFixed(4)}, ${region.bounds[1][0].toFixed(4)}` : t('panel.noBounds')}
             </div>
             <div class="flex items-center gap-4 text-xs text-slate-400 dark:text-slate-500 mt-2">
-              <span>Zoom: ${region.minZoom}-${region.maxZoom}</span>
-              ${region.downloadedAt ? `<span>Downloaded: ${new Date(region.downloadedAt).toLocaleDateString()}</span>` : ''}
-              ${region.size ? `<span>Size: ${formatBytes(region.size)}</span>` : ''}
+              <span>${t('regionList.zoom')}: ${region.minZoom}-${region.maxZoom}</span>
+              ${region.downloadedAt ? `<span>${t('regionList.downloaded')}: ${new Date(region.downloadedAt).toLocaleDateString()}</span>` : ''}
+              ${region.size ? `<span>${t('regionList.size')}: ${formatBytes(region.size)}</span>` : ''}
             </div>
           </div>
           <div class="flex items-center gap-1 ml-2">
-            <button class="region-action-btn p-1.5 rounded-md hover:bg-indigo-100 dark:hover:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400 transition-colors duration-150" data-action="show-details" data-region-id="${region.id}" title="Details">
+            <button class="region-action-btn p-1.5 rounded-md hover:bg-indigo-100 dark:hover:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400 transition-colors duration-150" data-action="show-details" data-region-id="${region.id}" title="${t('app.details')}">
               ${icons.infoCircle({ size: 14, color: 'currentColor' })}
             </button>
-            <button class="region-action-btn p-1.5 rounded-md hover:bg-emerald-100 dark:hover:bg-emerald-900/50 text-emerald-600 dark:text-emerald-400 transition-colors duration-150" data-action="focus-region" data-region-id="${region.id}" title="Focus">
+            <button class="region-action-btn p-1.5 rounded-md hover:bg-emerald-100 dark:hover:bg-emerald-900/50 text-emerald-600 dark:text-emerald-400 transition-colors duration-150" data-action="focus-region" data-region-id="${region.id}" title="${t('app.focus')}">
               ${icons.focus({ size: 14, color: 'currentColor' })}
             </button>
-            <button class="region-action-btn p-1.5 rounded-md hover:bg-blue-100 dark:hover:bg-blue-900/50 text-blue-600 dark:text-blue-400 transition-colors duration-150" data-action="redownload-region" data-region-id="${region.id}" title="Re-download">
+            <button class="region-action-btn p-1.5 rounded-md hover:bg-blue-100 dark:hover:bg-blue-900/50 text-blue-600 dark:text-blue-400 transition-colors duration-150" data-action="redownload-region" data-region-id="${region.id}" title="${t('actions.redownload')}">
               ${icons.download({ size: 14, color: 'currentColor' })}
             </button>
-            <!-- <button class="region-action-btn p-1.5 rounded-md hover:bg-purple-100 dark:hover:bg-purple-900/50 text-purple-600 dark:text-purple-400 transition-colors duration-150" data-action="import-export" data-region-id="${region.id}" title="Import/Export">
+            <!-- <button class="region-action-btn p-1.5 rounded-md hover:bg-purple-100 dark:hover:bg-purple-900/50 text-purple-600 dark:text-purple-400 transition-colors duration-150" data-action="import-export" data-region-id="${region.id}" title="${t('actions.importExport')}">
               ${icons.deviceFloppy({ size: 14, color: 'currentColor' })}
             </button> -->
-            <button class="region-action-btn p-1.5 rounded-md hover:bg-red-100 dark:hover:bg-red-900/50 text-red-600 dark:text-red-400 transition-colors duration-150" data-action="delete-region" data-region-id="${region.id}" title="Delete">
+            <button class="region-action-btn p-1.5 rounded-md hover:bg-red-100 dark:hover:bg-red-900/50 text-red-600 dark:text-red-400 transition-colors duration-150" data-action="delete-region" data-region-id="${region.id}" title="${t('app.delete')}">
               ${icons.trash({ size: 14, color: 'currentColor' })}
             </button>
           </div>
@@ -502,10 +531,10 @@ export class PanelRenderer extends BaseComponent {
           <div class="flex items-center justify-between">
             <div class="flex-1">
               <h3 class="font-semibold text-blue-900 dark:text-blue-100 text-base">
-                ${style.style?.name || style.key || 'Unnamed Style'}
+                ${style.style?.name || style.key || t('style.unnamedStyle')}
               </h3>
               <p class="text-sm text-blue-700 dark:text-blue-300 mt-1">
-                Style ID: ${style.key}
+                ${t('regionList.styleId')}: ${style.key}
               </p>
               <p class="text-sm text-blue-600 dark:text-blue-400 mt-1">
                 ${regionCount} region${regionCount === 1 ? '' : 's'} • ${formatBytes(totalSize)}
@@ -536,10 +565,10 @@ export class PanelRenderer extends BaseComponent {
         <div class="flex items-center justify-between">
           <div>
             <h3 class="font-semibold text-amber-800 dark:text-amber-200 text-sm">
-              Regions without Style
+              ${t('regionList.orphanedHeader')}
             </h3>
             <p class="text-xs text-amber-700 dark:text-amber-300 mt-1">
-              ${regions.length} region${regions.length === 1 ? '' : 's'} not associated with any style
+              ${t('regionList.orphanedDescription', { count: regions.length })}
             </p>
           </div>
           <div class="text-amber-500 dark:text-amber-400">
@@ -558,7 +587,7 @@ export class PanelRenderer extends BaseComponent {
     return `
       <div class="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4">
         <h3 class="text-sm font-medium text-blue-900 dark:text-blue-100 mb-3">
-          Active Downloads (${downloadArray.length})
+          ${t('download.activeCount', { count: downloadArray.length })}
         </h3>
         <div class="space-y-2">
           ${downloadArray
@@ -645,10 +674,10 @@ export class PanelRenderer extends BaseComponent {
       if (!region) return;
 
       const confirmModal = new ConfirmationModal({
-        title: 'Delete Region',
-        message: `Are you sure you want to delete the region "${region.name}"? This action cannot be undone.`,
-        confirmText: 'Delete',
-        cancelText: 'Cancel',
+        title: t('delete.regionTitle'),
+        message: t('delete.regionMessage', { name: region.name }),
+        confirmText: t('app.delete'),
+        cancelText: t('app.cancel'),
         onConfirm: async () => {
           try {
             await this.offlineManager.deleteRegion(regionId);
@@ -686,10 +715,10 @@ export class PanelRenderer extends BaseComponent {
       }
 
       const confirmModal = new ConfirmationModal({
-        title: 'Re-download Region',
-        message: `Re-download "${region.name}"?\n\nThis will:\n• Delete existing tiles and resources\n• Re-download all data with current settings\n• Fix any corrupted or outdated resources`,
-        confirmText: 'Re-download',
-        cancelText: 'Cancel',
+        title: t('redownload.title'),
+        message: t('redownload.message', { name: region.name }),
+        confirmText: t('redownload.button'),
+        cancelText: t('app.cancel'),
         onConfirm: async () => {
           try {
             this.modalManager.close();
@@ -720,7 +749,7 @@ export class PanelRenderer extends BaseComponent {
               await this.downloadManager.downloadRegion(formData);
             } else {
               panelLogger.error('Download manager not available');
-              alert('Download manager not available. Please try again.');
+              alert(t('alert.downloadManagerNotAvailable'));
             }
 
             // Refresh the panel to show the new region
@@ -728,7 +757,7 @@ export class PanelRenderer extends BaseComponent {
           } catch (error) {
             panelLogger.error('Failed to re-download region:', error);
             alert(
-              `Failed to re-download region: ${error instanceof Error ? error.message : 'Unknown error'}`
+              `${t('alert.failedToRedownload')}: ${error instanceof Error ? error.message : t('alert.unknownError')}`
             );
           }
         },
@@ -834,10 +863,10 @@ export class PanelRenderer extends BaseComponent {
    */
   private renderErrorState(panelElement: HTMLDivElement): void {
     panelElement.innerHTML = `
-      <div class="flex items-center justify-center h-full text-red-600 dark:text-red-400">
+      <div class="flex items-center justify-center h-full text-red-600 dark:text-red-400" ${i18n.isRTL() ? 'dir="rtl"' : ''}>
         <div class="text-center">
-          <p class="text-lg font-medium">Error loading content</p>
-          <p class="text-sm mt-2">Please try again</p>
+          <p class="text-lg font-medium">${t('error.loadingContent')}</p>
+          <p class="text-sm mt-2">${t('error.tryAgain')}</p>
         </div>
       </div>
     `;
@@ -914,12 +943,12 @@ export class PanelRenderer extends BaseComponent {
       template: this.createRegionItemTemplate(region, false),
       actions: [
         {
-          label: 'Details',
+          label: t('app.details'),
           action: 'show-details',
           icon: icons.infoCircle({ size: 12, color: 'currentColor' }),
         },
         {
-          label: 'Focus',
+          label: t('app.focus'),
           action: 'focus-region',
           icon: icons.focus({ size: 12, color: 'currentColor' }),
         },
@@ -929,7 +958,7 @@ export class PanelRenderer extends BaseComponent {
         //   icon: icons.deviceFloppy({ size: 12, color: 'currentColor' })
         // },
         {
-          label: 'Delete',
+          label: t('app.delete'),
           action: 'delete-region',
           variant: 'danger',
           icon: icons.trash({ size: 12, color: 'currentColor' }),
@@ -941,7 +970,7 @@ export class PanelRenderer extends BaseComponent {
     this.regionsList = new List({
       className: 'flex-1 px-6 py-4 overflow-y-auto',
       items: listItems,
-      emptyText: 'No offline regions found. Click "Add Region" to get started.',
+      emptyText: t('regionList.emptyFallback'),
       onItemAction: this.handleItemAction.bind(this),
       onItemClick: (itemId: string, _item: unknown) => {
         this.handleShowRegionDetails(itemId);
@@ -1021,6 +1050,12 @@ export class PanelRenderer extends BaseComponent {
     if (this.regionsList) {
       this.regionsList.destroy();
     }
+    if (this.languageSelector) {
+      this.languageSelector.destroy();
+    }
+    if (this.unsubscribeLanguage) {
+      this.unsubscribeLanguage();
+    }
     super.destroy();
   }
 
@@ -1089,9 +1124,9 @@ export class PanelRenderer extends BaseComponent {
 
       if (stats.gzipped === 0) {
         const confirmModal = new ConfirmationModal({
-          title: 'No Issues Found',
-          message: `No compressed tiles detected. Your tiles are already in the correct format!`,
-          confirmText: 'OK',
+          title: t('fixTiles.noIssuesTitle'),
+          message: t('fixTiles.noIssuesMessage'),
+          confirmText: t('app.ok'),
           cancelText: '',
           onConfirm: () => {
             this.modalManager.close();
@@ -1107,10 +1142,10 @@ export class PanelRenderer extends BaseComponent {
       }
 
       const confirmModal = new ConfirmationModal({
-        title: 'Fix Compressed Tiles',
-        message: `Found ${stats.gzipped} compressed tiles that may cause rendering errors.\n\nThis will:\n1. Remove all compressed tiles (${stats.gzipped} tiles)\n2. You'll need to re-download regions to get properly decompressed tiles\n\nContinue?`,
-        confirmText: 'Fix Tiles',
-        cancelText: 'Cancel',
+        title: t('fixTiles.title'),
+        message: t('fixTiles.message', { count: stats.gzipped }),
+        confirmText: t('fixTiles.button'),
+        cancelText: t('app.cancel'),
         onConfirm: async () => {
           try {
             panelLogger.debug('Cleaning up compressed tiles...');
@@ -1121,9 +1156,9 @@ export class PanelRenderer extends BaseComponent {
 
             // Show success message
             const successModal = new ConfirmationModal({
-              title: 'Cleanup Complete',
-              message: `Successfully removed ${result.removed} compressed tiles.\n\nPlease re-download your regions to get the fixed tiles.`,
-              confirmText: 'OK',
+              title: t('fixTiles.completeTitle'),
+              message: t('fixTiles.completeMessage', { count: result.removed }),
+              confirmText: t('app.ok'),
               cancelText: '',
               onConfirm: () => {
                 this.modalManager.close();
@@ -1161,7 +1196,7 @@ export class PanelRenderer extends BaseComponent {
   private async handleLoadStyle(styleData: unknown): Promise<void> {
     if (!this.map) {
       panelLogger.warn('Map not available for loading style');
-      alert('Map is not initialized. Please ensure the map is loaded before loading a style.');
+      alert(t('error.mapNotInitialized'));
       return;
     }
 
@@ -1170,13 +1205,13 @@ export class PanelRenderer extends BaseComponent {
 
       if (!styleEntry || !styleEntry.style) {
         panelLogger.error('Invalid style data - missing style property');
-        alert('Invalid style data. The style may be corrupted.');
+        alert(t('error.invalidStyleData'));
         return;
       }
 
       if (!styleEntry.key) {
         panelLogger.error('Invalid style data - missing key property');
-        alert('Invalid style data. The style key is missing.');
+        alert(t('error.invalidStyleData'));
         return;
       }
 
@@ -1194,13 +1229,13 @@ export class PanelRenderer extends BaseComponent {
       // Validate style structure
       if (!styleEntry.style.sources || Object.keys(styleEntry.style.sources).length === 0) {
         panelLogger.error('Style is missing sources');
-        alert('Style has no sources defined. The style may be incomplete.');
+        alert(t('error.styleMissingSources'));
         return;
       }
 
       if (!styleEntry.style.layers || styleEntry.style.layers.length === 0) {
         panelLogger.error('Style is missing layers');
-        alert('Style has no layers defined. The style may be incomplete.');
+        alert(t('error.styleMissingLayers'));
         return;
       }
 
@@ -1214,9 +1249,9 @@ export class PanelRenderer extends BaseComponent {
             `Found ${compressed.gzipped} compressed tiles that may cause rendering issues`
           );
           const shouldContinue = confirm(
-            `Warning: Found ${compressed.gzipped} compressed tiles that may cause rendering issues.\n\n` +
-              `Recommended: Use the "Re-download" button to fix this issue.\n\n` +
-              `Do you want to continue loading the style anyway?`
+            `${t('warning.compressedTiles', { count: compressed.gzipped })}\n\n` +
+              `${t('warning.compressedTilesRecommendation')}\n\n` +
+              `${t('warning.continueAnyway')}`
           );
           if (!shouldContinue) {
             return;
@@ -1294,7 +1329,7 @@ export class PanelRenderer extends BaseComponent {
       } catch (setStyleError) {
         panelLogger.error('Error calling setStyle:', setStyleError);
         alert(
-          `Failed to apply style to map: ${setStyleError instanceof Error ? setStyleError.message : 'Unknown error'}`
+          `${t('alert.failedToApplyStyle')}: ${setStyleError instanceof Error ? setStyleError.message : t('alert.unknownError')}`
         );
         return;
       }
@@ -1304,7 +1339,9 @@ export class PanelRenderer extends BaseComponent {
         message: error instanceof Error ? error.message : String(error),
         stack: error instanceof Error ? error.stack : undefined,
       });
-      alert(`Failed to load style: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      alert(
+        `${t('alert.failedToLoadStyle')}: ${error instanceof Error ? error.message : t('alert.unknownError')}`
+      );
     }
   }
 
@@ -1315,10 +1352,10 @@ export class PanelRenderer extends BaseComponent {
     try {
       const style = styleData as { key: string; style?: { name?: string } };
       const confirmModal = new ConfirmationModal({
-        title: 'Delete Style',
-        message: `Are you sure you want to delete the style "${style.style?.name || style.key}"? This action cannot be undone and will affect associated regions.`,
-        confirmText: 'Delete Style',
-        cancelText: 'Cancel',
+        title: t('delete.styleTitle'),
+        message: t('delete.styleMessage', { name: style.style?.name || style.key }),
+        confirmText: t('actions.deleteStyle'),
+        cancelText: t('app.cancel'),
         onConfirm: async () => {
           try {
             const { deleteStyleById } = await import('../../services/styleService');
