@@ -56,8 +56,8 @@ export class LanguageSelector extends BaseComponent {
     this.element.appendChild(button);
 
     // Create dropdown
-    this.dropdown = document.createElement('div');
-    this.dropdown.className = `
+    const dropdown = document.createElement('div');
+    dropdown.className = `
       absolute top-full ${i18n.isRTL() ? 'left-0' : 'right-0'} mt-1
       bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700
       rounded-lg shadow-lg overflow-hidden z-50
@@ -81,10 +81,11 @@ export class LanguageSelector extends BaseComponent {
         this.selectLanguage(lang.code);
       });
 
-      this.dropdown!.appendChild(item);
+      dropdown.appendChild(item);
     });
 
-    this.element.appendChild(this.dropdown);
+    this.dropdown = dropdown;
+    this.element.appendChild(dropdown);
 
     // Close dropdown on outside click
     document.addEventListener('click', this.handleOutsideClick);
