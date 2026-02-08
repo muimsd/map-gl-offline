@@ -465,9 +465,9 @@ export class SpriteService {
           verified++;
         }
       } catch (repairError: unknown) {
-        spriteLogger.warn('Failed to repair corrupted sprites:', repairError);
-        // Repair failed, return empty result
-        return { verified: 0, repaired: 0, removed: 0 };
+        spriteLogger.warn('Failed to verify sprite, removing corrupted entry:', repairError);
+        await cursor.delete();
+        removed++;
       }
       cursor = await cursor.continue();
     }
@@ -576,7 +576,7 @@ export class SpriteService {
   }
 
   private async rateLimitDelay(bandwidthLimit: number): Promise<void> {
-    // Simple rate limiting implementation
+    if (bandwidthLimit <= 0) return;
     const delay = Math.max(0, 1000 / (bandwidthLimit / 1024)); // Convert to KB/s
     if (delay > 0) {
       await new Promise(resolve => setTimeout(resolve, delay));

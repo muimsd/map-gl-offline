@@ -26,15 +26,15 @@ export interface TileEntry {
   /** HTTP Content-Encoding header */
   contentEncoding?: string;
   /** Tile X coordinate */
-  x?: number;
+  x: number;
   /** Tile Y coordinate */
-  y?: number;
+  y: number;
   /** Tile zoom level */
-  z?: number;
+  z: number;
   /** Associated style ID */
-  styleId?: string;
+  styleId: string;
   /** Associated source ID */
-  sourceId?: string;
+  sourceId: string;
 }
 
 /**

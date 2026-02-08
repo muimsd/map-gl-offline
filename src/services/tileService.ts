@@ -852,7 +852,7 @@ export class TileService {
   }
 
   private async rateLimitDelay(bandwidthLimit: number): Promise<void> {
-    // Simple rate limiting implementation
+    if (bandwidthLimit <= 0) return;
     const delay = Math.max(0, 1000 / bandwidthLimit); // Convert KB/s to delay
     if (delay > 0) {
       await new Promise(resolve => setTimeout(resolve, delay));

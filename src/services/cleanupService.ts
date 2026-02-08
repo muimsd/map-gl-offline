@@ -95,7 +95,7 @@ export class CleanupService {
         const currentSize = await this.calculateTotalStorageSize();
         if (currentSize > maxStorageSize) {
           const excessSize = currentSize - maxStorageSize;
-          const additionalRegions = this.selectRegionsForDeletion(
+          const additionalRegions = await this.selectRegionsForDeletion(
             regularRegions,
             excessSize,
             priorityPatterns
@@ -408,11 +408,11 @@ export class CleanupService {
     return totalSize;
   }
 
-  private selectRegionsForDeletion(
+  private async selectRegionsForDeletion(
     regions: StoredRegion[],
     targetSize: number,
     priorityPatterns: string[]
-  ): StoredRegion[] {
+  ): Promise<StoredRegion[]> {
     // Sort by priority (non-priority first) and then by last modified (oldest first)
     const sortedRegions = regions
       .map(region => ({
@@ -435,8 +435,8 @@ export class CleanupService {
     for (const region of sortedRegions) {
       if (currentSize >= targetSize) break;
       selected.push(region);
-      // Estimate region size (would be more accurate with actual calculation)
-      currentSize += 10 * 1024 * 1024; // 10MB estimate per region
+      const regionSize = await this.getRegionSize(region.id);
+      currentSize += regionSize > 0 ? regionSize : 10 * 1024 * 1024; // Fallback to 10MB if size unknown
     }
 
     return selected;

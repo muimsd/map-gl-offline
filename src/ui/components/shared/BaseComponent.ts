@@ -14,6 +14,7 @@ export abstract class BaseComponent {
   protected config: ComponentConfig;
   protected isMounted = false;
   protected eventListeners: Map<string, EventListener> = new Map();
+  private static listenerIdCounter = 0;
 
   constructor(config: ComponentConfig = {}) {
     this.config = config;
@@ -46,7 +47,7 @@ export abstract class BaseComponent {
     if (this.config.events) {
       Object.entries(this.config.events).forEach(([event, handler]) => {
         this.element.addEventListener(event, handler);
-        this.eventListeners.set(`${event}_${Date.now()}`, handler);
+        this.eventListeners.set(`${event}_${++BaseComponent.listenerIdCounter}`, handler);
       });
     }
   }
@@ -56,7 +57,7 @@ export abstract class BaseComponent {
    */
   protected addEventListener(event: string, handler: EventListener): void {
     this.element.addEventListener(event, handler);
-    this.eventListeners.set(`${event}_${Date.now()}`, handler);
+    this.eventListeners.set(`${event}_${++BaseComponent.listenerIdCounter}`, handler);
   }
 
   /**

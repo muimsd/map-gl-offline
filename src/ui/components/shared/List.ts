@@ -6,6 +6,16 @@
 import { BaseComponent, ComponentConfig } from './BaseComponent';
 import { t } from '../../translations';
 
+function escapeHtml(unsafe: unknown): string {
+  const str = String(unsafe ?? '');
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
 export interface ListItemConfig {
   id: string;
   data: unknown;
@@ -113,7 +123,7 @@ export class List extends BaseComponent {
 
   private getDefaultItemTemplate(data: unknown): string {
     if (typeof data === 'string') {
-      return `<div class="text-gray-900 dark:text-white">${data}</div>`;
+      return `<div class="text-gray-900 dark:text-white">${escapeHtml(data)}</div>`;
     }
 
     if (data && typeof data === 'object') {
@@ -121,14 +131,14 @@ export class List extends BaseComponent {
       if (obj.title || obj.name) {
         return `
           <div class="text-gray-900 dark:text-white font-medium">
-            ${obj.title || obj.name}
+            ${escapeHtml(obj.title || obj.name)}
           </div>
-          ${obj.description ? `<div class="text-sm text-gray-500 dark:text-gray-400 mt-1">${obj.description}</div>` : ''}
+          ${obj.description ? `<div class="text-sm text-gray-500 dark:text-gray-400 mt-1">${escapeHtml(obj.description)}</div>` : ''}
         `;
       }
     }
 
-    return `<div class="text-gray-900 dark:text-white">${JSON.stringify(data)}</div>`;
+    return `<div class="text-gray-900 dark:text-white">${escapeHtml(JSON.stringify(data))}</div>`;
   }
 
   private createActionsContainer(item: ListItemConfig): HTMLElement {
@@ -143,7 +153,7 @@ export class List extends BaseComponent {
       button.dataset.itemId = item.id;
 
       if (action.icon) {
-        button.innerHTML = `${action.icon} <span class="ml-1">${action.label}</span>`;
+        button.innerHTML = `${action.icon} <span class="ml-1">${escapeHtml(action.label)}</span>`;
       } else {
         button.textContent = action.label;
       }

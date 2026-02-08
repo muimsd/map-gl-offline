@@ -210,7 +210,9 @@ export class Modal extends BaseComponent {
    * Show the modal
    */
   public show(): void {
-    document.body.appendChild(this.element);
+    if (!this.element.parentNode) {
+      document.body.appendChild(this.element);
+    }
     this.element.classList.remove('hidden');
 
     // Focus management
@@ -225,8 +227,12 @@ export class Modal extends BaseComponent {
    */
   public hide(): void {
     this.element.classList.add('hidden');
-    // Small delay to allow for exit animation if we were to add one,
-    // but for now immediate removal is fine (or we could add a standard fade-out class).
+    // Clean up escape handler
+    const escapeHandler = this.eventListeners.get('escape');
+    if (escapeHandler) {
+      document.removeEventListener('keydown', escapeHandler);
+      this.eventListeners.delete('escape');
+    }
     if (this.element.parentNode) {
       this.element.parentNode.removeChild(this.element);
     }

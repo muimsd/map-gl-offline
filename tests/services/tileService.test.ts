@@ -207,15 +207,17 @@ describe('TileService', () => {
       expect(stats.newestTile?.getTime()).toBe(newTime);
     });
 
-    it('should handle tiles without z property', async () => {
+    it('should handle tiles at zoom level 0', async () => {
       const db = await dbPromise;
       const now = Date.now();
 
       await db.put('tiles', {
-        key: 'style-1:source:legacy-tile.pbf',
+        key: 'style-1:source:0:0:0.pbf',
         styleId: 'style-1',
         sourceId: 'source',
-        // No x, y, z properties (legacy format)
+        x: 0,
+        y: 0,
+        z: 0,
         size: 1000,
         data: new ArrayBuffer(1000),
         downloadedAt: new Date(now).toISOString(),
@@ -227,7 +229,6 @@ describe('TileService', () => {
       const stats = await service.getTileStats();
 
       expect(stats.count).toBe(1);
-      // Should use z=0 as fallback
       expect(stats.zoomLevelStats.get(0)?.count).toBe(1);
     });
   });

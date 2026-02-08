@@ -63,6 +63,9 @@ export class PanelRenderer extends BaseComponent {
   // Language change unsubscribe function
   private unsubscribeLanguage?: () => void;
 
+  // Stored event handler for cleanup
+  private regionActionHandler?: (event: Event) => void;
+
   constructor(options: PanelRendererOptions) {
     super({});
     this.offlineManager = options.offlineManager;
@@ -904,8 +907,13 @@ export class PanelRenderer extends BaseComponent {
     const listElement = this.regionsList?.getElement();
     if (!listElement) return;
 
+    // Remove previous handler to prevent accumulation on refresh
+    if (this.regionActionHandler) {
+      listElement.removeEventListener('click', this.regionActionHandler);
+    }
+
     // Add event delegation for region action buttons
-    listElement.addEventListener('click', event => {
+    this.regionActionHandler = (event: Event) => {
       const target = event.target as HTMLElement;
       const actionButton = target.closest('.region-action-btn') as HTMLElement;
 
@@ -930,7 +938,8 @@ export class PanelRenderer extends BaseComponent {
           this.handleShowRegionDetails(regionId);
         }
       }
-    });
+    };
+    listElement.addEventListener('click', this.regionActionHandler);
   }
 
   /**

@@ -47,7 +47,7 @@ export class GlyphService {
     let downloadedGlyphs = 0;
     let skippedGlyphs = 0;
     let failedGlyphs = 0;
-    const errors: string[] = [];
+    const errors: Array<{ url: string; error: string }> = [];
     const fontsByStack: Record<string, number> = {};
     let largestGlyph = { fontstack: '', range: '', size: 0 };
     let smallestGlyph = { fontstack: '', range: '', size: Infinity };
@@ -162,7 +162,10 @@ export class GlyphService {
           }
         } catch (error) {
           failedGlyphs++;
-          errors.push(`${glyphKey}: ${error instanceof Error ? error.message : String(error)}`);
+          errors.push({
+            url: glyphKey,
+            error: error instanceof Error ? error.message : String(error),
+          });
         }
 
         completed++;

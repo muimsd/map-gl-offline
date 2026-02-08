@@ -103,8 +103,8 @@ export interface GlyphDownloadResult {
   downloadSpeed: number;
   /** Total download time in milliseconds */
   duration: number;
-  /** Array of error messages for failed downloads */
-  errors: string[];
+  /** Array of error details for failed downloads */
+  errors: Array<{ url: string; error: string }>;
   /** Detailed analytics about downloaded glyphs */
   analytics: {
     /** Distribution by font stack */

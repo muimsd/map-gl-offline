@@ -256,6 +256,11 @@ describe('IndexedDB Manager', () => {
         type: 'vector',
         url: 'https://example.com/tile.pbf',
         lastModified: Date.now(),
+        x: 0,
+        y: 0,
+        z: 0,
+        styleId: 'test-style',
+        sourceId: 'test-source',
       };
 
       await db.put('tiles', { ...baseTile, key: 'tile-a', size: 100 });

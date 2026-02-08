@@ -25,12 +25,16 @@ export function validateBounds(bounds: unknown): bounds is [[number, number], [n
   const [swLng, swLat] = sw;
   const [neLng, neLat] = ne;
 
-  // Check if values are numbers
+  // Check if values are valid numbers (not NaN)
   if (
     typeof swLng !== 'number' ||
     typeof swLat !== 'number' ||
     typeof neLng !== 'number' ||
-    typeof neLat !== 'number'
+    typeof neLat !== 'number' ||
+    Number.isNaN(swLng) ||
+    Number.isNaN(swLat) ||
+    Number.isNaN(neLng) ||
+    Number.isNaN(neLat)
   ) {
     throw new Error(ERROR_MESSAGES.INVALID_BOUNDS + ': Coordinates must be numbers');
   }
