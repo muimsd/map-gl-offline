@@ -11,7 +11,7 @@ import { RegionDetailsModal } from '../modals/regionDetailsModal';
 import { StoredRegion, StorageAnalyticsReport } from '../../types';
 import { ConfirmationModal } from '../modals/confirmationModal';
 import { ImportExportModal } from '../modals/importExportModal';
-import { formatBytes } from '../../utils/formatting';
+import { formatBytes, escapeHtml } from '../../utils/formatting';
 import { themeManager } from '../ThemeManager';
 import { logger } from '../../utils/logger';
 import { i18n, t } from '../translations';
@@ -420,7 +420,7 @@ export class PanelRenderer extends BaseComponent {
         <div class="flex items-center justify-between">
           <div class="flex-1">
             <h4 class="font-medium text-slate-800 dark:text-slate-100 text-sm">
-              ${region.name}
+              ${escapeHtml(region.name)}
             </h4>
             <div class="text-xs text-slate-500 dark:text-slate-400 mt-1">
               ${region.bounds ? `<span class="font-medium">SW:</span> ${region.bounds[0][1].toFixed(4)}, ${region.bounds[0][0].toFixed(4)} <span class="mx-1">→</span> <span class="font-medium">NE:</span> ${region.bounds[1][1].toFixed(4)}, ${region.bounds[1][0].toFixed(4)}` : t('panel.noBounds')}
@@ -459,10 +459,10 @@ export class PanelRenderer extends BaseComponent {
           <div class="flex items-center justify-between">
             <div class="flex-1">
               <h3 class="font-semibold text-slate-800 dark:text-slate-100 text-base">
-                ${style.style?.name || style.key || t('style.unnamedStyle')}
+                ${escapeHtml(style.style?.name || style.key || t('style.unnamedStyle'))}
               </h3>
               <p class="text-sm text-slate-600 dark:text-slate-300 mt-1">
-                ${t('regionList.styleId')}: ${style.key}
+                ${t('regionList.styleId')}: ${escapeHtml(style.key)}
               </p>
               <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">
                 ${regionCount} region${regionCount === 1 ? '' : 's'} • ${t('regionList.totalSize')}: ${formatBytes(style.totalSize)}
@@ -497,11 +497,11 @@ export class PanelRenderer extends BaseComponent {
     region: StoredRegion & { downloadedAt?: number; tileSize?: number }
   ): string {
     return `
-      <div class="px-4 py-3 border-t border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700/50 cursor-pointer region-item transition-colors duration-150" data-region-id="${region.id}">
+      <div class="px-4 py-3 border-t border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700/50 cursor-pointer region-item transition-colors duration-150" data-region-id="${escapeHtml(region.id)}">
         <div class="flex items-center justify-between">
           <div class="flex-1">
             <h4 class="font-medium text-slate-800 dark:text-slate-100 text-sm">
-              ${region.name}
+              ${escapeHtml(region.name)}
             </h4>
             <div class="text-xs text-slate-500 dark:text-slate-400 mt-1">
               ${region.bounds ? `<span class="font-medium">SW:</span> ${region.bounds[0][1].toFixed(4)}, ${region.bounds[0][0].toFixed(4)} <span class="mx-1">→</span> <span class="font-medium">NE:</span> ${region.bounds[1][1].toFixed(4)}, ${region.bounds[1][0].toFixed(4)}` : t('panel.noBounds')}
@@ -513,19 +513,19 @@ export class PanelRenderer extends BaseComponent {
             </div>
           </div>
           <div class="flex items-center gap-1 ml-2">
-            <button class="region-action-btn p-1.5 rounded-md hover:bg-indigo-100 dark:hover:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400 transition-colors duration-150" data-action="show-details" data-region-id="${region.id}" title="${t('app.details')}">
+            <button class="region-action-btn p-1.5 rounded-md hover:bg-indigo-100 dark:hover:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400 transition-colors duration-150" data-action="show-details" data-region-id="${escapeHtml(region.id)}" title="${t('app.details')}">
               ${icons.infoCircle({ size: 14, color: 'currentColor' })}
             </button>
-            <button class="region-action-btn p-1.5 rounded-md hover:bg-emerald-100 dark:hover:bg-emerald-900/50 text-emerald-600 dark:text-emerald-400 transition-colors duration-150" data-action="focus-region" data-region-id="${region.id}" title="${t('app.focus')}">
+            <button class="region-action-btn p-1.5 rounded-md hover:bg-emerald-100 dark:hover:bg-emerald-900/50 text-emerald-600 dark:text-emerald-400 transition-colors duration-150" data-action="focus-region" data-region-id="${escapeHtml(region.id)}" title="${t('app.focus')}">
               ${icons.focus({ size: 14, color: 'currentColor' })}
             </button>
-            <button class="region-action-btn p-1.5 rounded-md hover:bg-blue-100 dark:hover:bg-blue-900/50 text-blue-600 dark:text-blue-400 transition-colors duration-150" data-action="redownload-region" data-region-id="${region.id}" title="${t('actions.redownload')}">
+            <button class="region-action-btn p-1.5 rounded-md hover:bg-blue-100 dark:hover:bg-blue-900/50 text-blue-600 dark:text-blue-400 transition-colors duration-150" data-action="redownload-region" data-region-id="${escapeHtml(region.id)}" title="${t('actions.redownload')}">
               ${icons.download({ size: 14, color: 'currentColor' })}
             </button>
-            <!-- <button class="region-action-btn p-1.5 rounded-md hover:bg-purple-100 dark:hover:bg-purple-900/50 text-purple-600 dark:text-purple-400 transition-colors duration-150" data-action="import-export" data-region-id="${region.id}" title="${t('actions.importExport')}">
+            <!-- <button class="region-action-btn p-1.5 rounded-md hover:bg-purple-100 dark:hover:bg-purple-900/50 text-purple-600 dark:text-purple-400 transition-colors duration-150" data-action="import-export" data-region-id="${escapeHtml(region.id)}" title="${t('actions.importExport')}">
               ${icons.deviceFloppy({ size: 14, color: 'currentColor' })}
             </button> -->
-            <button class="region-action-btn p-1.5 rounded-md hover:bg-red-100 dark:hover:bg-red-900/50 text-red-600 dark:text-red-400 transition-colors duration-150" data-action="delete-region" data-region-id="${region.id}" title="${t('app.delete')}">
+            <button class="region-action-btn p-1.5 rounded-md hover:bg-red-100 dark:hover:bg-red-900/50 text-red-600 dark:text-red-400 transition-colors duration-150" data-action="delete-region" data-region-id="${escapeHtml(region.id)}" title="${t('app.delete')}">
               ${icons.trash({ size: 14, color: 'currentColor' })}
             </button>
           </div>
@@ -556,10 +556,10 @@ export class PanelRenderer extends BaseComponent {
           <div class="flex items-center justify-between">
             <div class="flex-1">
               <h3 class="font-semibold text-blue-900 dark:text-blue-100 text-base">
-                ${style.style?.name || style.key || t('style.unnamedStyle')}
+                ${escapeHtml(style.style?.name || style.key || t('style.unnamedStyle'))}
               </h3>
               <p class="text-sm text-blue-700 dark:text-blue-300 mt-1">
-                ${t('regionList.styleId')}: ${style.key}
+                ${t('regionList.styleId')}: ${escapeHtml(style.key)}
               </p>
               <p class="text-sm text-blue-600 dark:text-blue-400 mt-1">
                 ${regionCount} region${regionCount === 1 ? '' : 's'} • ${t('regionList.totalSize')}: ${formatBytes(style.totalSize)}
@@ -622,7 +622,7 @@ export class PanelRenderer extends BaseComponent {
             .map(
               download => `
             <div class="flex items-center justify-between text-sm">
-              <span class="text-blue-800 dark:text-blue-200">${download.regionName || download.regionId}</span>
+              <span class="text-blue-800 dark:text-blue-200">${escapeHtml(download.regionName || download.regionId)}</span>
               <div class="flex items-center gap-2">
                 <div class="w-24 h-2 bg-blue-200 dark:bg-blue-800 rounded-full overflow-hidden">
                   <div class="h-full bg-blue-600 transition-all duration-300" style="width: ${download.percentage || 0}%"></div>
@@ -1081,6 +1081,9 @@ export class PanelRenderer extends BaseComponent {
    * Cleanup when component is destroyed
    */
   public destroy(): void {
+    if (this.refreshTimeout) {
+      clearTimeout(this.refreshTimeout);
+    }
     if (this.regionsList) {
       this.regionsList.destroy();
     }
@@ -1305,7 +1308,7 @@ export class PanelRenderer extends BaseComponent {
       let maxZoom = 14; // Default fallback
       if (styleEntry.regions && Array.isArray(styleEntry.regions)) {
         const regionMaxZooms = styleEntry.regions.map((r: { maxZoom?: number }) => r.maxZoom || 14);
-        maxZoom = Math.max(...regionMaxZooms);
+        maxZoom = regionMaxZooms.length > 0 ? Math.max(...regionMaxZooms) : 14;
         panelLogger.debug(`Computed maxZoom from regions: ${maxZoom}`);
       }
 

@@ -188,8 +188,8 @@ describe('MaintenanceService', () => {
       ]);
 
       mockVerifyAndRepairFonts
-        .mockResolvedValueOnce({ corruptedFonts: 1, removedFonts: 1 })
-        .mockResolvedValueOnce({ corruptedFonts: 2, removedFonts: 0 });
+        .mockResolvedValueOnce({ verified: 5, repaired: 1, removed: 1 })
+        .mockResolvedValueOnce({ verified: 3, repaired: 0, removed: 2 });
 
       const results = await service.performCompleteMaintenance({
         verifyIntegrity: true,

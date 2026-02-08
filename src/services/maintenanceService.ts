@@ -29,10 +29,7 @@ export class MaintenanceService {
       options?: Record<string, unknown>
     ) => Promise<unknown>,
     private cleanupOldFonts: (options?: Record<string, unknown>) => Promise<unknown>,
-    private cleanupOldSprites: (
-      styleId: string,
-      options?: Record<string, unknown>
-    ) => Promise<unknown>,
+    private cleanupOldSprites: (options?: Record<string, unknown>) => Promise<unknown>,
     private cleanupOldGlyphs: (options?: Record<string, unknown>) => Promise<unknown>,
     private getComprehensiveStorageAnalytics: () => Promise<StorageAnalyticsReport>
   ) {}
@@ -41,7 +38,13 @@ export class MaintenanceService {
     const startTime = Date.now();
     const results: Partial<MaintenanceResults> = {};
     let currentProgress = 0;
-    const totalStages = Object.values(options).filter(Boolean).length;
+    const totalStages =
+      [
+        options.cleanupExpired,
+        options.verifyIntegrity,
+        options.optimizeStorage,
+        options.generateReport,
+      ].filter(Boolean).length || 1;
 
     try {
       // Stage 1: Cleanup expired regions
@@ -73,19 +76,28 @@ export class MaintenanceService {
                 this.verifyAndRepairGlyphs(styleId, { removeCorrupted: true }),
               ]);
 
-              const fontRes = fontResult as { corruptedFonts?: number; removedFonts?: number };
-              const spriteRes = spriteResult as {
-                corruptedSprites?: number;
-                repairedSprites?: number;
+              const fontRes = fontResult as {
+                verified?: number;
+                repaired?: number;
+                removed?: number;
               };
-              const glyphRes = glyphResult as { corruptedGlyphs?: number; repairedGlyphs?: number };
+              const spriteRes = spriteResult as {
+                verified?: number;
+                repaired?: number;
+                removed?: number;
+              };
+              const glyphRes = glyphResult as {
+                verified?: number;
+                repaired?: number;
+                removed?: number;
+              };
 
-              integrityResults.fonts.corrupted += fontRes.corruptedFonts || 0;
-              integrityResults.fonts.repaired += fontRes.removedFonts || 0;
-              integrityResults.sprites.corrupted += spriteRes.corruptedSprites || 0;
-              integrityResults.sprites.repaired += spriteRes.repairedSprites || 0;
-              integrityResults.glyphs.corrupted += glyphRes.corruptedGlyphs || 0;
-              integrityResults.glyphs.repaired += glyphRes.repairedGlyphs || 0;
+              integrityResults.fonts.corrupted += fontRes.removed || 0;
+              integrityResults.fonts.repaired += fontRes.repaired || 0;
+              integrityResults.sprites.corrupted += spriteRes.removed || 0;
+              integrityResults.sprites.repaired += spriteRes.repaired || 0;
+              integrityResults.glyphs.corrupted += glyphRes.removed || 0;
+              integrityResults.glyphs.repaired += glyphRes.repaired || 0;
             } catch (error) {
               maintenanceLogger.warn(`Integrity check failed for style ${styleId}:`, error);
             }
@@ -103,9 +115,9 @@ export class MaintenanceService {
         let optimizedResources = 0;
 
         const [fontCleanup, spriteCleanup, glyphCleanup] = await Promise.all([
-          this.cleanupOldFonts({ maxAge: 30 * 24 * 60 * 60 * 1000 }), // 30 days
-          this.cleanupOldSprites('', { maxAge: 30 * 24 * 60 * 60 * 1000 }),
-          this.cleanupOldGlyphs({ maxAge: 30 * 24 * 60 * 60 * 1000 }),
+          this.cleanupOldFonts({ maxAge: 30 }), // 30 days
+          this.cleanupOldSprites({ maxAge: 30 }),
+          this.cleanupOldGlyphs({ maxAge: 30 }),
         ]);
 
         const fontClean = fontCleanup as { freedSpace?: number; deletedCount?: number };

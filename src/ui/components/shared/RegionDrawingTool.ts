@@ -28,6 +28,7 @@ export class RegionDrawing extends BaseComponent {
   private drawingConfig: RegionDrawingConfig;
   private isDrawing = false;
   private drawingHandler: ((e: { lngLat: { lng: number; lat: number } }) => void) | null = null;
+  private escapeHandler: ((e: KeyboardEvent) => void) | null = null;
 
   constructor(config: RegionDrawingConfig) {
     super({});
@@ -75,13 +76,12 @@ export class RegionDrawing extends BaseComponent {
     this.map.on('click', this.drawingHandler);
 
     // Add escape key handler
-    const escapeHandler = (e: KeyboardEvent) => {
+    this.escapeHandler = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         this.stopSelection();
-        document.removeEventListener('keydown', escapeHandler);
       }
     };
-    document.addEventListener('keydown', escapeHandler);
+    document.addEventListener('keydown', this.escapeHandler);
   }
 
   private cleanupDrawingMode(): void {
@@ -95,6 +95,12 @@ export class RegionDrawing extends BaseComponent {
     if (this.drawingHandler) {
       this.map.off('click', this.drawingHandler);
       this.drawingHandler = null;
+    }
+
+    // Remove escape key handler
+    if (this.escapeHandler) {
+      document.removeEventListener('keydown', this.escapeHandler);
+      this.escapeHandler = null;
     }
   }
 

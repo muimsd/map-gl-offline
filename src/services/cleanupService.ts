@@ -8,6 +8,7 @@ export class CleanupService {
   private db = dbPromise;
   private deleteRegionCallback: (regionId: string, styleId?: string) => Promise<void>;
   private autoCleanupIntervals: Set<ReturnType<typeof setInterval>> = new Set();
+  private autoCleanupIdMap: Map<string, ReturnType<typeof setInterval>> = new Map();
 
   constructor(deleteRegionCallback: (regionId: string, styleId?: string) => Promise<void>) {
     this.deleteRegionCallback = deleteRegionCallback;
@@ -266,13 +267,21 @@ export class CleanupService {
 
     this.autoCleanupIntervals.add(intervalId);
 
-    return `auto_cleanup_${Date.now()}`;
+    const cleanupId = `auto_cleanup_${Date.now()}`;
+    this.autoCleanupIdMap.set(cleanupId, intervalId);
+
+    return cleanupId;
   }
 
   async stopAutoCleanup(cleanupId?: string): Promise<void> {
     if (cleanupId) {
-      // Stop specific cleanup - would need to track IDs
-      cleanupLogger.debug(`Stopping cleanup ${cleanupId}`);
+      const intervalId = this.autoCleanupIdMap.get(cleanupId);
+      if (intervalId) {
+        clearInterval(intervalId);
+        this.autoCleanupIntervals.delete(intervalId);
+        this.autoCleanupIdMap.delete(cleanupId);
+        cleanupLogger.debug(`Stopped cleanup ${cleanupId}`);
+      }
     } else {
       // Stop all auto cleanups
       for (const intervalId of this.autoCleanupIntervals) {
@@ -478,7 +487,10 @@ export class CleanupService {
 
     // Size recommendations
     if (analytics.largestRegion && analytics.smallestRegion) {
-      const sizeDiff = analytics.largestRegion.size / analytics.smallestRegion.size;
+      const sizeDiff =
+        analytics.smallestRegion.size > 0
+          ? analytics.largestRegion.size / analytics.smallestRegion.size
+          : 0;
       if (sizeDiff > 100) {
         recommendations.push(
           'Consider reviewing large regions that may contain unnecessary detail levels.'

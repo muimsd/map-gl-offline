@@ -111,10 +111,9 @@ export const createStyleManagement = (): StyleManagement => {
 
   const cleanupOldStyles = async (maxAgeDays: number = 30) => {
     const { cleanupOldStyles } = await loadStyleServiceModule();
-    const cutoffDate = Date.now() - maxAgeDays * 24 * 60 * 60 * 1000;
 
     const result = await cleanupOldStyles({
-      maxAge: cutoffDate,
+      maxAge: maxAgeDays * 24 * 60 * 60 * 1000,
       onProgress: progress => {
         if (progress.completed % 10 === 0 || progress.completed === progress.total) {
           styleManagementLogger.debug(

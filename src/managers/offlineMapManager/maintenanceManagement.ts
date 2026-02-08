@@ -25,7 +25,8 @@ export const createMaintenanceManagement = (
     services.resourceService.verifyAndRepairGlyphs.bind(services.resourceService),
     (options?: Record<string, unknown>) =>
       services.resourceService.cleanupOldFonts(undefined, options as { maxAge?: number }),
-    services.resourceService.cleanupOldSprites.bind(services.resourceService),
+    (options?: Record<string, unknown>) =>
+      services.resourceService.cleanupOldSprites(undefined, options as { maxAge?: number }),
     (options?: Record<string, unknown>) =>
       services.resourceService.cleanupOldGlyphs(undefined, options as { maxAge?: number }),
     deps.getComprehensiveStorageAnalytics

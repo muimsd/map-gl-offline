@@ -136,13 +136,24 @@ export function estimateTileCount(
   let totalTiles = 0;
 
   for (let zoom = minZoom; zoom <= maxZoom; zoom++) {
-    const tilesPerRow = Math.pow(2, zoom);
-    const tileSize = 360 / tilesPerRow;
+    const n = Math.pow(2, zoom);
 
-    const minTileX = Math.floor((west + 180) / tileSize);
-    const maxTileX = Math.floor((east + 180) / tileSize);
-    const minTileY = Math.floor((90 - north) / tileSize);
-    const maxTileY = Math.floor((90 - south) / tileSize);
+    const minTileX = Math.floor(((west + 180) / 360) * n);
+    const maxTileX = Math.floor(((east + 180) / 360) * n);
+    const minTileY = Math.floor(
+      ((1 -
+        Math.log(Math.tan((north * Math.PI) / 180) + 1 / Math.cos((north * Math.PI) / 180)) /
+          Math.PI) /
+        2) *
+        n
+    );
+    const maxTileY = Math.floor(
+      ((1 -
+        Math.log(Math.tan((south * Math.PI) / 180) + 1 / Math.cos((south * Math.PI) / 180)) /
+          Math.PI) /
+        2) *
+        n
+    );
 
     const tilesX = Math.abs(maxTileX - minTileX) + 1;
     const tilesY = Math.abs(maxTileY - minTileY) + 1;

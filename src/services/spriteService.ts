@@ -130,20 +130,6 @@ export class SpriteService {
 
           spriteLogger.debug(`Downloading sprite: ${spriteUrl}`);
 
-          progressTracker.update(1, spriteName);
-
-          // Call progress callback if provided
-          if (onProgress) {
-            const progress = progressTracker.getProgress();
-            onProgress({
-              completed: progress.completed,
-              total: progress.total,
-              percentage: progress.percentage,
-              message: `Downloading ${spriteName}`,
-              errors: errors.map(e => e.error),
-            });
-          }
-
           // Apply bandwidth limiting if specified
           if (bandwidthLimit) {
             await this.rateLimitDelay(bandwidthLimit);
@@ -229,6 +215,20 @@ export class SpriteService {
           // Show total sprite count in database
           const allSprites = await db.getAll('sprites');
           spriteLogger.debug(`Database now contains ${allSprites.length} sprites total`);
+
+          progressTracker.update(1, spriteName);
+
+          // Call progress callback if provided
+          if (onProgress) {
+            const progress = progressTracker.getProgress();
+            onProgress({
+              completed: progress.completed,
+              total: progress.total,
+              percentage: progress.percentage,
+              message: `Downloaded ${spriteName}`,
+              errors: errors.map(e => e.error),
+            });
+          }
 
           totalSize += spriteData.byteLength;
           downloadedSprites++;

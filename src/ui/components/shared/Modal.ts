@@ -242,10 +242,19 @@ export class Modal extends BaseComponent {
    * Clean up event listeners
    */
   protected async onUnmount(): Promise<void> {
+    this.removeEscapeHandler();
+  }
+
+  private removeEscapeHandler(): void {
     const escapeHandler = this.eventListeners.get('escape');
     if (escapeHandler) {
       document.removeEventListener('keydown', escapeHandler);
       this.eventListeners.delete('escape');
     }
+  }
+
+  public destroy(): void {
+    this.removeEscapeHandler();
+    super.destroy();
   }
 }

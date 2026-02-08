@@ -40,6 +40,7 @@ import { OfflineMapManager } from '../managers/offlineMapManager';
 import { themeManager } from './ThemeManager';
 import { idbFetchHandler } from '../utils/idbFetchHandler';
 import { logger } from '../utils/logger';
+import { escapeHtml } from '../utils/formatting';
 import { i18n } from './translations';
 
 // Import refactored modular components
@@ -287,6 +288,9 @@ export class OfflineManagerControl implements IControl {
         controlLogger.warn('Error removing bbox layer:', error);
       }
     }
+
+    // Destroy panel renderer to clean up event listeners and subscriptions
+    this.panelRenderer?.destroy();
 
     // Remove panel from DOM
     if (this.panel && this.panel.parentNode) {
@@ -739,8 +743,8 @@ export class OfflineManagerControl implements IControl {
           ${styles
             .map(
               style => `
-            <button class="w-full p-3 text-left border border-gray-200 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors" data-style-id="${style.key}">
-              <div class="font-medium text-gray-900 dark:text-white">${style.style.name || style.key}</div>
+            <button class="w-full p-3 text-left border border-gray-200 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors" data-style-id="${escapeHtml(style.key)}">
+              <div class="font-medium text-gray-900 dark:text-white">${escapeHtml(style.style.name || style.key)}</div>
               <div class="text-sm text-gray-500 dark:text-gray-400">
                 ${style.regions?.length || 0} regions •
                 ${Object.keys(style.style.sources || {}).length} sources

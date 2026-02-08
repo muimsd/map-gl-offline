@@ -382,8 +382,20 @@ export class ImportExportService {
     const store = transaction.objectStore('styles');
 
     try {
-      const style = await store.get(regionId);
-      return style || {};
+      // Regions are stored inside styles.regions[], so we need to find
+      // which style contains this regionId
+      let cursor = await store.openCursor();
+      while (cursor) {
+        const styleEntry = cursor.value as { key?: string; regions?: Array<{ id?: string }> };
+        if (styleEntry.regions && Array.isArray(styleEntry.regions)) {
+          const hasRegion = styleEntry.regions.some(r => r.id === regionId);
+          if (hasRegion) {
+            return styleEntry;
+          }
+        }
+        cursor = await cursor.continue();
+      }
+      return {};
     } catch (error) {
       serviceLogger.error('Error exporting style:', error);
       return {};
@@ -404,35 +416,34 @@ export class ImportExportService {
     const tiles: TileExportData[] = [];
 
     try {
-      const cursor = await store.openCursor();
+      let cursor = await store.openCursor();
       let processed = 0;
 
-      if (cursor) {
-        do {
-          const tile = cursor.value;
-          // Filter tiles by regionId (styleId)
-          if (tile.styleId === regionId) {
-            tiles.push({
-              z: tile.z ?? 0, // Handle optional z
-              x: tile.x ?? 0, // Handle optional x
-              y: tile.y ?? 0, // Handle optional y
-              data: tile.data,
-              format: 'pbf', // TileEntry doesn't have format, use default
-              sourceId: tile.sourceId ?? 'default', // Handle optional sourceId
-            });
-          }
+      while (cursor) {
+        const tile = cursor.value;
+        // Filter tiles by regionId (styleId)
+        if (tile.styleId === regionId) {
+          tiles.push({
+            z: tile.z ?? 0, // Handle optional z
+            x: tile.x ?? 0, // Handle optional x
+            y: tile.y ?? 0, // Handle optional y
+            data: tile.data,
+            format: 'pbf', // TileEntry doesn't have format, use default
+            sourceId: tile.sourceId ?? 'default', // Handle optional sourceId
+          });
+        }
 
-          processed++;
-          if (onProgress && processed % 100 === 0) {
-            onProgress({
-              stage: 'exporting',
-              percentage: 30 + (processed / 1000) * 40, // Rough estimation
-              message: `Exported ${processed} tiles...`,
-              currentItem: `${tile.z ?? 0}/${tile.x ?? 0}/${tile.y ?? 0}`,
-              completedItems: processed,
-            });
-          }
-        } while (await cursor.continue());
+        processed++;
+        if (onProgress && processed % 100 === 0) {
+          onProgress({
+            stage: 'exporting',
+            percentage: 30 + (processed / 1000) * 40, // Rough estimation
+            message: `Exported ${processed} tiles...`,
+            currentItem: `${tile.z ?? 0}/${tile.x ?? 0}/${tile.y ?? 0}`,
+            completedItems: processed,
+          });
+        }
+        cursor = await cursor.continue();
       }
 
       return tiles;
@@ -453,20 +464,19 @@ export class ImportExportService {
     const sprites: SpriteExportData[] = [];
 
     try {
-      const cursor = await store.openCursor();
+      let cursor = await store.openCursor();
 
-      if (cursor) {
-        do {
-          const sprite = cursor.value;
-          // SpriteEntry doesn't have styleId, so we'll include all sprites for now
-          // In a real implementation, you might need to filter by URL patterns or other criteria
-          sprites.push({
-            url: sprite.url,
-            data: sprite.data,
-            type: sprite.url.endsWith('.json') ? 'json' : 'png',
-            resolution: sprite.url.includes('@2x') ? '2x' : '1x',
-          });
-        } while (await cursor.continue());
+      while (cursor) {
+        const sprite = cursor.value;
+        // SpriteEntry doesn't have styleId, so we'll include all sprites for now
+        // In a real implementation, you might need to filter by URL patterns or other criteria
+        sprites.push({
+          url: sprite.url,
+          data: sprite.data,
+          type: sprite.url.endsWith('.json') ? 'json' : 'png',
+          resolution: sprite.url.includes('@2x') ? '2x' : '1x',
+        });
+        cursor = await cursor.continue();
       }
 
       return sprites;
@@ -487,19 +497,18 @@ export class ImportExportService {
     const fonts: FontExportData[] = [];
 
     try {
-      const cursor = await store.openCursor();
+      let cursor = await store.openCursor();
 
-      if (cursor) {
-        do {
-          const font = cursor.value;
-          // FontEntry doesn't have styleId or fontStack/range, so we'll export basic font data
-          // In a real implementation, you might need to filter by download ID or other criteria
-          fonts.push({
-            fontStack: font.key, // Use key as fontstack identifier
-            range: '0-255', // Default range since FontEntry doesn't store this
-            data: font.data,
-          });
-        } while (await cursor.continue());
+      while (cursor) {
+        const font = cursor.value;
+        // FontEntry doesn't have styleId or fontStack/range, so we'll export basic font data
+        // In a real implementation, you might need to filter by download ID or other criteria
+        fonts.push({
+          fontStack: font.key, // Use key as fontstack identifier
+          range: '0-255', // Default range since FontEntry doesn't store this
+          data: font.data,
+        });
+        cursor = await cursor.continue();
       }
 
       return fonts;

@@ -79,8 +79,6 @@ export class FontService {
         try {
           const fontKey = this.createFontKey(fontUrl, styleName);
 
-          progressTracker.update(1, fontKey);
-
           const response = await fetchResourceWithRetry(fontUrl, {
             retries: maxRetries,
             retryDelay,
@@ -121,6 +119,8 @@ export class FontService {
           };
 
           await db.put('fonts', fontEntry);
+
+          progressTracker.update(1, fontKey);
 
           totalSize += fontData.byteLength;
           downloadedFonts++;
@@ -264,51 +264,64 @@ export class FontService {
 
   async verifyAndRepairFonts(): Promise<{ verified: number; repaired: number; removed: number }> {
     const db = await this.db;
-    const tx = db.transaction(['fonts'], 'readwrite');
 
     let verified = 0;
     let repaired = 0;
     let removed = 0;
 
-    let cursor = await tx.objectStore('fonts').openCursor();
+    // First pass: collect entries and categorize them
+    const toRepair: FontEntry[] = [];
+    const toRemove: string[] = [];
+
+    const readTx = db.transaction(['fonts'], 'readonly');
+    let cursor = await readTx.objectStore('fonts').openCursor();
     while (cursor) {
       const fontEntry: FontEntry = cursor.value;
 
       try {
-        // Basic validation
         if (!fontEntry.data || fontEntry.size === 0) {
-          await cursor.delete();
-          removed++;
+          toRemove.push(fontEntry.key);
         } else {
           await this.validateFont(fontEntry.data, fontEntry.contentType);
           verified++;
         }
       } catch {
-        // Try to repair or remove
-        try {
-          // Attempt basic repair by re-downloading
-          const response = await fetch(fontEntry.url);
-          if (response.ok) {
-            const newData = await response.arrayBuffer();
-            const repairedEntry = {
-              ...fontEntry,
-              data: newData,
-              size: newData.byteLength,
-              lastModified: Date.now(),
-            };
-            await cursor.update(repairedEntry);
-            repaired++;
-          } else {
-            await cursor.delete();
-            removed++;
-          }
-        } catch {
-          await cursor.delete();
-          removed++;
-        }
+        toRepair.push(fontEntry);
       }
 
       cursor = await cursor.continue();
+    }
+
+    // Second pass: attempt repairs via network (outside any transaction)
+    for (const fontEntry of toRepair) {
+      try {
+        const response = await fetch(fontEntry.url);
+        if (response.ok) {
+          const newData = await response.arrayBuffer();
+          const repairedEntry = {
+            ...fontEntry,
+            data: newData,
+            size: newData.byteLength,
+            lastModified: Date.now(),
+          };
+          await db.put('fonts', repairedEntry);
+          repaired++;
+        } else {
+          toRemove.push(fontEntry.key);
+        }
+      } catch {
+        toRemove.push(fontEntry.key);
+      }
+    }
+
+    // Third pass: remove entries that couldn't be repaired
+    if (toRemove.length > 0) {
+      const deleteTx = db.transaction(['fonts'], 'readwrite');
+      for (const key of toRemove) {
+        await deleteTx.objectStore('fonts').delete(key);
+        removed++;
+      }
+      await deleteTx.done;
     }
 
     return { verified, repaired, removed };

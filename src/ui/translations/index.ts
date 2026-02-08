@@ -21,7 +21,7 @@ i18next.init({
   fallbackLng: 'en',
   debug: false,
   interpolation: {
-    escapeValue: false, // Not needed for non-HTML contexts
+    escapeValue: true, // Escape interpolation values since translations are used in innerHTML
     prefix: '{{',
     suffix: '}}',
   },

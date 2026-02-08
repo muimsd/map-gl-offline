@@ -7,6 +7,7 @@
  */
 export function formatBytes(bytes: number): string {
   if (bytes === 0) return '0 Bytes';
+  if (bytes < 0) return '-' + formatBytes(-bytes);
 
   const k = 1024;
   const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
@@ -66,4 +67,17 @@ export function formatNumber(num: number): string {
 export function formatPercentage(value: number, total: number): string {
   if (total === 0) return '0%';
   return Math.round((value / total) * 100) + '%';
+}
+
+/**
+ * Escape HTML special characters to prevent XSS
+ */
+export function escapeHtml(unsafe: unknown): string {
+  const str = String(unsafe ?? '');
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
 }

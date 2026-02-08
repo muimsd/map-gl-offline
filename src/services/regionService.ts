@@ -311,7 +311,8 @@ export class RegionService {
 
       // Remove the region from the style's regions array
       const remainingRegions = foundStyle.regions.filter(
-        (r: OfflineRegionOptions) => r.id !== regionId
+        (r: OfflineRegionOptions & { regionId?: string }) =>
+          r.id !== regionId && r.regionId !== regionId
       );
 
       foundStyle.regions = remainingRegions;

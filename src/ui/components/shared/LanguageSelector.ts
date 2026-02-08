@@ -15,14 +15,19 @@ export class LanguageSelector extends BaseComponent {
   private options: LanguageSelectorOptions;
   private dropdown?: HTMLDivElement;
   private isOpen = false;
+  private unsubscribeLanguage?: () => void;
 
   constructor(options: LanguageSelectorOptions = {}) {
     super({});
     this.options = options;
+
+    // Register the outside click listener once in the constructor
+    document.addEventListener('click', this.handleOutsideClick);
+
     this.render();
 
     // Subscribe to language changes
-    i18n.subscribe(() => this.render());
+    this.unsubscribeLanguage = i18n.subscribe(() => this.render());
   }
 
   protected createElement(): HTMLElement {
@@ -86,9 +91,6 @@ export class LanguageSelector extends BaseComponent {
 
     this.dropdown = dropdown;
     this.element.appendChild(dropdown);
-
-    // Close dropdown on outside click
-    document.addEventListener('click', this.handleOutsideClick);
   }
 
   private handleOutsideClick = (): void => {
@@ -118,6 +120,9 @@ export class LanguageSelector extends BaseComponent {
   }
 
   public destroy(): void {
+    if (this.unsubscribeLanguage) {
+      this.unsubscribeLanguage();
+    }
     document.removeEventListener('click', this.handleOutsideClick);
     super.destroy();
   }
