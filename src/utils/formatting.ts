@@ -27,49 +27,6 @@ export function formatDate(date: number | Date): string {
 }
 
 /**
- * Format date and time to human readable string
- */
-export function formatDateTime(timestamp: number): string {
-  return new Date(timestamp).toLocaleString();
-}
-
-/**
- * Format duration in milliseconds to human readable string
- */
-export function formatDuration(milliseconds: number): string {
-  const seconds = Math.floor(milliseconds / 1000);
-  const minutes = Math.floor(seconds / 60);
-  const hours = Math.floor(minutes / 60);
-  const days = Math.floor(hours / 24);
-
-  if (days > 0) {
-    return `${days}d ${hours % 24}h`;
-  }
-  if (hours > 0) {
-    return `${hours}h ${minutes % 60}m`;
-  }
-  if (minutes > 0) {
-    return `${minutes}m ${seconds % 60}s`;
-  }
-  return `${seconds}s`;
-}
-
-/**
- * Format number with thousands separator
- */
-export function formatNumber(num: number): string {
-  return num.toLocaleString();
-}
-
-/**
- * Format percentage
- */
-export function formatPercentage(value: number, total: number): string {
-  if (total === 0) return '0%';
-  return Math.round((value / total) * 100) + '%';
-}
-
-/**
  * Escape HTML special characters to prevent XSS
  */
 export function escapeHtml(unsafe: unknown): string {

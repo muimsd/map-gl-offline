@@ -100,70 +100,6 @@ export function patchStyleForOffline(
 }
 
 /**
- * Validates if a region configuration is valid
- */
-export function validateRegion(region: unknown): boolean {
-  if (!region || typeof region !== 'object') return false;
-  const r = region as Record<string, unknown>;
-  if (!r.id || !r.name) return false;
-  if (!r.bounds || !Array.isArray(r.bounds)) return false;
-  if (r.bounds.length !== 2) return false;
-  if (!Array.isArray(r.bounds[0]) || !Array.isArray(r.bounds[1])) return false;
-  if (r.bounds[0].length !== 2 || r.bounds[1].length !== 2) return false;
-  if (typeof r.minZoom !== 'number' || typeof r.maxZoom !== 'number') return false;
-  if (r.minZoom < 0 || r.maxZoom > 24 || r.minZoom > r.maxZoom) return false;
-
-  return true;
-}
-
-/**
- * Calculates the bounding box area in square degrees
- */
-export function calculateBBoxArea(bounds: [[number, number], [number, number]]): number {
-  const [[west, south], [east, north]] = bounds;
-  return Math.abs(east - west) * Math.abs(north - south);
-}
-
-/**
- * Estimates the number of tiles for a given region and zoom range
- */
-export function estimateTileCount(
-  bounds: [[number, number], [number, number]],
-  minZoom: number,
-  maxZoom: number
-): number {
-  const [[west, south], [east, north]] = bounds;
-  let totalTiles = 0;
-
-  for (let zoom = minZoom; zoom <= maxZoom; zoom++) {
-    const n = Math.pow(2, zoom);
-
-    const minTileX = Math.floor(((west + 180) / 360) * n);
-    const maxTileX = Math.floor(((east + 180) / 360) * n);
-    const minTileY = Math.floor(
-      ((1 -
-        Math.log(Math.tan((north * Math.PI) / 180) + 1 / Math.cos((north * Math.PI) / 180)) /
-          Math.PI) /
-        2) *
-        n
-    );
-    const maxTileY = Math.floor(
-      ((1 -
-        Math.log(Math.tan((south * Math.PI) / 180) + 1 / Math.cos((south * Math.PI) / 180)) /
-          Math.PI) /
-        2) *
-        n
-    );
-
-    const tilesX = Math.abs(maxTileX - minTileX) + 1;
-    const tilesY = Math.abs(maxTileY - minTileY) + 1;
-
-    totalTiles += tilesX * tilesY;
-  }
-
-  return totalTiles;
-}
-/**
  * Extracts all fontstacks from a style object and generates all glyph URLs for a set of Unicode ranges.
  * @param style The style JSON object
  * @param glyphsUrlTemplate The glyphs URL template from the style (e.g. .../fonts/{fontstack}/{range}.pbf)
@@ -215,27 +151,4 @@ export function generateGlyphUrlsFromStyle(
     }
   }
   return urls;
-}
-/**
- * Extract tile coordinates from a tile URL
- * e.g., "https://tiles-a.basemaps.cartocdn.com/vectortiles/carto.streets/v1/0/0/0.mvt" -> "0/0/0.mvt"
- */
-export function extractTileKey(url: string): string {
-  // Match z/x/y pattern with optional file extension
-  const match = url.match(/\/(\d+)\/(\d+)\/(\d+)\.(\w+)$/);
-  if (match) {
-    const [, z, x, y, ext] = match;
-    return `${z}/${x}/${y}.${ext}`;
-  }
-
-  // Fallback: try to extract just the filename part
-  const urlParts = url.split('/');
-  const filename = urlParts[urlParts.length - 1];
-  if (filename.includes('.')) {
-    return filename;
-  }
-
-  // Last resort: use the full URL
-  styleLogger.warn(`Could not extract tile key from URL: ${url}`);
-  return url;
 }

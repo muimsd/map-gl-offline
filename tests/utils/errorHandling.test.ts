@@ -7,10 +7,6 @@ import {
   categorizeError,
   getUserErrorMessage,
   safeExecute,
-  logError,
-  isRetryableError,
-  isCorsError,
-  aggregateErrors,
 } from '../../src/utils/errorHandling';
 import { logger, LogLevel } from '../../src/utils/logger';
 
@@ -179,97 +175,3 @@ describe('safeExecute', () => {
   });
 });
 
-describe('logError', () => {
-  let warnSpy: jest.SpyInstance;
-  let errorSpy: jest.SpyInstance;
-
-  beforeEach(() => {
-    logger.setLevel(LogLevel.DEBUG);
-    warnSpy = jest.spyOn(console, 'warn').mockImplementation();
-    errorSpy = jest.spyOn(console, 'error').mockImplementation();
-  });
-
-  afterEach(() => {
-    warnSpy.mockRestore();
-    errorSpy.mockRestore();
-    logger.setLevel(LogLevel.SILENT);
-  });
-
-  it('should log network errors as warnings', () => {
-    logError(new Error('Failed to fetch'));
-    expect(warnSpy).toHaveBeenCalled();
-  });
-
-  it('should log other errors as errors', () => {
-    logError(new Error('Quota exceeded'));
-    expect(errorSpy).toHaveBeenCalled();
-  });
-
-  it('should include context prefix', () => {
-    logError(new Error('Test error'), 'TestModule');
-    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('[TestModule]'), expect.anything());
-  });
-});
-
-describe('isRetryableError', () => {
-  it('should return true for NETWORK errors', () => {
-    expect(isRetryableError(new Error('Failed to fetch'))).toBe(true);
-    expect(isRetryableError(new Error('Network error'))).toBe(true);
-  });
-
-  it('should return false for CORS errors', () => {
-    expect(isRetryableError(new Error('CORS policy blocked'))).toBe(false);
-  });
-
-  it('should return false for other error types', () => {
-    expect(isRetryableError(new Error('Quota exceeded'))).toBe(false);
-    expect(isRetryableError(new Error('Invalid input'))).toBe(false);
-    expect(isRetryableError(new Error('IndexedDB error'))).toBe(false);
-  });
-});
-
-describe('isCorsError', () => {
-  it('should return true for CORS errors', () => {
-    expect(isCorsError(new Error('CORS policy blocked'))).toBe(true);
-    expect(isCorsError(new Error('cross-origin'))).toBe(true);
-  });
-
-  it('should return false for non-CORS errors', () => {
-    expect(isCorsError(new Error('Failed to fetch'))).toBe(false);
-    expect(isCorsError(new Error('Unknown error'))).toBe(false);
-  });
-});
-
-describe('aggregateErrors', () => {
-  it('should aggregate errors by type', () => {
-    const errors = [
-      { url: 'url1', error: 'Failed to fetch' },
-      { url: 'url2', error: 'CORS policy blocked' },
-      { url: 'url3', error: 'Network error' },
-      { url: 'url4', error: 'IndexedDB error' },
-    ];
-
-    const result = aggregateErrors(errors);
-
-    expect(result.total).toBe(4);
-    expect(result.byType[ErrorType.NETWORK]).toBe(2);
-    expect(result.byType[ErrorType.CORS]).toBe(1);
-    expect(result.byType[ErrorType.STORAGE]).toBe(1);
-  });
-
-  it('should return empty summary for no errors', () => {
-    const result = aggregateErrors([]);
-    expect(result.total).toBe(0);
-    expect(result.summary).toBe('No errors');
-  });
-
-  it('should format summary correctly', () => {
-    const errors = [
-      { url: 'url1', error: 'Failed to fetch' },
-      { url: 'url2', error: 'Failed to fetch' },
-    ];
-
-    const result = aggregateErrors(errors);
-    expect(result.summary).toContain('NETWORK: 2');
-  });
-});

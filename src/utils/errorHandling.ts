@@ -15,7 +15,7 @@
  *
  * @example
  * ```ts
- * import { categorizeError, getUserErrorMessage, isRetryableError } from 'map-gl-offline';
+ * import { categorizeError, getUserErrorMessage, ErrorType } from 'map-gl-offline';
  *
  * try {
  *   await downloadTiles();
@@ -23,7 +23,7 @@
  *   const type = categorizeError(error);
  *   const message = getUserErrorMessage(error);
  *
- *   if (isRetryableError(error)) {
+ *   if (type === ErrorType.NETWORK) {
  *     // Retry the operation
  *   } else {
  *     // Show error to user
@@ -215,80 +215,4 @@ export async function safeExecute<T>(
 
     return { success: false, error: categorizedError };
   }
-}
-
-/**
- * Log error with appropriate level based on error type
- */
-export function logError(error: unknown, context?: string): void {
-  const type = categorizeError(error);
-  const message = error instanceof Error ? error.message : String(error);
-  const prefix = context ? `[${context}]` : '';
-
-  switch (type) {
-    case ErrorType.NETWORK:
-      logger.warn(`${prefix} Network error:`, message);
-      break;
-    case ErrorType.QUOTA:
-      logger.error(`${prefix} Quota exceeded:`, message);
-      break;
-    case ErrorType.STORAGE:
-    case ErrorType.VALIDATION:
-    case ErrorType.PARSE:
-      logger.error(`${prefix} ${type} error:`, message);
-      break;
-    default:
-      logger.error(`${prefix} Unknown error:`, error);
-  }
-}
-
-/**
- * Check if error is retryable
- */
-export function isRetryableError(error: unknown): boolean {
-  const type = categorizeError(error);
-  // Network errors are retryable, but CORS errors are not (server-side issue)
-  return type === ErrorType.NETWORK;
-}
-
-/**
- * Check if error is a CORS error
- */
-export function isCorsError(error: unknown): boolean {
-  return categorizeError(error) === ErrorType.CORS;
-}
-
-/**
- * Aggregate multiple errors into a summary
- */
-export function aggregateErrors(errors: Array<{ url: string; error: string }>): {
-  total: number;
-  byType: Record<ErrorType, number>;
-  summary: string;
-} {
-  const byType: Record<ErrorType, number> = {
-    [ErrorType.NETWORK]: 0,
-    [ErrorType.CORS]: 0,
-    [ErrorType.STORAGE]: 0,
-    [ErrorType.VALIDATION]: 0,
-    [ErrorType.PARSE]: 0,
-    [ErrorType.QUOTA]: 0,
-    [ErrorType.UNKNOWN]: 0,
-  };
-
-  for (const { error } of errors) {
-    const type = categorizeError(new Error(error));
-    byType[type]++;
-  }
-
-  const summary = Object.entries(byType)
-    .filter(([_, count]) => count > 0)
-    .map(([type, count]) => `${type}: ${count}`)
-    .join(', ');
-
-  return {
-    total: errors.length,
-    byType,
-    summary: summary || 'No errors',
-  };
 }

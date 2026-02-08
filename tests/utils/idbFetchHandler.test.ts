@@ -1,15 +1,13 @@
 /**
  * Tests for IDB Fetch Handler
  */
-import { idbFetchHandler, listTileKeysInIDB, clearAllCaches } from '../../src/utils/idbFetchHandler';
+import { idbFetchHandler, clearAllCaches } from '../../src/utils/idbFetchHandler';
 import { dbPromise } from '../../src/storage/indexedDbManager';
 import type { StyleProvider } from '../../src/types/style';
 
 describe('IDBFetchHandler', () => {
   beforeEach(async () => {
-    // Clear in-memory caches first to avoid stale data from previous tests
     clearAllCaches();
-
     const db = await dbPromise;
     await db.clear('tiles');
     await db.clear('fonts');
@@ -531,146 +529,4 @@ describe('IDBFetchHandler', () => {
     });
   });
 
-  describe('listTileKeysInIDB', () => {
-    it('should return empty array when no matching tiles', async () => {
-      const keys = await listTileKeysInIDB('style-1', 'source', 10);
-
-      expect(keys).toEqual([]);
-    });
-
-    it('should return matching tile keys', async () => {
-      const db = await dbPromise;
-
-      // Add tiles at zoom 10
-      await db.put('tiles', {
-        key: 'style-1:source:10:100:200.pbf',
-        styleId: 'style-1',
-        sourceId: 'source',
-        x: 100,
-        y: 200,
-        z: 10,
-        size: 100,
-        data: new ArrayBuffer(100),
-        downloadedAt: new Date().toISOString(),
-        type: 'vector',
-        url: 'https://example.com/tile1.pbf',
-        lastModified: Date.now(),
-      });
-
-      await db.put('tiles', {
-        key: 'style-1:source:10:101:200.pbf',
-        styleId: 'style-1',
-        sourceId: 'source',
-        x: 101,
-        y: 200,
-        z: 10,
-        size: 100,
-        data: new ArrayBuffer(100),
-        downloadedAt: new Date().toISOString(),
-        type: 'vector',
-        url: 'https://example.com/tile2.pbf',
-        lastModified: Date.now(),
-      });
-
-      // Add tile at different zoom
-      await db.put('tiles', {
-        key: 'style-1:source:11:100:200.pbf',
-        styleId: 'style-1',
-        sourceId: 'source',
-        x: 100,
-        y: 200,
-        z: 11,
-        size: 100,
-        data: new ArrayBuffer(100),
-        downloadedAt: new Date().toISOString(),
-        type: 'vector',
-        url: 'https://example.com/tile3.pbf',
-        lastModified: Date.now(),
-      });
-
-      const keys = await listTileKeysInIDB('style-1', 'source', 10);
-
-      expect(keys.length).toBe(2);
-      expect(keys).toContain('style-1:source:10:100:200.pbf');
-      expect(keys).toContain('style-1:source:10:101:200.pbf');
-    });
-
-    it('should filter by styleId', async () => {
-      const db = await dbPromise;
-
-      await db.put('tiles', {
-        key: 'style-1:source:10:100:200.pbf',
-        styleId: 'style-1',
-        sourceId: 'source',
-        x: 100,
-        y: 200,
-        z: 10,
-        size: 100,
-        data: new ArrayBuffer(100),
-        downloadedAt: new Date().toISOString(),
-        type: 'vector',
-        url: 'https://example.com/tile1.pbf',
-        lastModified: Date.now(),
-      });
-
-      await db.put('tiles', {
-        key: 'style-2:source:10:100:200.pbf',
-        styleId: 'style-2',
-        sourceId: 'source',
-        x: 100,
-        y: 200,
-        z: 10,
-        size: 100,
-        data: new ArrayBuffer(100),
-        downloadedAt: new Date().toISOString(),
-        type: 'vector',
-        url: 'https://example.com/tile2.pbf',
-        lastModified: Date.now(),
-      });
-
-      const keys = await listTileKeysInIDB('style-1', 'source', 10);
-
-      expect(keys.length).toBe(1);
-      expect(keys[0]).toBe('style-1:source:10:100:200.pbf');
-    });
-
-    it('should filter by sourceId', async () => {
-      const db = await dbPromise;
-
-      await db.put('tiles', {
-        key: 'style-1:source-a:10:100:200.pbf',
-        styleId: 'style-1',
-        sourceId: 'source-a',
-        x: 100,
-        y: 200,
-        z: 10,
-        size: 100,
-        data: new ArrayBuffer(100),
-        downloadedAt: new Date().toISOString(),
-        type: 'vector',
-        url: 'https://example.com/tile1.pbf',
-        lastModified: Date.now(),
-      });
-
-      await db.put('tiles', {
-        key: 'style-1:source-b:10:100:200.pbf',
-        styleId: 'style-1',
-        sourceId: 'source-b',
-        x: 100,
-        y: 200,
-        z: 10,
-        size: 100,
-        data: new ArrayBuffer(100),
-        downloadedAt: new Date().toISOString(),
-        type: 'vector',
-        url: 'https://example.com/tile2.pbf',
-        lastModified: Date.now(),
-      });
-
-      const keys = await listTileKeysInIDB('style-1', 'source-a', 10);
-
-      expect(keys.length).toBe(1);
-      expect(keys[0]).toBe('style-1:source-a:10:100:200.pbf');
-    });
-  });
 });

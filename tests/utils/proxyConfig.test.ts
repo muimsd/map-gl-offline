@@ -3,25 +3,18 @@
  */
 import {
   configureProxy,
-  getProxyConfig,
-  resetProxyConfig,
   applyProxy,
-  shouldProxy,
 } from '../../src/utils/proxyConfig';
 
 describe('proxyConfig', () => {
-  beforeEach(() => {
-    resetProxyConfig();
-  });
-
   describe('configureProxy', () => {
     it('should set proxy configuration', () => {
       configureProxy({
         fonts: { 'example.com': '/proxy/fonts' },
       });
 
-      const config = getProxyConfig();
-      expect(config.fonts).toEqual({ 'example.com': '/proxy/fonts' });
+      // Verify via applyProxy behavior
+      expect(applyProxy('https://example.com/font.pbf', 'fonts')).toBe('/proxy/fonts/font.pbf');
     });
 
     it('should merge configurations', () => {
@@ -32,9 +25,8 @@ describe('proxyConfig', () => {
         tiles: { 'tiles.example.com': '/tiles' },
       });
 
-      const config = getProxyConfig();
-      expect(config.fonts).toEqual({ 'fonts.example.com': '/fonts' });
-      expect(config.tiles).toEqual({ 'tiles.example.com': '/tiles' });
+      expect(applyProxy('https://fonts.example.com/font.pbf', 'fonts')).toBe('/fonts/font.pbf');
+      expect(applyProxy('https://tiles.example.com/tile.pbf', 'tiles')).toBe('/tiles/tile.pbf');
     });
 
     it('should override existing keys', () => {
@@ -45,44 +37,13 @@ describe('proxyConfig', () => {
         fonts: { 'example.com': '/new' },
       });
 
-      const config = getProxyConfig();
-      expect(config.fonts).toEqual({ 'example.com': '/new' });
-    });
-  });
-
-  describe('getProxyConfig', () => {
-    it('should return empty config by default', () => {
-      const config = getProxyConfig();
-      expect(config).toEqual({});
-    });
-
-    it('should return a copy of config', () => {
-      configureProxy({ corsProxyUrl: 'https://proxy.com/' });
-      const config1 = getProxyConfig();
-      const config2 = getProxyConfig();
-      expect(config1).not.toBe(config2);
-      expect(config1).toEqual(config2);
-    });
-  });
-
-  describe('resetProxyConfig', () => {
-    it('should clear all configuration', () => {
-      configureProxy({
-        fonts: { 'example.com': '/fonts' },
-        tiles: { 'tiles.com': '/tiles' },
-        corsProxyUrl: 'https://proxy.com/',
-      });
-
-      resetProxyConfig();
-
-      const config = getProxyConfig();
-      expect(config).toEqual({});
+      expect(applyProxy('https://example.com/font.pbf', 'fonts')).toBe('/new/font.pbf');
     });
   });
 
   describe('applyProxy', () => {
-    it('should return original URL if no proxy configured', () => {
-      const url = 'https://example.com/tiles/0/0/0.pbf';
+    it('should return original URL if no proxy configured for hostname', () => {
+      const url = 'https://unknown-host.com/tiles/0/0/0.pbf';
       expect(applyProxy(url, 'tiles')).toBe(url);
     });
 
@@ -130,7 +91,7 @@ describe('proxyConfig', () => {
         enableForAll: false,
       });
 
-      const url = 'https://example.com/tile.pbf';
+      const url = 'https://no-proxy-configured.com/tile.pbf';
       expect(applyProxy(url, 'tiles')).toBe(url);
     });
 
@@ -163,55 +124,6 @@ describe('proxyConfig', () => {
       expect(applyProxy('https://fonts.example.com/font.pbf', 'fonts')).toBe('/fonts-proxy/font.pbf');
       expect(applyProxy('https://tiles.example.com/tile.pbf', 'tiles')).toBe('/tiles-proxy/tile.pbf');
       expect(applyProxy('https://sprites.example.com/sprite.png', 'sprites')).toBe('/sprites-proxy/sprite.png');
-    });
-  });
-
-  describe('shouldProxy', () => {
-    it('should return false if no proxy configured', () => {
-      expect(shouldProxy('https://example.com/tile.pbf', 'tiles')).toBe(false);
-    });
-
-    it('should return true for configured hostname', () => {
-      configureProxy({
-        tiles: { 'tiles.example.com': '/proxy' },
-      });
-
-      expect(shouldProxy('https://tiles.example.com/tile.pbf', 'tiles')).toBe(true);
-    });
-
-    it('should return false for non-configured hostname', () => {
-      configureProxy({
-        tiles: { 'tiles.example.com': '/proxy' },
-      });
-
-      expect(shouldProxy('https://other.example.com/tile.pbf', 'tiles')).toBe(false);
-    });
-
-    it('should return true when CORS proxy is enabled for all', () => {
-      configureProxy({
-        corsProxyUrl: 'https://proxy.com/',
-        enableForAll: true,
-      });
-
-      expect(shouldProxy('https://any-domain.com/tile.pbf', 'tiles')).toBe(true);
-    });
-
-    it('should return false for empty URL', () => {
-      configureProxy({
-        corsProxyUrl: 'https://proxy.com/',
-        enableForAll: true,
-      });
-
-      expect(shouldProxy('', 'tiles')).toBe(false);
-    });
-
-    it('should return false for invalid URL', () => {
-      configureProxy({
-        corsProxyUrl: 'https://proxy.com/',
-        enableForAll: true,
-      });
-
-      expect(shouldProxy('not-a-url', 'tiles')).toBe(false);
     });
   });
 });

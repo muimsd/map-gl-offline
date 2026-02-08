@@ -89,20 +89,6 @@ export function configureProxy(config: ProxyConfig): void {
 }
 
 /**
- * Get the current proxy configuration
- */
-export function getProxyConfig(): ProxyConfig {
-  return { ...proxyConfig };
-}
-
-/**
- * Reset proxy configuration to defaults
- */
-export function resetProxyConfig(): void {
-  proxyConfig = {};
-}
-
-/**
  * Apply proxy to a URL based on current configuration
  *
  * @param url - The original URL
@@ -139,32 +125,5 @@ export function applyProxy(url: string, type: ProxyType): string {
   } catch {
     // If URL parsing fails, return original
     return url;
-  }
-}
-
-/**
- * Check if a URL should be proxied
- */
-export function shouldProxy(url: string, type: ProxyType): boolean {
-  if (!url) return false;
-
-  try {
-    const urlObj = new URL(url);
-    const hostname = urlObj.hostname;
-
-    // Check for specific hostname mapping
-    const typeConfig = proxyConfig[type];
-    if (typeConfig && typeConfig[hostname]) {
-      return true;
-    }
-
-    // Check for generic CORS proxy
-    if (proxyConfig.corsProxyUrl && proxyConfig.enableForAll) {
-      return true;
-    }
-
-    return false;
-  } catch {
-    return false;
   }
 }

@@ -18,26 +18,6 @@ export type FetchResourceResult =
       contentEncoding?: string;
     };
 
-export async function fetchResource(
-  url: string
-): Promise<{ type: 'image' | 'pbf'; data: ArrayBuffer }> {
-  // Add CORS mode to fetch
-  const response = await fetch(url, { mode: 'cors' });
-  if (!response.ok) {
-    throw new Error(`Failed to fetch resource: ${response.statusText}`);
-  }
-
-  const contentType = response.headers.get('content-type');
-  const data = await response.arrayBuffer();
-
-  if (contentType?.includes('image')) {
-    return { type: 'image', data };
-  } else if (contentType?.includes('application/x-protobuf')) {
-    return { type: 'pbf', data };
-  } else {
-    throw new Error(`Unsupported content type: ${contentType}`);
-  }
-}
 /**
  * Enhanced fetch with retry logic and timeout
  */

@@ -57,23 +57,6 @@ export function extractAccessToken(styleUrl: string): string | null {
 }
 
 /**
- * Validate if a style URL requires authentication
- */
-export function requiresAuthentication(styleUrl: string, provider: StyleProvider): boolean {
-  if (provider === 'mapbox') {
-    // Mapbox styles typically require access tokens
-    return styleUrl.includes('mapbox.com');
-  }
-
-  // Check for other providers that might require tokens
-  if (styleUrl.includes('api.maptiler.com')) {
-    return true;
-  }
-
-  return false;
-}
-
-/**
  * Normalize style URL for consistent processing
  */
 export function normalizeStyleUrl(styleUrl: string, accessToken?: string): string {
@@ -200,35 +183,4 @@ export function validateStyleForProvider(
     errors,
     warnings,
   };
-}
-
-/**
- * Get default style configuration for a provider
- */
-export function getDefaultStyleConfig(provider: StyleProvider) {
-  switch (provider) {
-    case 'mapbox':
-      return {
-        requiresAuth: true,
-        defaultSources: ['mapbox://'],
-        supportedFormats: ['mvt', 'raster'],
-        maxZoom: 22,
-      };
-
-    case 'maplibre':
-      return {
-        requiresAuth: false,
-        defaultSources: ['http://', 'https://'],
-        supportedFormats: ['mvt', 'raster', 'geojson'],
-        maxZoom: 24,
-      };
-
-    default:
-      return {
-        requiresAuth: false,
-        defaultSources: ['http://', 'https://'],
-        supportedFormats: ['mvt', 'raster', 'geojson'],
-        maxZoom: 22,
-      };
-  }
 }

@@ -49,20 +49,11 @@ function setTileInCache(key: string, response: Response): void {
 }
 
 /**
- * Clear all caches (call when offline data is modified)
+ * Clear all in-memory caches (call when offline data is modified)
  */
 export function clearAllCaches(): void {
   regionToStyleCache.clear();
   tileCache.clear();
-  idbLogger.debug('All IDB caches cleared');
-}
-
-/**
- * Clear the region-to-style cache (call when styles are modified)
- */
-export function clearRegionStyleCache(): void {
-  regionToStyleCache.clear();
-  idbLogger.debug('Region-to-style cache cleared');
 }
 
 /**
@@ -546,27 +537,3 @@ export async function idbFetchHandler(url: string, init?: RequestInit): Promise<
   idbLogger.warn(`Resource not found in IDB: ${url}`);
   return new Response('Not found in IDB', { status: 404 });
 }
-
-// Debug utility: List all tile keys for a given styleId/sourceId/zoom
-export async function listTileKeysInIDB(styleId: string, sourceId: string, zoom: number) {
-  const db = await dbPromise;
-  const allTiles = await db.getAll('tiles');
-  const matching = allTiles.filter(tile => {
-    if (!tile.key) return false;
-    const parts = tile.key.split(':');
-    return parts[0] === styleId && parts[1] === sourceId && parseInt(parts[2]) === zoom;
-  });
-  idbLogger.debug(`Tile keys for styleId='${styleId}', sourceId='${sourceId}', zoom=${zoom}:`);
-  matching.forEach(tile => idbLogger.debug(tile.key));
-  return matching.map(tile => tile.key);
-}
-
-// Make available in browser console
-if (typeof window !== 'undefined') {
-  // @ts-expect-error - Adding to global window for debugging
-  window.listTileKeysInIDB = listTileKeysInIDB;
-}
-
-// Usage: fetch('idb://tiles/https%3A%2F%2Ftiles.example.com%2Fz%2Fx%2Fy.pbf')
-//   .then(idbFetchHandler)
-//   .then(response => ...)

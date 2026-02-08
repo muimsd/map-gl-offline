@@ -5,7 +5,6 @@ import {
   processBatch,
   createProgressTracker,
   validateResource,
-  fetchResource,
   fetchResourceWithRetry,
   fetchWithRetry,
 } from '../../src/utils/download';
@@ -17,60 +16,6 @@ global.fetch = mockFetch;
 describe('download utilities', () => {
   beforeEach(() => {
     mockFetch.mockClear();
-  });
-
-  describe('fetchResource', () => {
-    it('should fetch and return image data', async () => {
-      const imageData = new ArrayBuffer(100);
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        headers: new Headers({ 'content-type': 'image/png' }),
-        arrayBuffer: () => Promise.resolve(imageData),
-      });
-
-      const result = await fetchResource('https://example.com/image.png');
-
-      expect(result.type).toBe('image');
-      expect(result.data).toBe(imageData);
-      expect(mockFetch).toHaveBeenCalledWith('https://example.com/image.png', { mode: 'cors' });
-    });
-
-    it('should fetch and return pbf data', async () => {
-      const pbfData = new ArrayBuffer(100);
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        headers: new Headers({ 'content-type': 'application/x-protobuf' }),
-        arrayBuffer: () => Promise.resolve(pbfData),
-      });
-
-      const result = await fetchResource('https://example.com/tile.pbf');
-
-      expect(result.type).toBe('pbf');
-      expect(result.data).toBe(pbfData);
-    });
-
-    it('should throw error for failed fetch', async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: false,
-        statusText: 'Not Found',
-      });
-
-      await expect(fetchResource('https://example.com/missing.png')).rejects.toThrow(
-        'Failed to fetch resource: Not Found'
-      );
-    });
-
-    it('should throw error for unsupported content type', async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        headers: new Headers({ 'content-type': 'text/html' }),
-        arrayBuffer: () => Promise.resolve(new ArrayBuffer(100)),
-      });
-
-      await expect(fetchResource('https://example.com/page.html')).rejects.toThrow(
-        'Unsupported content type: text/html'
-      );
-    });
   });
 
   describe('fetchResourceWithRetry', () => {

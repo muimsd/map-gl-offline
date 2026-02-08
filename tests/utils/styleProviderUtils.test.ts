@@ -4,11 +4,9 @@
 import {
   detectStyleProvider,
   extractAccessToken,
-  requiresAuthentication,
   normalizeStyleUrl,
   processStyleSources,
   validateStyleForProvider,
-  getDefaultStyleConfig,
 } from '../../src/utils/styleProviderUtils';
 import type { BaseStyle } from '../../src/types/style';
 
@@ -95,21 +93,6 @@ describe('styleProviderUtils', () => {
     it('should handle URLs with multiple query params', () => {
       const url = 'https://example.com/style?format=json&access_token=abc123&version=2';
       expect(extractAccessToken(url)).toBe('abc123');
-    });
-  });
-
-  describe('requiresAuthentication', () => {
-    it('should return true for Mapbox URLs', () => {
-      expect(requiresAuthentication('https://api.mapbox.com/styles/v1/user/style', 'mapbox')).toBe(true);
-    });
-
-    it('should return true for MapTiler URLs', () => {
-      expect(requiresAuthentication('https://api.maptiler.com/styles/basic', 'maplibre')).toBe(true);
-    });
-
-    it('should return false for generic URLs', () => {
-      expect(requiresAuthentication('https://example.com/style.json', 'maplibre')).toBe(false);
-      expect(requiresAuthentication('https://tiles.osm.org/style.json', 'auto')).toBe(false);
     });
   });
 
@@ -336,30 +319,4 @@ describe('styleProviderUtils', () => {
     });
   });
 
-  describe('getDefaultStyleConfig', () => {
-    it('should return Mapbox config', () => {
-      const config = getDefaultStyleConfig('mapbox');
-
-      expect(config.requiresAuth).toBe(true);
-      expect(config.defaultSources).toContain('mapbox://');
-      expect(config.supportedFormats).toContain('mvt');
-      expect(config.maxZoom).toBe(22);
-    });
-
-    it('should return MapLibre config', () => {
-      const config = getDefaultStyleConfig('maplibre');
-
-      expect(config.requiresAuth).toBe(false);
-      expect(config.defaultSources).toContain('http://');
-      expect(config.supportedFormats).toContain('geojson');
-      expect(config.maxZoom).toBe(24);
-    });
-
-    it('should return default config for auto', () => {
-      const config = getDefaultStyleConfig('auto');
-
-      expect(config.requiresAuth).toBe(false);
-      expect(config.maxZoom).toBe(22);
-    });
-  });
 });
