@@ -62,6 +62,7 @@ export interface StyleDownloadOptions {
   enableSourceEmbedding?: boolean;
   storageQuotaCheck?: boolean;
   includeMetadata?: boolean;
+  accessToken?: string;
 }
 
 export interface StyleDownloadResult {

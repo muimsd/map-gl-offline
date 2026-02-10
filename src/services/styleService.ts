@@ -9,6 +9,8 @@ import {
   normalizeStyleUrl,
   processStyleSources,
   validateStyleForProvider,
+  isMapboxProtocol,
+  resolveMapboxUrl,
 } from '../utils/styleProviderUtils';
 import type {
   StyleEntry,
@@ -108,6 +110,20 @@ export async function downloadStyles(
       }
     }
 
+    // Resolve mapbox:// style URLs to HTTPS before fetching
+    let fetchUrl = stylesUrl;
+    if (isMapboxProtocol(stylesUrl)) {
+      const accessToken = options.accessToken || extractAccessToken(stylesUrl) || undefined;
+      if (!accessToken) {
+        throw new Error(
+          'Mapbox access token is required for mapbox:// style URLs. ' +
+            'Provide it via options.accessToken or as a query parameter.'
+        );
+      }
+      fetchUrl = resolveMapboxUrl(stylesUrl, accessToken);
+      logger.debug(`Resolved mapbox:// style URL to: ${fetchUrl}`);
+    }
+
     onProgress?.({
       completed: 0,
       total: 100,
@@ -116,7 +132,7 @@ export async function downloadStyles(
       errors: [],
     });
 
-    const response = await fetchWithRetry(stylesUrl, {
+    const response = await fetchWithRetry(fetchUrl, {
       retries: maxRetries,
       timeout: timeoutMs,
       retryDelay: 1000,
@@ -187,6 +203,9 @@ export async function downloadStyles(
 
     logger.debug(`Downloading new style: ${style.id}`);
 
+    // Get access token early for resolving mapbox:// source URLs during embedding
+    const accessTokenForSources = options.accessToken || extractAccessToken(fetchUrl) || undefined;
+
     // Process sources
     if (enableSourceEmbedding && style.sources) {
       const sourceKeys = Object.keys(style.sources);
@@ -203,7 +222,14 @@ export async function downloadStyles(
 
         if (source.url) {
           try {
-            const sourceResponse = await fetchWithRetry(source.url, {
+            // Resolve mapbox:// source URLs before fetching
+            let sourceUrl = source.url as string;
+            if (isMapboxProtocol(sourceUrl) && accessTokenForSources) {
+              sourceUrl = resolveMapboxUrl(sourceUrl, accessTokenForSources);
+              logger.debug(`Resolved mapbox:// source URL for ${sourceKey}: ${sourceUrl}`);
+            }
+
+            const sourceResponse = await fetchWithRetry(sourceUrl, {
               retries: maxRetries,
               timeout: timeoutMs,
               retryDelay: 1000,
@@ -241,7 +267,11 @@ export async function downloadStyles(
 
     // Detect style provider
     const provider = detectStyleProvider(stylesUrl, style);
-    const accessToken = extractAccessToken(stylesUrl) ?? undefined;
+    const accessToken =
+      options.accessToken ||
+      extractAccessToken(fetchUrl) ||
+      extractAccessToken(stylesUrl) ||
+      undefined;
 
     // Process style for the detected provider
     const processedStyle = processStyleSources(style, provider, accessToken);
@@ -884,11 +914,23 @@ export async function downloadStyleWithProvider(
 
     logger.debug(`Detected provider: ${detectedProvider}`);
 
-    // Normalize the style URL with access token if needed
-    const normalizedUrl = normalizeStyleUrl(styleUrl, extractedToken);
+    // Resolve mapbox:// URLs or normalize standard URLs
+    let fetchUrl: string;
+    if (isMapboxProtocol(styleUrl)) {
+      if (!extractedToken) {
+        throw new Error(
+          'Mapbox access token is required for mapbox:// style URLs. ' +
+            'Provide it via options.accessToken.'
+        );
+      }
+      fetchUrl = resolveMapboxUrl(styleUrl, extractedToken);
+      logger.debug(`Resolved mapbox:// style URL to: ${fetchUrl}`);
+    } else {
+      fetchUrl = normalizeStyleUrl(styleUrl, extractedToken);
+    }
 
     // Fetch the style
-    const response = await fetchWithRetry(normalizedUrl, {
+    const response = await fetchWithRetry(fetchUrl, {
       timeout: timeoutMs,
       retries: maxRetries,
     });

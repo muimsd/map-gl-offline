@@ -120,6 +120,30 @@ export const RESOURCE_TYPES = {
   TILEJSON: 'tilesjson',
 } as const;
 
+// Mapbox Classic Style IDs
+export const MAPBOX_CLASSIC_STYLES = [
+  'streets-v12',
+  'outdoors-v12',
+  'light-v11',
+  'dark-v11',
+  'satellite-v9',
+  'satellite-streets-v12',
+  'navigation-day-v1',
+  'navigation-night-v1',
+  'standard',
+] as const;
+
+export type MapboxClassicStyle = (typeof MAPBOX_CLASSIC_STYLES)[number];
+
+// Mapbox API Configuration
+export const MAPBOX_API = {
+  BASE_URL: 'https://api.mapbox.com',
+  STYLES_PATH: '/styles/v1',
+  FONTS_PATH: '/fonts/v1',
+  TILES_PATH: '/v4',
+  PROTOCOL: 'mapbox://',
+} as const;
+
 // Map Providers
 export const MAP_PROVIDERS = {
   AUTO: 'auto',
@@ -127,6 +151,17 @@ export const MAP_PROVIDERS = {
   MAPLIBRE: 'maplibre',
   CARTO: 'carto',
   MAPTILER: 'maptiler',
+} as const;
+
+// Mapbox Cache TTL defaults (used when no Cache-Control header is present)
+export const MAPBOX_CACHE_TTL = {
+  VECTOR_TILES: 12 * 60 * 60 * 1000, // 12 hours
+  RASTER_TILES: 12 * 60 * 60 * 1000, // 12 hours
+  TILEJSON: 12 * 60 * 60 * 1000, // 12 hours
+  STYLES: 15 * 60 * 1000, // 15 minutes
+  FONTS: 7 * 24 * 60 * 60 * 1000, // 7 days
+  SPRITES: 7 * 24 * 60 * 60 * 1000, // 7 days
+  GLYPHS: 7 * 24 * 60 * 60 * 1000, // 7 days
 } as const;
 
 // Validation Patterns

@@ -8,6 +8,7 @@ import {
   logger,
   createTileKey,
 } from '../utils';
+import { isMapboxProtocol, resolveMapboxUrl } from '../utils/styleProviderUtils';
 import type { FetchResourceResult } from '../utils';
 import type {
   TileDownloadOptions,
@@ -342,6 +343,7 @@ export class TileService {
               z,
               styleId,
               sourceId: plan.sourceId,
+              expires: response.expires,
             };
 
             await db.put('tiles', tileEntry);
@@ -638,8 +640,21 @@ export class TileService {
       if (config.type === 'vector' || config.type === 'raster') {
         // Handle direct tile URLs in the source config
         if (config.tiles && Array.isArray(config.tiles) && config.tiles.length > 0) {
+          // Resolve mapbox:// tile URLs to HTTPS, then filter for HTTP(S) URLs
+          const resolvedTiles = config.tiles.map((tile: string) => {
+            if (isMapboxProtocol(tile)) {
+              // Try to find an access token from the style or source URL
+              const accessToken = this.extractAccessTokenFromStyle(style);
+              if (accessToken) {
+                return resolveMapboxUrl(tile, accessToken);
+              }
+              tileLogger.warn(`Cannot resolve mapbox:// tile URL without access token: ${tile}`);
+            }
+            return tile;
+          });
+
           // Filter out idb:// URLs and relative paths - we only want absolute HTTP(S) URLs
-          const httpTiles = config.tiles.filter(
+          const httpTiles = resolvedTiles.filter(
             (tile: string) => tile.startsWith('http://') || tile.startsWith('https://')
           );
           if (httpTiles.length > 0) {
@@ -667,6 +682,21 @@ export class TileService {
 
           // Check if we have the original URL stored (from patched styles)
           let urlToFetch = config.url;
+
+          // Resolve mapbox:// source URLs to HTTPS TileJSON URLs
+          if (isMapboxProtocol(urlToFetch)) {
+            const accessToken = this.extractAccessTokenFromStyle(style);
+            if (accessToken) {
+              urlToFetch = resolveMapboxUrl(urlToFetch, accessToken);
+              tileLogger.debug(`Resolved mapbox:// source URL for ${sourceId}:`, urlToFetch);
+            } else {
+              tileLogger.warn(
+                `Cannot resolve mapbox:// source URL without access token: ${urlToFetch}`
+              );
+              continue;
+            }
+          }
+
           if (config.url.startsWith('idb://') && '__originalTilesetUrl' in config) {
             urlToFetch =
               (config as { __originalTilesetUrl?: string }).__originalTilesetUrl || config.url;
@@ -897,6 +927,48 @@ export class TileService {
     }
 
     return 'application/octet-stream';
+  }
+
+  private extractAccessTokenFromStyle(style: MapboxStyle): string | null {
+    // Check for access_token in source URLs
+    if (style.sources) {
+      for (const sourceConfig of Object.values(style.sources)) {
+        const source = sourceConfig as { url?: string; tiles?: string[] };
+        if (source.url && typeof source.url === 'string') {
+          try {
+            const url = new URL(source.url);
+            const token = url.searchParams.get('access_token');
+            if (token) return token;
+          } catch {
+            // Not a valid URL, skip
+          }
+        }
+        if (source.tiles && Array.isArray(source.tiles)) {
+          for (const tileUrl of source.tiles) {
+            try {
+              const url = new URL(tileUrl);
+              const token = url.searchParams.get('access_token');
+              if (token) return token;
+            } catch {
+              // Not a valid URL, skip
+            }
+          }
+        }
+      }
+    }
+    // Check glyphs and sprite URLs
+    for (const field of [style.glyphs, style.sprite]) {
+      if (field && typeof field === 'string') {
+        try {
+          const url = new URL(field);
+          const token = url.searchParams.get('access_token');
+          if (token) return token;
+        } catch {
+          // Not a valid URL, skip
+        }
+      }
+    }
+    return null;
   }
 
   private parseTileKey(key: string): { styleId: string; sourceId: string } | null {
