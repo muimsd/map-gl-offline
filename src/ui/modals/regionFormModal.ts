@@ -32,6 +32,7 @@ export interface RegionFormOptions {
   onCancel: () => void;
   onThemeToggle?: () => void;
   styleUrl: string;
+  accessToken?: string;
 }
 
 export class RegionFormModal {
@@ -224,6 +225,9 @@ export class RegionFormModal {
     this.accessTokenInput.placeholder = 'pk.eyJ1...';
     this.accessTokenInput.className =
       'w-full px-4 py-3 rounded-xl text-base glass-input text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500/50 transition-all shadow-sm';
+    if (this.options.accessToken) {
+      this.accessTokenInput.value = this.options.accessToken;
+    }
     this.accessTokenGroup.appendChild(this.accessTokenInput);
 
     // Add access token help text
@@ -264,7 +268,11 @@ export class RegionFormModal {
     const styleUrl = this.styleUrlInput?.value || '';
 
     // Simple detection logic
-    if (styleUrl.includes('mapbox.com') || styleUrl.includes('api.mapbox.com')) {
+    if (
+      styleUrl.startsWith('mapbox://') ||
+      styleUrl.includes('mapbox.com') ||
+      styleUrl.includes('api.mapbox.com')
+    ) {
       if (this.providerSelect) this.providerSelect.value = 'mapbox';
       this.toggleAccessTokenVisibility(true);
     } else if (

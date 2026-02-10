@@ -72,6 +72,8 @@ export interface OfflineManagerControlOptions {
   theme?: 'light' | 'dark';
   /** Whether to show bounding boxes when focusing on regions */
   showBbox?: boolean;
+  /** Mapbox access token, pre-filled in the region download form for mapbox:// style URLs */
+  accessToken?: string;
 }
 
 /**
@@ -144,6 +146,17 @@ export class OfflineManagerControl implements IControl {
     // Store original fetch and setup interceptor
     this.originalFetch = window.fetch.bind(window);
     this.setupFetchInterceptor();
+
+    // Register idb:// protocol with MapLibre so tile/glyph/sprite requests
+    // from the web worker are intercepted (window.fetch override doesn't reach workers)
+    maplibregl.addProtocol('idb', async params => {
+      const response = await idbFetchHandler(params.url);
+      const data = await response.arrayBuffer();
+      if (!response.ok) {
+        throw new Error(`IDB fetch failed: ${response.statusText}`);
+      }
+      return { data };
+    });
   }
 
   /**
@@ -251,6 +264,7 @@ export class OfflineManagerControl implements IControl {
       container: this.buttonManager.getContainer(),
       onRegionSaved: () => this.handleRegionSaved(),
       styleUrl: this.options.styleUrl,
+      accessToken: this.options.accessToken,
     });
 
     // Add event delegation for better event handling
@@ -299,6 +313,9 @@ export class OfflineManagerControl implements IControl {
 
     // Restore original fetch
     window.fetch = this.originalFetch;
+
+    // Unregister idb:// protocol handler
+    maplibregl.removeProtocol('idb');
 
     this.map = undefined;
   }

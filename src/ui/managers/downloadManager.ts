@@ -49,6 +49,7 @@ import { downloadTiles } from '../../services/tileService';
 import { OfflineMapManager } from '../../managers/offlineMapManager';
 import { RegionFormData } from '../modals/regionFormModal';
 import { logger } from '../../utils/logger';
+import { isMapboxProtocol, resolveMapboxUrl } from '../../utils/styleProviderUtils';
 
 const downloadLogger = logger.scope('DownloadManager');
 
@@ -301,13 +302,19 @@ export class DownloadManager {
           const spriteService = new SpriteService();
 
           // Generate sprite URLs from base sprite path (use ORIGINAL style)
-          const spriteBase = originalStyleForResources.sprite;
-          const spriteUrls = [
-            `${spriteBase}.json`,
-            `${spriteBase}.png`,
-            `${spriteBase}@2x.json`,
-            `${spriteBase}@2x.png`,
-          ];
+          let spriteBase = originalStyleForResources.sprite;
+          if (isMapboxProtocol(spriteBase) && formData.accessToken) {
+            spriteBase = resolveMapboxUrl(spriteBase, formData.accessToken);
+          }
+
+          // Build sprite URLs; insert suffixes before query string if present
+          const suffixes = ['.json', '.png', '@2x.json', '@2x.png'];
+          const qIndex = spriteBase.indexOf('?');
+          const spriteUrls = suffixes.map(suffix =>
+            qIndex !== -1
+              ? spriteBase.slice(0, qIndex) + suffix + spriteBase.slice(qIndex)
+              : spriteBase + suffix
+          );
 
           downloadLogger.debug('Sprite URLs to download:', spriteUrls);
 
@@ -399,8 +406,13 @@ export class DownloadManager {
               '65280-65535', // Halfwidth and Fullwidth Forms
             ];
 
+            let glyphsUrl = originalStyleForResources.glyphs;
+            if (isMapboxProtocol(glyphsUrl) && formData.accessToken) {
+              glyphsUrl = resolveMapboxUrl(glyphsUrl, formData.accessToken);
+            }
+
             await glyphService.downloadGlyphs(
-              originalStyleForResources.glyphs, // Use ORIGINAL unpatched glyphs URL
+              glyphsUrl, // Use ORIGINAL unpatched glyphs URL (resolved if mapbox://)
               Array.from(fontFamilies),
               finalStyleId,
               glyphRanges,

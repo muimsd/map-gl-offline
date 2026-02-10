@@ -21,8 +21,11 @@ Object.defineProperty(window, 'matchMedia', {
 
 // Mock maplibre-gl
 jest.mock('maplibre-gl', () => ({
+  __esModule: true,
   default: {
     GeoJSONSource: class {},
+    addProtocol: jest.fn(),
+    removeProtocol: jest.fn(),
   },
 }));
 

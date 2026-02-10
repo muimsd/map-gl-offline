@@ -20,6 +20,7 @@ export interface RegionControlOptions {
   container: HTMLDivElement;
   onRegionSaved?: () => void;
   styleUrl: string;
+  accessToken?: string;
 }
 
 export class RegionControl {
@@ -135,6 +136,7 @@ export class RegionControl {
       onSave: async (formData: RegionFormData) => this.handleRegionSave(formData),
       onCancel: () => this.handleFormCancel(),
       styleUrl: this.options.styleUrl,
+      accessToken: this.options.accessToken,
       onThemeToggle: () => this.options.onRegionSaved?.(),
     };
 
