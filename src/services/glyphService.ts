@@ -1,5 +1,5 @@
 import { dbPromise } from '../storage/indexedDbManager';
-import { fetchWithRetry, logger } from '../utils';
+import { fetchWithRetry, parseCacheExpiry, logger } from '../utils';
 import type { GlyphDownloadOptions, GlyphDownloadResult, GlyphEntry, GlyphRange } from '../types';
 
 const glyphLogger = logger.scope('GlyphService');
@@ -105,6 +105,7 @@ export class GlyphService {
 
           let data = await response.arrayBuffer();
           const contentEncoding = response.headers.get('content-encoding');
+          const expires = parseCacheExpiry(response.headers);
 
           // Decompress gzipped glyphs before storage
           if (contentEncoding === 'gzip') {
@@ -144,6 +145,7 @@ export class GlyphService {
             styleId: styleName,
             fontstack: normalizedFontstack,
             range,
+            expires,
           };
 
           // Store in database

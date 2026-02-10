@@ -300,6 +300,71 @@ export class CleanupService {
     };
   }
 
+  /**
+   * Count expired resources across all stores based on their `expires` field.
+   * Returns a breakdown by store and the total count.
+   */
+  async getExpiredResourceCount(): Promise<{
+    tiles: number;
+    fonts: number;
+    sprites: number;
+    glyphs: number;
+    total: number;
+  }> {
+    const db = await this.db;
+    const now = Date.now();
+    const counts = { tiles: 0, fonts: 0, sprites: 0, glyphs: 0, total: 0 };
+
+    const stores = ['tiles', 'fonts', 'sprites', 'glyphs'] as const;
+
+    for (const storeName of stores) {
+      try {
+        const tx = db.transaction([storeName], 'readonly');
+        for await (const cursor of tx.objectStore(storeName)) {
+          const entry = cursor.value as { expires?: number };
+          if (entry.expires && entry.expires < now) {
+            counts[storeName]++;
+            counts.total++;
+          }
+        }
+      } catch (error) {
+        cleanupLogger.warn(`Could not scan expired resources in ${storeName}:`, error);
+      }
+    }
+
+    return counts;
+  }
+
+  /**
+   * Delete expired tiles for a given style, prioritizing them for eviction.
+   * Returns the number of tiles deleted and space freed.
+   */
+  async cleanupExpiredTiles(styleId?: string): Promise<{ deleted: number; freedSpace: number }> {
+    const db = await this.db;
+    const now = Date.now();
+    let deleted = 0;
+    let freedSpace = 0;
+
+    const tx = db.transaction('tiles', 'readwrite');
+    for await (const cursor of tx.objectStore('tiles')) {
+      const tile = cursor.value as { expires?: number; size?: number; styleId?: string };
+      if (styleId && tile.styleId !== styleId) continue;
+      if (tile.expires && tile.expires < now) {
+        freedSpace += tile.size || 0;
+        await cursor.delete();
+        deleted++;
+      }
+    }
+
+    if (deleted > 0) {
+      cleanupLogger.info(
+        `Cleaned up ${deleted} expired tiles, freed ${(freedSpace / 1024).toFixed(1)}KB`
+      );
+    }
+
+    return { deleted, freedSpace };
+  }
+
   async getAllRegions(): Promise<StoredRegion[]> {
     const db = await this.db;
     const allRegions: StoredRegion[] = [];
@@ -521,3 +586,6 @@ export const setupAutoCleanup = (options?: RegionCleanupOptions & { intervalHour
   cleanupService.setupAutoCleanup(options);
 export const stopAutoCleanup = (cleanupId?: string) => cleanupService.stopAutoCleanup(cleanupId);
 export const optimizeStorage = () => cleanupService.optimizeStorage();
+export const getExpiredResourceCount = () => cleanupService.getExpiredResourceCount();
+export const cleanupExpiredTiles = (styleId?: string) =>
+  cleanupService.cleanupExpiredTiles(styleId);

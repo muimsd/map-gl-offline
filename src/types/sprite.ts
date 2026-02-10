@@ -31,6 +31,8 @@ export interface SpriteEntry {
     /** Original URL before any transformations */
     originalUrl?: string;
   };
+  /** Expiry timestamp (ms since epoch) based on HTTP Cache-Control/Expires headers */
+  expires?: number;
 }
 
 /**

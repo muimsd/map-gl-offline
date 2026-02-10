@@ -10,13 +10,44 @@ export type FetchResourceResult =
       data: unknown;
       contentType: string;
       contentEncoding?: string;
+      expires?: number;
     }
   | {
       type: 'image' | 'pbf' | 'other';
       data: ArrayBuffer;
       contentType: string;
       contentEncoding?: string;
+      expires?: number;
     };
+
+/**
+ * Parse Cache-Control and Expires headers to compute an expiry timestamp.
+ * Returns ms since epoch, or undefined if no cache info is available.
+ */
+export function parseCacheExpiry(headers: Headers): number | undefined {
+  // Prefer Cache-Control: max-age=X
+  const cacheControl = headers.get('cache-control');
+  if (cacheControl) {
+    const maxAgeMatch = cacheControl.match(/max-age=(\d+)/);
+    if (maxAgeMatch) {
+      const maxAgeSec = parseInt(maxAgeMatch[1], 10);
+      if (maxAgeSec > 0) {
+        return Date.now() + maxAgeSec * 1000;
+      }
+    }
+  }
+
+  // Fallback to Expires header
+  const expiresHeader = headers.get('expires');
+  if (expiresHeader) {
+    const expiresTime = Date.parse(expiresHeader);
+    if (!isNaN(expiresTime) && expiresTime > Date.now()) {
+      return expiresTime;
+    }
+  }
+
+  return undefined;
+}
 
 /**
  * Enhanced fetch with retry logic and timeout
@@ -65,23 +96,24 @@ export async function fetchResourceWithRetry(
 
       const contentType = response.headers.get('content-type') || '';
       const contentEncoding = response.headers.get('content-encoding') || undefined;
+      const expires = parseCacheExpiry(response.headers);
 
       if (contentType.includes('application/json') || contentType.includes('+json')) {
         const data = (await response.json()) as unknown;
-        return { type: 'json', data, contentType, contentEncoding };
+        return { type: 'json', data, contentType, contentEncoding, expires };
       }
 
       const data = await response.arrayBuffer();
 
       if (contentType.includes('image')) {
-        return { type: 'image', data, contentType, contentEncoding };
+        return { type: 'image', data, contentType, contentEncoding, expires };
       }
 
       if (contentType.includes('application/x-protobuf') || contentType.includes('protobuf')) {
-        return { type: 'pbf', data, contentType, contentEncoding };
+        return { type: 'pbf', data, contentType, contentEncoding, expires };
       }
 
-      return { type: 'other', data, contentType, contentEncoding };
+      return { type: 'other', data, contentType, contentEncoding, expires };
     } catch (error) {
       if (attempt === retries) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';

@@ -116,6 +116,7 @@ export class FontService {
               userAgent: navigator.userAgent,
               downloadTimestamp: Date.now(),
             },
+            expires: response.expires,
           };
 
           await db.put('fonts', fontEntry);

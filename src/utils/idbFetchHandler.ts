@@ -141,6 +141,7 @@ async function createTileResponse(resource: {
   contentType?: string;
   contentEncoding?: string;
   type?: string;
+  expires?: number;
 }): Promise<Response> {
   const headers: HeadersInit = {};
 
@@ -195,6 +196,11 @@ async function createTileResponse(resource: {
   headers['Access-Control-Allow-Origin'] = '*';
   headers['Access-Control-Allow-Methods'] = 'GET, OPTIONS';
   headers['Cache-Control'] = 'public, max-age=31536000';
+
+  // Flag expired resources (offline-first: still serve, but mark as stale)
+  if (resource.expires && resource.expires < Date.now()) {
+    headers['X-Cache-Expired'] = 'true';
+  }
 
   return new Response(finalData, {
     status: 200,

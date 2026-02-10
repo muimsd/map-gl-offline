@@ -35,6 +35,8 @@ export interface TileEntry {
   styleId: string;
   /** Associated source ID */
   sourceId: string;
+  /** Expiry timestamp (ms since epoch) based on HTTP Cache-Control/Expires headers */
+  expires?: number;
 }
 
 /**

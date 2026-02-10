@@ -5,7 +5,13 @@ import type {
   SpriteDownloadResult,
   SpriteEntry,
 } from '../types';
-import { fetchWithRetry, processBatch, createProgressTracker, logger } from '../utils';
+import {
+  fetchWithRetry,
+  parseCacheExpiry,
+  processBatch,
+  createProgressTracker,
+  logger,
+} from '../utils';
 
 const spriteLogger = logger.scope('SpriteService');
 
@@ -147,6 +153,7 @@ export class SpriteService {
           let spriteData = await response.arrayBuffer();
           const contentType = response.headers.get('content-type') || 'image/png';
           const contentEncoding = response.headers.get('content-encoding');
+          const expires = parseCacheExpiry(response.headers);
 
           // Decompress gzipped sprites before storage
           if (contentEncoding === 'gzip') {
@@ -195,6 +202,7 @@ export class SpriteService {
               originalUrl: spriteUrl,
               variant,
             },
+            expires,
           };
 
           spriteLogger.debug(`Storing sprite with key: ${spriteKey} for URL: ${spriteUrl}`);

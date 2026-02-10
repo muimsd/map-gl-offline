@@ -20,6 +20,8 @@ export interface GlyphEntry {
   fontstack?: string;
   /** Unicode range (e.g., "0-255", "256-511") */
   range?: string;
+  /** Expiry timestamp (ms since epoch) based on HTTP Cache-Control/Expires headers */
+  expires?: number;
 }
 
 /**

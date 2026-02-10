@@ -31,6 +31,8 @@ export interface FontEntry {
     /** Timestamp when download was initiated */
     downloadTimestamp?: number;
   };
+  /** Expiry timestamp (ms since epoch) based on HTTP Cache-Control/Expires headers */
+  expires?: number;
 }
 
 /**
