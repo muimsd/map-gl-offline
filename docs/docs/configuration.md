@@ -292,6 +292,260 @@ You can customize the appearance using CSS:
 }
 ```
 
+## Internationalization (i18n)
+
+The UI control includes a built-in internationalization system powered by [i18next](https://www.i18next.com/). The user's language choice is persisted in `localStorage` under the key `offline-manager-language`.
+
+### Supported Languages
+
+| Code | Language | Native Name | Direction |
+|------|----------|-------------|-----------|
+| `en` | English | English | LTR |
+| `ar` | Arabic | العربية | RTL |
+
+### Programmatic Language Control
+
+```typescript
+import { i18n, t } from 'map-gl-offline';
+
+// Get current language
+const lang = i18n.getLanguage(); // 'en' | 'ar'
+
+// Change language
+i18n.setLanguage('ar');
+
+// Check if current language is RTL
+const isRTL = i18n.isRTL(); // true for Arabic
+
+// Translate a key
+const title = t('app.title'); // 'Offline Manager' or 'مدير الخرائط غير المتصلة'
+
+// Translate with interpolation
+const subtitle = t('header.subtitle', { count: 3, size: '12 MB' });
+// '3 regions • 12 MB total'
+
+// Get all available languages
+const languages = i18n.getAvailableLanguages();
+// [{ code: 'en', name: 'English', nativeName: 'English' },
+//  { code: 'ar', name: 'Arabic', nativeName: 'العربية' }]
+
+// Subscribe to language changes
+const unsubscribe = i18n.subscribe(() => {
+  console.log('Language changed to:', i18n.getLanguage());
+  // Re-render your UI here
+});
+
+// Later, unsubscribe
+unsubscribe();
+```
+
+### RTL Support
+
+When an RTL language (Arabic) is active, the control automatically:
+- Sets `dir="rtl"` on all `.offline-manager-control` elements
+- Adds the `rtl` CSS class for layout adjustments
+- Mirrors the LanguageSelector dropdown positioning (opens from the left instead of right)
+
+### LanguageSelector Component
+
+The built-in `LanguageSelector` component renders a dropdown in the control panel header. It displays the current language code (e.g., "EN") and a globe icon. Clicking opens a dropdown listing all available languages with both their native name and English name.
+
+```typescript
+import { LanguageSelector } from 'map-gl-offline';
+
+const selector = new LanguageSelector({
+  onChange: (language) => {
+    console.log(`User switched to: ${language}`);
+  },
+});
+
+// Add to a container
+container.appendChild(selector.getElement());
+
+// Clean up when done
+selector.destroy();
+```
+
+### Adding a New Language
+
+To add a new language to the i18n system:
+
+1. **Create a translation file** at `src/ui/translations/{code}.ts` (e.g., `fr.ts` for French). Copy the structure from `en.ts` and translate all values:
+
+```typescript
+// src/ui/translations/fr.ts
+export const fr = {
+  'app.title': 'Gestionnaire hors ligne',
+  'app.close': 'Fermer',
+  // ... translate all keys from en.ts
+} as const;
+```
+
+2. **Register the language** in `src/ui/translations/index.ts`:
+
+```typescript
+import { fr } from './fr';
+
+// Add to SupportedLanguage type
+export type SupportedLanguage = 'en' | 'ar' | 'fr';
+
+// Add to i18next resources
+i18next.init({
+  // ...
+  resources: {
+    en: { translation: en },
+    ar: { translation: ar },
+    fr: { translation: fr },
+  },
+});
+
+// If the language is RTL, add to the rtlLanguages array
+const rtlLanguages: SupportedLanguage[] = ['ar'];
+```
+
+3. **Add to the available languages list** in the `getAvailableLanguages()` method of `I18nManager`:
+
+```typescript
+getAvailableLanguages() {
+  return [
+    { code: 'en', name: 'English', nativeName: 'English' },
+    { code: 'ar', name: 'Arabic', nativeName: 'العربية' },
+    { code: 'fr', name: 'French', nativeName: 'Français' },
+  ];
+}
+```
+
+### Translation Key Categories
+
+Translation keys are organized by category using dot notation:
+
+| Prefix | Purpose | Example |
+|--------|---------|---------|
+| `app.*` | General UI strings | `app.title`, `app.cancel` |
+| `theme.*` | Theme switcher | `theme.light`, `theme.dark` |
+| `language.*` | Language switcher | `language.select` |
+| `header.*` | Panel header | `header.subtitle` |
+| `actions.*` | Action buttons | `actions.addRegion` |
+| `regionForm.*` | Download form | `regionForm.name`, `regionForm.minZoom` |
+| `regionList.*` | Region list display | `regionList.empty`, `regionList.zoom` |
+| `delete.*` | Delete confirmations | `delete.regionTitle` |
+| `importExport.*` | Import/export modal | `importExport.exportFormat` |
+| `download.*` | Download progress | `download.phase.tiles` |
+| `error.*` | Error messages | `error.downloadFailed` |
+| `warning.*` | Warning messages | `warning.compressedTiles` |
+| `validation.*` | Form validation | `validation.required` |
+
+Interpolation uses double curly braces: `{{variableName}}`. For example, `'header.subtitle': '{{count}} regions - {{size}} total'`.
+
+---
+
+## Style Provider Detection
+
+The library automatically detects the map style provider (Mapbox, MapLibre/MapTiler/Carto, or custom) and handles provider-specific URL resolution, authentication, and source processing.
+
+### Supported Providers
+
+| Provider | Detection Criteria | Authentication |
+|----------|-------------------|----------------|
+| `mapbox` | URL contains `mapbox://`, `mapbox.com`, or `api.mapbox.com`; or style JSON has Mapbox-specific properties (`owner`, `draft`, `visibility`) | Requires access token |
+| `maplibre` | URL contains `maplibre`, `maptiler`, or `carto` | API key via query parameter |
+| `auto` | Default when no provider can be determined | Varies |
+
+```typescript
+type StyleProvider = 'mapbox' | 'maplibre' | 'auto';
+```
+
+### Auto-Detection
+
+When adding a region with the UI control, the style provider is auto-detected from the style URL. Users can also manually select the provider in the download form.
+
+```typescript
+import { detectStyleProvider } from 'map-gl-offline';
+
+// Detection from URL alone
+detectStyleProvider('mapbox://styles/mapbox/streets-v12'); // 'mapbox'
+detectStyleProvider('https://api.mapbox.com/styles/v1/...'); // 'mapbox'
+detectStyleProvider('https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json'); // 'maplibre'
+detectStyleProvider('https://api.maptiler.com/maps/streets/style.json'); // 'maplibre'
+detectStyleProvider('https://my-server.com/style.json'); // 'auto'
+
+// Detection from URL + style content (more accurate)
+const style = await fetch(styleUrl).then(r => r.json());
+detectStyleProvider(styleUrl, style); // checks style.sources for mapbox.com URLs
+```
+
+### Mapbox URL Resolution
+
+The library resolves `mapbox://` protocol URLs to their HTTPS API equivalents:
+
+| Mapbox URL Pattern | Resolved URL |
+|-------------------|--------------|
+| `mapbox://styles/{user}/{id}` | `https://api.mapbox.com/styles/v1/{user}/{id}?access_token={token}` |
+| `mapbox://{tileset}` | `https://api.mapbox.com/v4/{tileset}.json?access_token={token}` |
+| `mapbox://sprites/{user}/{id}` | `https://api.mapbox.com/styles/v1/{user}/{id}/sprite?access_token={token}` |
+| `mapbox://fonts/{user}/{fontstack}/{range}.pbf` | `https://api.mapbox.com/fonts/v1/{user}/{fontstack}/{range}.pbf?access_token={token}` |
+
+```typescript
+import { resolveMapboxUrl, isMapboxProtocol } from 'map-gl-offline';
+
+if (isMapboxProtocol(url)) {
+  const httpsUrl = resolveMapboxUrl(url, 'pk.your_access_token');
+}
+```
+
+### Token Extraction
+
+Access tokens can be extracted from existing URLs:
+
+```typescript
+import { extractAccessToken } from 'map-gl-offline';
+
+const token = extractAccessToken(
+  'https://api.mapbox.com/styles/v1/mapbox/streets-v12?access_token=pk.abc123'
+);
+// 'pk.abc123'
+```
+
+### Style Source Processing
+
+When downloading a region, the library processes all source URLs in the style JSON to ensure they include authentication and resolve any protocol-specific URLs:
+
+```typescript
+import { processStyleSources } from 'map-gl-offline';
+
+// Resolves all mapbox:// URLs in sources, sprite, and glyphs
+const processedStyle = processStyleSources(style, 'mapbox', 'pk.your_token');
+```
+
+This handles:
+- `mapbox://` source URLs in `sources[*].url`
+- `mapbox://` tile URLs in `sources[*].tiles[]`
+- `mapbox://` sprite URLs in `style.sprite`
+- `mapbox://` glyph URLs in `style.glyphs`
+- Adding `access_token` query parameters to Mapbox API URLs
+
+### Style Validation
+
+Validate a style for provider-specific requirements:
+
+```typescript
+import { validateStyleForProvider } from 'map-gl-offline';
+
+const result = validateStyleForProvider(style, 'mapbox');
+
+if (!result.isValid) {
+  console.error('Errors:', result.errors);
+  // e.g., ['Style has no sources', 'Style has no layers']
+}
+
+if (result.warnings.length > 0) {
+  console.warn('Warnings:', result.warnings);
+  // e.g., ['Mapbox sources detected but no access token found']
+}
+```
+
+---
+
 ## Logging Configuration
 
 ```typescript
