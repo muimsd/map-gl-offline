@@ -35,13 +35,18 @@
  * @module offlineManagerControl
  */
 
-import type { IControl, Map as MaplibreMap, StyleSpecification } from 'maplibre-gl';
+import type { IControl, Map as MaplibreMap, StyleSpecification, GeoJSONSource } from 'maplibre-gl';
 import { OfflineMapManager } from '../managers/offlineMapManager';
 import { themeManager } from './ThemeManager';
 import { idbFetchHandler } from '../utils/idbFetchHandler';
 import { logger } from '../utils/logger';
 import { escapeHtml } from '../utils/formatting';
 import { i18n } from './translations';
+import {
+  registerOfflineServiceWorker,
+  unregisterOfflineServiceWorker,
+} from '../utils/swRegistration';
+import { convertStyleForServiceWorker } from '../utils/convertStyleForSW';
 
 // Import refactored modular components
 import { ButtonManager } from './managers/ControlButtonManager';
@@ -49,9 +54,22 @@ import { PanelRenderer } from './managers/PanelManager';
 import { RegionControl } from './controls/regionControl';
 import { DownloadManager } from './managers/downloadManager';
 import { ModalManager } from './modals/modalManager';
-import maplibregl from 'maplibre-gl';
 
 const controlLogger = logger.scope('OfflineControl');
+
+/**
+ * Interface for map libraries that support custom protocol handlers.
+ * MapLibre GL JS provides `addProtocol`/`removeProtocol`; Mapbox GL JS v3 does not.
+ * Pass the map library module as `mapLib` in the control options to register the
+ * `idb://` protocol for web-worker tile fetches.
+ */
+export interface MapLibProtocol {
+  addProtocol: (
+    protocol: string,
+    handler: (...args: any[]) => Promise<{ data: ArrayBuffer }>
+  ) => void;
+  removeProtocol: (protocol: string) => void;
+}
 
 /**
  * Configuration options for the OfflineManagerControl.
@@ -74,6 +92,12 @@ export interface OfflineManagerControlOptions {
   showBbox?: boolean;
   /** Mapbox access token, pre-filled in the region download form for mapbox:// style URLs */
   accessToken?: string;
+  /**
+   * Map library module that supports `addProtocol`/`removeProtocol`.
+   * Pass `maplibregl` here so the `idb://` protocol is registered in web workers.
+   * If omitted (e.g. when using Mapbox GL JS v3), only main-thread fetch interception is used.
+   */
+  mapLib?: MapLibProtocol;
 }
 
 /**
@@ -101,6 +125,12 @@ export class OfflineManagerControl implements IControl {
   private modalManager: ModalManager = new ModalManager();
   /** Whether the bounding box visualization layer has been added to the map */
   private bboxLayerAdded = false;
+  /** Map library module for protocol registration (null if not provided) */
+  private mapLib: MapLibProtocol | null = null;
+  /** Whether a Service Worker is used for offline tile serving (Mapbox GL JS v3) */
+  private useServiceWorker = false;
+  /** Promise that resolves when the Service Worker is ready */
+  private swReadyPromise: Promise<ServiceWorkerRegistration> | null = null;
   /** Original window.fetch stored for cleanup/restoration */
   private originalFetch: typeof window.fetch;
 
@@ -147,16 +177,28 @@ export class OfflineManagerControl implements IControl {
     this.originalFetch = window.fetch.bind(window);
     this.setupFetchInterceptor();
 
-    // Register idb:// protocol with MapLibre so tile/glyph/sprite requests
-    // from the web worker are intercepted (window.fetch override doesn't reach workers)
-    maplibregl.addProtocol('idb', async params => {
-      const response = await idbFetchHandler(params.url);
-      const data = await response.arrayBuffer();
-      if (!response.ok) {
-        throw new Error(`IDB fetch failed: ${response.statusText}`);
-      }
-      return { data };
-    });
+    // Register idb:// protocol with the map library so tile/glyph/sprite requests
+    // from web workers are intercepted (window.fetch override doesn't reach workers)
+    if (options.mapLib && typeof options.mapLib.addProtocol === 'function') {
+      this.mapLib = options.mapLib;
+      this.mapLib.addProtocol('idb', async (params: { url: string }) => {
+        const response = await idbFetchHandler(params.url);
+        const data = await response.arrayBuffer();
+        if (!response.ok) {
+          throw new Error(`IDB fetch failed: ${response.statusText}`);
+        }
+        return { data };
+      });
+    } else {
+      controlLogger.warn(
+        'No mapLib with addProtocol provided. Registering Service Worker for offline tile serving.'
+      );
+      this.useServiceWorker = true;
+      this.swReadyPromise = registerOfflineServiceWorker().catch(err => {
+        controlLogger.error('Failed to register offline Service Worker:', err);
+        throw err;
+      });
+    }
   }
 
   /**
@@ -176,6 +218,11 @@ export class OfflineManagerControl implements IControl {
       const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
 
       if (url.startsWith('idb://')) {
+        return idbFetchHandler(url, init);
+      }
+
+      // Handle /__offline__/ URLs as fallback (in case SW is not yet active)
+      if (url.includes('/__offline__/')) {
         return idbFetchHandler(url, init);
       }
 
@@ -254,6 +301,8 @@ export class OfflineManagerControl implements IControl {
       onFocusRegion: (regionId: string) => this.focusRegion(regionId),
       showBbox: this.options.showBbox || false,
       map: this.map,
+      useServiceWorker: this.useServiceWorker,
+      swReadyPromise: this.swReadyPromise,
     });
 
     // Initialize region control
@@ -315,7 +364,14 @@ export class OfflineManagerControl implements IControl {
     window.fetch = this.originalFetch;
 
     // Unregister idb:// protocol handler
-    maplibregl.removeProtocol('idb');
+    this.mapLib?.removeProtocol('idb');
+
+    // Unregister Service Worker if we registered one
+    if (this.useServiceWorker) {
+      unregisterOfflineServiceWorker().catch(err => {
+        controlLogger.warn('Error unregistering offline Service Worker:', err);
+      });
+    }
 
     this.map = undefined;
   }
@@ -572,7 +628,7 @@ export class OfflineManagerControl implements IControl {
     ];
 
     // Update the source with new bbox
-    const source = this.map.getSource(sourceId) as maplibregl.GeoJSONSource;
+    const source = this.map.getSource(sourceId) as GeoJSONSource;
     if (source) {
       source.setData({
         type: 'Feature',
@@ -637,7 +693,7 @@ export class OfflineManagerControl implements IControl {
     if (!this.map) return;
 
     const sourceId = 'region-bbox-source';
-    const source = this.map.getSource(sourceId) as maplibregl.GeoJSONSource;
+    const source = this.map.getSource(sourceId) as GeoJSONSource;
 
     if (source && 'setData' in source) {
       source.setData({
@@ -680,7 +736,15 @@ export class OfflineManagerControl implements IControl {
       }
 
       // Patch the style for offline use
-      const patchedStyle = patchStyleForOffline(styleEntry.style, styleId);
+      let patchedStyle = patchStyleForOffline(styleEntry.style, styleId);
+
+      // If using Service Worker (Mapbox GL JS), convert idb:// to /__offline__/ URLs
+      if (this.useServiceWorker) {
+        if (this.swReadyPromise) {
+          await this.swReadyPromise;
+        }
+        patchedStyle = convertStyleForServiceWorker(patchedStyle);
+      }
 
       // Apply the patched style to the map
       this.map.setStyle(patchedStyle as StyleSpecification);
