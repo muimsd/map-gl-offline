@@ -50,6 +50,7 @@ import { OfflineMapManager } from '../../managers/offlineMapManager';
 import { RegionFormData } from '../modals/regionFormModal';
 import { logger } from '../../utils/logger';
 import { isMapboxProtocol, resolveMapboxUrl } from '../../utils/styleProviderUtils';
+import { extractAllFontNames } from '../../utils/styleUtils';
 
 const downloadLogger = logger.scope('DownloadManager');
 
@@ -355,19 +356,11 @@ export class DownloadManager {
           const { GlyphService } = await import('../../services/glyphService');
           const glyphService = new GlyphService();
 
-          // Extract font families from layers
-          const fontFamilies = new Set<string>();
-          if (styleData.style.layers && Array.isArray(styleData.style.layers)) {
-            for (const layer of styleData.style.layers) {
-              const typedLayer = layer as { type?: string; layout?: { 'text-font'?: string[] } };
-              if (typedLayer.type === 'symbol' && typedLayer.layout?.['text-font']) {
-                const fonts = typedLayer.layout['text-font'];
-                if (Array.isArray(fonts)) {
-                  fonts.forEach((f: string) => fontFamilies.add(f));
-                }
-              }
-            }
-          }
+          // Extract font families from layers (expression-aware)
+          const fontFamilyArray = extractAllFontNames(
+            styleData.style as { layers?: Array<{ layout?: { [key: string]: unknown } }> }
+          );
+          const fontFamilies = new Set<string>(fontFamilyArray);
 
           if (fontFamilies.size > 0) {
             downloadLogger.debug('Fonts to download:', Array.from(fontFamilies));
@@ -386,6 +379,8 @@ export class DownloadManager {
               '2048-2303', // NKo + Samaritan + Mandaic
               '2304-2559', // Devanagari + Bengali
               '2560-2815', // Gurmukhi + Gujarati
+              '8192-8447', // General Punctuation, Superscripts/Subscripts, Currency Symbols
+              '8448-8703', // Letterlike Symbols, Number Forms, Arrows
               '2816-3071', // Oriya + Tamil
               '3072-3327', // Telugu + Kannada
               '3328-3583', // Malayalam + Sinhala

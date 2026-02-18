@@ -392,20 +392,9 @@ export async function downloadStyles(
       logger.debug('Starting glyph download for style:', style.id);
 
       try {
-        // Extract font stacks from style layers
-        const fontstacks = new Set<string>();
-        if (style.layers && Array.isArray(style.layers)) {
-          for (const layer of style.layers) {
-            if (layer.layout && layer.layout['text-font']) {
-              const fonts = Array.isArray(layer.layout['text-font'])
-                ? layer.layout['text-font']
-                : [layer.layout['text-font']];
-              fonts.forEach(f => fontstacks.add(f));
-            }
-          }
-        }
-
-        const fontStackArray = Array.from(fontstacks);
+        // Extract font stacks from style layers (expression-aware)
+        const { extractAllFontNames } = await import('../utils/styleUtils');
+        const fontStackArray = extractAllFontNames(style);
         logger.debug(`Found ${fontStackArray.length} font stacks for glyph download`);
 
         if (fontStackArray.length > 0) {
@@ -462,12 +451,14 @@ export async function downloadStyles(
         const spriteBase = resolvedSprite;
         logger.debug(`Processing sprites for style: ${style.id}`);
 
-        const spriteVariants = [
-          `${spriteBase}.json`,
-          `${spriteBase}.png`,
-          `${spriteBase}@2x.json`,
-          `${spriteBase}@2x.png`,
-        ];
+        // Insert suffixes before query string if present (e.g. ?access_token=...)
+        const qIndex = spriteBase.indexOf('?');
+        const spriteSuffixes = ['.json', '.png', '@2x.json', '@2x.png'];
+        const spriteVariants = spriteSuffixes.map(suffix =>
+          qIndex !== -1
+            ? spriteBase.slice(0, qIndex) + suffix + spriteBase.slice(qIndex)
+            : spriteBase + suffix
+        );
 
         // Check if sprite URLs look like non-HTTP URLs (which would indicate a problem)
         const hasNonHttpUrls = spriteVariants.some(

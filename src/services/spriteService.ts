@@ -499,7 +499,9 @@ export class SpriteService {
       return 'unknown';
     }
 
-    const parts = url.split('/');
+    // Strip query parameters before extracting filename
+    const urlWithoutQuery = url.split('?')[0];
+    const parts = urlWithoutQuery.split('/');
     const filename = parts[parts.length - 1];
     const extension = filename.split('.').pop()?.toLowerCase() || 'json';
 

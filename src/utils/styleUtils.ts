@@ -113,6 +113,92 @@ export function patchStyleForOffline(
 }
 
 /**
+ * Extract individual font names from a `text-font` layout property value.
+ *
+ * Handles both simple arrays (`["Font A", "Font B"]`) and Mapbox GL expression
+ * syntax (e.g. `["step", ["zoom"], ["literal", ["Font A"]], 10, ["literal", ["Font B"]]]`).
+ */
+export function extractFontNamesFromTextField(textFont: unknown): string[] {
+  const fonts = new Set<string>();
+
+  // Known expression operators — anything starting with one of these is NOT a font name list
+  const expressionOps = new Set([
+    'step',
+    'match',
+    'case',
+    'coalesce',
+    'interpolate',
+    'interpolate-hcl',
+    'interpolate-lab',
+    'literal',
+    'get',
+    'has',
+    'in',
+    'at',
+    'length',
+    'let',
+    'var',
+    'concat',
+    'format',
+    'image',
+    'to-string',
+    'linear',
+    'exponential',
+    'cubic-bezier',
+  ]);
+
+  function walk(value: unknown): void {
+    if (!Array.isArray(value) || value.length === 0) return;
+
+    // ["literal", ["FontA", "FontB"]]
+    if (value[0] === 'literal' && Array.isArray(value[1])) {
+      for (const f of value[1]) {
+        if (typeof f === 'string') fonts.add(f);
+      }
+      return;
+    }
+
+    // Simple font stack: every element is a string and the first element is
+    // NOT a known expression operator
+    if (value.every((v: unknown) => typeof v === 'string') && !expressionOps.has(value[0])) {
+      for (const f of value) {
+        fonts.add(f as string);
+      }
+      return;
+    }
+
+    // Recurse into sub-arrays (covers step/match/case branches)
+    for (const item of value) {
+      if (Array.isArray(item)) {
+        walk(item);
+      }
+    }
+  }
+
+  walk(textFont);
+  return Array.from(fonts);
+}
+
+/**
+ * Collect all unique font names referenced in a style's layers.
+ */
+export function extractAllFontNames(style: {
+  layers?: Array<{ layout?: { [key: string]: unknown } }>;
+}): string[] {
+  const fonts = new Set<string>();
+  if (style && Array.isArray(style.layers)) {
+    for (const layer of style.layers) {
+      if (layer.layout && layer.layout['text-font']) {
+        for (const name of extractFontNamesFromTextField(layer.layout['text-font'])) {
+          fonts.add(name);
+        }
+      }
+    }
+  }
+  return Array.from(fonts);
+}
+
+/**
  * Extracts all fontstacks from a style object and generates all glyph URLs for a set of Unicode ranges.
  * @param style The style JSON object
  * @param glyphsUrlTemplate The glyphs URL template from the style (e.g. .../fonts/{fontstack}/{range}.pbf)
@@ -135,22 +221,14 @@ export function generateGlyphUrlsFromStyle(
     [1792, 2047],
     [2048, 2303],
     [2304, 2559],
+    [8192, 8447], // General Punctuation, Superscripts/Subscripts, Currency Symbols
+    [8448, 8703], // Letterlike Symbols, Number Forms, Arrows
     [61440, 61695], // Private Use Area (for icons)
   ];
   const usedRanges = ranges || defaultRanges;
 
-  // Collect all fontstacks used in the style's layers
-  const fontstacks = new Set<string>();
-  if (style && Array.isArray(style.layers)) {
-    for (const layer of style.layers) {
-      if (layer.layout && layer.layout['text-font']) {
-        const fonts = Array.isArray(layer.layout['text-font'])
-          ? layer.layout['text-font']
-          : [layer.layout['text-font']];
-        fonts.forEach(f => fontstacks.add(f));
-      }
-    }
-  }
+  // Collect all font names using expression-aware extraction
+  const fontstacks = extractAllFontNames(style);
 
   // Generate all glyph URLs
   const urls: string[] = [];

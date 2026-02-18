@@ -227,8 +227,8 @@ describe('styleUtils', () => {
     it('should extract fontstacks and generate URLs', () => {
       const style = {
         layers: [
-          { layout: { 'text-font': 'Arial Regular' } },
-          { layout: { 'text-font': 'Roboto Bold' } },
+          { layout: { 'text-font': ['Arial Regular'] } },
+          { layout: { 'text-font': ['Roboto Bold'] } },
         ],
       };
       const urls = generateGlyphUrlsFromStyle(
@@ -258,7 +258,7 @@ describe('styleUtils', () => {
 
     it('should use custom ranges when provided', () => {
       const style = {
-        layers: [{ layout: { 'text-font': 'Arial' } }],
+        layers: [{ layout: { 'text-font': ['Arial'] } }],
       };
       const customRanges: Array<[number, number]> = [[0, 255], [256, 511]];
       const urls = generateGlyphUrlsFromStyle(
@@ -275,9 +275,9 @@ describe('styleUtils', () => {
     it('should deduplicate fontstacks', () => {
       const style = {
         layers: [
-          { layout: { 'text-font': 'Arial' } },
-          { layout: { 'text-font': 'Arial' } },
-          { layout: { 'text-font': 'Arial' } },
+          { layout: { 'text-font': ['Arial'] } },
+          { layout: { 'text-font': ['Arial'] } },
+          { layout: { 'text-font': ['Arial'] } },
         ],
       };
       const urls = generateGlyphUrlsFromStyle(
