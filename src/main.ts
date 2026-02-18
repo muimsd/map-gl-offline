@@ -37,6 +37,7 @@ let activeTab: 'maplibre' | 'mapbox' = 'maplibre';
 
 function setActiveTab(tab: 'maplibre' | 'mapbox') {
   activeTab = tab;
+  localStorage.setItem('active-map-tab', tab);
 
   const activeClasses = 'bg-blue-600 text-white';
   const inactiveClasses = 'bg-gray-200 text-gray-700 hover:bg-gray-300';
@@ -142,6 +143,7 @@ function initMaplibre() {
     styleUrl: defaultStyle.styleUrl,
     theme: 'light',
     showBbox: true,
+    mapLib: maplibregl as any,
   });
 
   map.addControl(
@@ -315,5 +317,6 @@ function initMapbox() {
   });
 }
 
-// ---------- Initialize default tab ----------
-initMaplibre();
+// ---------- Initialize saved or default tab ----------
+const savedTab = localStorage.getItem('active-map-tab') as 'maplibre' | 'mapbox' | null;
+setActiveTab(savedTab === 'mapbox' ? 'mapbox' : 'maplibre');

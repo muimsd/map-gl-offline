@@ -89,9 +89,17 @@ export function detectStyleProvider(styleUrl: string, style?: BaseStyle): StyleP
     const sources = style.sources || {};
     for (const [, sourceConfig] of Object.entries(sources)) {
       const source = sourceConfig as { url?: string };
-      if (source.url && source.url.includes('mapbox.com')) {
+      if (source.url && (source.url.includes('mapbox.com') || isMapboxProtocol(source.url))) {
         return 'mapbox';
       }
+    }
+
+    // Check sprite/glyphs for mapbox:// protocol
+    if (
+      (typeof style.sprite === 'string' && isMapboxProtocol(style.sprite)) ||
+      (typeof style.glyphs === 'string' && isMapboxProtocol(style.glyphs))
+    ) {
+      return 'mapbox';
     }
   }
 
@@ -155,10 +163,10 @@ export function processStyleSources(
       : {};
 
     // Handle Mapbox-specific source URLs (including mapbox:// protocol)
-    if (provider === 'mapbox' && source.url && typeof source.url === 'string') {
+    if (source.url && typeof source.url === 'string') {
       if (isMapboxProtocol(source.url as string) && accessToken) {
         source.url = resolveMapboxUrl(source.url as string, accessToken);
-      } else {
+      } else if (provider === 'mapbox' && accessToken) {
         source.url = normalizeStyleUrl(source.url as string, accessToken);
       }
     }
@@ -182,24 +190,20 @@ export function processStyleSources(
   processedStyle.sources = sources;
 
   // Handle sprite URLs
-  if (processedStyle.sprite && provider === 'mapbox' && accessToken) {
-    if (typeof processedStyle.sprite === 'string') {
-      if (isMapboxProtocol(processedStyle.sprite)) {
-        processedStyle.sprite = resolveMapboxUrl(processedStyle.sprite, accessToken);
-      } else if (processedStyle.sprite.includes('mapbox.com')) {
-        processedStyle.sprite = normalizeStyleUrl(processedStyle.sprite, accessToken);
-      }
+  if (processedStyle.sprite && typeof processedStyle.sprite === 'string' && accessToken) {
+    if (isMapboxProtocol(processedStyle.sprite)) {
+      processedStyle.sprite = resolveMapboxUrl(processedStyle.sprite, accessToken);
+    } else if (provider === 'mapbox' && processedStyle.sprite.includes('mapbox.com')) {
+      processedStyle.sprite = normalizeStyleUrl(processedStyle.sprite, accessToken);
     }
   }
 
   // Handle glyph URLs
-  if (processedStyle.glyphs && provider === 'mapbox' && accessToken) {
-    if (typeof processedStyle.glyphs === 'string') {
-      if (isMapboxProtocol(processedStyle.glyphs)) {
-        processedStyle.glyphs = resolveMapboxUrl(processedStyle.glyphs, accessToken);
-      } else if (processedStyle.glyphs.includes('mapbox.com')) {
-        processedStyle.glyphs = normalizeStyleUrl(processedStyle.glyphs, accessToken);
-      }
+  if (processedStyle.glyphs && typeof processedStyle.glyphs === 'string' && accessToken) {
+    if (isMapboxProtocol(processedStyle.glyphs)) {
+      processedStyle.glyphs = resolveMapboxUrl(processedStyle.glyphs, accessToken);
+    } else if (provider === 'mapbox' && processedStyle.glyphs.includes('mapbox.com')) {
+      processedStyle.glyphs = normalizeStyleUrl(processedStyle.glyphs, accessToken);
     }
   }
 

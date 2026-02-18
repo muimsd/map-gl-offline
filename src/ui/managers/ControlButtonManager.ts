@@ -7,9 +7,11 @@
 import { icons } from '../../utils/icons';
 import { Button, ButtonConfig } from '../components/shared/Button';
 import { t } from '../translations';
+import type { CssPrefix } from '../../utils/cssPrefix';
 
 export interface ButtonManagerOptions {
   onTogglePanel: () => void;
+  cssPrefix?: CssPrefix;
 }
 
 export class ButtonManager {
@@ -59,8 +61,9 @@ export class ButtonManager {
    * Create container element
    */
   private createContainer(): HTMLDivElement {
+    const prefix = this.options.cssPrefix || 'maplibregl';
     const container = document.createElement('div');
-    container.className = 'maplibregl-ctrl maplibregl-ctrl-group offline-manager-control';
+    container.className = `${prefix}-ctrl ${prefix}-ctrl-group offline-manager-control`;
     return container;
   }
 
@@ -68,8 +71,9 @@ export class ButtonManager {
    * Create main button using modular Button component
    */
   private createButton(): Button {
+    const prefix = this.options.cssPrefix || 'maplibregl';
     const buttonConfig: ButtonConfig = {
-      className: 'maplibregl-ctrl-icon relative',
+      className: `${prefix}-ctrl-icon relative`,
       icon: icons.cloud({ size: 20, color: 'black' }),
       title: t('control.offlineMapManager'),
       showProgressBadge: true,

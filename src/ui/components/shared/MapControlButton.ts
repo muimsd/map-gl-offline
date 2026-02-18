@@ -5,11 +5,13 @@
 
 import { BaseComponent, ComponentConfig } from './BaseComponent';
 import { icons } from '../../../utils/icons';
+import type { CssPrefix } from '../../../utils/cssPrefix';
 
 export interface ControlButtonConfig extends ComponentConfig {
   title?: string;
   icon?: string;
   onToggle?: () => void;
+  cssPrefix?: CssPrefix;
 }
 
 export class ControlButton extends BaseComponent {
@@ -40,12 +42,13 @@ export class ControlButton extends BaseComponent {
     // Access config from base class during createElement
     const buttonConfig = this.config as ControlButtonConfig;
 
+    const prefix = buttonConfig.cssPrefix || 'maplibregl';
     const container = document.createElement('div');
-    container.className = 'maplibregl-ctrl maplibregl-ctrl-group offline-manager-control';
+    container.className = `${prefix}-ctrl ${prefix}-ctrl-group offline-manager-control`;
 
     const button = document.createElement('button');
     button.type = 'button';
-    button.className = 'maplibregl-ctrl-icon relative';
+    button.className = `${prefix}-ctrl-icon relative`;
     button.innerHTML = buttonConfig.icon || icons.cloud({ size: 20, color: 'black' });
     button.title = buttonConfig.title || 'Offline Map Manager';
 

@@ -624,6 +624,7 @@ export class TileService {
         tiles?: string[];
         minzoom?: number;
         maxzoom?: number;
+        __originalTilesetUrl?: string;
       };
 
       tileLogger.debug(`Source ${sourceId} RAW DATA:`, JSON.stringify(config, null, 2));
@@ -677,11 +678,13 @@ export class TileService {
         }
 
         // Handle TileJSON URL sources
-        if (config.url) {
-          tileLogger.debug(`Processing TileJSON URL for source ${sourceId}:`, config.url);
+        // Check both config.url and __originalTilesetUrl (set by patchStyleForOffline
+        // when the style was patched for offline use — url is deleted but original is preserved)
+        const tileJsonSourceUrl = config.url || config.__originalTilesetUrl;
+        if (tileJsonSourceUrl) {
+          tileLogger.debug(`Processing TileJSON URL for source ${sourceId}:`, tileJsonSourceUrl);
 
-          // Check if we have the original URL stored (from patched styles)
-          let urlToFetch = config.url;
+          let urlToFetch = tileJsonSourceUrl;
 
           // Resolve mapbox:// source URLs to HTTPS TileJSON URLs
           if (isMapboxProtocol(urlToFetch)) {
@@ -697,17 +700,11 @@ export class TileService {
             }
           }
 
-          if (config.url.startsWith('idb://') && '__originalTilesetUrl' in config) {
-            urlToFetch =
-              (config as { __originalTilesetUrl?: string }).__originalTilesetUrl || config.url;
-            tileLogger.debug(`Found original URL for patched source ${sourceId}:`, urlToFetch);
-          }
-
           // Filter out idb:// URLs if we don't have an original URL
           if (urlToFetch.startsWith('idb://')) {
             tileLogger.debug(
               `Source ${sourceId} has idb:// URL and no original URL, skipping for download:`,
-              config.url
+              tileJsonSourceUrl
             );
             continue;
           }
@@ -721,9 +718,11 @@ export class TileService {
             // Many providers (like OpenFreeMap) serve TileJSON from URLs without .json extension
             const tilejsonUrl = urlToFetch.replace('tilejson+', '');
             let tilejsonFetched = false;
+            let tilejsonMinzoom: number | undefined;
+            let tilejsonMaxzoom: number | undefined;
 
             try {
-              tileLogger.debug(`🌐 Attempting to fetch TileJSON from: ${tilejsonUrl}`);
+              tileLogger.debug(`Attempting to fetch TileJSON from: ${tilejsonUrl}`);
 
               const response = await fetchResourceWithRetry(tilejsonUrl, {
                 timeout: 10000,
@@ -733,23 +732,31 @@ export class TileService {
               tileLogger.debug(`TileJSON fetch response type: ${response.type}`);
 
               if (response.type === 'json') {
-                const jsonData = response.data;
+                const jsonData = response.data as Record<string, unknown> | null;
                 tileLogger.debug(`TileJSON data keys: ${Object.keys(jsonData || {}).join(', ')}`);
 
                 if (
                   jsonData &&
                   typeof jsonData === 'object' &&
                   'tiles' in jsonData &&
-                  Array.isArray((jsonData as { tiles?: unknown }).tiles)
+                  Array.isArray(jsonData.tiles)
                 ) {
-                  tiles = (jsonData as { tiles?: string[] }).tiles ?? [];
+                  tiles = (jsonData.tiles as string[]) ?? [];
                   tileLogger.debug(`Extracted ${tiles.length} tile URLs from TileJSON`);
+
+                  // Capture minzoom/maxzoom from TileJSON if available
+                  if (typeof jsonData.minzoom === 'number') {
+                    tilejsonMinzoom = jsonData.minzoom;
+                  }
+                  if (typeof jsonData.maxzoom === 'number') {
+                    tilejsonMaxzoom = jsonData.maxzoom;
+                  }
 
                   if (tiles.length > 0) {
                     tileUrlPattern = tiles[0];
                     tilejsonFetched = true;
                     tileLogger.debug(
-                      `✅ SUCCESS: Got ${tiles.length} tile URLs from TileJSON. First URL: ${tiles[0]}`
+                      `TileJSON: ${tiles.length} tile URLs, minzoom: ${tilejsonMinzoom}, maxzoom: ${tilejsonMaxzoom}, first URL: ${tiles[0]}`
                     );
                   }
                 }
@@ -808,10 +815,17 @@ export class TileService {
               tiles = [tileUrlPattern];
             }
 
-            // Create a config with the actual tiles array
+            // Create a config with the actual tiles array and TileJSON zoom limits
             const enhancedConfig = {
               ...config,
               tiles: tiles,
+              // Use TileJSON minzoom/maxzoom if the source config doesn't already have them
+              ...(tilejsonMinzoom !== undefined && config.minzoom === undefined
+                ? { minzoom: tilejsonMinzoom }
+                : {}),
+              ...(tilejsonMaxzoom !== undefined && config.maxzoom === undefined
+                ? { maxzoom: tilejsonMaxzoom }
+                : {}),
             };
 
             tileSources.set(sourceId, enhancedConfig);
@@ -930,6 +944,12 @@ export class TileService {
   }
 
   private extractAccessTokenFromStyle(style: MapboxStyle): string | null {
+    // Check for accessToken stored on the style entry (set during download)
+    const storedToken = (style as Record<string, unknown>).accessToken;
+    if (typeof storedToken === 'string' && storedToken) {
+      return storedToken;
+    }
+
     // Check for access_token in source URLs
     if (style.sources) {
       for (const sourceConfig of Object.values(style.sources)) {

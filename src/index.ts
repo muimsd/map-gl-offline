@@ -69,6 +69,7 @@ export { OfflineMapManager as default } from './managers/offlineMapManager';
 
 // UI Control - MapLibre/Mapbox control for offline management
 export { OfflineManagerControl } from './ui/offlineManagerControl';
+export type { MapLibProtocol } from './ui/offlineManagerControl';
 
 // Internationalization
 export { i18n, t } from './ui/translations';

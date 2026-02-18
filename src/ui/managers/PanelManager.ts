@@ -20,6 +20,7 @@ const panelLogger = logger.scope('PanelManager');
 
 import { icons } from '../../utils/icons';
 import type { MapboxStyle, StyleStorageItem } from '../../types/style';
+import { convertStyleForServiceWorker } from '../../utils/convertStyleForSW';
 
 // Import modular components
 import { List, ListItemConfig } from '../components/shared/List';
@@ -40,6 +41,10 @@ export interface PanelRendererOptions {
   onFocusRegion: (regionId: string) => void;
   showBbox?: boolean;
   map?: MaplibreMap;
+  /** Whether a Service Worker is used for offline tile serving (Mapbox GL JS v3) */
+  useServiceWorker?: boolean;
+  /** Promise that resolves when the Service Worker is ready */
+  swReadyPromise?: Promise<unknown> | null;
 }
 
 export class PanelRenderer extends BaseComponent {
@@ -1301,7 +1306,7 @@ export class PanelRenderer extends BaseComponent {
       // The style is already patched with idb:// URLs when stored in regionService
       // DO NOT patch it again - double-patching breaks the URLs!
       // Just use the stored style directly
-      const patchedStyle = JSON.parse(JSON.stringify(styleEntry.style)) as MapboxStyle;
+      let patchedStyle = JSON.parse(JSON.stringify(styleEntry.style)) as MapboxStyle;
 
       // Enforce maxzoom for all tile sources to prevent requesting non-existent tiles
       // Find the maximum zoom level from all regions using this style
@@ -1312,11 +1317,54 @@ export class PanelRenderer extends BaseComponent {
         panelLogger.debug(`Computed maxZoom from regions: ${maxZoom}`);
       }
 
-      // Apply maxzoom to all tile sources
+      // Sanitize sources: ensure tiles array exists and remove invalid properties
       if (patchedStyle.sources) {
+        // Properties that are NOT valid MapLibre source properties
+        // These may have been embedded from TileJSON and cause "unknown property" errors
+        const invalidSourceProps = [
+          'name',
+          'tilejson',
+          'version',
+          'template',
+          'grids',
+          'data',
+          'vector_layers',
+          'center',
+          'format',
+        ];
+
         for (const [sourceId, source] of Object.entries(patchedStyle.sources)) {
-          const src = source as { tiles?: string[]; maxzoom?: number; type?: string };
-          if (src.tiles && (src.type === 'vector' || src.type === 'raster' || !src.type)) {
+          const src = source as Record<string, unknown>;
+
+          // Remove invalid properties that MapLibre rejects
+          for (const prop of invalidSourceProps) {
+            if (prop in src) {
+              delete src[prop];
+            }
+          }
+
+          // Fix legacy stored styles: if source has url (idb://) but no tiles,
+          // add tiles array and remove url (same fix as patchStyleForOffline)
+          if (
+            src.url &&
+            typeof src.url === 'string' &&
+            (src.url as string).startsWith('idb://') &&
+            !src.tiles
+          ) {
+            const urlStr = src.url as string;
+            // Extract downloadId and sourceKey from idb://downloadId/tilesjson/sourceKey
+            const match = urlStr.match(/^idb:\/\/([^/]+)\/tilesjson\/(.+)$/);
+            if (match) {
+              const [, downloadId, encodedSourceKey] = match;
+              const sourceKey = decodeURIComponent(encodedSourceKey);
+              src.tiles = [`idb://${downloadId}/tile/${sourceKey}/{z}/{x}/{y}.pbf`];
+              delete src.url;
+              panelLogger.debug(`Fixed legacy source ${sourceId}: added tiles, removed url`);
+            }
+          }
+
+          // Apply maxzoom to all tile sources
+          if (src.type === 'vector' || src.type === 'raster' || src.type === 'raster-dem') {
             const originalMaxzoom = src.maxzoom;
             src.maxzoom = maxZoom;
             panelLogger.debug(`Set maxzoom for ${sourceId}: ${originalMaxzoom} → ${maxZoom}`);
@@ -1344,6 +1392,15 @@ export class PanelRenderer extends BaseComponent {
             url: src.url,
           });
         }
+      }
+
+      // If using Service Worker (Mapbox GL JS v3), convert idb:// to /__offline__/ URLs
+      if (this.options.useServiceWorker) {
+        if (this.options.swReadyPromise) {
+          await this.options.swReadyPromise;
+        }
+        patchedStyle = convertStyleForServiceWorker(patchedStyle);
+        panelLogger.debug('Converted style for Service Worker (idb:// -> /__offline__/)');
       }
 
       // Apply the patched style to the map

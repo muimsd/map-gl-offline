@@ -210,6 +210,11 @@ async function createTileResponse(resource: {
 }
 
 export async function idbFetchHandler(url: string, init?: RequestInit): Promise<Response> {
+  // Normalize /__offline__/ URLs to idb:// so existing handler logic works as fallback
+  if (url.includes('/__offline__/')) {
+    url = url.replace(/^.*\/__offline__\//, 'idb://');
+  }
+
   const method = init?.method || 'GET';
 
   // Check memory cache first for tiles (fast path)

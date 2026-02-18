@@ -19,22 +19,18 @@ Object.defineProperty(window, 'matchMedia', {
   value: mockMatchMedia,
 });
 
-// Mock maplibre-gl
-jest.mock('maplibre-gl', () => ({
-  __esModule: true,
-  default: {
-    GeoJSONSource: class {},
-    addProtocol: jest.fn(),
-    removeProtocol: jest.fn(),
-  },
-}));
-
 // Mock styleService to avoid transitive TS compilation issues from WIP code
 jest.mock('../../src/services/styleService', () => ({
   downloadStyles: jest.fn().mockResolvedValue({ styleId: 'test' }),
   loadStyles: jest.fn().mockResolvedValue([]),
   loadStyleById: jest.fn().mockResolvedValue(null),
   isStyleDownloaded: jest.fn().mockResolvedValue(false),
+}));
+
+// Mock swRegistration since navigator.serviceWorker is not available in jsdom
+jest.mock('../../src/utils/swRegistration', () => ({
+  registerOfflineServiceWorker: jest.fn().mockResolvedValue({} as ServiceWorkerRegistration),
+  unregisterOfflineServiceWorker: jest.fn().mockResolvedValue(true),
 }));
 
 import { OfflineManagerControl } from '../../src/ui/offlineManagerControl';
@@ -65,6 +61,12 @@ const createMockMap = () => ({
   getLayer: jest.fn().mockReturnValue(null),
   setStyle: jest.fn(),
   fitBounds: jest.fn(),
+});
+
+// Mock map library with addProtocol/removeProtocol
+const createMockMapLib = () => ({
+  addProtocol: jest.fn(),
+  removeProtocol: jest.fn(),
 });
 
 describe('OfflineManagerControl', () => {
@@ -256,6 +258,51 @@ describe('OfflineManagerControl', () => {
       await window.fetch('https://example.com/data.json');
 
       expect(mockFetch).toHaveBeenCalled();
+    });
+  });
+
+  describe('mapLib protocol registration', () => {
+    it('should register idb:// protocol when mapLib is provided', () => {
+      const mockMapLib = createMockMapLib();
+      control = new OfflineManagerControl(mockOfflineManager as any, {
+        styleUrl: 'https://example.com/style.json',
+        mapLib: mockMapLib,
+      });
+
+      expect(mockMapLib.addProtocol).toHaveBeenCalledWith('idb', expect.any(Function));
+    });
+
+    it('should remove idb:// protocol on onRemove() when mapLib was provided', () => {
+      const mockMapLib = createMockMapLib();
+      control = new OfflineManagerControl(mockOfflineManager as any, {
+        styleUrl: 'https://example.com/style.json',
+        mapLib: mockMapLib,
+      });
+      const mockMap = createMockMap();
+      control.onAdd(mockMap as any);
+
+      control.onRemove();
+
+      expect(mockMapLib.removeProtocol).toHaveBeenCalledWith('idb');
+    });
+
+    it('should not throw when mapLib is omitted', () => {
+      expect(() => {
+        control = new OfflineManagerControl(mockOfflineManager as any, {
+          styleUrl: 'https://example.com/style.json',
+        });
+      }).not.toThrow();
+    });
+
+    it('should not call removeProtocol on onRemove() when mapLib was not provided', () => {
+      control = new OfflineManagerControl(mockOfflineManager as any, {
+        styleUrl: 'https://example.com/style.json',
+      });
+      const mockMap = createMockMap();
+      control.onAdd(mockMap as any);
+
+      // Should not throw even without mapLib
+      expect(() => control.onRemove()).not.toThrow();
     });
   });
 });

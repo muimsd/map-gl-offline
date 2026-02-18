@@ -12,3 +12,6 @@ export * from './errorHandling';
 export * from './validation';
 export * from './tileKey';
 export * from './proxyConfig';
+export * from './convertStyleForSW';
+export * from './swRegistration';
+export * from './cssPrefix';

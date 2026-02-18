@@ -54,6 +54,7 @@ import { PanelRenderer } from './managers/PanelManager';
 import { RegionControl } from './controls/regionControl';
 import { DownloadManager } from './managers/downloadManager';
 import { ModalManager } from './modals/modalManager';
+import { detectCssPrefix, CssPrefix } from '../utils/cssPrefix';
 
 const controlLogger = logger.scope('OfflineControl');
 
@@ -282,9 +283,13 @@ export class OfflineManagerControl implements IControl {
   onAdd(map: MaplibreMap): HTMLElement {
     this.map = map;
 
+    // Detect the correct CSS prefix for the map library in use
+    const cssPrefix: CssPrefix = detectCssPrefix(map.getContainer());
+
     // Initialize button manager
     this.buttonManager = new ButtonManager({
       onTogglePanel: () => this.togglePanel(),
+      cssPrefix,
     });
 
     // Create panel element
@@ -314,6 +319,7 @@ export class OfflineManagerControl implements IControl {
       onRegionSaved: () => this.handleRegionSaved(),
       styleUrl: this.options.styleUrl,
       accessToken: this.options.accessToken,
+      cssPrefix,
     });
 
     // Add event delegation for better event handling

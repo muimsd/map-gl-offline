@@ -328,8 +328,13 @@ export async function downloadStyles(
     let fontResult: FontDownloadResult | undefined;
     let spriteResult: SpriteDownloadResult | undefined;
 
+    // Use the processed (resolved) glyphs/sprite URLs for downloads.
+    // The raw style may still contain mapbox:// protocol URLs which are not fetchable.
+    const resolvedGlyphs = processedStyle.glyphs;
+    const resolvedSprite = processedStyle.sprite;
+
     // Download fonts (glyphs) for the style
-    if (style.glyphs) {
+    if (resolvedGlyphs) {
       onProgress?.({
         completed: 60,
         total: 100,
@@ -341,7 +346,7 @@ export async function downloadStyles(
       logger.debug('Starting font/glyph download for style:', style.id);
 
       try {
-        const fontUrls = generateGlyphUrlsFromStyle(style, style.glyphs);
+        const fontUrls = generateGlyphUrlsFromStyle(style, resolvedGlyphs);
         logger.debug(`Generated ${fontUrls.length} font URLs for download`);
 
         fontResult = await downloadFonts(fontUrls, style.id, {
@@ -375,7 +380,7 @@ export async function downloadStyles(
     }
 
     // Download glyphs for the style
-    if (style.glyphs) {
+    if (resolvedGlyphs) {
       onProgress?.({
         completed: 70,
         total: 100,
@@ -405,7 +410,7 @@ export async function downloadStyles(
 
         if (fontStackArray.length > 0) {
           const { downloadGlyphs } = await import('./glyphService');
-          await downloadGlyphs(style.glyphs, fontStackArray, style.id, ['0-255', '256-511'], {
+          await downloadGlyphs(resolvedGlyphs, fontStackArray, style.id, ['0-255', '256-511'], {
             maxConcurrency: 3,
             retries: 1,
             timeout: 10000,
@@ -424,7 +429,7 @@ export async function downloadStyles(
 
           if (includeMetadata) {
             styleStorageItem.glyphs = fontStackArray.map(
-              stack => `${style.glyphs}/${stack}/0-255.pbf`
+              stack => `${resolvedGlyphs}/${stack}/0-255.pbf`
             );
           }
         }
@@ -444,7 +449,7 @@ export async function downloadStyles(
     });
 
     // Download sprites for the style
-    if (style.sprite) {
+    if (resolvedSprite) {
       onProgress?.({
         completed: 85,
         total: 100,
@@ -454,7 +459,7 @@ export async function downloadStyles(
       });
 
       try {
-        const spriteBase = style.sprite;
+        const spriteBase = resolvedSprite;
         logger.debug(`Processing sprites for style: ${style.id}`);
 
         const spriteVariants = [
@@ -464,11 +469,13 @@ export async function downloadStyles(
           `${spriteBase}@2x.png`,
         ];
 
-        // Check if sprite URLs look like idb:// URLs (which would indicate a problem)
-        const hasIdbUrls = spriteVariants.some(url => url.startsWith('idb://'));
-        if (hasIdbUrls) {
+        // Check if sprite URLs look like non-HTTP URLs (which would indicate a problem)
+        const hasNonHttpUrls = spriteVariants.some(
+          url => url.startsWith('idb://') || url.startsWith('mapbox://')
+        );
+        if (hasNonHttpUrls) {
           throw new Error(
-            'Cannot download sprites from idb:// URLs - original style should be used'
+            'Cannot download sprites from non-HTTP URLs - style sources must be resolved first'
           );
         }
 
@@ -900,11 +907,13 @@ export async function downloadStyleWithProvider(
     accessToken: explicitAccessToken,
     forceProvider = false,
     skipExisting = false,
+    enableSourceEmbedding = true,
     maxRetries = 3,
     timeoutMs = 30000,
   } = options;
 
   const startTime = Date.now();
+  let sourcesEmbedded = 0;
   logger.debug(`Downloading style from: ${styleUrl}`);
 
   try {
@@ -943,6 +952,59 @@ export async function downloadStyleWithProvider(
 
     // Process style for the detected provider
     const processedStyle = processStyleSources(style, detectedProvider, extractedToken);
+
+    // Embed TileJSON data into sources for reliable offline tile downloads
+    // This fetches each source's TileJSON URL and merges the result (including tiles array,
+    // minzoom, maxzoom) into the source config, so tile downloads don't need extra fetches
+    if (enableSourceEmbedding && processedStyle.sources) {
+      for (const [sourceKey, sourceConfig] of Object.entries(processedStyle.sources)) {
+        const source = sourceConfig as Record<string, unknown>;
+        if (source.url && typeof source.url === 'string' && !source.tiles) {
+          const sourceUrl = source.url as string;
+          // Skip idb:// URLs
+          if (sourceUrl.startsWith('idb://')) continue;
+
+          try {
+            const sourceResponse = await fetchWithRetry(sourceUrl, {
+              retries: maxRetries,
+              timeout: timeoutMs,
+              retryDelay: 1000,
+            });
+            const sourceData = await sourceResponse.json();
+            // Only copy valid MapLibre/Mapbox source properties from TileJSON
+            // Copying unknown properties (like "name", "tilejson") causes
+            // MapLibre to throw "unknown property" errors on setStyle()
+            const validFields = [
+              'tiles',
+              'minzoom',
+              'maxzoom',
+              'bounds',
+              'center',
+              'attribution',
+              'scheme',
+              'encoding',
+              'vector_layers',
+              'format',
+              'grids',
+              'data',
+              'template',
+            ] as const;
+            for (const field of validFields) {
+              if (field in sourceData && sourceData[field] !== undefined) {
+                (source as Record<string, unknown>)[field] = sourceData[field];
+              }
+            }
+            processedStyle.sources[sourceKey] = source;
+            sourcesEmbedded++;
+            logger.debug(`Embedded TileJSON for source ${sourceKey}`);
+          } catch (error) {
+            logger.warn(
+              `Failed to embed TileJSON for source ${sourceKey}: ${error instanceof Error ? error.message : 'Unknown error'}`
+            );
+          }
+        }
+      }
+    }
 
     // Set default glyphs URL if not present
     if (!processedStyle.glyphs) {
@@ -1009,7 +1071,7 @@ export async function downloadStyleWithProvider(
       downloadTime,
       styleSize: JSON.stringify(processedStyle).length,
       sourcesProcessed: Object.keys(processedStyle.sources || {}).length,
-      sourcesEmbedded: 0,
+      sourcesEmbedded,
       errors: [],
       analytics: {
         sourceTypes: {},

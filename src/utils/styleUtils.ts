@@ -65,11 +65,24 @@ export function patchStyleForOffline(
 
     if (source.url) {
       const originalUrl = source.url;
-      source.url = `idb://${downloadId}/tilesjson/${encodeURIComponent(sourceKey)}`;
       (source as Record<string, unknown>).__originalTilesetUrl = originalUrl;
-      styleLogger.debug(`Patched tilejson URL for ${sourceKey}:`, {
+
+      // Always ensure tiles array exists for direct rendering
+      // This avoids relying on TileJSON fetch via addProtocol which may fail
+      if (!source.tiles) {
+        let ext = tileExtension;
+        if (!ext) ext = 'pbf';
+        source.tiles = [`idb://${downloadId}/tile/${sourceKey}/{z}/{x}/{y}.${ext}`];
+        styleLogger.debug(`Added tiles array for TileJSON-only source ${sourceKey}:`, {
+          tiles: source.tiles,
+        });
+      }
+
+      // Remove url so MapLibre doesn't try to fetch TileJSON
+      // (tiles array is sufficient for rendering)
+      delete source.url;
+      styleLogger.debug(`Removed tilejson URL for ${sourceKey} (tiles array is set):`, {
         original: originalUrl,
-        patched: source.url,
       });
     }
   }

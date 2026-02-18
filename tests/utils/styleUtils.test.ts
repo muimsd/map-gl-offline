@@ -86,7 +86,7 @@ describe('styleUtils', () => {
       expect(source.maxzoom).toBe(14);
     });
 
-    it('should patch tilejson URLs', () => {
+    it('should replace tilejson URL with tiles array for TileJSON-only sources', () => {
       const style: MapboxStyle = {
         version: 8,
         sources: {
@@ -99,11 +99,67 @@ describe('styleUtils', () => {
       };
 
       const patched = patchStyleForOffline(style, 'my-download');
-      const source = patched.sources['tilejson-source'] as { url: string };
+      const source = patched.sources['tilejson-source'] as {
+        url?: string;
+        tiles?: string[];
+        __originalTilesetUrl?: string;
+      };
 
-      expect(source.url).toBe(
-        'idb://my-download/tilesjson/tilejson-source'
-      );
+      // url should be removed to prevent TileJSON fetch
+      expect(source.url).toBeUndefined();
+      // tiles array should be added for direct rendering
+      expect(source.tiles).toEqual([
+        'idb://my-download/tile/tilejson-source/{z}/{x}/{y}.pbf',
+      ]);
+      // original URL should be preserved
+      expect(source.__originalTilesetUrl).toBe('https://example.com/tilejson.json');
+    });
+
+    it('should use provided tile extension for TileJSON-only sources', () => {
+      const style: MapboxStyle = {
+        version: 8,
+        sources: {
+          'tilejson-source': {
+            type: 'vector',
+            url: 'https://example.com/tilejson.json',
+          },
+        },
+        layers: [],
+      };
+
+      const patched = patchStyleForOffline(style, 'my-download', undefined, 'mvt');
+      const source = patched.sources['tilejson-source'] as { tiles?: string[] };
+
+      expect(source.tiles).toEqual([
+        'idb://my-download/tile/tilejson-source/{z}/{x}/{y}.mvt',
+      ]);
+    });
+
+    it('should keep already-patched tiles for sources with both url and tiles', () => {
+      const style: MapboxStyle = {
+        version: 8,
+        sources: {
+          'combo-source': {
+            type: 'vector',
+            url: 'https://example.com/tilejson.json',
+            tiles: ['https://example.com/tiles/{z}/{x}/{y}.pbf'],
+          },
+        },
+        layers: [],
+      };
+
+      const patched = patchStyleForOffline(style, 'my-download');
+      const source = patched.sources['combo-source'] as {
+        url?: string;
+        tiles?: string[];
+      };
+
+      // url should be removed
+      expect(source.url).toBeUndefined();
+      // tiles should have been patched by the tiles block (not the url block)
+      expect(source.tiles).toEqual([
+        'idb://my-download/tile/combo-source/{z}/{x}/{y}.pbf',
+      ]);
     });
 
     it('should patch glyphs URL', () => {

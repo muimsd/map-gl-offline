@@ -7,12 +7,14 @@ import type { Map as MaplibreMap, GeoJSONSource } from 'maplibre-gl';
 import { area, bboxPolygon, difference, convertArea, featureCollection, polygon } from '@turf/turf';
 import { icons } from '../../utils/icons';
 import { logger } from '../../utils/logger';
+import type { CssPrefix } from '../../utils/cssPrefix';
 
 const polygonLogger = logger.scope('PolygonControl');
 
 export interface PolygonControlOptions {
   onSave: (bounds: [number, number, number, number], area: number) => void;
   onCancel: () => void;
+  cssPrefix?: CssPrefix;
 }
 
 export class PolygonControl {
@@ -104,8 +106,8 @@ export class PolygonControl {
   public createSaveButton(parentContainer: HTMLElement): void {
     this.saveButton = document.createElement('button');
     this.saveButton.type = 'button';
-    this.saveButton.className =
-      'maplibregl-ctrl-icon offline-manager-control mt-0.5 bg-gradient-to-br from-green-600 to-green-700 border border-green-700 rounded-sm cursor-pointer relative w-[29px] h-[29px] flex items-center justify-center hover:from-green-700 hover:to-green-800 transition-all duration-200';
+    const prefix = this.options.cssPrefix || 'maplibregl';
+    this.saveButton.className = `${prefix}-ctrl-icon offline-manager-control mt-0.5 bg-gradient-to-br from-green-600 to-green-700 border border-green-700 rounded-sm cursor-pointer relative w-[29px] h-[29px] flex items-center justify-center hover:from-green-700 hover:to-green-800 transition-all duration-200`;
     this.saveButton.innerHTML = icons.check({ size: 16, color: 'white' });
     this.saveButton.title = 'Save Selected Region';
     this.saveButton.addEventListener('click', () => this.handleSave());

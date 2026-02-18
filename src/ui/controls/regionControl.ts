@@ -10,6 +10,7 @@ import { DownloadManager } from '../managers/downloadManager';
 import { ModalManager } from '../modals/modalManager';
 import { icons } from '../../utils/icons';
 import { logger } from '../../utils/logger';
+import type { CssPrefix } from '../../utils/cssPrefix';
 
 const regionLogger = logger.scope('RegionControl');
 
@@ -21,6 +22,7 @@ export interface RegionControlOptions {
   onRegionSaved?: () => void;
   styleUrl: string;
   accessToken?: string;
+  cssPrefix?: CssPrefix;
 }
 
 export class RegionControl {
@@ -55,6 +57,7 @@ export class RegionControl {
     const polygonOptions: PolygonControlOptions = {
       onSave: (bounds, area) => this.showRegionForm(bounds, area),
       onCancel: () => this.cancelSelection(),
+      cssPrefix: this.options.cssPrefix,
     };
 
     this.polygonControl = new PolygonControl(this.map, polygonOptions);
@@ -83,8 +86,8 @@ export class RegionControl {
     // Create cancel button (red X)
     this.cancelButton = document.createElement('button');
     this.cancelButton.type = 'button';
-    this.cancelButton.className =
-      'maplibregl-ctrl-icon offline-manager-control mt-0.5 bg-gradient-to-br from-red-600 to-red-700 border border-red-700 rounded-sm cursor-pointer relative w-[29px] h-[29px] flex items-center justify-center hover:from-red-700 hover:to-red-800 transition-all duration-200';
+    const prefix = this.options.cssPrefix || 'maplibregl';
+    this.cancelButton.className = `${prefix}-ctrl-icon offline-manager-control mt-0.5 bg-gradient-to-br from-red-600 to-red-700 border border-red-700 rounded-sm cursor-pointer relative w-[29px] h-[29px] flex items-center justify-center hover:from-red-700 hover:to-red-800 transition-all duration-200`;
     this.cancelButton.innerHTML = icons.x({ size: 16, color: 'white' });
     this.cancelButton.title = 'Cancel Selection';
     this.cancelButton.addEventListener('click', () => this.cancelSelection());
@@ -92,8 +95,7 @@ export class RegionControl {
     // Create save button (green checkmark)
     this.saveButton = document.createElement('button');
     this.saveButton.type = 'button';
-    this.saveButton.className =
-      'maplibregl-ctrl-icon offline-manager-control mt-0.5 bg-gradient-to-br from-green-600 to-green-700 border border-green-700 rounded-sm cursor-pointer relative w-[29px] h-[29px] flex items-center justify-center hover:from-green-700 hover:to-green-800 transition-all duration-200';
+    this.saveButton.className = `${prefix}-ctrl-icon offline-manager-control mt-0.5 bg-gradient-to-br from-green-600 to-green-700 border border-green-700 rounded-sm cursor-pointer relative w-[29px] h-[29px] flex items-center justify-center hover:from-green-700 hover:to-green-800 transition-all duration-200`;
     this.saveButton.innerHTML = icons.check({ size: 16, color: 'white' });
     this.saveButton.title = 'Save Selected Region';
     this.saveButton.addEventListener('click', () => this.handleSaveClick());
