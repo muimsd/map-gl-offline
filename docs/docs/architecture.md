@@ -146,25 +146,22 @@ src/
 
 ### OfflineMapManager
 
-The main API for programmatic access. It's composed of multiple mixins for modularity:
+The main API for programmatic access. It uses a module composition pattern where each management domain is a factory function that returns an interface of methods. All module methods are assigned onto the manager instance via `Object.assign`:
 
 ```typescript
 // Composition pattern for the main manager
-class OfflineMapManager extends compose(
-  BaseManager,
-  RegionManagement,
-  StyleManagement,
-  AnalyticsManagement,
-  CleanupManagement,
-  ImportExportManagement,
-  MaintenanceManagement,
-  ResourceManagement
-) {}
+class OfflineMapManager implements OfflineMapManagerModules {
+  constructor(overrides: OfflineManagerServiceOverrides = {}) {
+    this.services = createManagerServices(overrides);
+    this.modules = createOfflineMapManagerModules(this.services);
+    Object.assign(this, this.modules);
+  }
+}
 ```
 
-Each mixin provides specific functionality:
+Each module provides specific functionality:
 
-| Mixin | Responsibility |
+| Module | Responsibility |
 |-------|----------------|
 | `BaseManager` | Core initialization, database access |
 | `RegionManagement` | CRUD operations for regions |

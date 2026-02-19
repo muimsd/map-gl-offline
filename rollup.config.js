@@ -28,6 +28,20 @@ export default defineConfig([
         file: 'dist/index.esm.js',
         format: 'esm',
         sourcemap: true
+      },
+      {
+        file: 'dist/index.umd.js',
+        format: 'umd',
+        name: 'mapgloffline',
+        sourcemap: true,
+        exports: 'named',
+        globals: {
+          'mapbox-gl': 'mapboxgl',
+          'maplibre-gl': 'maplibregl',
+          '@mapbox/tilebelt': 'tilebelt',
+          'idb': 'idb',
+          'uuid': 'uuid'
+        }
       }
     ],
     plugins: [

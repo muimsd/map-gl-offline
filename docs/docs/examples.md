@@ -215,21 +215,11 @@ regions.forEach(region => {
 });
 ```
 
-### Update Region Metadata
-
-```typescript
-// Extend expiration
-await manager.updateRegion('nyc', {
-  expiry: Date.now() + 60 * 24 * 60 * 60 * 1000, // 60 days
-  name: 'New York City (Extended)',
-});
-```
-
 ### Delete Region with Confirmation
 
 ```typescript
 async function deleteRegionWithConfirm(regionId: string) {
-  const region = await manager.getRegion(regionId);
+  const region = await manager.getStoredRegion(regionId);
   if (!region) return;
 
   const confirmed = confirm(`Delete "${region.name}"? This cannot be undone.`);
@@ -486,11 +476,11 @@ class StorageManager {
     this.startAutoCleanup();
   }
 
-  private startAutoCleanup() {
+  private async startAutoCleanup() {
     // Cleanup daily
-    this.manager.startAutoCleanup({
-      interval: 24 * 60 * 60 * 1000,
-      maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+    await this.manager.setupAutoCleanup({
+      intervalHours: 24,
+      maxAge: 30, // 30 days
     });
 
     // Also check storage quota periodically
@@ -503,7 +493,7 @@ class StorageManager {
 
     if (usedMB > this.maxStorageMB * 0.9) {
       console.warn('Storage quota near limit, cleaning up...');
-      await this.manager.cleanupOldTiles(7 * 24 * 60 * 60 * 1000);
+      await this.manager.performSmartCleanup({ maxAge: 7 });
     }
   }
 }
@@ -557,7 +547,7 @@ async function downloadWithRetry(regionOptions: OfflineRegionOptions, maxRetries
 
         case ErrorType.QUOTA:
           // Try to free up space
-          await manager.cleanupOldTiles(7 * 24 * 60 * 60 * 1000);
+          await manager.performSmartCleanup({ maxAge: 7 });
           continue;
 
         case ErrorType.VALIDATION:

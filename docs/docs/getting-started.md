@@ -16,6 +16,34 @@ yarn add map-gl-offline
 pnpm add map-gl-offline
 ```
 
+### CDN (UMD)
+
+For use without a bundler, include via `<script>` tag. The library is exposed as the `mapgloffline` global (like `mapboxgl` / `maplibregl`):
+
+```html
+<script src="https://unpkg.com/maplibre-gl/dist/maplibre-gl.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl/dist/maplibre-gl.css" />
+
+<script src="https://unpkg.com/map-gl-offline/dist/index.umd.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/map-gl-offline/dist/style.css" />
+
+<script>
+  const map = new maplibregl.Map({
+    container: 'map',
+    style: 'https://demotiles.maplibre.org/style.json',
+  });
+
+  const manager = new mapgloffline.OfflineMapManager();
+  map.on('load', () => {
+    const control = new mapgloffline.OfflineManagerControl(manager, {
+      styleUrl: 'https://demotiles.maplibre.org/style.json',
+      mapLib: maplibregl,
+    });
+    map.addControl(control, 'top-right');
+  });
+</script>
+```
+
 ## Peer Dependencies
 
 `map-gl-offline` requires either MapLibre GL JS or Mapbox GL JS as a peer dependency:
@@ -156,10 +184,10 @@ await offlineManager.addRegion({
 const regions = await offlineManager.listStoredRegions();
 console.log('Stored regions:', regions);
 
-// Load an offline region
-const region = await offlineManager.getRegion('downtown');
+// Retrieve a stored region
+const region = await offlineManager.getStoredRegion('downtown');
 if (region) {
-  map.setStyle(region.offlineStyle);
+  console.log(`Region: ${region.name}, created: ${new Date(region.created).toLocaleDateString()}`);
 }
 
 // Delete a region
@@ -227,7 +255,7 @@ const offlineManager = new OfflineMapManager();
 map.on('load', () => {
   const offlineControl = new OfflineManagerControl(offlineManager, {
     styleUrl: STYLE_URL,
-    theme: 'auto',
+    theme: 'dark',
     showBbox: true,
     mapLib: maplibregl,
   });
@@ -267,7 +295,7 @@ map.on('load', () => {
   const offlineControl = new OfflineManagerControl(offlineManager, {
     styleUrl: 'mapbox://styles/mapbox/standard',
     accessToken: mapboxgl.accessToken,
-    theme: 'auto',
+    theme: 'dark',
     showBbox: true,
   });
 

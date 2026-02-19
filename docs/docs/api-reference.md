@@ -6,6 +6,11 @@ sidebar_position: 3
 
 Complete API documentation for `map-gl-offline`.
 
+The library is available as:
+- **ES modules**: `import { OfflineMapManager } from 'map-gl-offline'`
+- **CommonJS**: `const { OfflineMapManager } = require('map-gl-offline')`
+- **UMD global**: `mapgloffline.OfflineMapManager` (via `<script>` tag)
+
 ## OfflineMapManager
 
 The main class for managing offline map data programmatically.
@@ -13,15 +18,10 @@ The main class for managing offline map data programmatically.
 ### Constructor
 
 ```typescript
-const manager = new OfflineMapManager(options?: OfflineMapManagerOptions);
+const manager = new OfflineMapManager(overrides?: OfflineManagerServiceOverrides);
 ```
 
-**Options:**
-
-| Property | Type | Default | Description |
-|----------|------|---------|-------------|
-| `autoCleanup` | `boolean` | `false` | Enable automatic cleanup of expired data |
-| `cleanupInterval` | `number` | `86400000` | Cleanup interval in ms (default: 24 hours) |
+The constructor accepts optional service overrides for dependency injection (advanced usage). For most cases, use the default: `new OfflineMapManager()`.
 
 ### Region Management Methods
 
@@ -41,12 +41,12 @@ await manager.addRegion({
 });
 ```
 
-#### `getRegion(id: string): Promise<StoredRegion | null>`
+#### `getStoredRegion(id: string): Promise<StoredRegion | null>`
 
 Retrieve a stored region by its ID.
 
 ```typescript
-const region = await manager.getRegion('my-region');
+const region = await manager.getStoredRegion('my-region');
 if (region) {
   console.log(`Region: ${region.name}, created: ${region.created}`);
 }
@@ -69,15 +69,13 @@ Delete a specific region and all its associated resources.
 await manager.deleteRegion('my-region');
 ```
 
-#### `updateRegion(id: string, updates: Partial<OfflineRegionOptions>): Promise<void>`
+#### `listRegions(): Promise<OfflineRegionOptions[]>`
 
-Update region settings (name, expiry, etc.).
+List all region options (without database metadata).
 
 ```typescript
-await manager.updateRegion('my-region', {
-  name: 'Updated Name',
-  expiry: Date.now() + 30 * 24 * 60 * 60 * 1000, // 30 days
-});
+const regions = await manager.listRegions();
+regions.forEach(r => console.log(`${r.name}: ${r.id}`));
 ```
 
 ### Analytics Methods
@@ -440,6 +438,8 @@ const control = new OfflineManagerControl(
 | `styleUrl` | `string` | `'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json'` | URL of the map style used for new region downloads |
 | `theme` | `'light' \| 'dark'` | `'dark'` | UI theme. The user's choice is persisted in `localStorage` and takes precedence over this default on subsequent loads |
 | `showBbox` | `boolean` | `false` | Show a blue bounding box polygon on the map when focusing on a region |
+| `accessToken` | `string` | `undefined` | Mapbox access token (required for `mapbox://` URLs) |
+| `mapLib` | `MapLibProtocol` | `undefined` | Map library module (e.g., `maplibregl`) for registering the `idb://` protocol in web workers |
 
 ```typescript
 import { OfflineMapManager, OfflineManagerControl } from 'map-gl-offline';

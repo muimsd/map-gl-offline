@@ -61,6 +61,22 @@ yarn add map-gl-offline
 pnpm add map-gl-offline
 ```
 
+### CDN (UMD)
+
+For use via `<script>` tag, the library is available as the `mapgloffline` global (similar to `mapboxgl` and `maplibregl`):
+
+```html
+<script src="https://unpkg.com/map-gl-offline/dist/index.umd.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/map-gl-offline/dist/style.css" />
+<script>
+  const manager = new mapgloffline.OfflineMapManager();
+  const control = new mapgloffline.OfflineManagerControl(manager, {
+    styleUrl: 'https://api.maptiler.com/maps/streets/style.json?key=YOUR_KEY',
+  });
+  map.addControl(control, 'top-right');
+</script>
+```
+
 ## 🔑 Environment Setup
 
 For development or when using Maptiler styles, create a `.env` file:
@@ -169,10 +185,10 @@ await offlineManager.addRegion({
   },
 });
 
-// Retrieve and use stored region
-const region = await offlineManager.getRegion('downtown');
+// Retrieve a stored region
+const region = await offlineManager.getStoredRegion('downtown');
 if (region) {
-  map.setStyle(region.offlineStyle); // Apply offline style
+  console.log(`Region: ${region.name}, created: ${new Date(region.created).toLocaleDateString()}`);
 }
 
 // List all regions
@@ -198,18 +214,18 @@ console.log(`Recommendations:`, analytics.recommendations);
 ### Cleanup & Maintenance
 
 ```typescript
-// Clean up old tiles (7 days)
-const tileCleanup = await offlineManager.cleanupOldTiles(7 * 24 * 60 * 60 * 1000);
-console.log(`Cleaned ${tileCleanup} old tiles`);
+// Clean up expired regions
+const deletedCount = await offlineManager.cleanupExpiredRegions();
+console.log(`Cleaned ${deletedCount} expired regions`);
 
-// Verify and repair tiles
-const verification = await offlineManager.verifyAndRepairTiles();
-console.log(`Valid: ${verification.validTiles}, Corrupted: ${verification.corruptedTiles}`);
+// Verify and repair fonts
+const verification = await offlineManager.verifyAndRepairFonts('style_123', { removeCorrupted: true });
+console.log(`Verified: ${verification.verified}, Repaired: ${verification.repaired}, Removed: ${verification.removed}`);
 
-// Start automatic cleanup
-offlineManager.startAutoCleanup({
-  interval: 24 * 60 * 60 * 1000, // Daily
-  maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+// Set up automatic cleanup (runs every 24 hours)
+const cleanupId = await offlineManager.setupAutoCleanup({
+  intervalHours: 24,
+  maxAge: 30, // days
 });
 ```
 
@@ -222,36 +238,41 @@ Main class for managing offline maps.
 **Constructor:**
 
 ```typescript
-const manager = new OfflineMapManager(options?: {
-  autoCleanup?: boolean;
-  cleanupInterval?: number;
-});
+const manager = new OfflineMapManager(overrides?: OfflineManagerServiceOverrides);
 ```
+
+The constructor accepts optional service overrides for dependency injection (advanced usage). For most cases, use the default: `new OfflineMapManager()`.
 
 **Core Methods:**
 
 - `addRegion(options: OfflineRegionOptions)` - Download and store a map region
-- `getRegion(id: string)` - Retrieve a stored region by ID
+- `getStoredRegion(id: string)` - Retrieve a stored region by ID
 - `deleteRegion(id: string)` - Delete a specific region and its resources
 - `listStoredRegions()` - List all stored regions with metadata
-- `updateRegion(id: string, updates: Partial<OfflineRegionOptions>)` - Update region settings
+- `listRegions()` - List all region options
 
 **Analytics Methods:**
 
 - `getComprehensiveStorageAnalytics()` - Get detailed storage statistics
-- `getRegionAnalytics(regionId: string)` - Get analytics for specific region
-- `getTileStats()` - Get tile-specific statistics
-- `getFontStats()` - Get font statistics
-- `getSpriteStats()` - Get sprite statistics
+- `getRegionAnalytics()` - Get aggregate analytics across all regions
+- `getTileStatistics(styleId: string)` - Get tile-specific statistics
+- `getFontStatistics(styleId: string)` - Get font statistics
+- `getSpriteStatistics(styleId: string)` - Get sprite statistics
 
-**Maintenance Methods:**
+**Cleanup & Maintenance Methods:**
 
-- `cleanupOldTiles(maxAge: number)` - Remove tiles older than specified age
-- `cleanupOldFonts(maxAge: number)` - Remove old font data
 - `cleanupExpiredRegions()` - Remove regions past expiration date
-- `verifyAndRepairTiles()` - Verify tile integrity and repair if possible
-- `startAutoCleanup(options)` - Enable automatic cleanup
-- `stopAutoCleanup()` - Disable automatic cleanup
+- `performSmartCleanup(options)` - Intelligent cleanup with configurable criteria
+- `cleanupOldFonts(styleId?, options?)` - Remove old font data
+- `cleanupOldSprites(styleId?, options?)` - Remove old sprite data
+- `cleanupOldGlyphs(styleId?, options?)` - Remove old glyph data
+- `verifyAndRepairFonts(styleId, options?)` - Verify font integrity
+- `verifyAndRepairSprites(styleId, options?)` - Verify sprite integrity
+- `verifyAndRepairGlyphs(styleId, options?)` - Verify glyph integrity
+- `setupAutoCleanup(options)` - Enable automatic periodic cleanup
+- `stopAutoCleanup(cleanupId?)` - Disable a specific auto-cleanup
+- `stopAllAutoCleanup()` - Disable all auto-cleanups
+- `performCompleteMaintenance(options?)` - Run comprehensive maintenance
 
 ### OfflineManagerControl
 
@@ -288,14 +309,15 @@ const control = new OfflineManagerControl(offlineManager, {
 ```typescript
 interface OfflineRegionOptions {
   id: string; // Unique region identifier
-  name?: string; // Human-readable name
+  name: string; // Human-readable name (required)
   bounds: [[number, number], [number, number]]; // [[lng, lat], [lng, lat]]
   minZoom: number; // Minimum zoom level (e.g., 10)
   maxZoom: number; // Maximum zoom level (e.g., 16)
-  styleUrl: string; // Map style URL
-  onProgress?: (progress: ProgressInfo) => void; // Progress callback
-  expiresAt?: number; // Expiration timestamp (ms)
-  autoDelete?: boolean; // Auto-delete on expiration
+  styleUrl?: string; // Map style URL
+  expiry?: number; // Expiration timestamp (ms since epoch)
+  deleteOnExpiry?: boolean; // Auto-delete on expiration
+  multipleRegions?: boolean; // Part of a multi-region download
+  tileExtension?: string; // Tile extension (pbf, mvt, png, etc.)
 }
 ```
 
@@ -328,9 +350,8 @@ const region = {
 // Monitor storage usage
 const analytics = await manager.getComprehensiveStorageAnalytics();
 if (analytics.totalStorageSize > 500 * 1024 * 1024) {
-  // 500MB
   console.warn('High storage usage detected');
-  await manager.cleanupExpiredRegions();
+  await manager.performSmartCleanup({ maxStorageSize: 500 * 1024 * 1024 });
 }
 
 // Use progressive loading for better UX
@@ -367,12 +388,12 @@ if ('storage' in navigator && 'estimate' in navigator.storage) {
 }
 
 // Regular cleanup
-await manager.cleanupOldTiles(7 * 24 * 60 * 60 * 1000); // 7 days
+await manager.cleanupExpiredRegions();
 
 // Auto-cleanup on startup
-manager.startAutoCleanup({
-  interval: 24 * 60 * 60 * 1000, // Daily
-  maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+await manager.setupAutoCleanup({
+  intervalHours: 24, // Daily
+  maxAge: 30, // 30 days
 });
 ```
 
@@ -485,7 +506,7 @@ map-gl-offline/
 
 ## 🔄 Recent Updates
 
-### v0.2.0 (Latest)
+### v0.5.0 (Latest)
 
 - ✅ **Mapbox GL JS Support**: Full support for Mapbox styles, including `mapbox://` protocol URL resolution
 - ✅ **Mapbox Standard Style**: 3D models, raster-dem terrain, and import-based style resolution

@@ -5,6 +5,8 @@ slug: /
 
 # map-gl-offline
 
+**[Live Demo](https://map-gl-offline-demo.netlify.app)** | **[GitHub](https://github.com/muimsd/map-gl-offline)** | **[npm](https://www.npmjs.com/package/map-gl-offline)**
+
 A comprehensive **TypeScript** library for **MapLibre GL JS** and **Mapbox GL JS** that enables complete offline map functionality.
 
 ## Features
@@ -43,6 +45,16 @@ A comprehensive **TypeScript** library for **MapLibre GL JS** and **Mapbox GL JS
 
 ```bash
 npm install map-gl-offline
+```
+
+### CDN (UMD)
+
+```html
+<script src="https://unpkg.com/map-gl-offline/dist/index.umd.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/map-gl-offline/dist/style.css" />
+<script>
+  const manager = new mapgloffline.OfflineMapManager();
+</script>
 ```
 
 ### MapLibre GL JS

@@ -8,19 +8,13 @@ This guide covers all configuration options available in `map-gl-offline`.
 
 ## OfflineMapManager Configuration
 
-### Constructor Options
+### Constructor
 
 ```typescript
-const manager = new OfflineMapManager({
-  autoCleanup: true,
-  cleanupInterval: 24 * 60 * 60 * 1000, // 24 hours
-});
+const manager = new OfflineMapManager();
 ```
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `autoCleanup` | `boolean` | `false` | Automatically cleanup expired tiles and regions |
-| `cleanupInterval` | `number` | `86400000` | Interval between cleanups in milliseconds |
+The constructor accepts optional `OfflineManagerServiceOverrides` for dependency injection (advanced usage). For most use cases, create the manager with no arguments.
 
 ## OfflineManagerControl Configuration
 
@@ -39,6 +33,8 @@ const control = new OfflineManagerControl(offlineManager, {
 | `styleUrl` | `string` | Carto Voyager | Map style URL for new region downloads |
 | `theme` | `'light' \| 'dark'` | `'dark'` | UI theme for the control panel |
 | `showBbox` | `boolean` | `false` | Show bounding box overlay when focusing on regions |
+| `accessToken` | `string` | `undefined` | Mapbox access token (required for `mapbox://` URLs) |
+| `mapLib` | `MapLibProtocol` | `undefined` | Map library module (e.g., `maplibregl`) for `idb://` protocol in web workers |
 
 ## Region Configuration
 
@@ -151,8 +147,8 @@ await manager.importRegion({
 // Cleanup expired regions (removes regions past their expiry date)
 await manager.cleanupExpiredRegions();
 
-// Perform cleanup with options
-await manager.performCleanup({ maxAge: 30 }); // days
+// Perform smart cleanup with options
+await manager.performSmartCleanup({ maxAge: 30 }); // days
 ```
 
 ### Automatic Cleanup
@@ -235,7 +231,7 @@ if ('storage' in navigator && 'estimate' in navigator.storage) {
   // Warning at 90% usage
   if (usage / quota > 0.9) {
     console.warn('Storage nearly full');
-    await manager.cleanupOldTiles(7 * 24 * 60 * 60 * 1000);
+    await manager.performSmartCleanup({ maxAge: 7 });
   }
 }
 

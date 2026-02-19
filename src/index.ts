@@ -1,7 +1,7 @@
 /**
  * map-gl-offline
  *
- * A TypeScript library for offline map storage with MapLibre GL JS.
+ * A TypeScript library for offline map storage with MapLibre GL JS and Mapbox GL JS.
  * Enables comprehensive offline storage and usage of vector/raster tiles,
  * sprites, styles, fonts (glyphs), and entire map regions.
  *
@@ -10,32 +10,38 @@
  *
  * @example Basic usage
  * ```typescript
- * import { OfflineMapManager } from 'map-gl-offline';
+ * import { OfflineMapManager, OfflineManagerControl } from 'map-gl-offline';
  * import maplibregl from 'maplibre-gl';
+ * import 'map-gl-offline/dist/style.css';
  *
  * const map = new maplibregl.Map({
  *   container: 'map',
- *   style: 'https://tiles.openfreemap.org/styles/liberty'
+ *   style: 'https://api.maptiler.com/maps/streets/style.json?key=YOUR_KEY'
  * });
  *
- * const offlineManager = new OfflineMapManager(map);
+ * const offlineManager = new OfflineMapManager();
  *
- * // Download a region for offline use
- * await offlineManager.downloadRegion({
+ * map.on('load', () => {
+ *   const control = new OfflineManagerControl(offlineManager, {
+ *     styleUrl: 'https://api.maptiler.com/maps/streets/style.json?key=YOUR_KEY',
+ *     mapLib: maplibregl,
+ *   });
+ *   map.addControl(control, 'top-right');
+ * });
+ * ```
+ *
+ * @example Programmatic region download
+ * ```typescript
+ * const offlineManager = new OfflineMapManager();
+ *
+ * await offlineManager.addRegion({
+ *   id: 'sf',
  *   name: 'San Francisco',
  *   bounds: [[-122.5, 37.7], [-122.3, 37.9]],
  *   minZoom: 10,
  *   maxZoom: 14,
- *   styleUrl: 'https://tiles.openfreemap.org/styles/liberty'
+ *   styleUrl: 'https://api.maptiler.com/maps/streets/style.json?key=YOUR_KEY'
  * });
- * ```
- *
- * @example Using the UI Control
- * ```typescript
- * import { OfflineManagerControl } from 'map-gl-offline';
- * import 'map-gl-offline/style.css';
- *
- * map.addControl(new OfflineManagerControl());
  * ```
  */
 
