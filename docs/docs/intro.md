@@ -51,7 +51,7 @@ npm install map-gl-offline
 
 ```html
 <script src="https://unpkg.com/map-gl-offline/dist/index.umd.js"></script>
-<link rel="stylesheet" href="https://unpkg.com/map-gl-offline/dist/style.css" />
+<link rel="stylesheet" href="https://unpkg.com/map-gl-offline/style.css" />
 <script>
   const manager = new mapgloffline.OfflineMapManager();
 </script>
@@ -63,7 +63,7 @@ npm install map-gl-offline
 import maplibregl from 'maplibre-gl';
 import { OfflineMapManager, OfflineManagerControl } from 'map-gl-offline';
 import 'maplibre-gl/dist/maplibre-gl.css';
-import 'map-gl-offline/dist/style.css';
+import 'map-gl-offline/style.css';
 
 const map = new maplibregl.Map({
   container: 'map',
@@ -89,7 +89,7 @@ map.on('load', () => {
 import mapboxgl from 'mapbox-gl';
 import { OfflineMapManager, OfflineManagerControl } from 'map-gl-offline';
 import 'mapbox-gl/dist/mapbox-gl.css';
-import 'map-gl-offline/dist/style.css';
+import 'map-gl-offline/style.css';
 
 mapboxgl.accessToken = 'YOUR_MAPBOX_TOKEN';
 

@@ -31,11 +31,12 @@
   },
   "scripts": {
     "dev": "vite",
-    "build": "npm run build:clean && npm run build:lib && npm run build:types && npm run build:css",
+    "build": "npm run build:clean && npm run build:lib && npm run build:types && npm run build:css && npm run build:sw",
     "build:clean": "rimraf dist",
     "build:lib": "rollup -c",
     "build:types": "tsc --declaration --emitDeclarationOnly --outDir dist",
     "build:css": "tailwindcss -i src/styles/style.css -o dist/style.css --minify",
+    "build:sw": "cp public/idb-offline-sw.js dist/idb-offline-sw.js",
     "build:watch": "rollup -c -w",
     "build:dev": "npm run build:clean && npm run build:lib",
     "build:demo": "vite build --outDir demo",

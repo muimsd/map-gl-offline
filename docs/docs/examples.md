@@ -28,7 +28,7 @@ Practical examples for common use cases with `map-gl-offline`.
 import maplibregl from 'maplibre-gl';
 import { OfflineMapManager, OfflineManagerControl } from 'map-gl-offline';
 import 'maplibre-gl/dist/maplibre-gl.css';
-import 'map-gl-offline/dist/style.css';
+import 'map-gl-offline/style.css';
 
 const map = new maplibregl.Map({
   container: 'map',
@@ -75,7 +75,7 @@ await manager.addRegion({
 import mapboxgl from 'mapbox-gl';
 import { OfflineMapManager, OfflineManagerControl } from 'map-gl-offline';
 import 'mapbox-gl/dist/mapbox-gl.css';
-import 'map-gl-offline/dist/style.css';
+import 'map-gl-offline/style.css';
 
 mapboxgl.accessToken = 'YOUR_MAPBOX_TOKEN';
 

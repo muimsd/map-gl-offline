@@ -12,7 +12,7 @@
  * ```typescript
  * import { OfflineMapManager, OfflineManagerControl } from 'map-gl-offline';
  * import maplibregl from 'maplibre-gl';
- * import 'map-gl-offline/dist/style.css';
+ * import 'map-gl-offline/style.css';
  *
  * const map = new maplibregl.Map({
  *   container: 'map',

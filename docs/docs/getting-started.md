@@ -25,7 +25,7 @@ For use without a bundler, include via `<script>` tag. The library is exposed as
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl/dist/maplibre-gl.css" />
 
 <script src="https://unpkg.com/map-gl-offline/dist/index.umd.js"></script>
-<link rel="stylesheet" href="https://unpkg.com/map-gl-offline/dist/style.css" />
+<link rel="stylesheet" href="https://unpkg.com/map-gl-offline/style.css" />
 
 <script>
   const map = new maplibregl.Map({
@@ -66,7 +66,7 @@ import { OfflineMapManager, OfflineManagerControl } from 'map-gl-offline';
 
 // Import styles
 import 'maplibre-gl/dist/maplibre-gl.css';
-import 'map-gl-offline/dist/style.css';
+import 'map-gl-offline/style.css';
 ```
 
 ### 2. Initialize the Map
@@ -111,7 +111,7 @@ import { OfflineMapManager, OfflineManagerControl } from 'map-gl-offline';
 
 // Import styles
 import 'mapbox-gl/dist/mapbox-gl.css';
-import 'map-gl-offline/dist/style.css';
+import 'map-gl-offline/style.css';
 ```
 
 ### 2. Initialize the Map
@@ -239,7 +239,7 @@ Ensure your HTML has a container for the map:
 import maplibregl from 'maplibre-gl';
 import { OfflineMapManager, OfflineManagerControl } from 'map-gl-offline';
 import 'maplibre-gl/dist/maplibre-gl.css';
-import 'map-gl-offline/dist/style.css';
+import 'map-gl-offline/style.css';
 
 const STYLE_URL = 'https://api.maptiler.com/maps/streets/style.json?key=YOUR_KEY';
 
@@ -278,7 +278,7 @@ window.addEventListener('online', () => {
 import mapboxgl from 'mapbox-gl';
 import { OfflineMapManager, OfflineManagerControl } from 'map-gl-offline';
 import 'mapbox-gl/dist/mapbox-gl.css';
-import 'map-gl-offline/dist/style.css';
+import 'map-gl-offline/style.css';
 
 mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN;
 

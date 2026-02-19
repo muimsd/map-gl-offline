@@ -67,7 +67,7 @@ For use via `<script>` tag, the library is available as the `mapgloffline` globa
 
 ```html
 <script src="https://unpkg.com/map-gl-offline/dist/index.umd.js"></script>
-<link rel="stylesheet" href="https://unpkg.com/map-gl-offline/dist/style.css" />
+<link rel="stylesheet" href="https://unpkg.com/map-gl-offline/style.css" />
 <script>
   const manager = new mapgloffline.OfflineMapManager();
   const control = new mapgloffline.OfflineManagerControl(manager, {
@@ -97,7 +97,7 @@ For Mapbox styles, you will also need a Mapbox access token from [Mapbox](https:
 import maplibregl from 'maplibre-gl';
 import { OfflineMapManager, OfflineManagerControl } from 'map-gl-offline';
 import 'maplibre-gl/dist/maplibre-gl.css';
-import 'map-gl-offline/dist/style.css';
+import 'map-gl-offline/style.css';
 
 const styleUrl = 'https://api.maptiler.com/maps/streets/style.json?key=YOUR_API_KEY';
 
@@ -123,11 +123,18 @@ map.on('load', () => {
 
 ### Mapbox GL JS
 
+Mapbox GL JS v3 does not support `addProtocol`, so offline tile serving uses a **Service Worker** fallback. You must copy the `idb-offline-sw.js` file from this package into your project's public directory so it is served at the root (`/idb-offline-sw.js`).
+
+```bash
+# Copy the service worker to your public directory
+cp node_modules/map-gl-offline/dist/idb-offline-sw.js public/idb-offline-sw.js
+```
+
 ```typescript
 import mapboxgl from 'mapbox-gl';
 import { OfflineMapManager, OfflineManagerControl } from 'map-gl-offline';
 import 'mapbox-gl/dist/mapbox-gl.css';
-import 'map-gl-offline/dist/style.css';
+import 'map-gl-offline/style.css';
 
 mapboxgl.accessToken = 'YOUR_MAPBOX_TOKEN';
 
@@ -146,10 +153,13 @@ map.on('load', () => {
     theme: 'dark',
     showBbox: true,
     accessToken: mapboxgl.accessToken,
+    mapLib: mapboxgl, // Mapbox GL lacks addProtocol, so the library auto-registers a Service Worker
   });
   map.addControl(control, 'top-right');
 });
 ```
+
+> **Note:** MapLibre GL JS has built-in `addProtocol` support, so it does not need the Service Worker. Only Mapbox GL JS requires this extra step.
 
 The UI control provides:
 
