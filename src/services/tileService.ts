@@ -8,7 +8,11 @@ import {
   logger,
   createTileKey,
 } from '../utils';
-import { isMapboxProtocol, resolveMapboxUrl } from '../utils/styleProviderUtils';
+import {
+  isMapboxProtocol,
+  resolveMapboxUrl,
+  rewriteMapboxCdnTileUrl,
+} from '../utils/styleProviderUtils';
 import type { FetchResourceResult } from '../utils';
 import type {
   TileDownloadOptions,
@@ -88,6 +92,38 @@ export class TileService {
 
     if (tileSources.size === 0) {
       throw new Error('No valid tile sources found in style definition');
+    }
+
+    // Some sources have zoom ranges outside the user's region (e.g. procedural-buildings
+    // at z15 when the user requested z0-z14). Generate additional tile coordinates so
+    // these sources aren't silently skipped.
+    for (const [sourceId, sourceConfig] of tileSources) {
+      const srcMin = sourceConfig.minzoom;
+      const srcMax = sourceConfig.maxzoom;
+      if (srcMin === undefined && srcMax === undefined) continue;
+
+      const extraMinZ = srcMin !== undefined && srcMin > region.maxZoom ? srcMin : null;
+      const extraMaxZ = srcMax !== undefined && srcMax < region.minZoom ? srcMax : null;
+      // Only extend upward (higher zoom) — sources that need zooms above region.maxZoom
+      if (extraMinZ !== null) {
+        const upperBound = srcMax !== undefined ? srcMax : extraMinZ;
+        tileLogger.debug(
+          `Source ${sourceId} needs zoom ${extraMinZ}-${upperBound} beyond region max ${region.maxZoom}, generating extra tiles`
+        );
+        const extraRegion = { ...region, minZoom: extraMinZ, maxZoom: upperBound };
+        const extraCoords = this.generateTileCoordinates(extraRegion);
+        tileCoords.push(...extraCoords);
+      }
+      // Extend downward (lower zoom) — sources that need zooms below region.minZoom
+      if (extraMaxZ !== null) {
+        const lowerBound = srcMin !== undefined ? srcMin : extraMaxZ;
+        tileLogger.debug(
+          `Source ${sourceId} needs zoom ${lowerBound}-${extraMaxZ} below region min ${region.minZoom}, generating extra tiles`
+        );
+        const extraRegion = { ...region, minZoom: lowerBound, maxZoom: extraMaxZ };
+        const extraCoords = this.generateTileCoordinates(extraRegion);
+        tileCoords.push(...extraCoords);
+      }
     }
 
     // Sort by priority zoom levels if requested (lower zoom first)
@@ -367,6 +403,8 @@ export class TileService {
 
             if (is404) {
               skippedTiles++;
+              // Clear errorMessage so progressTracker doesn't report it as an error
+              errorMessage = undefined;
               tileLogger.debug(
                 `Tile ${z}/${x}/${y} not found on ${plan.sourceId} (sparse tileset)`
               );
@@ -675,7 +713,8 @@ export class TileService {
             .filter((tile: string) => tile.startsWith('http://') || tile.startsWith('https://'))
             .map((tile: string) =>
               tile.startsWith('http://') ? tile.replace('http://', 'https://') : tile
-            );
+            )
+            .map((tile: string) => rewriteMapboxCdnTileUrl(tile));
           if (httpTiles.length > 0) {
             tileSources.set(sourceId, { ...config, tiles: httpTiles });
             tileLogger.debug(
@@ -759,9 +798,9 @@ export class TileService {
                   'tiles' in jsonData &&
                   Array.isArray(jsonData.tiles)
                 ) {
-                  tiles = ((jsonData.tiles as string[]) ?? []).map(u =>
-                    u.startsWith('http://') ? u.replace('http://', 'https://') : u
-                  );
+                  tiles = ((jsonData.tiles as string[]) ?? [])
+                    .map(u => (u.startsWith('http://') ? u.replace('http://', 'https://') : u))
+                    .map(u => rewriteMapboxCdnTileUrl(u));
                   tileLogger.debug(`Extracted ${tiles.length} tile URLs from TileJSON`);
 
                   // Capture minzoom/maxzoom from TileJSON if available

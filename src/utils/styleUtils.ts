@@ -55,12 +55,13 @@ export function patchStyleForOffline(
       );
     }
 
-    // Set maxzoom to the region's maxZoom to enable overzooming
-    // This prevents MapLibre from requesting tiles beyond what we downloaded
+    // Cap maxzoom so the map doesn't request tiles beyond what we downloaded.
+    // Use the lower of the region maxZoom and the source's original maxzoom so we
+    // don't raise it above the tileset's actual range (e.g. 3dbuildings at z14).
     if (maxZoom !== undefined) {
       const originalMaxzoom = source.maxzoom;
-      source.maxzoom = maxZoom;
-      styleLogger.debug(`Set maxzoom for ${sourceKey}: ${originalMaxzoom} → ${maxZoom}`);
+      source.maxzoom = originalMaxzoom !== undefined ? Math.min(maxZoom, originalMaxzoom) : maxZoom;
+      styleLogger.debug(`Set maxzoom for ${sourceKey}: ${originalMaxzoom} → ${source.maxzoom}`);
     }
 
     if (source.url) {

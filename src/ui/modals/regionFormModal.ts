@@ -157,7 +157,7 @@ export class RegionFormModal {
     `;
     this.maxZoomInput = document.createElement('input');
     this.maxZoomInput.type = 'number';
-    this.maxZoomInput.value = '14';
+    this.maxZoomInput.value = '15';
     this.maxZoomInput.min = '0';
     this.maxZoomInput.max = '20';
     this.maxZoomInput.className =
@@ -343,7 +343,7 @@ export class RegionFormModal {
       const formData: RegionFormData = {
         name: this.nameInput?.value || `Region ${Date.now()}`,
         minZoom: parseInt(this.minZoomInput?.value || '1'),
-        maxZoom: parseInt(this.maxZoomInput?.value || '14'),
+        maxZoom: parseInt(this.maxZoomInput?.value || '15'),
         styleUrl: this.styleUrlInput?.value || this.options.styleUrl,
         bounds: this.options.bounds,
         // Enhanced Mapbox GL support

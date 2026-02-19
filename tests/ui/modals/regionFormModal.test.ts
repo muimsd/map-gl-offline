@@ -150,7 +150,7 @@ describe('RegionFormModal', () => {
       const maxZoomInput = numberInputs[1] as HTMLInputElement;
 
       expect(minZoomInput.value).toBe('1');
-      expect(maxZoomInput.value).toBe('14');
+      expect(maxZoomInput.value).toBe('15');
     });
 
     it('should have zoom constraints', () => {

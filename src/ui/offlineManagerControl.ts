@@ -47,6 +47,7 @@ import {
   unregisterOfflineServiceWorker,
 } from '../utils/swRegistration';
 import { convertStyleForServiceWorker } from '../utils/convertStyleForSW';
+import type { MapboxStyle } from '../types/style';
 
 // Import refactored modular components
 import { ButtonManager } from './managers/ControlButtonManager';
@@ -743,7 +744,6 @@ export class OfflineManagerControl implements IControl {
 
     try {
       const { loadStyleById } = await import('../services/styleService');
-      const { patchStyleForOffline } = await import('../utils/styleUtils');
 
       // Load the style from IndexedDB
       const styleEntry = await loadStyleById(styleId);
@@ -753,12 +753,16 @@ export class OfflineManagerControl implements IControl {
         return;
       }
 
-      // Patch the style for offline use
-      let patchedStyle = patchStyleForOffline(styleEntry.style, styleId);
+      // The style is already patched with idb:// URLs by addRegion() in regionService.
+      // DO NOT call patchStyleForOffline() again — double-patching rewrites the downloadId
+      // in URLs and can break tile/glyph lookups.
+      let patchedStyle = JSON.parse(JSON.stringify(styleEntry.style)) as MapboxStyle;
 
       // Strip imports so Mapbox GL JS v3 doesn't try to re-fetch them at runtime.
-      // The imported sources/layers/sprites/glyphs are already flattened into the style.
-      if (patchedStyle.imports) {
+      // The imported sources/layers/sprites/glyphs are already flattened into the style
+      // by resolveImports(). Without this, imported layers (fill-extrusion buildings,
+      // basemap features) would be hidden when the import fetch fails offline.
+      if ((patchedStyle as Record<string, unknown>).imports) {
         delete (patchedStyle as Record<string, unknown>).imports;
       }
 

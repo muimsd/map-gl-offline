@@ -7,6 +7,7 @@ import {
   normalizeStyleUrl,
   processStyleSources,
   validateStyleForProvider,
+  rewriteMapboxCdnTileUrl,
 } from '../../src/utils/styleProviderUtils';
 import type { BaseStyle } from '../../src/types/style';
 
@@ -316,6 +317,52 @@ describe('styleProviderUtils', () => {
 
       expect(result.isValid).toBe(true);
       expect(result.warnings).toHaveLength(0);
+    });
+  });
+
+  describe('rewriteMapboxCdnTileUrl', () => {
+    it('should rewrite raster/v1 CDN URLs to v4 API URLs', () => {
+      const cdnUrl =
+        'https://a.tiles.mapbox.com/raster/v1/mapbox.mapbox-terrain-dem-v1/{z}/{x}/{y}.png?access_token=pk.test';
+      const result = rewriteMapboxCdnTileUrl(cdnUrl);
+      expect(result).toBe(
+        'https://api.mapbox.com/v4/mapbox.mapbox-terrain-dem-v1/{z}/{x}/{y}.png?access_token=pk.test'
+      );
+    });
+
+    it('should rewrite subdomain b CDN URLs', () => {
+      const cdnUrl =
+        'https://b.tiles.mapbox.com/raster/v1/mapbox.mapbox-terrain-dem-v1/{z}/{x}/{y}.png?access_token=pk.test';
+      const result = rewriteMapboxCdnTileUrl(cdnUrl);
+      expect(result).toBe(
+        'https://api.mapbox.com/v4/mapbox.mapbox-terrain-dem-v1/{z}/{x}/{y}.png?access_token=pk.test'
+      );
+    });
+
+    it('should not rewrite v4 CDN URLs (they already work)', () => {
+      const cdnUrl =
+        'https://a.tiles.mapbox.com/v4/mapbox.mapbox-streets-v8/{z}/{x}/{y}.vector.pbf?access_token=pk.test';
+      expect(rewriteMapboxCdnTileUrl(cdnUrl)).toBe(cdnUrl);
+    });
+
+    it('should not rewrite non-Mapbox URLs', () => {
+      const otherUrl = 'https://tiles.example.com/raster/v1/{z}/{x}/{y}.png';
+      expect(rewriteMapboxCdnTileUrl(otherUrl)).toBe(otherUrl);
+    });
+
+    it('should not rewrite 3dtiles CDN URLs', () => {
+      const cdnUrl =
+        'https://a.tiles.mapbox.com/3dtiles/v1/mapbox.mapbox-3dbuildings-v1/{z}/{x}/{y}.glb?access_token=pk.test';
+      expect(rewriteMapboxCdnTileUrl(cdnUrl)).toBe(cdnUrl);
+    });
+
+    it('should handle URLs without query parameters', () => {
+      const cdnUrl =
+        'https://a.tiles.mapbox.com/raster/v1/mapbox.mapbox-terrain-dem-v1/{z}/{x}/{y}.png';
+      const result = rewriteMapboxCdnTileUrl(cdnUrl);
+      expect(result).toBe(
+        'https://api.mapbox.com/v4/mapbox.mapbox-terrain-dem-v1/{z}/{x}/{y}.png'
+      );
     });
   });
 

@@ -1320,6 +1320,16 @@ export class PanelRenderer extends BaseComponent {
       // Just use the stored style directly
       let patchedStyle = JSON.parse(JSON.stringify(styleEntry.style)) as MapboxStyle;
 
+      // Strip imports so Mapbox GL JS v3 doesn't try to re-fetch them at runtime.
+      // The imported sources/layers/sprites/glyphs are already flattened into the style
+      // by resolveImports(). Without this, Mapbox GL JS v3 will try to fetch the import
+      // URL (e.g. mapbox://styles/mapbox/standard), fail offline, and hide all imported
+      // layers — including fill-extrusion buildings and other basemap features.
+      if ((patchedStyle as Record<string, unknown>).imports) {
+        delete (patchedStyle as Record<string, unknown>).imports;
+        panelLogger.debug('Stripped imports from offline style (already flattened)');
+      }
+
       // Enforce maxzoom for all tile sources to prevent requesting non-existent tiles
       // Find the maximum zoom level from all regions using this style
       let maxZoom = 14; // Default fallback
@@ -1375,11 +1385,19 @@ export class PanelRenderer extends BaseComponent {
             }
           }
 
-          // Apply maxzoom to all tile sources
-          if (src.type === 'vector' || src.type === 'raster' || src.type === 'raster-dem') {
-            const originalMaxzoom = src.maxzoom;
-            src.maxzoom = maxZoom;
-            panelLogger.debug(`Set maxzoom for ${sourceId}: ${originalMaxzoom} → ${maxZoom}`);
+          // Apply maxzoom to all tile sources (including batched-model for 3D buildings)
+          if (
+            src.type === 'vector' ||
+            src.type === 'raster' ||
+            src.type === 'raster-dem' ||
+            src.type === 'batched-model'
+          ) {
+            const originalMaxzoom = src.maxzoom as number | undefined;
+            // Use the lower of region maxZoom and source's original maxzoom so we
+            // don't raise it above the tileset's actual range
+            src.maxzoom =
+              originalMaxzoom !== undefined ? Math.min(maxZoom, originalMaxzoom) : maxZoom;
+            panelLogger.debug(`Set maxzoom for ${sourceId}: ${originalMaxzoom} → ${src.maxzoom}`);
           }
         }
       }
