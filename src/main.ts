@@ -317,6 +317,162 @@ function initMapbox() {
   map.on('zoom', () => {
     zoomText.textContent = `Zoom: ${map.getZoom().toFixed(2)}`;
   });
+
+  // ---------- Standard style mode controls (Mapbox GL JS v3+ only) ----------
+
+  const supportsStandardMode =
+    typeof (map as any).setConfigProperty === 'function' &&
+    typeof (map as any).setRain === 'function' &&
+    typeof (map as any).setSnow === 'function';
+
+  if (!supportsStandardMode) return;
+
+  const zoomBasedReveal = (value: number) => [
+    'interpolate',
+    ['linear'],
+    ['zoom'],
+    11,
+    0.0,
+    13,
+    value,
+  ];
+
+  const RAIN_PARAMS = {
+    density: zoomBasedReveal(0.6),
+    intensity: 0.5,
+    color: '#a5c8d0',
+    opacity: 0.6,
+    vignette: zoomBasedReveal(0.4),
+    direction: [0, 80],
+    'droplet-size': [1.5, 12.0],
+    'distortion-strength': zoomBasedReveal(0.5),
+    'center-thinning': 0.57,
+  };
+
+  const SNOW_PARAMS = {
+    density: zoomBasedReveal(0.85),
+    intensity: 1.0,
+    'center-thinning': 0.1,
+    direction: [0, 50],
+    opacity: 1.0,
+    color: '#ffffff',
+    'flake-size': [1.5, 4.0],
+    vignette: zoomBasedReveal(0.3),
+    'vignette-color': '#ffffff',
+  };
+
+  type LightPreset = 'day' | 'night' | 'dawn' | 'dusk';
+  type WeatherMode = 'none' | 'rain' | 'snow';
+
+  let currentLightPreset: LightPreset = 'day';
+  let currentWeather: WeatherMode = 'none';
+  let isStandardStyle = defaultMapboxStyle.id === 'standard';
+
+  const lightBtns: HTMLButtonElement[] = [];
+  const weatherBtns: Map<WeatherMode, HTMLButtonElement> = new Map();
+
+  function applyLightPreset(preset: LightPreset) {
+    currentLightPreset = preset;
+    (map as any).setConfigProperty('basemap', 'lightPreset', preset);
+    for (const btn of lightBtns) {
+      btn.classList.toggle('active', btn.dataset.preset === preset);
+    }
+  }
+
+  function applyWeather(weather: WeatherMode) {
+    currentWeather = weather;
+    (map as any).setRain(null);
+    (map as any).setSnow(null);
+    if (weather === 'rain') (map as any).setRain(RAIN_PARAMS);
+    if (weather === 'snow') (map as any).setSnow(SNOW_PARAMS);
+    for (const [mode, btn] of weatherBtns) {
+      btn.classList.toggle('active', mode === weather);
+    }
+  }
+
+  function updateModeBarVisibility(show: boolean) {
+    if (show) {
+      modeControlBar.classList.remove('hidden');
+      modeControlBar.classList.add('mode-bar-enter');
+    } else {
+      modeControlBar.classList.add('hidden');
+      modeControlBar.classList.remove('mode-bar-enter');
+      currentLightPreset = 'day';
+      currentWeather = 'none';
+      for (const btn of lightBtns) {
+        btn.classList.toggle('active', btn.dataset.preset === 'day');
+      }
+      for (const [, btn] of weatherBtns) {
+        btn.classList.remove('active');
+      }
+    }
+  }
+
+  // Build mode control bar DOM
+  const modeControlBar = document.createElement('div');
+  modeControlBar.className =
+    'glass-panel rounded-full px-4 py-2 flex items-center gap-2 shadow-lg backdrop-blur-xl border border-white/40 dark:border-white/10 bg-white/60 dark:bg-gray-900/60 hidden';
+
+  const lightPresets: { preset: LightPreset; label: string }[] = [
+    { preset: 'day', label: 'Day' },
+    { preset: 'dawn', label: 'Dawn' },
+    { preset: 'dusk', label: 'Dusk' },
+    { preset: 'night', label: 'Night' },
+  ];
+
+  for (const { preset, label } of lightPresets) {
+    const btn = document.createElement('button');
+    btn.className = `mode-chip-btn${preset === 'day' ? ' active' : ''}`;
+    btn.dataset.preset = preset;
+    btn.textContent = label;
+    btn.addEventListener('click', () => applyLightPreset(preset));
+    modeControlBar.appendChild(btn);
+    lightBtns.push(btn);
+  }
+
+  const divider = document.createElement('div');
+  divider.className = 'w-px h-5 bg-gray-300/60 dark:bg-white/15 mx-1';
+  modeControlBar.appendChild(divider);
+
+  const weatherModes: { mode: 'rain' | 'snow'; label: string }[] = [
+    { mode: 'rain', label: 'Rain' },
+    { mode: 'snow', label: 'Snow' },
+  ];
+
+  for (const { mode, label } of weatherModes) {
+    const btn = document.createElement('button');
+    btn.className = 'mode-chip-btn';
+    btn.textContent = label;
+    btn.addEventListener('click', () => {
+      applyWeather(currentWeather === mode ? 'none' : mode);
+    });
+    modeControlBar.appendChild(btn);
+    weatherBtns.set(mode, btn);
+  }
+
+  chipsContainer.appendChild(modeControlBar);
+
+  // Show mode bar if starting with Standard style
+  if (isStandardStyle) {
+    updateModeBarVisibility(true);
+  }
+
+  // Wire style switcher to toggle mode bar
+  select.addEventListener('change', () => {
+    const selected = MAPBOX_STYLES.find(s => s.id === select.value);
+    if (selected) {
+      isStandardStyle = selected.id === 'standard';
+      updateModeBarVisibility(isStandardStyle);
+    }
+  });
+
+  // Re-apply mode settings after style reload
+  map.on('style.load', () => {
+    if (isStandardStyle) {
+      applyLightPreset(currentLightPreset);
+      applyWeather(currentWeather);
+    }
+  });
 }
 
 // ---------- Initialize saved or default tab ----------
