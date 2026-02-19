@@ -24,6 +24,13 @@ const MAPTILER_API_KEY = import.meta.env.VITE_MAPTILER_API_KEY || '';
 const MAPBOX_ACCESS_TOKEN =
   import.meta.env.VITE_MAPBOX_ACCESS_TOKEN || localStorage.getItem('mapbox-access-token') || '';
 
+// ---------- RTL text plugin ----------
+const RTL_PLUGIN_URL =
+  'https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-rtl-text/v0.3.0/mapbox-gl-rtl-text.js';
+
+maplibregl.setRTLTextPlugin(RTL_PLUGIN_URL, true);
+mapboxgl.setRTLTextPlugin(RTL_PLUGIN_URL, null, true);
+
 // Tab elements
 const tabMaplibre = document.getElementById('tab-maplibre')!;
 const tabMapbox = document.getElementById('tab-mapbox')!;
@@ -120,11 +127,6 @@ function initMaplibre() {
     },
   ];
   const defaultStyle = styles[0];
-
-  maplibregl.setRTLTextPlugin(
-    'https://unpkg.com/@mapbox/mapbox-gl-rtl-text@0.3.0/dist/mapbox-gl-rtl-text.js',
-    true
-  );
 
   const map = new maplibregl.Map({
     container: 'map-maplibre',
@@ -326,6 +328,25 @@ function initMapbox() {
     },
   };
   map.addControl(styleSwitcherControl, 'top-left');
+
+  // Clear token button
+  const clearTokenBtn = document.createElement('button');
+  clearTokenBtn.textContent = 'Clear Token';
+  clearTokenBtn.className =
+    'mapboxgl-ctrl mapboxgl-ctrl-group bg-white rounded-lg shadow-md px-3 py-2 text-xs font-medium text-red-600 hover:bg-red-50 cursor-pointer transition-colors';
+  clearTokenBtn.addEventListener('click', () => {
+    localStorage.removeItem('mapbox-access-token');
+    window.location.reload();
+  });
+  const clearTokenControl: mapboxgl.IControl = {
+    onAdd() {
+      return clearTokenBtn;
+    },
+    onRemove() {
+      clearTokenBtn.remove();
+    },
+  };
+  map.addControl(clearTokenControl, 'top-left');
 
   // Zoom chip
   const mapContainer = map.getContainer();
