@@ -182,12 +182,24 @@ export class OfflineManagerControl implements IControl {
     // from web workers are intercepted (window.fetch override doesn't reach workers)
     if (options.mapLib && typeof options.mapLib.addProtocol === 'function') {
       this.mapLib = options.mapLib;
-      this.mapLib.addProtocol('idb', async (params: { url: string }) => {
+      this.mapLib.addProtocol('idb', async (params: { url: string; type?: string }) => {
         const response = await idbFetchHandler(params.url);
-        const data = await response.arrayBuffer();
         if (!response.ok) {
+          controlLogger.warn(
+            `addProtocol: IDB fetch failed for ${params.url} (type=${params.type})`
+          );
           throw new Error(`IDB fetch failed: ${response.statusText}`);
         }
+        // MapLibre's makeRequest bypasses JSON parsing for protocol handlers,
+        // so we must parse JSON responses ourselves (e.g. sprite atlas, TileJSON).
+        // Detect JSON by request type OR by response content-type header.
+        const contentType = response.headers.get('content-type') || '';
+        const isJson = params.type === 'json' || contentType.includes('json');
+        if (isJson) {
+          const json = await response.json();
+          return { data: json };
+        }
+        const data = await response.arrayBuffer();
         return { data };
       });
     } else {

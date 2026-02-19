@@ -88,8 +88,8 @@ async function findStyleByRegionId(
       }
     }
     idbLogger.debug(`No style found containing region: ${regionId}`);
-    // Cache negative results too
-    regionToStyleCache.set(regionId, { styleEntry: null, timestamp: Date.now() });
+    // Don't cache negative results — the region may be stored moments later
+    // by addRegion() after tile download completes
     return null;
   } catch (error) {
     idbLogger.error(`Error searching for style by region ID: ${regionId}`, error);
