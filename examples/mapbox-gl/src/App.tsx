@@ -1,7 +1,19 @@
 import { useRef, useEffect, useState } from 'react';
 import mapboxgl, { Map, NavigationControl } from 'mapbox-gl';
 import { OfflineMapManager, OfflineManagerControl } from 'map-gl-offline';
+import 'map-gl-offline/style.css';
 import 'mapbox-gl/dist/mapbox-gl.css';
+
+// Set up RTL text plugin ONCE at module level (before any map is created)
+// This must be outside of React components to avoid multiple calls
+const rtlPluginUrl = 'https://unpkg.com/@mapbox/mapbox-gl-rtl-text@0.3.0/dist/mapbox-gl-rtl-text.js';
+try {
+  mapboxgl.setRTLTextPlugin(rtlPluginUrl, undefined, true);
+  console.log('RTL Text Plugin registered');
+} catch (e) {
+  // Plugin might already be loaded
+  console.log('RTL Text Plugin already registered or error:', e);
+}
 
 function App() {
   const mapContainer = useRef<HTMLDivElement | null>(null);
@@ -17,6 +29,7 @@ function App() {
 
     mapboxgl.accessToken = token;
 
+    // Center on Baghdad, Iraq to see Arabic labels
     const styleUrl = 'mapbox://styles/mapbox/streets-v12';
 
     map.current = new Map({
@@ -26,8 +39,10 @@ function App() {
       zoom: 11,
     });
 
+    // Initialize offline manager
     offlineManager.current = new OfflineMapManager();
 
+    // Add zoom and rotation controls to the map.
     map.current.addControl(
       new NavigationControl({
         visualizePitch: true,
@@ -36,10 +51,13 @@ function App() {
       })
     );
 
+    // Add the offline manager control with dark theme
     map.current.addControl(
       new OfflineManagerControl(offlineManager.current, {
         styleUrl,
         theme: 'dark',
+        mapLib: mapboxgl,
+        accessToken: token,
       }) as unknown as mapboxgl.IControl,
       'top-right'
     );
