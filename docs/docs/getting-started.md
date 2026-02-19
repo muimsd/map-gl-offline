@@ -180,9 +180,10 @@ The control automatically registers the Service Worker when `mapLib` is not prov
 The built-in UI control provides:
 - Interactive polygon drawing for region selection
 - Real-time download progress tracking
-- Region management (view, delete, export)
+- Region management (view, delete, import/export)
 - Theme toggle (dark/light mode)
 - Storage analytics display
+- Language switcher (English / Arabic with RTL support)
 
 ## Programmatic Usage (No UI)
 

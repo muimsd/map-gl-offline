@@ -5,6 +5,34 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.2] - 2025-12-31
+
+### Added
+
+- **CLI Command**: `npx map-gl-offline init` to copy the Service Worker file (`idb-offline-sw.js`) into your project's public directory
+- **Vite Plugin**: `offlineSwPlugin()` to automatically copy the Service Worker on each build
+- **Mapbox GL Example**: Full React + Vite example app for Mapbox GL JS with offline support
+
+### Fixed
+
+- **Example Versions**: Updated `map-gl-offline` version references in example projects
+- **Style CSS Imports**: Fixed `style.css` import paths in documentation and examples
+- **Mapbox accessToken**: Pass `accessToken` to `OfflineManagerControl` in the Mapbox example
+
+## [0.5.1] - 2025-12-30
+
+### Added
+
+- **UMD Build**: Added `mapgloffline` global for `<script>` tag usage
+- **RTL Text Plugin**: Added RTL text plugin support for Mapbox GL JS
+- **Mapbox Token Prompt**: Interactive access token prompt in the demo with `localStorage` persistence
+- **Clear Token Button**: Button to clear the stored Mapbox access token
+
+### Fixed
+
+- **API References**: Fixed outdated API references in documentation
+- **Input Text Color**: Changed input text color to black in the Mapbox token prompt for better visibility
+
 ## [0.5.0] - 2025-12-30
 
 ### Added
@@ -112,5 +140,7 @@ This is the initial release. For future versions, migration guides will be provi
 
 For more details, see the [README](README.md) and [documentation](https://github.com/muimsd/map-gl-offline).
 
+[0.5.2]: https://github.com/muimsd/map-gl-offline/compare/v0.5.1...v0.5.2
+[0.5.1]: https://github.com/muimsd/map-gl-offline/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/muimsd/map-gl-offline/compare/v0.1.0...v0.5.0
 [0.1.0]: https://github.com/muimsd/map-gl-offline/releases/tag/v0.1.0

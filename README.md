@@ -171,7 +171,8 @@ map.on('load', () => {
     theme: 'dark',
     showBbox: true,
     accessToken: mapboxgl.accessToken,
-    mapLib: mapboxgl, // Mapbox GL lacks addProtocol, so the library auto-registers a Service Worker
+    // No mapLib needed - Mapbox GL JS v3 lacks addProtocol,
+    // so the library auto-registers a Service Worker fallback
   });
   map.addControl(control, 'top-right');
 });
@@ -489,21 +490,21 @@ git clone https://github.com/muimsd/map-gl-offline.git
 cd map-gl-offline
 
 # Install dependencies
-pnpm install
+npm install
 
 # Run development server
-pnpm dev
+npm run dev
 
 # Run tests
-pnpm test
+npm test
 
 # Build library
-pnpm build
+npm run build
 
-# Run example app
+# Run MapLibre example app
 cd examples/maplibre
-pnpm install
-pnpm dev
+npm install
+npm run dev
 ```
 
 ### Project Structure
@@ -518,8 +519,11 @@ map-gl-offline/
 │   │   └── translations/  # i18n (English, Arabic)
 │   ├── utils/             # Utilities & helpers
 │   └── types/             # TypeScript definitions
+├── bin/                   # CLI (map-gl-offline init) & Vite plugin
 ├── examples/
-│   └── maplibre/          # Live example app
+│   ├── maplibre/          # MapLibre GL JS example app
+│   └── mapbox-gl/         # Mapbox GL JS example app
+├── docs/                  # Docusaurus documentation site
 └── tests/                 # Test suites
 ```
 
@@ -534,7 +538,13 @@ map-gl-offline/
 
 ## 🔄 Recent Updates
 
-### v0.5.0 (Latest)
+### v0.5.2 (Latest)
+
+- ✅ **CLI Command**: `npx map-gl-offline init` to copy the Service Worker into your project
+- ✅ **Vite Plugin**: `offlineSwPlugin()` to auto-copy the Service Worker on each build
+- ✅ **Mapbox GL Example**: Full React + Vite example app for Mapbox GL JS
+
+### v0.5.0
 
 - ✅ **Mapbox GL JS Support**: Full support for Mapbox styles, including `mapbox://` protocol URL resolution
 - ✅ **Mapbox Standard Style**: 3D models, raster-dem terrain, and import-based style resolution

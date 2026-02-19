@@ -56,6 +56,7 @@ await manager.addRegion({
   expiry: Date.now() + 30 * 24 * 60 * 60 * 1000, // 30 days from now
   deleteOnExpiry: true,
   multipleRegions: false,
+  tileExtension: 'pbf', // default: auto-detected from style
 
   // Callbacks
   onProgress: (progress) => {
@@ -77,6 +78,7 @@ await manager.addRegion({
 | `expiry` | `number` | No | Expiration timestamp (ms since epoch) |
 | `deleteOnExpiry` | `boolean` | No | Auto-delete when expired (default: false) |
 | `multipleRegions` | `boolean` | No | Part of a multi-region download |
+| `tileExtension` | `string` | No | Tile extension (pbf, mvt, png, jpg, etc.) |
 | `onProgress` | `function` | No | Progress callback function |
 
 ## Export Configuration

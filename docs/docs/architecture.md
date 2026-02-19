@@ -200,10 +200,10 @@ Services handle specific data types and operations:
 Handles tile downloading, storage, and retrieval:
 
 ```typescript
-// Key operations
-await TileService.downloadTiles(sourceUrl, bounds, minZoom, maxZoom, options);
-await TileService.getTile(z, x, y, sourceId);
-await TileService.deleteTilesForRegion(regionId);
+import { tileService, downloadTiles } from 'map-gl-offline';
+
+await downloadTiles(region, style, styleId, options);
+const stats = await tileService.getTileStats(styleId);
 ```
 
 #### FontService
@@ -211,8 +211,9 @@ await TileService.deleteTilesForRegion(regionId);
 Manages font/glyph resources:
 
 ```typescript
-await FontService.downloadFonts(fontUrl, fontStacks, options);
-await FontService.getGlyph(fontStack, range);
+import { fontService } from 'map-gl-offline';
+
+await fontService.downloadFonts(glyphUrl, fontStacks, styleId, options);
 ```
 
 #### SpriteService
@@ -220,8 +221,9 @@ await FontService.getGlyph(fontStack, range);
 Handles map sprites:
 
 ```typescript
-await SpriteService.downloadSprites(spriteUrl, options);
-await SpriteService.getSprite(spriteUrl, resolution);
+import { spriteService } from 'map-gl-offline';
+
+await spriteService.downloadSprites(spriteUrl, styleId, options);
 ```
 
 #### StyleService
@@ -229,7 +231,8 @@ await SpriteService.getSprite(spriteUrl, resolution);
 Manages map styles:
 
 ```typescript
-await StyleService.saveStyle(styleId, styleJson);
+import { loadStyleById, patchStyleForOffline } from 'map-gl-offline';
+
 const style = await loadStyleById(styleId);
 const patched = patchStyleForOffline(style, styleId);
 ```

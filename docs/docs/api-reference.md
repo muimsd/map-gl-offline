@@ -418,7 +418,7 @@ if (results.analyticsReport) {
 
 ## OfflineManagerControl
 
-UI control for MapLibre GL JS that provides a complete interface for downloading, managing, and loading offline map regions. Implements the MapLibre `IControl` interface.
+UI control for MapLibre GL JS and Mapbox GL JS that provides a complete interface for downloading, managing, and loading offline map regions. Implements the `IControl` interface compatible with both MapLibre and Mapbox GL.
 
 The control automatically intercepts `window.fetch` to serve offline resources from IndexedDB when URLs use the `idb://` protocol, enabling seamless offline map rendering without any additional configuration.
 
@@ -532,12 +532,14 @@ interface OfflineRegionOptions {
   maxZoom: number;
   /** URL to the map style JSON */
   styleUrl?: string;
-  /** Progress callback */
-  onProgress?: (progress: DownloadProgress) => void;
+  /** Whether this region is part of a multi-region download */
+  multipleRegions?: boolean;
   /** Expiry timestamp (ms since epoch) */
   expiry?: number;
   /** Auto-delete on expiration */
   deleteOnExpiry?: boolean;
+  /** Tile extension (pbf, mvt, png, jpg, etc.) */
+  tileExtension?: string;
 }
 ```
 
@@ -854,21 +856,24 @@ The library exports individual services for fine-grained control:
 ### TileService
 
 ```typescript
-import { TileService } from 'map-gl-offline';
+import { tileService, downloadTiles } from 'map-gl-offline';
 
-// Download tiles for a region
-await TileService.downloadTiles(sourceUrl, bounds, minZoom, maxZoom, {
+// Using the convenience function
+await downloadTiles(region, style, styleId, {
   onProgress: (p) => console.log(p),
 });
+
+// Or using the service instance directly
+const stats = await tileService.getTileStats('style_123');
 ```
 
 ### FontService
 
 ```typescript
-import { FontService } from 'map-gl-offline';
+import { fontService } from 'map-gl-offline';
 
-// Download fonts/glyphs
-await FontService.downloadFonts(fontUrl, fontStacks, {
+// Download fonts/glyphs for a style
+await fontService.downloadFonts(glyphUrl, fontStacks, styleId, {
   onProgress: (p) => console.log(p),
 });
 ```
@@ -876,10 +881,10 @@ await FontService.downloadFonts(fontUrl, fontStacks, {
 ### SpriteService
 
 ```typescript
-import { SpriteService } from 'map-gl-offline';
+import { spriteService } from 'map-gl-offline';
 
-// Download sprites
-await SpriteService.downloadSprites(spriteUrl, {
+// Download sprites for a style
+await spriteService.downloadSprites(spriteUrl, styleId, {
   onProgress: (p) => console.log(p),
 });
 ```
@@ -887,7 +892,7 @@ await SpriteService.downloadSprites(spriteUrl, {
 ### StyleService
 
 ```typescript
-import { StyleService, loadStyles, loadStyleById } from 'map-gl-offline';
+import { loadStyles, loadStyleById } from 'map-gl-offline';
 
 // Load all stored styles
 const styles = await loadStyles();
