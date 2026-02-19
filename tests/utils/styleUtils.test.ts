@@ -88,6 +88,73 @@ describe('styleUtils', () => {
       expect(source.maxzoom).toBe(14);
     });
 
+    it('should cap maxzoom to the lower of region maxZoom and source maxzoom', () => {
+      const style: MapboxStyle = {
+        version: 8,
+        sources: {
+          'buildings-source': {
+            type: 'vector',
+            tiles: ['https://example.com/tiles/{z}/{x}/{y}.pbf'],
+            maxzoom: 14,
+          },
+        },
+        layers: [],
+      };
+
+      // Region maxZoom (16) is higher than source maxzoom (14) — should keep 14
+      const patched = patchStyleForOffline(style, 'my-download', 16);
+      const source = patched.sources['buildings-source'] as { maxzoom: number };
+
+      expect(source.maxzoom).toBe(14);
+    });
+
+    it('should use region maxZoom when source has no original maxzoom', () => {
+      const style: MapboxStyle = {
+        version: 8,
+        sources: {
+          'test-source': {
+            type: 'vector',
+            tiles: ['https://example.com/tiles/{z}/{x}/{y}.pbf'],
+          },
+        },
+        layers: [],
+      };
+
+      const patched = patchStyleForOffline(style, 'my-download', 12);
+      const source = patched.sources['test-source'] as { maxzoom: number };
+
+      expect(source.maxzoom).toBe(12);
+    });
+
+    it('should cap each source independently based on its own maxzoom', () => {
+      const style: MapboxStyle = {
+        version: 8,
+        sources: {
+          'streets': {
+            type: 'vector',
+            tiles: ['https://example.com/streets/{z}/{x}/{y}.pbf'],
+            maxzoom: 22,
+          },
+          'buildings': {
+            type: 'vector',
+            tiles: ['https://example.com/buildings/{z}/{x}/{y}.pbf'],
+            maxzoom: 14,
+          },
+          'terrain': {
+            type: 'raster',
+            tiles: ['https://example.com/terrain/{z}/{x}/{y}.png'],
+          },
+        },
+        layers: [],
+      };
+
+      const patched = patchStyleForOffline(style, 'my-download', 16);
+
+      expect((patched.sources['streets'] as { maxzoom: number }).maxzoom).toBe(16);
+      expect((patched.sources['buildings'] as { maxzoom: number }).maxzoom).toBe(14);
+      expect((patched.sources['terrain'] as { maxzoom: number }).maxzoom).toBe(16);
+    });
+
     it('should replace tilejson URL with tiles array for TileJSON-only sources', () => {
       const style: MapboxStyle = {
         version: 8,

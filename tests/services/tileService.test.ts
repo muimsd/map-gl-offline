@@ -837,6 +837,119 @@ describe('TileService', () => {
     });
   });
 
+  describe('generateTileCoordinates', () => {
+    it('should generate tiles for the specified zoom range', () => {
+      const region = {
+        id: 'test-region',
+        name: 'Test Region',
+        bounds: [[0, 0], [1, 1]] as [[number, number], [number, number]],
+        minZoom: 0,
+        maxZoom: 2,
+      };
+
+      const coords = (service as unknown as { generateTileCoordinates: (r: typeof region) => Array<{ x: number; y: number; z: number }> }).generateTileCoordinates(region);
+
+      expect(coords.length).toBeGreaterThan(0);
+      // Should have tiles at zoom 0, 1, and 2
+      const zooms = new Set(coords.map(c => c.z));
+      expect(zooms.has(0)).toBe(true);
+      expect(zooms.has(1)).toBe(true);
+      expect(zooms.has(2)).toBe(true);
+      expect(zooms.has(3)).toBe(false);
+    });
+
+    it('should generate single tile at zoom 0', () => {
+      const region = {
+        id: 'test-region',
+        name: 'Test Region',
+        bounds: [[-180, -85], [180, 85]] as [[number, number], [number, number]],
+        minZoom: 0,
+        maxZoom: 0,
+      };
+
+      const coords = (service as unknown as { generateTileCoordinates: (r: typeof region) => Array<{ x: number; y: number; z: number }> }).generateTileCoordinates(region);
+
+      expect(coords.length).toBe(1);
+      expect(coords[0]).toEqual({ x: 0, y: 0, z: 0 });
+    });
+  });
+
+  describe('extractExtension', () => {
+    it('should extract pbf extension from template URL', () => {
+      const ext = (service as unknown as { extractExtension: (t: string) => string }).extractExtension(
+        'https://example.com/tiles/{z}/{x}/{y}.pbf'
+      );
+      expect(ext).toBe('pbf');
+    });
+
+    it('should extract png extension from template URL', () => {
+      const ext = (service as unknown as { extractExtension: (t: string) => string }).extractExtension(
+        'https://example.com/tiles/{z}/{x}/{y}.png?access_token=pk.test'
+      );
+      expect(ext).toBe('png');
+    });
+
+    it('should extract mvt extension', () => {
+      const ext = (service as unknown as { extractExtension: (t: string) => string }).extractExtension(
+        'https://example.com/tiles/{z}/{x}/{y}.mvt'
+      );
+      expect(ext).toBe('mvt');
+    });
+
+    it('should extract glb extension for 3D tiles', () => {
+      const ext = (service as unknown as { extractExtension: (t: string) => string }).extractExtension(
+        'https://a.tiles.mapbox.com/3dtiles/v1/mapbox.mapbox-3dbuildings-v1/{z}/{x}/{y}.glb?access_token=pk.test'
+      );
+      expect(ext).toBe('glb');
+    });
+
+    it('should default to pbf when no extension found', () => {
+      const ext = (service as unknown as { extractExtension: (t: string) => string }).extractExtension(
+        'https://example.com/tiles'
+      );
+      expect(ext).toBe('pbf');
+    });
+  });
+
+  describe('selectTileTemplate', () => {
+    it('should return the only template when there is one', () => {
+      const template = (service as unknown as { selectTileTemplate: (t: readonly string[], c: { x: number; y: number; z: number }) => string }).selectTileTemplate(
+        ['https://example.com/{z}/{x}/{y}.pbf'],
+        { x: 0, y: 0, z: 0 }
+      );
+      expect(template).toBe('https://example.com/{z}/{x}/{y}.pbf');
+    });
+
+    it('should distribute across multiple templates', () => {
+      const templates = [
+        'https://a.example.com/{z}/{x}/{y}.pbf',
+        'https://b.example.com/{z}/{x}/{y}.pbf',
+        'https://c.example.com/{z}/{x}/{y}.pbf',
+      ];
+
+      const selectTemplate = (service as unknown as { selectTileTemplate: (t: readonly string[], c: { x: number; y: number; z: number }) => string }).selectTileTemplate.bind(service);
+
+      // Different coords should potentially select different templates
+      const results = new Set<string>();
+      for (let x = 0; x < 10; x++) {
+        results.add(selectTemplate(templates, { x, y: 0, z: 1 }));
+      }
+
+      // Should use more than one template
+      expect(results.size).toBeGreaterThan(1);
+    });
+  });
+
+  describe('populateTemplate', () => {
+    it('should replace {z}, {x}, {y} placeholders', () => {
+      const url = (service as unknown as { populateTemplate: (t: string, c: { x: number; y: number; z: number }) => string }).populateTemplate(
+        'https://example.com/{z}/{x}/{y}.pbf',
+        { x: 100, y: 200, z: 12 }
+      );
+      expect(url).toBe('https://example.com/12/100/200.pbf');
+    });
+  });
+
   describe('getTileAnalytics edge cases', () => {
     it('should handle multiple styles', async () => {
       const db = await dbPromise;
