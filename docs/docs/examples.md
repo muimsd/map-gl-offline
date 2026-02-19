@@ -69,6 +69,12 @@ await manager.addRegion({
 
 ## Mapbox GL JS
 
+Mapbox GL JS v3 does not support `addProtocol`, so offline tile serving uses a **Service Worker** fallback. Copy the worker to your public directory first:
+
+```bash
+cp node_modules/map-gl-offline/dist/idb-offline-sw.js public/idb-offline-sw.js
+```
+
 ### Basic Mapbox Setup
 
 ```typescript
@@ -89,6 +95,7 @@ const map = new mapboxgl.Map({
 const manager = new OfflineMapManager();
 const control = new OfflineManagerControl(manager, {
   styleUrl: 'mapbox://styles/mapbox/streets-v12',
+  accessToken: mapboxgl.accessToken,
   theme: 'dark',
 });
 

@@ -103,7 +103,15 @@ Pass `mapLib: maplibregl` in the options to register the `idb://` protocol handl
 
 ## Basic Setup with Mapbox GL JS
 
-### 1. Import the Required Modules
+### 1. Copy the Service Worker
+
+Mapbox GL JS v3 does not support `addProtocol`, so offline tile serving uses a **Service Worker** fallback. Copy `idb-offline-sw.js` to your public directory so it is served at the root (`/idb-offline-sw.js`):
+
+```bash
+cp node_modules/map-gl-offline/dist/idb-offline-sw.js public/idb-offline-sw.js
+```
+
+### 2. Import the Required Modules
 
 ```typescript
 import mapboxgl from 'mapbox-gl';
@@ -114,7 +122,7 @@ import 'mapbox-gl/dist/mapbox-gl.css';
 import 'map-gl-offline/style.css';
 ```
 
-### 2. Initialize the Map
+### 3. Initialize the Map
 
 ```typescript
 mapboxgl.accessToken = 'YOUR_MAPBOX_TOKEN';
@@ -127,7 +135,7 @@ const map = new mapboxgl.Map({
 });
 ```
 
-### 3. Add the Offline Control
+### 4. Add the Offline Control
 
 ```typescript
 const offlineManager = new OfflineMapManager();
@@ -145,7 +153,7 @@ map.on('load', () => {
 ```
 
 :::note
-Mapbox GL JS v3 does not expose `addProtocol`, so the control automatically registers a Service Worker for offline tile serving. No extra configuration is needed.
+The control automatically registers the Service Worker when `mapLib` is not provided or lacks `addProtocol`. MapLibre GL JS has built-in `addProtocol` support, so it does not need the Service Worker.
 :::
 
 ## UI Control Features

@@ -85,6 +85,12 @@ map.on('load', () => {
 
 ### Mapbox GL JS
 
+Mapbox GL JS v3 requires a Service Worker for offline tile serving. Copy it to your public directory:
+
+```bash
+cp node_modules/map-gl-offline/dist/idb-offline-sw.js public/idb-offline-sw.js
+```
+
 ```typescript
 import mapboxgl from 'mapbox-gl';
 import { OfflineMapManager, OfflineManagerControl } from 'map-gl-offline';
