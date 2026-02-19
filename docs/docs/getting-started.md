@@ -105,7 +105,26 @@ Pass `mapLib: maplibregl` in the options to register the `idb://` protocol handl
 
 ### 1. Copy the Service Worker
 
-Mapbox GL JS v3 does not support `addProtocol`, so offline tile serving uses a **Service Worker** fallback. Copy `idb-offline-sw.js` to your public directory so it is served at the root (`/idb-offline-sw.js`):
+Mapbox GL JS v3 does not support `addProtocol`, so offline tile serving uses a **Service Worker** fallback. Copy `idb-offline-sw.js` to your public directory so it is served at the root (`/idb-offline-sw.js`).
+
+**Option 1: CLI (recommended)**
+
+```bash
+npx map-gl-offline init
+```
+
+**Option 2: Vite plugin** (auto-copies on each build)
+
+```js
+// vite.config.js
+import { offlineSwPlugin } from 'map-gl-offline/vite-plugin';
+
+export default defineConfig({
+  plugins: [offlineSwPlugin()],
+});
+```
+
+**Option 3: Manual copy**
 
 ```bash
 cp node_modules/map-gl-offline/dist/idb-offline-sw.js public/idb-offline-sw.js

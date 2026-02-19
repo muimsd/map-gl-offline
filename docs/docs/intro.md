@@ -85,10 +85,22 @@ map.on('load', () => {
 
 ### Mapbox GL JS
 
-Mapbox GL JS v3 requires a Service Worker for offline tile serving. Copy it to your public directory:
+Mapbox GL JS v3 requires a Service Worker for offline tile serving. Set it up using one of these methods:
 
 ```bash
-cp node_modules/map-gl-offline/dist/idb-offline-sw.js public/idb-offline-sw.js
+# CLI (recommended)
+npx map-gl-offline init
+```
+
+Or use the Vite plugin to auto-copy on each build:
+
+```js
+// vite.config.js
+import { offlineSwPlugin } from 'map-gl-offline/vite-plugin';
+
+export default defineConfig({
+  plugins: [offlineSwPlugin()],
+});
 ```
 
 ```typescript

@@ -72,7 +72,22 @@ await manager.addRegion({
 Mapbox GL JS v3 does not support `addProtocol`, so offline tile serving uses a **Service Worker** fallback. Copy the worker to your public directory first:
 
 ```bash
+# CLI (recommended)
+npx map-gl-offline init
+
+# Or manual copy
 cp node_modules/map-gl-offline/dist/idb-offline-sw.js public/idb-offline-sw.js
+```
+
+If you use Vite, you can automate this with the plugin instead:
+
+```js
+// vite.config.js
+import { offlineSwPlugin } from 'map-gl-offline/vite-plugin';
+
+export default defineConfig({
+  plugins: [offlineSwPlugin()],
+});
 ```
 
 ### Basic Mapbox Setup

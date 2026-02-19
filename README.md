@@ -123,10 +123,28 @@ map.on('load', () => {
 
 ### Mapbox GL JS
 
-Mapbox GL JS v3 does not support `addProtocol`, so offline tile serving uses a **Service Worker** fallback. You must copy the `idb-offline-sw.js` file from this package into your project's public directory so it is served at the root (`/idb-offline-sw.js`).
+Mapbox GL JS v3 does not support `addProtocol`, so offline tile serving uses a **Service Worker** fallback. You need to copy `idb-offline-sw.js` to your project's public directory so it is served at the root (`/idb-offline-sw.js`).
+
+**Option 1: CLI (recommended)**
 
 ```bash
-# Copy the service worker to your public directory
+npx map-gl-offline init
+```
+
+**Option 2: Vite plugin**
+
+```js
+// vite.config.js
+import { offlineSwPlugin } from 'map-gl-offline/vite-plugin';
+
+export default defineConfig({
+  plugins: [offlineSwPlugin()],
+});
+```
+
+**Option 3: Manual copy**
+
+```bash
 cp node_modules/map-gl-offline/dist/idb-offline-sw.js public/idb-offline-sw.js
 ```
 

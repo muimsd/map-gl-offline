@@ -7,16 +7,21 @@
   "unpkg": "dist/index.umd.js",
   "jsdelivr": "dist/index.umd.js",
   "types": "dist/index.d.ts",
+  "bin": {
+    "map-gl-offline": "./bin/cli.js"
+  },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.esm.js",
       "require": "./dist/index.js"
     },
-    "./style.css": "./dist/style.css"
+    "./style.css": "./dist/style.css",
+    "./vite-plugin": "./dist/vite-plugin.js"
   },
   "files": [
     "dist",
+    "bin",
     "README.md",
     "LICENSE"
   ],
@@ -36,7 +41,7 @@
     "build:lib": "rollup -c",
     "build:types": "tsc --declaration --emitDeclarationOnly --outDir dist",
     "build:css": "tailwindcss -i src/styles/style.css -o dist/style.css --minify",
-    "build:sw": "cp public/idb-offline-sw.js dist/idb-offline-sw.js",
+    "build:sw": "cp public/idb-offline-sw.js dist/idb-offline-sw.js && cp bin/vite-plugin.js dist/vite-plugin.js",
     "build:watch": "rollup -c -w",
     "build:dev": "npm run build:clean && npm run build:lib",
     "build:demo": "vite build --outDir demo",
