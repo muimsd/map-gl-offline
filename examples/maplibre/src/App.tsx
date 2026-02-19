@@ -1,6 +1,7 @@
 import { useRef, useEffect } from 'react';
 import maplibregl, { Map, NavigationControl } from 'maplibre-gl';
 import { OfflineMapManager, OfflineManagerControl } from 'map-gl-offline';
+import 'map-gl-offline/style.css';
 //@ts-ignore
 import 'maplibre-gl/dist/maplibre-gl.css';
 
@@ -53,7 +54,8 @@ function App() {
     map.current.addControl(
       new OfflineManagerControl(offlineManager.current, {
         styleUrl,
-        theme: 'dark'
+        theme: 'dark',
+        mapLib: maplibregl,
       }) as unknown as maplibregl.IControl,
       'top-right'
     );
