@@ -744,6 +744,12 @@ export class OfflineManagerControl implements IControl {
       // Patch the style for offline use
       let patchedStyle = patchStyleForOffline(styleEntry.style, styleId);
 
+      // Strip imports so Mapbox GL JS v3 doesn't try to re-fetch them at runtime.
+      // The imported sources/layers/sprites/glyphs are already flattened into the style.
+      if (patchedStyle.imports) {
+        delete (patchedStyle as Record<string, unknown>).imports;
+      }
+
       // If using Service Worker (Mapbox GL JS), convert idb:// to /__offline__/ URLs
       if (this.useServiceWorker) {
         if (this.swReadyPromise) {
@@ -753,7 +759,7 @@ export class OfflineManagerControl implements IControl {
       }
 
       // Apply the patched style to the map
-      this.map.setStyle(patchedStyle as StyleSpecification);
+      this.map.setStyle(patchedStyle as StyleSpecification, { diff: false });
     } catch (error) {
       controlLogger.error(`Error loading offline style ${styleId}:`, error);
     }
@@ -817,7 +823,7 @@ export class OfflineManagerControl implements IControl {
     content.innerHTML = `
       <div class="modal-header">
         <h3 class="modal-title">Select Offline Style</h3>
-        <button class="modal-close-btn" title="Close">
+        <button class="modal-close-btn cursor-pointer" title="Close">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <line x1="18" y1="6" x2="6" y2="18"></line>
             <line x1="6" y1="6" x2="18" y2="18"></line>

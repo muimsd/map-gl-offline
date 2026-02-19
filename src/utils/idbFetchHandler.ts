@@ -246,15 +246,17 @@ export async function idbFetchHandler(url: string, init?: RequestInit): Promise<
         const actualStyleId = styleEntry?.key || downloadId;
 
         // New format: idb://downloadId/tile/sourceKey/z/x/y.ext
-        const pathParts = rest; // ['sourceKey', 'z', 'x', 'y.ext']
+        // Source keys may contain slashes (e.g. "basemap/composite" from import prefixing),
+        // so we parse from the end: last 3 parts are z/x/y.ext, everything before is the source key.
+        const pathParts = rest;
 
-        if (pathParts.length === 4) {
-          const sourceKey = pathParts[0];
+        if (pathParts.length >= 4) {
+          const yExt = pathParts[pathParts.length - 1]; // e.g. '6142.pbf'
+          const x = parseInt(pathParts[pathParts.length - 2]);
           // MapLibre can request fractional zoom levels (e.g., 12.5)
           // but tiles are stored with integer zoom levels, so floor the value
-          const z = Math.floor(parseFloat(pathParts[1]));
-          const x = parseInt(pathParts[2]);
-          const yExt = pathParts[3]; // e.g. '6142.pbf'
+          const z = Math.floor(parseFloat(pathParts[pathParts.length - 3]));
+          const sourceKey = pathParts.slice(0, pathParts.length - 3).join('/');
           const yMatch = yExt.match(/(\d+)\.(\w+)/);
           if (yMatch) {
             const y = parseInt(yMatch[1]);
@@ -275,7 +277,7 @@ export async function idbFetchHandler(url: string, init?: RequestInit): Promise<
             idbLogger.debug(`Tile not found: ${tileKey}`);
 
             // Fallback: try common alternative extensions
-            const fallbackExtensions = ['pbf', 'mvt', 'png', 'jpg', 'webp'].filter(
+            const fallbackExtensions = ['pbf', 'mvt', 'png', 'jpg', 'webp', 'glb'].filter(
               ext => ext !== requestedExt
             );
 

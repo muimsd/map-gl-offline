@@ -105,8 +105,12 @@ describe('constants', () => {
       expect(TILE_CONFIG.SUPPORTED_EXTENSIONS).toContain('webp');
     });
 
-    it('should have exactly 6 supported extensions', () => {
-      expect(TILE_CONFIG.SUPPORTED_EXTENSIONS).toHaveLength(6);
+    it('should have exactly 7 supported extensions', () => {
+      expect(TILE_CONFIG.SUPPORTED_EXTENSIONS).toHaveLength(7);
+    });
+
+    it('should include glb for 3D model tiles', () => {
+      expect(TILE_CONFIG.SUPPORTED_EXTENSIONS).toContain('glb');
     });
   });
 

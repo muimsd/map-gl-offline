@@ -30,7 +30,7 @@ export const TILE_CONFIG = {
   MIN_ZOOM: 0,
   MAX_ZOOM: 24,
   DEFAULT_EXTENSION: 'pbf',
-  SUPPORTED_EXTENSIONS: ['pbf', 'mvt', 'png', 'jpg', 'jpeg', 'webp'] as const,
+  SUPPORTED_EXTENSIONS: ['pbf', 'mvt', 'png', 'jpg', 'jpeg', 'webp', 'glb'] as const,
 } as const;
 
 // Glyph Configuration
@@ -95,6 +95,7 @@ export const CONTENT_TYPES = {
   PNG: 'image/png',
   JPEG: 'image/jpeg',
   WEBP: 'image/webp',
+  GLB: 'model/gltf-binary',
 } as const;
 
 // URL Schemes
@@ -141,6 +142,7 @@ export const MAPBOX_API = {
   STYLES_PATH: '/styles/v1',
   FONTS_PATH: '/fonts/v1',
   TILES_PATH: '/v4',
+  MODELS_PATH: '/models/v1',
   PROTOCOL: 'mapbox://',
 } as const;
 

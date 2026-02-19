@@ -358,24 +358,34 @@ export class TileService {
               );
             }
           } catch (_error) {
-            failedTiles++;
             const errorObject = _error as unknown;
             errorMessage = errorObject instanceof Error ? errorObject.message : String(errorObject);
 
-            errors.push({
-              url: tileUrl || label,
-              error: errorMessage,
-            });
+            // 404s on sparse tilesets (landmarks, POIs) are expected — don't count as failures
+            const is404 = errorMessage.includes('404') || errorMessage.includes('not found');
+            const isExpected = errorMessage.includes('NonRetryableError');
 
-            // Enhanced logging for zoom 12 failures
-            if (z === 12) {
-              tileLogger.error(`✗ Failed to download Z12 tile ${label}:`, errorObject);
+            if (is404) {
+              skippedTiles++;
+              tileLogger.debug(
+                `Tile ${z}/${x}/${y} not found on ${plan.sourceId} (sparse tileset)`
+              );
+            } else {
+              failedTiles++;
+              errors.push({
+                url: tileUrl || label,
+                error: errorMessage,
+              });
+
+              if (z === 12 && !isExpected) {
+                tileLogger.error(`Failed to download Z12 tile ${label}:`, errorObject);
+              }
+
+              const logFn = isExpected
+                ? tileLogger.warn.bind(tileLogger)
+                : tileLogger.error.bind(tileLogger);
+              logFn(`Failed to download tile ${z}/${x}/${y} from ${plan.sourceId}:`, errorObject);
             }
-
-            tileLogger.error(
-              `Failed to download tile ${z}/${x}/${y} from ${plan.sourceId}:`,
-              errorObject
-            );
           } finally {
             progressTracker.update(1, label, errorMessage);
             emitProgress();
@@ -637,8 +647,13 @@ export class TileService {
         url: config.url,
       });
 
-      // Handle vector and raster tile sources
-      if (config.type === 'vector' || config.type === 'raster') {
+      // Handle tile-based sources (vector, raster, raster-dem, batched-model)
+      if (
+        config.type === 'vector' ||
+        config.type === 'raster' ||
+        config.type === 'raster-dem' ||
+        config.type === 'batched-model'
+      ) {
         // Handle direct tile URLs in the source config
         if (config.tiles && Array.isArray(config.tiles) && config.tiles.length > 0) {
           // Resolve mapbox:// tile URLs to HTTPS, then filter for HTTP(S) URLs
@@ -655,9 +670,12 @@ export class TileService {
           });
 
           // Filter out idb:// URLs and relative paths - we only want absolute HTTP(S) URLs
-          const httpTiles = resolvedTiles.filter(
-            (tile: string) => tile.startsWith('http://') || tile.startsWith('https://')
-          );
+          // Also upgrade http:// to https:// (TileJSON responses often use http://)
+          const httpTiles = resolvedTiles
+            .filter((tile: string) => tile.startsWith('http://') || tile.startsWith('https://'))
+            .map((tile: string) =>
+              tile.startsWith('http://') ? tile.replace('http://', 'https://') : tile
+            );
           if (httpTiles.length > 0) {
             tileSources.set(sourceId, { ...config, tiles: httpTiles });
             tileLogger.debug(
@@ -741,7 +759,9 @@ export class TileService {
                   'tiles' in jsonData &&
                   Array.isArray(jsonData.tiles)
                 ) {
-                  tiles = (jsonData.tiles as string[]) ?? [];
+                  tiles = ((jsonData.tiles as string[]) ?? []).map(u =>
+                    u.startsWith('http://') ? u.replace('http://', 'https://') : u
+                  );
                   tileLogger.debug(`Extracted ${tiles.length} tile URLs from TileJSON`);
 
                   // Capture minzoom/maxzoom from TileJSON if available
@@ -847,7 +867,7 @@ export class TileService {
           tileLogger.debug(`Source ${sourceId} has no tiles or URL property`);
         }
       } else {
-        tileLogger.debug(`Ignoring non-vector/raster source ${sourceId} of type ${config.type}`);
+        tileLogger.debug(`Ignoring non-tile source ${sourceId} of type ${config.type}`);
       }
     }
 

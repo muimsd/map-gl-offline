@@ -124,6 +124,16 @@ export function patchStyleForOffline(
     }
   }
 
+  // Patch top-level models (Mapbox Standard 3D landmarks)
+  if (style.models) {
+    for (const [modelId, modelConfig] of Object.entries(style.models)) {
+      if (modelConfig.uri) {
+        modelConfig.uri = `idb://${downloadId}/model/${modelId}`;
+      }
+    }
+    styleLogger.debug(`Patched ${Object.keys(style.models).length} model URIs`);
+  }
+
   styleLogger.debug(`Final patched style:`, style);
   return style;
 }
@@ -161,6 +171,8 @@ export function extractFontNamesFromTextField(textFont: unknown): string[] {
     'linear',
     'exponential',
     'cubic-bezier',
+    // Mapbox GL v3 config system (Standard style uses ["config", "font"])
+    'config',
   ]);
 
   function walk(value: unknown): void {
@@ -200,6 +212,7 @@ export function extractFontNamesFromTextField(textFont: unknown): string[] {
  */
 export function extractAllFontNames(style: {
   layers?: Array<{ layout?: { [key: string]: unknown } }>;
+  schema?: Record<string, { default?: unknown }>;
 }): string[] {
   const fonts = new Set<string>();
   if (style && Array.isArray(style.layers)) {
@@ -211,6 +224,21 @@ export function extractAllFontNames(style: {
       }
     }
   }
+
+  // Mapbox Standard style uses schema config for fonts (e.g. schema.font.default = "DIN Pro")
+  // If no fonts were found from layers, check the schema for font defaults
+  if (fonts.size === 0 && style && style.schema) {
+    const fontConfig = style.schema.font || style.schema['text-font'];
+    if (fontConfig && typeof fontConfig.default === 'string') {
+      // The config value is a font family like "DIN Pro" — add common weights
+      const baseName = fontConfig.default;
+      fonts.add(`${baseName} Regular`);
+      fonts.add(`${baseName} Medium`);
+      fonts.add(`${baseName} Bold`);
+      fonts.add(`${baseName} Italic`);
+    }
+  }
+
   return Array.from(fonts);
 }
 

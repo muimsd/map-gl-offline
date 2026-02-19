@@ -12,8 +12,15 @@ export interface BaseStyle {
   metadata?: Record<string, unknown>;
   sources: Record<string, unknown>;
   layers: unknown[];
-  sprite?: string;
+  sprite?: string | Array<{ id: string; url: string }>;
   glyphs?: string;
+  imports?: Array<{
+    id: string;
+    url: string;
+    data?: BaseStyle;
+    config?: Record<string, unknown>;
+  }>;
+  models?: Record<string, { uri: string; [key: string]: unknown }>;
   [key: string]: unknown;
 }
 
@@ -47,8 +54,10 @@ export type StyleEntry = {
   accessToken?: string;
   originalUrl?: string;
   // Original resource URLs before patching (for re-downloads)
-  originalSpriteUrl?: string;
+  originalSpriteUrl?: BaseStyle['sprite'];
   originalGlyphsUrl?: string;
+  // Original imports array before flattening (for reference)
+  originalImports?: BaseStyle['imports'];
 };
 
 export interface StyleDownloadOptions {

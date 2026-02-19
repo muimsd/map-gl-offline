@@ -60,5 +60,15 @@ export function convertStyleForServiceWorker(style: MapboxStyle): MapboxStyle {
     }
   }
 
+  // Convert models
+  if (converted.models) {
+    for (const modelKey of Object.keys(converted.models)) {
+      const model = converted.models[modelKey];
+      if (model.uri && typeof model.uri === 'string' && model.uri.startsWith('idb://')) {
+        model.uri = replace(model.uri);
+      }
+    }
+  }
+
   return converted;
 }

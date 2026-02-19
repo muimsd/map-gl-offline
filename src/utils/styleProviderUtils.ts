@@ -52,6 +52,12 @@ export function resolveMapboxUrl(mapboxUrl: string, accessToken: string): string
     return `${MAPBOX_API.BASE_URL}${MAPBOX_API.FONTS_PATH}/${rest}?access_token=${accessToken}`;
   }
 
+  // mapbox://models/{path}
+  if (path.startsWith('models/')) {
+    const rest = path.slice('models/'.length);
+    return `${MAPBOX_API.BASE_URL}${MAPBOX_API.MODELS_PATH}/${rest}?access_token=${accessToken}`;
+  }
+
   // mapbox://{tileset} (e.g. mapbox://mapbox.mapbox-streets-v8)
   return `${MAPBOX_API.BASE_URL}${MAPBOX_API.TILES_PATH}/${path}.json?access_token=${accessToken}`;
 }
@@ -91,6 +97,15 @@ export function detectStyleProvider(styleUrl: string, style?: BaseStyle): StyleP
       const source = sourceConfig as { url?: string };
       if (source.url && (source.url.includes('mapbox.com') || isMapboxProtocol(source.url))) {
         return 'mapbox';
+      }
+    }
+
+    // Check imports for mapbox:// protocol
+    if (Array.isArray(style.imports)) {
+      for (const imp of style.imports as Array<{ url?: string }>) {
+        if (typeof imp.url === 'string' && isMapboxProtocol(imp.url)) {
+          return 'mapbox';
+        }
       }
     }
 
@@ -248,17 +263,30 @@ export function validateStyleForProvider(
   const errors: string[] = [];
   const warnings: string[] = [];
 
+  // Import-based styles may have empty sources/layers before resolution
+  const usesImports =
+    Array.isArray((style as Record<string, unknown>).imports) &&
+    ((style as Record<string, unknown>).imports as unknown[]).length > 0;
+
   // Basic validation
   if (!style.version) {
     errors.push('Style is missing version');
   }
 
   if (!style.sources || Object.keys(style.sources).length === 0) {
-    errors.push('Style has no sources');
+    if (usesImports) {
+      warnings.push('Style has no sources (uses imports — sources will be resolved)');
+    } else {
+      errors.push('Style has no sources');
+    }
   }
 
   if (!style.layers || style.layers.length === 0) {
-    errors.push('Style has no layers');
+    if (usesImports) {
+      warnings.push('Style has no layers (uses imports — layers will be resolved)');
+    } else {
+      errors.push('Style has no layers');
+    }
   }
 
   // Provider-specific validation
