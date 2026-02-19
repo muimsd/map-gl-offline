@@ -43,7 +43,8 @@ export class Button extends BaseComponent {
     const button = this.element as HTMLButtonElement;
 
     // Set default classes
-    const baseClasses = 'relative flex items-center justify-center transition-all duration-200';
+    const baseClasses =
+      'relative flex items-center justify-center transition-all duration-200 cursor-pointer';
     const variantClasses = this.getVariantClasses();
     const sizeClasses = this.getSizeClasses();
 

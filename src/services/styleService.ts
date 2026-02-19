@@ -1,7 +1,13 @@
 import { dbPromise } from '../storage/indexedDbManager';
 import { downloadFonts } from './fontService';
 import { downloadSprites } from './spriteService';
-import { generateGlyphUrlsFromStyle, fetchWithRetry, logger } from '../utils';
+import {
+  generateGlyphUrlsFromStyle,
+  fetchWithRetry,
+  logger,
+  hasImports,
+  resolveImports,
+} from '../utils';
 import { GLYPH_CONFIG } from '../utils/constants';
 import {
   detectStyleProvider,
@@ -34,8 +40,9 @@ function createStyleEntry(
     lastModified?: number;
     downloadedAt?: number;
     originalUrl?: string;
-    originalSpriteUrl?: string;
+    originalSpriteUrl?: BaseStyle['sprite'];
     originalGlyphsUrl?: string;
+    originalImports?: BaseStyle['imports'];
     validated?: boolean;
     size?: number;
     sourceCount?: number;
@@ -157,6 +164,23 @@ export async function downloadStyles(
     // Validate style if requested
     if (validateStyle && !isValidStyleData(style)) {
       throw new Error('Invalid style data received');
+    }
+
+    // Resolve imports (Mapbox Standard / compositional styles)
+    if (hasImports(style)) {
+      const importAccessToken = options.accessToken || extractAccessToken(fetchUrl) || '';
+      logger.debug('Style uses imports, resolving...');
+      const originalImports = style.imports ? [...style.imports] : undefined;
+      await resolveImports(style, importAccessToken, {
+        maxRetries: maxRetries,
+        timeoutMs: timeoutMs,
+      });
+      // Preserve original imports for reference
+      style._originalImports = originalImports;
+      logger.debug('Import resolution complete', {
+        sourceCount: style.sources ? Object.keys(style.sources).length : 0,
+        layerCount: style.layers ? style.layers.length : 0,
+      });
     }
 
     // Check if style already exists in the database
@@ -304,6 +328,7 @@ export async function downloadStyles(
             originalUrl: stylesUrl,
             originalSpriteUrl: style.sprite,
             originalGlyphsUrl: style.glyphs,
+            originalImports: style._originalImports as BaseStyle['imports'],
             validated: validateStyle && validation.isValid,
             size: styleSize,
             sourceCount: sourcesProcessed,
@@ -576,15 +601,22 @@ function isValidStyleData(style: unknown): boolean {
   const s = style as Record<string, unknown>;
 
   // Check required properties
-  if (!s.version || !s.sources || !s.layers) return false;
+  if (!s.version) return false;
 
   // Validate version
   if (typeof s.version !== 'number' || s.version < 8) return false;
 
-  // Validate sources
-  if (typeof s.sources !== 'object' || Object.keys(s.sources as object).length === 0) return false;
+  // Import-based styles (e.g. Mapbox Standard wrappers) may have empty
+  // sources/layers — the content lives in the imported style and will be
+  // flattened by resolveImports() before the download pipeline runs.
+  if (hasImports(s)) {
+    return true;
+  }
 
-  // Validate layers
+  // Non-import styles must have sources and layers
+  if (!s.sources || typeof s.sources !== 'object' || Object.keys(s.sources as object).length === 0)
+    return false;
+
   if (!Array.isArray(s.layers) || s.layers.length === 0) return false;
 
   // Basic layer validation
@@ -958,6 +990,20 @@ export async function downloadStyleWithProvider(
     }
 
     const style = (await response.json()) as BaseStyle;
+
+    // Resolve imports (Mapbox Standard / compositional styles)
+    if (hasImports(style)) {
+      const importToken = extractedToken || '';
+      logger.debug('Style uses imports, resolving...');
+      await resolveImports(style, importToken, {
+        maxRetries,
+        timeoutMs,
+      });
+      logger.debug('Import resolution complete', {
+        sourceCount: style.sources ? Object.keys(style.sources).length : 0,
+        layerCount: style.layers ? style.layers.length : 0,
+      });
+    }
 
     // Process style for the detected provider
     const processedStyle = processStyleSources(style, detectedProvider, extractedToken);

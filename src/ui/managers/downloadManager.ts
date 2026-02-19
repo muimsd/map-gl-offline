@@ -240,11 +240,11 @@ export class DownloadManager {
       } else {
         // Find the existing style to get its ID
         const styles = await loadStyles();
-        const existingStyle = styles.find(
-          (s: { style?: { sprite?: string }; originalUrl?: string }) =>
-            s?.style?.sprite?.includes(regionConfig.styleUrl) ||
-            s?.originalUrl === regionConfig.styleUrl
-        );
+        const existingStyle = styles.find(s => {
+          const sprite = s?.style?.sprite;
+          const spriteMatch = typeof sprite === 'string' && sprite.includes(regionConfig.styleUrl);
+          return spriteMatch || s?.originalUrl === regionConfig.styleUrl;
+        });
         if (!existingStyle) {
           throw new Error('Style exists but could not be found');
         }
@@ -473,7 +473,10 @@ export class DownloadManager {
       }
 
       if (!styleData.style.sources || Object.keys(styleData.style.sources).length === 0) {
-        throw new Error('Style does not contain any sources for tile download');
+        throw new Error(
+          'Style does not contain any sources for tile download. ' +
+            'If this style uses imports (e.g. Mapbox Standard), import resolution may have failed.'
+        );
       }
 
       downloadLogger.debug('Calling downloadTiles with finalStyleId:', finalStyleId);

@@ -4,6 +4,17 @@ import { applyProxy, type ProxyType } from './proxyConfig';
 
 const downloadLogger = logger.scope('Download');
 
+/**
+ * Error that should not be retried (e.g. 404, 401, 403).
+ * Thrown inside retry loops to break out immediately.
+ */
+class NonRetryableError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'NonRetryableError';
+  }
+}
+
 export type FetchResourceResult =
   | {
       type: 'json';
@@ -84,12 +95,15 @@ export async function fetchResourceWithRetry(
       clearTimeout(timeoutId);
 
       if (!response.ok) {
-        // Provide more specific error messages
+        // Non-retryable HTTP errors — throw immediately without further attempts
         if (response.status === 404) {
-          throw new Error(`Resource not found (404): ${url}`);
+          throw new NonRetryableError(`Resource not found (404): ${url}`);
+        }
+        if (response.status === 400) {
+          throw new NonRetryableError(`Bad request (400): ${url}`);
         }
         if (response.status === 403 || response.status === 401) {
-          throw new Error(`Access denied (${response.status}): ${url}`);
+          throw new NonRetryableError(`Access denied (${response.status}): ${url}`);
         }
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
@@ -115,6 +129,11 @@ export async function fetchResourceWithRetry(
 
       return { type: 'other', data, contentType, contentEncoding, expires };
     } catch (error) {
+      // Don't retry on definitive HTTP errors (404, 401, 403)
+      if (error instanceof NonRetryableError) {
+        throw error;
+      }
+
       if (attempt === retries) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         let enhancedMessage = `Failed to fetch ${url} after ${retries + 1} attempts: ${errorMessage}`;
@@ -165,11 +184,25 @@ export async function fetchWithRetry(
       clearTimeout(timeoutId);
 
       if (!response.ok) {
+        // Don't retry on definitive HTTP errors
+        if (
+          response.status === 400 ||
+          response.status === 404 ||
+          response.status === 401 ||
+          response.status === 403
+        ) {
+          throw new NonRetryableError(`HTTP ${response.status}: ${url}`);
+        }
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
 
       return response;
     } catch (error) {
+      // Don't retry on definitive HTTP errors
+      if (error instanceof NonRetryableError) {
+        throw error;
+      }
+
       if (attempt === retries) {
         throw new Error(
           `Failed to fetch ${url} after ${retries + 1} attempts: ${error instanceof Error ? error.message : 'Unknown error'}`

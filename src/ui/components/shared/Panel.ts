@@ -93,7 +93,7 @@ export class Panel extends BaseComponent {
       if (this.panelConfig.closable) {
         const closeButton = document.createElement('button');
         closeButton.className =
-          'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors';
+          'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors cursor-pointer';
         closeButton.innerHTML = '×';
         closeButton.style.fontSize = '24px';
         closeButton.addEventListener('click', () => {

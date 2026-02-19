@@ -48,7 +48,7 @@ export class ControlButton extends BaseComponent {
 
     const button = document.createElement('button');
     button.type = 'button';
-    button.className = `${prefix}-ctrl-icon relative`;
+    button.className = `${prefix}-ctrl-icon relative cursor-pointer`;
     button.innerHTML = buttonConfig.icon || icons.cloud({ size: 20, color: 'black' });
     button.title = buttonConfig.title || 'Offline Map Manager';
 

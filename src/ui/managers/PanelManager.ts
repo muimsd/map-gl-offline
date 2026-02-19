@@ -518,19 +518,19 @@ export class PanelRenderer extends BaseComponent {
             </div>
           </div>
           <div class="flex items-center gap-1 ml-2">
-            <button class="region-action-btn p-1.5 rounded-md hover:bg-indigo-100 dark:hover:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400 transition-colors duration-150" data-action="show-details" data-region-id="${escapeHtml(region.id)}" title="${t('app.details')}">
+            <button class="region-action-btn p-1.5 rounded-md cursor-pointer hover:bg-indigo-100 dark:hover:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400 transition-colors duration-150" data-action="show-details" data-region-id="${escapeHtml(region.id)}" title="${t('app.details')}">
               ${icons.infoCircle({ size: 14, color: 'currentColor' })}
             </button>
-            <button class="region-action-btn p-1.5 rounded-md hover:bg-emerald-100 dark:hover:bg-emerald-900/50 text-emerald-600 dark:text-emerald-400 transition-colors duration-150" data-action="focus-region" data-region-id="${escapeHtml(region.id)}" title="${t('app.focus')}">
+            <button class="region-action-btn p-1.5 rounded-md cursor-pointer hover:bg-emerald-100 dark:hover:bg-emerald-900/50 text-emerald-600 dark:text-emerald-400 transition-colors duration-150" data-action="focus-region" data-region-id="${escapeHtml(region.id)}" title="${t('app.focus')}">
               ${icons.focus({ size: 14, color: 'currentColor' })}
             </button>
-            <button class="region-action-btn p-1.5 rounded-md hover:bg-blue-100 dark:hover:bg-blue-900/50 text-blue-600 dark:text-blue-400 transition-colors duration-150" data-action="redownload-region" data-region-id="${escapeHtml(region.id)}" title="${t('actions.redownload')}">
+            <button class="region-action-btn p-1.5 rounded-md cursor-pointer hover:bg-blue-100 dark:hover:bg-blue-900/50 text-blue-600 dark:text-blue-400 transition-colors duration-150" data-action="redownload-region" data-region-id="${escapeHtml(region.id)}" title="${t('actions.redownload')}">
               ${icons.download({ size: 14, color: 'currentColor' })}
             </button>
-            <!-- <button class="region-action-btn p-1.5 rounded-md hover:bg-purple-100 dark:hover:bg-purple-900/50 text-purple-600 dark:text-purple-400 transition-colors duration-150" data-action="import-export" data-region-id="${escapeHtml(region.id)}" title="${t('actions.importExport')}">
+            <!-- <button class="region-action-btn p-1.5 rounded-md cursor-pointer hover:bg-purple-100 dark:hover:bg-purple-900/50 text-purple-600 dark:text-purple-400 transition-colors duration-150" data-action="import-export" data-region-id="${escapeHtml(region.id)}" title="${t('actions.importExport')}">
               ${icons.deviceFloppy({ size: 14, color: 'currentColor' })}
             </button> -->
-            <button class="region-action-btn p-1.5 rounded-md hover:bg-red-100 dark:hover:bg-red-900/50 text-red-600 dark:text-red-400 transition-colors duration-150" data-action="delete-region" data-region-id="${escapeHtml(region.id)}" title="${t('app.delete')}">
+            <button class="region-action-btn p-1.5 rounded-md cursor-pointer hover:bg-red-100 dark:hover:bg-red-900/50 text-red-600 dark:text-red-400 transition-colors duration-150" data-action="delete-region" data-region-id="${escapeHtml(region.id)}" title="${t('app.delete')}">
               ${icons.trash({ size: 14, color: 'currentColor' })}
             </button>
           </div>
@@ -756,7 +756,18 @@ export class PanelRenderer extends BaseComponent {
           try {
             this.modalManager.close();
 
-            // First, delete the existing region
+            // Retrieve access token from the stored style BEFORE deleting
+            // (deleteRegion removes the style entry when it's the last region)
+            let accessToken: string | undefined;
+            try {
+              const { loadStyleById } = await import('../../services/styleService');
+              const styleEntry = await loadStyleById(region.styleId);
+              accessToken = styleEntry?.accessToken;
+            } catch {
+              panelLogger.warn('Could not retrieve access token from stored style');
+            }
+
+            // Delete the existing region (and its tiles/resources)
             panelLogger.debug('Deleting region before re-download:', regionId);
             await this.offlineManager.deleteRegion(regionId);
 
@@ -773,6 +784,7 @@ export class PanelRenderer extends BaseComponent {
               maxZoom: region.maxZoom,
               styleUrl: region.styleUrl || '',
               provider: 'auto' as const,
+              accessToken,
             };
 
             panelLogger.debug('Starting re-download with config:', formData);
@@ -1407,7 +1419,9 @@ export class PanelRenderer extends BaseComponent {
       panelLogger.debug('Applying patched style to map...');
 
       try {
-        (this.map as { setStyle?: (style: MapboxStyle) => void })?.setStyle?.(patchedStyle);
+        (
+          this.map as { setStyle?: (style: MapboxStyle, options?: { diff?: boolean }) => void }
+        )?.setStyle?.(patchedStyle, { diff: false });
         panelLogger.debug('Style loaded successfully!');
 
         // Wait a bit and check if the style was applied

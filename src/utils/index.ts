@@ -15,3 +15,4 @@ export * from './proxyConfig';
 export * from './convertStyleForSW';
 export * from './swRegistration';
 export * from './cssPrefix';
+export * from './importResolver';

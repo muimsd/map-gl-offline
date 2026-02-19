@@ -148,7 +148,7 @@ export class List extends BaseComponent {
 
     item.actions?.forEach(action => {
       const button = document.createElement('button');
-      button.className = `px-3 py-1 rounded text-xs font-medium transition-colors ${this.getActionButtonClasses(action.variant)}`;
+      button.className = `px-3 py-1 rounded text-xs font-medium transition-colors cursor-pointer ${this.getActionButtonClasses(action.variant)}`;
       button.dataset.action = action.action;
       button.dataset.itemId = item.id;
 

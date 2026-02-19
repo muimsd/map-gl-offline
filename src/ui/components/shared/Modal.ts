@@ -148,7 +148,7 @@ export class Modal extends BaseComponent {
   private createIconButton(svg: string, title: string): HTMLButtonElement {
     const btn = document.createElement('button');
     btn.className =
-      'p-2 rounded-lg text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors';
+      'p-2 rounded-lg text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors cursor-pointer';
     btn.innerHTML = svg;
     btn.title = title;
     return btn;

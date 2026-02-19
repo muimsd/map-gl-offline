@@ -46,7 +46,7 @@ export class LanguageSelector extends BaseComponent {
     // Create button
     const button = document.createElement('button');
     button.className =
-      'p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded-full flex items-center gap-1 transition-colors';
+      'p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded-full flex items-center gap-1 transition-colors cursor-pointer';
     button.title = i18n.t('language.select');
     button.innerHTML = `
       ${icons.language({ size: 16, color: 'currentColor' })}
@@ -74,7 +74,7 @@ export class LanguageSelector extends BaseComponent {
       item.className = `
         w-full px-4 py-2 text-left text-sm flex items-center justify-between gap-4
         ${lang.code === currentLang ? 'bg-primary-50 dark:bg-primary-900/20 text-primary-700 dark:text-primary-300' : 'text-gray-700 dark:text-gray-300'}
-        hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors
+        hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors cursor-pointer
       `;
       item.innerHTML = `
         <span class="font-medium">${lang.nativeName}</span>

@@ -43,15 +43,15 @@ function setActiveTab(tab: 'maplibre' | 'mapbox') {
   const inactiveClasses = 'bg-gray-200 text-gray-700 hover:bg-gray-300';
 
   if (tab === 'maplibre') {
-    tabMaplibre.className = `tab-btn px-4 py-2 rounded-lg font-semibold text-sm transition-colors ${activeClasses}`;
-    tabMapbox.className = `tab-btn px-4 py-2 rounded-lg font-semibold text-sm transition-colors ${inactiveClasses}`;
+    tabMaplibre.className = `tab-btn px-4 py-2 rounded-lg font-semibold text-sm transition-colors cursor-pointer ${activeClasses}`;
+    tabMapbox.className = `tab-btn px-4 py-2 rounded-lg font-semibold text-sm transition-colors cursor-pointer ${inactiveClasses}`;
     containerMaplibre.classList.remove('hidden');
     containerMapbox.classList.add('hidden');
     if (!maplibreMap) initMaplibre();
     else maplibreMap.resize();
   } else {
-    tabMapbox.className = `tab-btn px-4 py-2 rounded-lg font-semibold text-sm transition-colors ${activeClasses}`;
-    tabMaplibre.className = `tab-btn px-4 py-2 rounded-lg font-semibold text-sm transition-colors ${inactiveClasses}`;
+    tabMapbox.className = `tab-btn px-4 py-2 rounded-lg font-semibold text-sm transition-colors cursor-pointer ${activeClasses}`;
+    tabMaplibre.className = `tab-btn px-4 py-2 rounded-lg font-semibold text-sm transition-colors cursor-pointer ${inactiveClasses}`;
     containerMapbox.classList.remove('hidden');
     containerMaplibre.classList.add('hidden');
     if (!mapboxMap) initMapbox();
@@ -190,7 +190,7 @@ function initMaplibre() {
     activeStyleId: defaultStyle.id,
     onBeforeStyleChange: (_from: StyleItem, _to: StyleItem): void => {},
     onAfterStyleChange: (_from: StyleItem, to: StyleItem): void => {
-      map.setStyle(to.styleUrl);
+      map.setStyle(to.styleUrl, { diff: false });
       offlineManagerControl.updateStyleUrl(to.styleUrl);
     },
   } as StyleSwitcherControlOptions);
@@ -273,7 +273,9 @@ function initMapbox() {
   select.addEventListener('change', () => {
     const selected = MAPBOX_STYLES.find(s => s.id === select.value);
     if (selected) {
-      map.setStyle(selected.url);
+      (
+        map as unknown as { setStyle: (style: string, options?: { diff?: boolean }) => void }
+      ).setStyle(selected.url, { diff: false });
       offlineManagerControl.updateStyleUrl(selected.url);
     }
   });
