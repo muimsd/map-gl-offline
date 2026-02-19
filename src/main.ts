@@ -21,7 +21,8 @@ configureProxy({
 });
 
 const MAPTILER_API_KEY = import.meta.env.VITE_MAPTILER_API_KEY || '';
-const MAPBOX_ACCESS_TOKEN = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN || '';
+const MAPBOX_ACCESS_TOKEN =
+  import.meta.env.VITE_MAPBOX_ACCESS_TOKEN || localStorage.getItem('mapbox-access-token') || '';
 
 // Tab elements
 const tabMaplibre = document.getElementById('tab-maplibre')!;
@@ -213,10 +214,44 @@ const MAPBOX_STYLES: { id: string; name: string; url: string }[] = [
   { id: 'standard', name: 'Standard', url: 'mapbox://styles/mapbox/standard' },
 ];
 
+function showMapboxTokenPrompt() {
+  containerMapbox.innerHTML = `
+    <div class="flex items-center justify-center h-full">
+      <div class="bg-white rounded-xl shadow-lg p-8 max-w-md w-full mx-4 text-center">
+        <svg class="mx-auto mb-4" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+          <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+        </svg>
+        <h2 class="text-xl font-bold text-gray-800 mb-2">Mapbox Access Token Required</h2>
+        <p class="text-gray-500 text-sm mb-6">Enter your Mapbox access token to use the Mapbox GL map. You can find it at
+          <a href="https://account.mapbox.com/access-tokens/" target="_blank" rel="noopener" class="text-blue-600 underline hover:text-blue-800">account.mapbox.com</a>.
+        </p>
+        <form id="mapbox-token-form" class="flex flex-col gap-3">
+          <input id="mapbox-token-input" type="text" placeholder="pk.eyJ1Ijo..." spellcheck="false" autocomplete="off"
+            class="w-full px-4 py-3 border border-gray-300 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+          <button type="submit"
+            class="w-full px-4 py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-colors text-sm cursor-pointer">
+            Save &amp; Load Map
+          </button>
+        </form>
+      </div>
+    </div>`;
+
+  const form = document.getElementById('mapbox-token-form')!;
+  const input = document.getElementById('mapbox-token-input') as HTMLInputElement;
+  form.addEventListener('submit', e => {
+    e.preventDefault();
+    const token = input.value.trim();
+    if (!token) return;
+    localStorage.setItem('mapbox-access-token', token);
+    // Reload the page so the token is picked up globally
+    window.location.reload();
+  });
+}
+
 function initMapbox() {
   if (!MAPBOX_ACCESS_TOKEN) {
-    containerMapbox.innerHTML =
-      '<div class="flex items-center justify-center h-full text-gray-500 text-lg">Set <code class="mx-1 px-2 py-1 bg-gray-100 rounded text-sm font-mono">VITE_MAPBOX_ACCESS_TOKEN</code> in your <code class="mx-1 px-2 py-1 bg-gray-100 rounded text-sm font-mono">.env</code> file and restart the dev server.</div>';
+    showMapboxTokenPrompt();
     return;
   }
 
