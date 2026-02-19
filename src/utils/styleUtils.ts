@@ -99,13 +99,29 @@ export function patchStyleForOffline(
   if (style.sprite) {
     const originalSprite = style.sprite;
     const spriteBaseId = styleId || downloadId;
-    style.sprite = `idb://${spriteBaseId}/sprite/sprite`;
-    styleLogger.debug(`Patched sprite:`, {
-      original: originalSprite,
-      patched: style.sprite,
-      spriteBaseId,
-      usingStyleId: !!styleId,
-    });
+
+    if (Array.isArray(style.sprite)) {
+      // MapLibre GL JS v3+ array sprite format: [{id, url}, ...]
+      const arraySprite = style.sprite as unknown as Array<{ id: string; url: string }>;
+      const patchedArray = arraySprite.map(entry => ({
+        ...entry,
+        url: `idb://${spriteBaseId}/sprite/${entry.id}`,
+      }));
+      (style as Record<string, unknown>).sprite = patchedArray;
+      styleLogger.debug(`Patched array sprite (${patchedArray.length} sources):`, {
+        original: originalSprite,
+        patched: patchedArray,
+        spriteBaseId,
+      });
+    } else {
+      style.sprite = `idb://${spriteBaseId}/sprite/sprite`;
+      styleLogger.debug(`Patched sprite:`, {
+        original: originalSprite,
+        patched: style.sprite,
+        spriteBaseId,
+        usingStyleId: !!styleId,
+      });
+    }
   }
 
   styleLogger.debug(`Final patched style:`, style);
@@ -221,9 +237,12 @@ export function generateGlyphUrlsFromStyle(
     [1792, 2047],
     [2048, 2303],
     [2304, 2559],
+    [7680, 7935], // Latin Extended Additional
     [8192, 8447], // General Punctuation, Superscripts/Subscripts, Currency Symbols
     [8448, 8703], // Letterlike Symbols, Number Forms, Arrows
     [61440, 61695], // Private Use Area (for icons)
+    [64256, 64511], // Alphabetic Presentation Forms
+    [65024, 65279], // Variation Selectors
   ];
   const usedRanges = ranges || defaultRanges;
 

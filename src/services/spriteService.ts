@@ -45,6 +45,7 @@ export class SpriteService {
       prioritySprites = [],
       bandwidthLimit,
       enableValidation = true,
+      namePrefix,
     } = options;
 
     const startTime = Date.now();
@@ -96,7 +97,7 @@ export class SpriteService {
       }
 
       urlsToDownload = sortedUrls.filter(url => {
-        const key = this.createSpriteKey(url, styleName);
+        const key = this.createSpriteKey(url, styleName, namePrefix);
         return !existingSprites.has(key);
       });
 
@@ -123,7 +124,7 @@ export class SpriteService {
     // Debug: Show all sprite URLs and their generated keys
     spriteLogger.debug('Sprite URLs and their generated keys:');
     urlsToDownload.forEach(url => {
-      const key = this.createSpriteKey(url, styleName);
+      const key = this.createSpriteKey(url, styleName, namePrefix);
       spriteLogger.debug(`  ${url} -> ${key}`);
     });
 
@@ -131,8 +132,10 @@ export class SpriteService {
       urlsToDownload,
       async spriteUrl => {
         try {
-          const spriteName = this.extractSpriteName(spriteUrl);
-          const spriteKey = this.createSpriteKey(spriteUrl, styleName);
+          const spriteName = namePrefix
+            ? this.buildSpriteName(spriteUrl, namePrefix)
+            : this.extractSpriteName(spriteUrl);
+          const spriteKey = this.createSpriteKey(spriteUrl, styleName, namePrefix);
 
           spriteLogger.debug(`Downloading sprite: ${spriteUrl}`);
 
@@ -483,12 +486,31 @@ export class SpriteService {
     return { verified, repaired, removed };
   }
 
-  private createSpriteKey(url: string, styleName: string): string {
+  private createSpriteKey(url: string, styleName: string, namePrefix?: string): string {
     // Create a consistent key from the style name and sprite URL
-    // Format: stylename:spritename.extension
-    const spriteName = this.extractSpriteName(url);
+    // Format: stylename::spritename.extension
+    const spriteName = namePrefix
+      ? this.buildSpriteName(url, namePrefix)
+      : this.extractSpriteName(url);
 
     return `${styleName}::${spriteName}`;
+  }
+
+  /**
+   * Build a sprite name using a custom prefix (for array sprite sources).
+   * Maps the URL's extension and @2x variant onto the given prefix.
+   * e.g. ("https://example.com/openmaptiles@2x.png", "default") → "default@2x.png"
+   */
+  private buildSpriteName(url: string, prefix: string): string {
+    const urlWithoutQuery = url.split('?')[0];
+    const filename = urlWithoutQuery.split('/').pop() || '';
+    const extension = filename.split('.').pop()?.toLowerCase() || 'json';
+    const is2x = filename.includes('@2x');
+
+    if (is2x) {
+      return `${prefix}@2x.${extension}`;
+    }
+    return `${prefix}.${extension}`;
   }
 
   private extractSpriteName(url?: string): string {

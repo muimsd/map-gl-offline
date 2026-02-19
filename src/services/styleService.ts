@@ -437,7 +437,7 @@ export async function downloadStyles(
       errors: [...errors],
     });
 
-    // Download sprites for the style
+    // Download sprites for the style (supports string and array format)
     if (resolvedSprite) {
       onProgress?.({
         completed: 85,
@@ -448,43 +448,61 @@ export async function downloadStyles(
       });
 
       try {
-        const spriteBase = resolvedSprite;
         logger.debug(`Processing sprites for style: ${style.id}`);
-
-        // Insert suffixes before query string if present (e.g. ?access_token=...)
-        const qIndex = spriteBase.indexOf('?');
         const spriteSuffixes = ['.json', '.png', '@2x.json', '@2x.png'];
-        const spriteVariants = spriteSuffixes.map(suffix =>
-          qIndex !== -1
-            ? spriteBase.slice(0, qIndex) + suffix + spriteBase.slice(qIndex)
-            : spriteBase + suffix
-        );
+        const allSpriteVariants: string[] = [];
 
-        // Check if sprite URLs look like non-HTTP URLs (which would indicate a problem)
-        const hasNonHttpUrls = spriteVariants.some(
-          url => url.startsWith('idb://') || url.startsWith('mapbox://')
-        );
-        if (hasNonHttpUrls) {
-          throw new Error(
-            'Cannot download sprites from non-HTTP URLs - style sources must be resolved first'
-          );
+        // Normalize sprite to array of {id, url} sources
+        const spriteSources: Array<{ id: string; url: string }> = [];
+        if (typeof resolvedSprite === 'string') {
+          spriteSources.push({ id: 'sprite', url: resolvedSprite });
+        } else if (Array.isArray(resolvedSprite)) {
+          for (const entry of resolvedSprite as unknown as Array<{ id: string; url: string }>) {
+            if (entry && typeof entry.url === 'string') {
+              spriteSources.push(entry);
+            }
+          }
         }
 
-        spriteResult = await downloadSprites(spriteVariants, style.id, {
-          ...spriteOptions,
-          onProgress: (spriteProgress: DownloadProgress) => {
-            onProgress?.({
-              completed: 85 + spriteProgress.percentage * 0.1,
-              total: 100,
-              percentage: 85 + spriteProgress.percentage * 0.1,
-              message: `Downloading sprites (${spriteProgress.completed}/${spriteProgress.total})`,
-              errors: [...errors, ...spriteProgress.errors],
-            });
-          },
-        });
+        for (const source of spriteSources) {
+          const spriteBase = source.url;
+
+          // Insert suffixes before query string if present
+          const qIndex = spriteBase.indexOf('?');
+          const spriteVariants = spriteSuffixes.map(suffix =>
+            qIndex !== -1
+              ? spriteBase.slice(0, qIndex) + suffix + spriteBase.slice(qIndex)
+              : spriteBase + suffix
+          );
+
+          // Check for non-HTTP URLs
+          const hasNonHttpUrls = spriteVariants.some(
+            url => url.startsWith('idb://') || url.startsWith('mapbox://')
+          );
+          if (hasNonHttpUrls) {
+            logger.warn(`Skipping sprite source "${source.id}" - contains non-HTTP URLs`);
+            continue;
+          }
+
+          spriteResult = await downloadSprites(spriteVariants, style.id, {
+            ...spriteOptions,
+            namePrefix: source.id !== 'sprite' ? source.id : undefined,
+            onProgress: (spriteProgress: DownloadProgress) => {
+              onProgress?.({
+                completed: 85 + spriteProgress.percentage * 0.1,
+                total: 100,
+                percentage: 85 + spriteProgress.percentage * 0.1,
+                message: `Downloading sprites (${spriteProgress.completed}/${spriteProgress.total})`,
+                errors: [...errors, ...spriteProgress.errors],
+              });
+            },
+          });
+
+          allSpriteVariants.push(...spriteVariants);
+        }
 
         if (includeMetadata) {
-          styleStorageItem.sprites = spriteVariants;
+          styleStorageItem.sprites = allSpriteVariants;
         }
       } catch (error) {
         const errorMsg = `Sprite download failed: ${error instanceof Error ? error.message : 'Unknown error'}`;

@@ -22,6 +22,13 @@ jest.mock('../../../src/services/tileService', () => ({
   }),
 }));
 
+const mockDownloadGlyphs = jest.fn().mockResolvedValue({ downloaded: 10, failed: 0 });
+jest.mock('../../../src/services/glyphService', () => ({
+  GlyphService: jest.fn().mockImplementation(() => ({
+    downloadGlyphs: mockDownloadGlyphs,
+  })),
+}));
+
 describe('DownloadManager', () => {
   // Mock OfflineMapManager
   const createMockOfflineManager = () => ({
@@ -349,6 +356,103 @@ describe('DownloadManager', () => {
 
       // Should have received progress updates
       expect(progressUpdates.length).toBeGreaterThan(0);
+    });
+  });
+
+  describe('addRegion without tileExtension', () => {
+    it('should call addRegion without tileExtension property', async () => {
+      const mockOfflineManager = createMockOfflineManager();
+
+      const { isStyleDownloaded, loadStyles } = require('../../../src/services/styleService');
+      isStyleDownloaded.mockResolvedValue(false);
+      loadStyles.mockResolvedValue([{
+        key: 'test-style-id',
+        style: {
+          sources: { testSource: { tiles: ['http://test/{z}/{x}/{y}.pbf'] } },
+          layers: [],
+        },
+        originalUrl: 'https://example.com/style.json',
+      }]);
+
+      const options = createOptions({
+        offlineManager: mockOfflineManager as unknown as DownloadManagerOptions['offlineManager'],
+      });
+      const manager = new DownloadManager(options);
+
+      await manager.downloadRegion({
+        name: 'Test Region',
+        bounds: [-122.5, 37.7, -122.3, 37.9],
+        minZoom: 10,
+        maxZoom: 14,
+        styleUrl: 'https://example.com/style.json',
+      });
+
+      expect(mockOfflineManager.addRegion).toHaveBeenCalledTimes(1);
+      const addRegionArg = mockOfflineManager.addRegion.mock.calls[0][0];
+      expect(addRegionArg).not.toHaveProperty('tileExtension');
+      // Should have the expected region fields
+      expect(addRegionArg).toHaveProperty('styleId', 'test-style-id');
+      expect(addRegionArg).toHaveProperty('name', 'Test Region');
+    });
+  });
+
+  describe('glyph download ranges', () => {
+    beforeEach(() => {
+      mockDownloadGlyphs.mockClear();
+    });
+
+    it('should include new Unicode ranges when downloading glyphs', async () => {
+      const mockOfflineManager = createMockOfflineManager();
+
+      const { isStyleDownloaded, loadStyles } = require('../../../src/services/styleService');
+      isStyleDownloaded.mockResolvedValue(false);
+      loadStyles.mockResolvedValue([{
+        key: 'test-style-id',
+        style: {
+          sources: { testSource: { tiles: ['http://test/{z}/{x}/{y}.pbf'] } },
+          layers: [
+            {
+              id: 'text-layer',
+              type: 'symbol',
+              layout: {
+                'text-font': ['Open Sans Regular'],
+                'text-field': '{name}',
+              },
+            },
+          ],
+          glyphs: 'https://example.com/fonts/{fontstack}/{range}.pbf',
+        },
+        originalUrl: 'https://example.com/style.json',
+        originalGlyphsUrl: 'https://example.com/fonts/{fontstack}/{range}.pbf',
+      }]);
+
+      const options = createOptions({
+        offlineManager: mockOfflineManager as unknown as DownloadManagerOptions['offlineManager'],
+      });
+      const manager = new DownloadManager(options);
+
+      await manager.downloadRegion({
+        name: 'Test Region',
+        bounds: [-122.5, 37.7, -122.3, 37.9],
+        minZoom: 10,
+        maxZoom: 14,
+        styleUrl: 'https://example.com/style.json',
+      });
+
+      expect(mockDownloadGlyphs).toHaveBeenCalledTimes(1);
+
+      // The 4th argument is the glyph ranges array
+      const glyphRanges: string[] = mockDownloadGlyphs.mock.calls[0][3];
+
+      // Verify the three new Unicode ranges are included
+      expect(glyphRanges).toContain('7680-7935');   // Latin Extended Additional
+      expect(glyphRanges).toContain('64256-64511');  // Alphabetic Presentation Forms
+      expect(glyphRanges).toContain('65024-65279');  // Variation Selectors
+
+      // Also verify some of the existing ranges are still present
+      expect(glyphRanges).toContain('0-255');        // Basic Latin
+      expect(glyphRanges).toContain('1536-1791');    // Arabic
+      expect(glyphRanges).toContain('65280-65535');   // Halfwidth and Fullwidth Forms
     });
   });
 

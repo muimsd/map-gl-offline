@@ -976,16 +976,23 @@ export class TileService {
         }
       }
     }
-    // Check glyphs and sprite URLs
-    for (const field of [style.glyphs, style.sprite]) {
-      if (field && typeof field === 'string') {
-        try {
-          const url = new URL(field);
-          const token = url.searchParams.get('access_token');
-          if (token) return token;
-        } catch {
-          // Not a valid URL, skip
-        }
+    // Check glyphs and sprite URLs (sprite may be string or array)
+    const urlsToCheck: string[] = [];
+    if (typeof style.glyphs === 'string') urlsToCheck.push(style.glyphs);
+    if (typeof style.sprite === 'string') {
+      urlsToCheck.push(style.sprite);
+    } else if (Array.isArray(style.sprite)) {
+      for (const entry of style.sprite as unknown as Array<{ url?: string }>) {
+        if (typeof entry.url === 'string') urlsToCheck.push(entry.url);
+      }
+    }
+    for (const field of urlsToCheck) {
+      try {
+        const url = new URL(field);
+        const token = url.searchParams.get('access_token');
+        if (token) return token;
+      } catch {
+        // Not a valid URL, skip
       }
     }
     return null;

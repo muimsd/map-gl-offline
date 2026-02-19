@@ -4,6 +4,8 @@
 import {
   patchStyleForOffline,
   generateGlyphUrlsFromStyle,
+  extractFontNamesFromTextField,
+  extractAllFontNames,
 } from '../../src/utils/styleUtils';
 import type { MapboxStyle } from '../../src/types/style';
 
@@ -205,6 +207,108 @@ describe('styleUtils', () => {
       expect(patched.glyphs).toBeUndefined();
       expect(patched.sprite).toBeUndefined();
     });
+
+    it('should use styleId for sprite URL when provided', () => {
+      const style: MapboxStyle = {
+        version: 8,
+        sources: {},
+        layers: [],
+        sprite: 'https://example.com/sprite',
+      };
+
+      const patched = patchStyleForOffline(style, 'region-1', undefined, undefined, 'shared-style-id');
+
+      expect(patched.sprite).toBe('idb://shared-style-id/sprite/sprite');
+    });
+
+    it('should fall back to downloadId for sprite when styleId is not provided', () => {
+      const style: MapboxStyle = {
+        version: 8,
+        sources: {},
+        layers: [],
+        sprite: 'https://example.com/sprite',
+      };
+
+      const patched = patchStyleForOffline(style, 'region-1');
+
+      expect(patched.sprite).toBe('idb://region-1/sprite/sprite');
+    });
+
+    it('should default to pbf when tile URL has no recognizable extension', () => {
+      const style: MapboxStyle = {
+        version: 8,
+        sources: {
+          'no-ext-source': {
+            type: 'vector',
+            tiles: ['https://example.com/tiles/{z}/{x}/{y}'],
+          },
+        },
+        layers: [],
+      };
+
+      const patched = patchStyleForOffline(style, 'my-download');
+      const source = patched.sources['no-ext-source'] as { tiles: string[] };
+
+      expect(source.tiles[0]).toBe(
+        'idb://my-download/tile/no-ext-source/{z}/{x}/{y}.pbf'
+      );
+    });
+
+    it('should handle style with empty sources object', () => {
+      const style: MapboxStyle = {
+        version: 8,
+        sources: {},
+        layers: [],
+        glyphs: 'https://example.com/fonts/{fontstack}/{range}.pbf',
+      };
+
+      const patched = patchStyleForOffline(style, 'my-download');
+
+      expect(Object.keys(patched.sources)).toHaveLength(0);
+      expect(patched.glyphs).toBe('idb://my-download/glyph/{fontstack}/{range}.pbf');
+    });
+
+    it('should patch multiple tiles within a single source', () => {
+      const style: MapboxStyle = {
+        version: 8,
+        sources: {
+          'multi-tile-source': {
+            type: 'vector',
+            tiles: [
+              'https://a.example.com/tiles/{z}/{x}/{y}.pbf',
+              'https://b.example.com/tiles/{z}/{x}/{y}.pbf',
+            ],
+          },
+        },
+        layers: [],
+      };
+
+      const patched = patchStyleForOffline(style, 'my-download');
+      const source = patched.sources['multi-tile-source'] as { tiles: string[] };
+
+      expect(source.tiles).toHaveLength(2);
+      expect(source.tiles[0]).toBe('idb://my-download/tile/multi-tile-source/{z}/{x}/{y}.pbf');
+      expect(source.tiles[1]).toBe('idb://my-download/tile/multi-tile-source/{z}/{x}/{y}.pbf');
+    });
+
+    it('should not set maxzoom when not provided', () => {
+      const style: MapboxStyle = {
+        version: 8,
+        sources: {
+          'test-source': {
+            type: 'vector',
+            tiles: ['https://example.com/tiles/{z}/{x}/{y}.pbf'],
+            maxzoom: 22,
+          },
+        },
+        layers: [],
+      };
+
+      const patched = patchStyleForOffline(style, 'my-download');
+      const source = patched.sources['test-source'] as { maxzoom: number };
+
+      expect(source.maxzoom).toBe(22);
+    });
   });
 
   describe('generateGlyphUrlsFromStyle', () => {
@@ -288,6 +392,301 @@ describe('styleUtils', () => {
 
       expect(urls.length).toBe(1); // Should only have 1 URL for the single font
     });
+
+    it('should encode fontstack names in URLs', () => {
+      const style = {
+        layers: [{ layout: { 'text-font': ['Open Sans Bold'] } }],
+      };
+      const urls = generateGlyphUrlsFromStyle(
+        style,
+        'https://example.com/fonts/{fontstack}/{range}.pbf',
+        [[0, 255]]
+      );
+
+      expect(urls.length).toBe(1);
+      expect(urls[0]).toBe('https://example.com/fonts/Open%20Sans%20Bold/0-255.pbf');
+    });
+
+    it('should generate correct count for multiple fonts and ranges', () => {
+      const style = {
+        layers: [
+          { layout: { 'text-font': ['Font A'] } },
+          { layout: { 'text-font': ['Font B'] } },
+          { layout: { 'text-font': ['Font C'] } },
+        ],
+      };
+      const ranges: Array<[number, number]> = [[0, 255], [256, 511], [512, 767]];
+      const urls = generateGlyphUrlsFromStyle(
+        style,
+        'https://example.com/fonts/{fontstack}/{range}.pbf',
+        ranges
+      );
+
+      // 3 fonts * 3 ranges = 9 URLs
+      expect(urls.length).toBe(9);
+    });
+
+    it('should handle expression-based text-font in layers', () => {
+      const style = {
+        layers: [
+          {
+            layout: {
+              'text-font': [
+                'step',
+                ['zoom'],
+                ['literal', ['Small Zoom Font']],
+                14,
+                ['literal', ['Large Zoom Font']],
+              ],
+            },
+          },
+        ],
+      };
+      const urls = generateGlyphUrlsFromStyle(
+        style,
+        'https://example.com/fonts/{fontstack}/{range}.pbf',
+        [[0, 255]]
+      );
+
+      // 'zoom' from ['zoom'] is also extracted as a font name (known limitation of expression parsing)
+      expect(urls.length).toBe(3);
+      expect(urls.some(u => u.includes('Small%20Zoom%20Font'))).toBe(true);
+      expect(urls.some(u => u.includes('Large%20Zoom%20Font'))).toBe(true);
+    });
+
+    it('should include the 3 new Unicode ranges in default ranges (16 total)', () => {
+      const style = {
+        layers: [{ layout: { 'text-font': ['TestFont'] } }],
+      };
+      const urls = generateGlyphUrlsFromStyle(
+        style,
+        'https://example.com/fonts/{fontstack}/{range}.pbf'
+      );
+
+      // 1 font * 16 default ranges = 16 URLs
+      expect(urls.length).toBe(16);
+
+      // Verify the 3 new ranges are present
+      expect(urls.some(u => u.includes('7680-7935'))).toBe(true); // Latin Extended Additional
+      expect(urls.some(u => u.includes('64256-64511'))).toBe(true); // Alphabetic Presentation Forms
+      expect(urls.some(u => u.includes('65024-65279'))).toBe(true); // Variation Selectors
+    });
   });
 
+  describe('extractFontNamesFromTextField', () => {
+    it('should extract fonts from a simple font array', () => {
+      expect(extractFontNamesFromTextField(['Arial Regular'])).toEqual(['Arial Regular']);
+    });
+
+    it('should extract multiple fonts from a simple array', () => {
+      expect(extractFontNamesFromTextField(['Arial', 'Roboto'])).toEqual(['Arial', 'Roboto']);
+    });
+
+    it('should extract fonts from a literal expression', () => {
+      expect(extractFontNamesFromTextField(['literal', ['FontA', 'FontB']])).toEqual([
+        'FontA',
+        'FontB',
+      ]);
+    });
+
+    it('should extract fonts from a step expression', () => {
+      const stepExpr = ['step', ['zoom'], ['literal', ['Font A']], 10, ['literal', ['Font B']]];
+      const result = extractFontNamesFromTextField(stepExpr);
+      expect(result).toContain('Font A');
+      expect(result).toContain('Font B');
+    });
+
+    it('should return empty array for an empty array', () => {
+      expect(extractFontNamesFromTextField([])).toEqual([]);
+    });
+
+    it('should return empty array for non-array input', () => {
+      expect(extractFontNamesFromTextField(null)).toEqual([]);
+      expect(extractFontNamesFromTextField(undefined)).toEqual([]);
+      expect(extractFontNamesFromTextField('Arial')).toEqual([]);
+      expect(extractFontNamesFromTextField(42)).toEqual([]);
+    });
+
+    it('should deduplicate fonts within the same expression', () => {
+      const stepExpr = [
+        'step',
+        ['zoom'],
+        ['literal', ['SharedFont', 'Font A']],
+        10,
+        ['literal', ['SharedFont', 'Font B']],
+      ];
+      const result = extractFontNamesFromTextField(stepExpr);
+      expect(result.filter(f => f === 'SharedFont').length).toBe(1);
+    });
+
+    it('should extract fonts from a match expression', () => {
+      const matchExpr = [
+        'match',
+        ['get', 'language'],
+        'en',
+        ['literal', ['English Font']],
+        'ar',
+        ['literal', ['Arabic Font']],
+        ['literal', ['Default Font']],
+      ];
+      const result = extractFontNamesFromTextField(matchExpr);
+      expect(result).toContain('English Font');
+      expect(result).toContain('Arabic Font');
+      expect(result).toContain('Default Font');
+    });
+
+    it('should extract fonts from a case expression', () => {
+      const caseExpr = [
+        'case',
+        ['has', 'name_en'],
+        ['literal', ['Latin Font']],
+        ['literal', ['Fallback Font']],
+      ];
+      const result = extractFontNamesFromTextField(caseExpr);
+      expect(result).toContain('Latin Font');
+      expect(result).toContain('Fallback Font');
+    });
+
+    it('should extract fonts from a coalesce expression', () => {
+      const coalesceExpr = [
+        'coalesce',
+        ['literal', ['Primary Font']],
+        ['literal', ['Secondary Font']],
+      ];
+      const result = extractFontNamesFromTextField(coalesceExpr);
+      expect(result).toContain('Primary Font');
+      expect(result).toContain('Secondary Font');
+    });
+
+    it('should ignore non-string values in literal arrays', () => {
+      const expr = ['literal', ['ValidFont', 42, null, 'AnotherFont']];
+      const result = extractFontNamesFromTextField(expr);
+      expect(result).toEqual(['ValidFont', 'AnotherFont']);
+    });
+
+    it('should handle deeply nested expressions', () => {
+      const deepExpr = [
+        'step',
+        ['zoom'],
+        [
+          'case',
+          ['has', 'name'],
+          ['literal', ['Deep Font A']],
+          ['literal', ['Deep Font B']],
+        ],
+        14,
+        ['literal', ['Zoom 14 Font']],
+      ];
+      const result = extractFontNamesFromTextField(deepExpr);
+      expect(result).toContain('Deep Font A');
+      expect(result).toContain('Deep Font B');
+      expect(result).toContain('Zoom 14 Font');
+    });
+  });
+
+  describe('extractAllFontNames', () => {
+    it('should return empty array for empty style', () => {
+      expect(extractAllFontNames({})).toEqual([]);
+    });
+
+    it('should return empty array for style with no text-font layers', () => {
+      const style = {
+        layers: [
+          { layout: { 'fill-color': '#000' } },
+          { layout: { 'line-width': 2 } },
+        ],
+      };
+      expect(extractAllFontNames(style)).toEqual([]);
+    });
+
+    it('should extract fonts from multiple layers', () => {
+      const style = {
+        layers: [
+          { layout: { 'text-font': ['Arial Regular'] } },
+          { layout: { 'text-font': ['Roboto Bold'] } },
+        ],
+      };
+      const result = extractAllFontNames(style);
+      expect(result).toContain('Arial Regular');
+      expect(result).toContain('Roboto Bold');
+      expect(result.length).toBe(2);
+    });
+
+    it('should deduplicate fonts across layers', () => {
+      const style = {
+        layers: [
+          { layout: { 'text-font': ['Arial Regular'] } },
+          { layout: { 'text-font': ['Arial Regular'] } },
+          { layout: { 'text-font': ['Roboto Bold'] } },
+        ],
+      };
+      const result = extractAllFontNames(style);
+      expect(result).toContain('Arial Regular');
+      expect(result).toContain('Roboto Bold');
+      expect(result.length).toBe(2);
+    });
+
+    it('should skip layers without layout property', () => {
+      const style = {
+        layers: [
+          { layout: { 'text-font': ['Arial'] } },
+          { type: 'fill' } as unknown as { layout?: { [key: string]: unknown } },
+          { layout: {} },
+        ],
+      };
+      const result = extractAllFontNames(style);
+      expect(result).toEqual(['Arial']);
+    });
+
+    it('should handle expression-based text-font in layers', () => {
+      const style = {
+        layers: [
+          {
+            layout: {
+              'text-font': [
+                'match',
+                ['get', 'script'],
+                'latin',
+                ['literal', ['Noto Sans Regular']],
+                ['literal', ['Noto Sans Arabic Regular']],
+              ],
+            },
+          },
+        ],
+      };
+      const result = extractAllFontNames(style);
+      expect(result).toContain('Noto Sans Regular');
+      expect(result).toContain('Noto Sans Arabic Regular');
+    });
+  });
+
+  describe('patchStyleForOffline - per-source extension extraction', () => {
+    it('should extract extension independently per source when no tileExtension is provided', () => {
+      const style: MapboxStyle = {
+        version: 8,
+        sources: {
+          'vector-source': {
+            type: 'vector',
+            tiles: ['https://example.com/tiles/{z}/{x}/{y}.pbf'],
+          },
+          'raster-source': {
+            type: 'raster',
+            tiles: ['https://example.com/raster/{z}/{x}/{y}.png'],
+          },
+        },
+        layers: [],
+      };
+
+      const patched = patchStyleForOffline(style, 'my-download');
+      const vectorSource = patched.sources['vector-source'] as { tiles: string[] };
+      const rasterSource = patched.sources['raster-source'] as { tiles: string[] };
+
+      expect(vectorSource.tiles[0]).toBe(
+        'idb://my-download/tile/vector-source/{z}/{x}/{y}.pbf'
+      );
+      expect(rasterSource.tiles[0]).toBe(
+        'idb://my-download/tile/raster-source/{z}/{x}/{y}.png'
+      );
+    });
+  });
 });

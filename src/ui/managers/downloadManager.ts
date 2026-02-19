@@ -292,56 +292,72 @@ export class DownloadManager {
       };
 
       // Download sprites if the style has them
-      if (
-        originalStyleForResources?.sprite &&
-        !originalStyleForResources.sprite.startsWith('idb://')
-      ) {
-        downloadLogger.debug('Downloading sprites for style:', finalStyleId);
-        downloadLogger.debug('Original sprite URL:', originalStyleForResources.sprite);
+      // Supports both string format ("https://...") and array format ([{id, url}, ...])
+      const rawSprite = originalStyleForResources?.sprite;
+      const spriteSources = this.normalizeSpriteProperty(rawSprite);
+
+      if (spriteSources.length > 0) {
+        downloadLogger.debug(
+          `Downloading sprites for style: ${finalStyleId} (${spriteSources.length} source(s))`
+        );
         try {
           const { SpriteService } = await import('../../services/spriteService');
           const spriteService = new SpriteService();
-
-          // Generate sprite URLs from base sprite path (use ORIGINAL style)
-          let spriteBase = originalStyleForResources.sprite;
-          if (isMapboxProtocol(spriteBase) && formData.accessToken) {
-            spriteBase = resolveMapboxUrl(spriteBase, formData.accessToken);
-          }
-
-          // Build sprite URLs; insert suffixes before query string if present
           const suffixes = ['.json', '.png', '@2x.json', '@2x.png'];
-          const qIndex = spriteBase.indexOf('?');
-          const spriteUrls = suffixes.map(suffix =>
-            qIndex !== -1
-              ? spriteBase.slice(0, qIndex) + suffix + spriteBase.slice(qIndex)
-              : spriteBase + suffix
-          );
 
-          downloadLogger.debug('Sprite URLs to download:', spriteUrls);
+          let totalSpriteFiles = 0;
+          let completedSpriteFiles = 0;
 
-          await spriteService.downloadSprites(spriteUrls, finalStyleId, {
-            onProgress: (progress: { completed: number; total: number }) => {
-              downloadLogger.debug(`Sprite download: ${progress.completed}/${progress.total}`);
-              this.updateProgress(
-                regionId,
-                regionConfig.name,
-                'sprites',
-                progress.completed,
-                progress.total,
-                'Downloading sprites'
-              );
-            },
-            enableValidation: true,
-            skipExisting: false,
-          });
+          for (const source of spriteSources) {
+            let spriteBase = source.url;
+            if (isMapboxProtocol(spriteBase) && formData.accessToken) {
+              spriteBase = resolveMapboxUrl(spriteBase, formData.accessToken);
+            }
+
+            // Build sprite URLs; insert suffixes before query string if present
+            const qIndex = spriteBase.indexOf('?');
+            const spriteUrls = suffixes.map(suffix =>
+              qIndex !== -1
+                ? spriteBase.slice(0, qIndex) + suffix + spriteBase.slice(qIndex)
+                : spriteBase + suffix
+            );
+
+            downloadLogger.debug(
+              `Sprite source "${source.id}": ${spriteUrls.length} URLs to download`
+            );
+
+            totalSpriteFiles += spriteUrls.length;
+
+            await spriteService.downloadSprites(spriteUrls, finalStyleId, {
+              onProgress: (progress: { completed: number; total: number }) => {
+                const current = completedSpriteFiles + progress.completed;
+                downloadLogger.debug(`Sprite download: ${current}/${totalSpriteFiles}`);
+                this.updateProgress(
+                  regionId,
+                  regionConfig.name,
+                  'sprites',
+                  current,
+                  totalSpriteFiles,
+                  'Downloading sprites'
+                );
+              },
+              enableValidation: true,
+              skipExisting: false,
+              // For array sprites, use the source ID as name prefix so each
+              // source's files get distinct storage keys
+              namePrefix: source.id !== 'sprite' ? source.id : undefined,
+            });
+
+            completedSpriteFiles += spriteUrls.length;
+          }
           downloadLogger.debug('Sprites downloaded successfully');
         } catch (spriteError) {
           downloadLogger.error('Failed to download sprites (non-fatal):', spriteError);
         }
-      } else if (originalStyleForResources?.sprite?.startsWith('idb://')) {
+      } else if (rawSprite) {
         downloadLogger.debug(
-          'Skipping sprite download - sprite URL is already patched:',
-          originalStyleForResources.sprite
+          'Skipping sprite download - sprite URL is already patched or unrecognized:',
+          rawSprite
         );
       }
 
@@ -397,7 +413,10 @@ export class DownloadManager {
               '20224-20479', // CJK Unified Ideographs
               '40960-42127', // Yi Syllables + Yi Radicals
               '44032-55203', // Hangul Syllables (Korean)
+              '7680-7935', // Latin Extended Additional
               '63744-64255', // CJK Compatibility Ideographs
+              '64256-64511', // Alphabetic Presentation Forms
+              '65024-65279', // Variation Selectors
               '65280-65535', // Halfwidth and Fullwidth Forms
             ];
 
@@ -524,11 +543,11 @@ export class DownloadManager {
 
       // NOW add the region metadata - this patches the style URLs to idb:// for offline use
       // This MUST happen AFTER all downloads are complete since patching converts URLs to idb://
+      // NOTE: Do NOT pass tileExtension here. patchStyleForOffline extracts the correct extension
+      // per-source from the tile URL patterns. Passing a single extension from the first source
+      // would incorrectly override all sources (e.g., applying .png from a raster source to vector sources).
       downloadLogger.debug('Adding region metadata and patching style for offline use');
-      await this.offlineManager.addRegion({
-        ...finalRegionConfig,
-        tileExtension: tileResult.tileExtension,
-      });
+      await this.offlineManager.addRegion(finalRegionConfig);
 
       // Download complete
       this.handleDownloadComplete(regionId);
@@ -586,6 +605,28 @@ export class DownloadManager {
   private updateUIForDownloadStart(): void {
     this.options.updateButton?.('Downloading...', true);
     this.options.updateProgressBadge?.('0%', true);
+  }
+
+  /**
+   * Normalize the style's sprite property into a uniform array of {id, url} sources.
+   * Handles string format, array format, and filters out already-patched idb:// URLs.
+   */
+  private normalizeSpriteProperty(sprite: unknown): Array<{ id: string; url: string }> {
+    if (!sprite) return [];
+
+    // Array format: [{id: "default", url: "https://..."}, ...]
+    if (Array.isArray(sprite)) {
+      return (sprite as Array<{ id: string; url: string }>).filter(
+        entry => entry && typeof entry.url === 'string' && !entry.url.startsWith('idb://')
+      );
+    }
+
+    // String format: "https://example.com/sprites/sprite"
+    if (typeof sprite === 'string' && !sprite.startsWith('idb://')) {
+      return [{ id: 'sprite', url: sprite }];
+    }
+
+    return [];
   }
 
   /**

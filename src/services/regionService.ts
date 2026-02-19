@@ -196,8 +196,10 @@ export class RegionService {
       // Try to find by styleUrl (legacy)
       const allStyles = await db.getAll('styles');
       styleData = allStyles.find(
-        (s: { style?: { sprite?: string }; originalUrl?: string }) =>
-          (region.styleUrl && s?.style?.sprite?.includes(region.styleUrl)) ||
+        (s: { style?: { sprite?: unknown }; originalUrl?: string }) =>
+          (region.styleUrl &&
+            typeof s?.style?.sprite === 'string' &&
+            s.style.sprite.includes(region.styleUrl)) ||
           s?.originalUrl === region.styleUrl
       );
       styleId = styleData?.key;

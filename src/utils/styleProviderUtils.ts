@@ -95,11 +95,19 @@ export function detectStyleProvider(styleUrl: string, style?: BaseStyle): StyleP
     }
 
     // Check sprite/glyphs for mapbox:// protocol
-    if (
-      (typeof style.sprite === 'string' && isMapboxProtocol(style.sprite)) ||
-      (typeof style.glyphs === 'string' && isMapboxProtocol(style.glyphs))
-    ) {
+    if (typeof style.glyphs === 'string' && isMapboxProtocol(style.glyphs)) {
       return 'mapbox';
+    }
+    if (typeof style.sprite === 'string' && isMapboxProtocol(style.sprite)) {
+      return 'mapbox';
+    }
+    // Array sprite format: check each entry
+    if (Array.isArray(style.sprite)) {
+      for (const entry of style.sprite as Array<{ url?: string }>) {
+        if (typeof entry.url === 'string' && isMapboxProtocol(entry.url)) {
+          return 'mapbox';
+        }
+      }
     }
   }
 
@@ -189,12 +197,28 @@ export function processStyleSources(
 
   processedStyle.sources = sources;
 
-  // Handle sprite URLs
-  if (processedStyle.sprite && typeof processedStyle.sprite === 'string' && accessToken) {
-    if (isMapboxProtocol(processedStyle.sprite)) {
-      processedStyle.sprite = resolveMapboxUrl(processedStyle.sprite, accessToken);
-    } else if (provider === 'mapbox' && processedStyle.sprite.includes('mapbox.com')) {
-      processedStyle.sprite = normalizeStyleUrl(processedStyle.sprite, accessToken);
+  // Handle sprite URLs (string or array format)
+  if (processedStyle.sprite && accessToken) {
+    if (typeof processedStyle.sprite === 'string') {
+      if (isMapboxProtocol(processedStyle.sprite)) {
+        processedStyle.sprite = resolveMapboxUrl(processedStyle.sprite, accessToken);
+      } else if (provider === 'mapbox' && processedStyle.sprite.includes('mapbox.com')) {
+        processedStyle.sprite = normalizeStyleUrl(processedStyle.sprite, accessToken);
+      }
+    } else if (Array.isArray(processedStyle.sprite)) {
+      // Resolve mapbox:// URLs in each array entry
+      (processedStyle as Record<string, unknown>).sprite = (
+        processedStyle.sprite as unknown as Array<{ id: string; url: string }>
+      ).map(entry => {
+        if (typeof entry.url === 'string') {
+          if (isMapboxProtocol(entry.url)) {
+            return { ...entry, url: resolveMapboxUrl(entry.url, accessToken) };
+          } else if (provider === 'mapbox' && entry.url.includes('mapbox.com')) {
+            return { ...entry, url: normalizeStyleUrl(entry.url, accessToken) };
+          }
+        }
+        return entry;
+      });
     }
   }
 

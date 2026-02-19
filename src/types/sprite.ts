@@ -59,6 +59,8 @@ export interface SpriteDownloadOptions {
   timeoutMs?: number;
   /** Include additional metadata in stored sprites (default: false) */
   includeMetadata?: boolean;
+  /** Override sprite name prefix for storage keys (used for array sprite sources) */
+  namePrefix?: string;
 }
 
 /**
