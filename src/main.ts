@@ -228,7 +228,7 @@ function showMapboxTokenPrompt() {
         </p>
         <form id="mapbox-token-form" class="flex flex-col gap-3">
           <input id="mapbox-token-input" type="text" placeholder="pk.eyJ1Ijo..." spellcheck="false" autocomplete="off"
-            class="w-full px-4 py-3 border border-gray-300 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+            class="w-full px-4 py-3 border border-gray-300 rounded-lg text-sm font-mono text-black focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
           <button type="submit"
             class="w-full px-4 py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-colors text-sm cursor-pointer">
             Save &amp; Load Map
