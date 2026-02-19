@@ -21,18 +21,14 @@ pnpm add map-gl-offline
 `map-gl-offline` requires either MapLibre GL JS or Mapbox GL JS as a peer dependency:
 
 ```bash
-# For MapLibre GL JS (recommended)
+# For MapLibre GL JS
 npm install maplibre-gl
 
 # For Mapbox GL JS
 npm install mapbox-gl
 ```
 
-:::note
-This package is currently optimized for MapLibre GL JS. Mapbox GL JS support is planned for future releases.
-:::
-
-## Basic Setup
+## Basic Setup with MapLibre GL JS
 
 ### 1. Import the Required Modules
 
@@ -56,9 +52,7 @@ const map = new maplibregl.Map({
 });
 ```
 
-### 3. Add the Offline Control (UI Method)
-
-The easiest way to use `map-gl-offline` is with the built-in UI control:
+### 3. Add the Offline Control
 
 ```typescript
 const offlineManager = new OfflineMapManager();
@@ -68,20 +62,74 @@ map.on('load', () => {
     styleUrl: 'https://api.maptiler.com/maps/streets/style.json?key=YOUR_API_KEY',
     theme: 'dark',
     showBbox: true,
+    mapLib: maplibregl, // enables idb:// protocol in web workers
   });
 
   map.addControl(offlineControl, 'top-right');
 });
 ```
 
-The UI control provides:
+:::tip
+Pass `mapLib: maplibregl` in the options to register the `idb://` protocol handler in MapLibre's web workers. This allows tiles, glyphs, and sprites to be served directly from IndexedDB.
+:::
+
+## Basic Setup with Mapbox GL JS
+
+### 1. Import the Required Modules
+
+```typescript
+import mapboxgl from 'mapbox-gl';
+import { OfflineMapManager, OfflineManagerControl } from 'map-gl-offline';
+
+// Import styles
+import 'mapbox-gl/dist/mapbox-gl.css';
+import 'map-gl-offline/dist/style.css';
+```
+
+### 2. Initialize the Map
+
+```typescript
+mapboxgl.accessToken = 'YOUR_MAPBOX_TOKEN';
+
+const map = new mapboxgl.Map({
+  container: 'map',
+  style: 'mapbox://styles/mapbox/standard',
+  center: [-74.006, 40.7128],
+  zoom: 12,
+});
+```
+
+### 3. Add the Offline Control
+
+```typescript
+const offlineManager = new OfflineMapManager();
+
+map.on('load', () => {
+  const offlineControl = new OfflineManagerControl(offlineManager, {
+    styleUrl: 'mapbox://styles/mapbox/standard',
+    accessToken: mapboxgl.accessToken,
+    theme: 'dark',
+    showBbox: true,
+  });
+
+  map.addControl(offlineControl, 'top-right');
+});
+```
+
+:::note
+Mapbox GL JS v3 does not expose `addProtocol`, so the control automatically registers a Service Worker for offline tile serving. No extra configuration is needed.
+:::
+
+## UI Control Features
+
+The built-in UI control provides:
 - Interactive polygon drawing for region selection
 - Real-time download progress tracking
 - Region management (view, delete, export)
 - Theme toggle (dark/light mode)
 - Storage analytics display
 
-### 4. Programmatic Usage (No UI)
+## Programmatic Usage (No UI)
 
 For more control, use the `OfflineMapManager` directly:
 
@@ -120,13 +168,17 @@ await offlineManager.deleteRegion('downtown');
 
 ## Environment Setup
 
-For development or when using MapTiler styles, create a `.env` file:
+Create a `.env` file with your API keys:
 
 ```env
-VITE_MAPTILER_API_KEY=your_api_key_here
+# For MapTiler styles (MapLibre)
+VITE_MAPTILER_API_KEY=your_maptiler_key_here
+
+# For Mapbox GL JS
+VITE_MAPBOX_ACCESS_TOKEN=your_mapbox_token_here
 ```
 
-Get a free API key from [MapTiler](https://www.maptiler.com/).
+Get a free API key from [MapTiler](https://www.maptiler.com/) or an access token from [Mapbox](https://www.mapbox.com/).
 
 ## HTML Setup
 
@@ -151,9 +203,9 @@ Ensure your HTML has a container for the map:
 </html>
 ```
 
-## Complete Example
+## Complete Examples
 
-Here's a complete example putting it all together:
+### MapLibre GL JS
 
 ```typescript
 import maplibregl from 'maplibre-gl';
@@ -163,7 +215,6 @@ import 'map-gl-offline/dist/style.css';
 
 const STYLE_URL = 'https://api.maptiler.com/maps/streets/style.json?key=YOUR_KEY';
 
-// Initialize map
 const map = new maplibregl.Map({
   container: 'map',
   style: STYLE_URL,
@@ -171,24 +222,60 @@ const map = new maplibregl.Map({
   zoom: 12,
 });
 
-// Initialize offline manager
 const offlineManager = new OfflineMapManager();
 
-// Add offline control when map loads
 map.on('load', () => {
   const offlineControl = new OfflineManagerControl(offlineManager, {
     styleUrl: STYLE_URL,
-    theme: 'auto', // Uses system preference
+    theme: 'auto',
+    showBbox: true,
+    mapLib: maplibregl,
+  });
+
+  map.addControl(offlineControl, 'top-right');
+});
+
+window.addEventListener('offline', () => {
+  console.log('Network offline - loading cached data');
+});
+
+window.addEventListener('online', () => {
+  console.log('Network online');
+});
+```
+
+### Mapbox GL JS
+
+```typescript
+import mapboxgl from 'mapbox-gl';
+import { OfflineMapManager, OfflineManagerControl } from 'map-gl-offline';
+import 'mapbox-gl/dist/mapbox-gl.css';
+import 'map-gl-offline/dist/style.css';
+
+mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN;
+
+const map = new mapboxgl.Map({
+  container: 'map',
+  style: 'mapbox://styles/mapbox/standard',
+  center: [-74.006, 40.7128],
+  zoom: 12,
+});
+
+const offlineManager = new OfflineMapManager();
+
+map.on('load', () => {
+  const offlineControl = new OfflineManagerControl(offlineManager, {
+    styleUrl: 'mapbox://styles/mapbox/standard',
+    accessToken: mapboxgl.accessToken,
+    theme: 'auto',
     showBbox: true,
   });
 
   map.addControl(offlineControl, 'top-right');
 });
 
-// Handle offline detection
-window.addEventListener('offline', async () => {
+window.addEventListener('offline', () => {
   console.log('Network offline - loading cached data');
-  // The control will automatically serve cached resources
 });
 
 window.addEventListener('online', () => {

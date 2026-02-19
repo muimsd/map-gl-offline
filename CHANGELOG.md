@@ -5,6 +5,41 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Mapbox GL JS Support**: Full compatibility with Mapbox GL JS v2/v3 including `mapbox://` protocol resolution, correct CSS prefix detection, and tab switching in the dev server
+- **Mapbox Standard Style**: Offline support for Mapbox Standard style with 3D building extrusions, raster-dem terrain, and import-based style resolution
+- **Day/Night Light Presets**: Light preset controls (day, dawn, dusk, night) for Mapbox Standard style via `setConfigProperty`
+- **Rain/Snow Weather Controls**: Weather effects (rain, snow) for Mapbox Standard style via `setRain`/`setSnow`
+- **Import Resolver**: Automatic resolution and flattening of `imports` in Mapbox Standard and other import-based styles for offline storage
+- **Mapbox Resource Extraction**: Offline storage of Mapbox sprites, glyphs, and fonts with proper URL rewriting
+- **HTTP Cache Expiry**: Cache expiry support for Mapbox CDN resources
+- **NonRetryableError**: Error class for failures that should not be retried (e.g., 404s, invalid styles)
+- **Internationalization**: Built-in i18n with English and Arabic translations, RTL layout support, and language change subscriptions
+- **Type Safety Improvements**: Enhanced TypeScript types across the codebase
+- **XSS Prevention**: `escapeHtml` utility for sanitizing user content in UI templates
+- **Event Listener Cleanup**: Proper cleanup of all event listeners on control removal
+- **Tests**: Added tests for tile coordinate generation, extension extraction, and maxzoom capping
+
+### Fixed
+
+- **Mapbox CDN Raster URLs**: Rewrite Mapbox CDN raster tile URLs for correct offline retrieval
+- **Maxzoom Capping**: Cap tile download maxzoom to source TileJSON maxzoom to avoid requesting non-existent tiles
+- **Zoom Range Gaps**: Fix gaps in zoom range coverage when source maxzoom is lower than requested maxzoom
+- **Import Stripping**: Strip `imports` from offline styles so Mapbox GL JS v3 does not re-fetch them at runtime
+- **JSON Parsing in addProtocol**: Parse JSON responses (TileJSON, sprite atlas) in the `idb://` protocol handler
+- **Negative Result Caching**: Remove negative result caching that prevented retries after transient failures
+- **Tile Extension Mismatch**: Fix tile extension mismatch between stored and requested tiles
+- **Missing Glyph Ranges**: Ensure all required Unicode glyph ranges are downloaded
+- **Array Sprites**: Support array-format sprite definitions in styles
+- **29 Bugs from Codebase Audit**: Resolved issues found during comprehensive audit including cursor handling, transaction safety, and edge cases
+- **CSS Prefix for Mapbox GL JS**: Use correct `mapboxgl-` CSS prefix when running with Mapbox GL JS
+- **`mapbox://` URL Resolution**: Properly resolve `mapbox://` style, source, sprite, and glyph URLs using the access token
+
+---
+
 ## [0.1.0] - 2025-11-30
 
 ### Added
@@ -75,23 +110,7 @@ This is the initial release. For future versions, migration guides will be provi
 
 ---
 
-## Unreleased
-
-### Planned Features
-
-- **Pause/Resume Downloads**: Allow users to pause and resume ongoing downloads
-- **Coverage Visualization**: Display map overlay showing offline coverage areas
-- **Tile Verification Tool**: Enhanced diagnostics for missing or corrupted tiles
-- **Background Sync**: Automatic update of changed tiles/styles
-- **Performance Metrics**: Advanced monitoring and optimization tools
-- **Multi-Region Selection**: Select multiple regions in single operation
-- **Region Merging**: Combine overlapping regions automatically
-- **Storage Optimization**: Advanced compression and deduplication
-- **Offline Search**: Search functionality within downloaded regions
-- **Custom Style Support**: Enhanced support for custom map styles
-
----
-
 For more details, see the [README](README.md) and [documentation](https://github.com/muimsd/map-gl-offline).
 
+[Unreleased]: https://github.com/muimsd/map-gl-offline/compare/v0.1.0...HEAD
 [0.1.0]: https://github.com/muimsd/map-gl-offline/releases/tag/v0.1.0

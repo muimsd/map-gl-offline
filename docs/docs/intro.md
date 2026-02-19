@@ -5,7 +5,7 @@ slug: /
 
 # map-gl-offline
 
-A comprehensive **TypeScript** library for **MapLibre GL JS** that enables complete offline map functionality.
+A comprehensive **TypeScript** library for **MapLibre GL JS** and **Mapbox GL JS** that enables complete offline map functionality.
 
 ## Features
 
@@ -18,6 +18,11 @@ A comprehensive **TypeScript** library for **MapLibre GL JS** that enables compl
 - **Real-time Analytics** - Detailed storage analytics and optimization recommendations
 - **Import/Export** - Export regions to JSON, PMTiles, and MBTiles formats
 
+### Map Library Support
+
+- **MapLibre GL JS** - Full support with `addProtocol` for seamless `idb://` tile serving
+- **Mapbox GL JS** - Full support via Service Worker for offline tile serving, including Mapbox Standard style, 3D models, and weather controls (rain/snow, day/night lighting)
+
 ### Modern UI Control
 
 - **Glassmorphic Design** - Beautiful modern interface with smooth animations
@@ -25,6 +30,7 @@ A comprehensive **TypeScript** library for **MapLibre GL JS** that enables compl
 - **Polygon Drawing** - Interactive polygon tool for precise region selection
 - **Live Progress** - Real-time download progress with detailed statistics
 - **Responsive** - Mobile-friendly design that adapts to all screen sizes
+- **i18n & RTL** - Built-in internationalization with English and Arabic, including full RTL layout support
 
 ### Technical Excellence
 
@@ -38,6 +44,8 @@ A comprehensive **TypeScript** library for **MapLibre GL JS** that enables compl
 ```bash
 npm install map-gl-offline
 ```
+
+### MapLibre GL JS
 
 ```typescript
 import maplibregl from 'maplibre-gl';
@@ -57,10 +65,43 @@ const offlineManager = new OfflineMapManager();
 map.on('load', () => {
   const control = new OfflineManagerControl(offlineManager, {
     styleUrl: 'https://api.maptiler.com/maps/streets/style.json?key=YOUR_KEY',
+    mapLib: maplibregl, // enables idb:// protocol in web workers
   });
   map.addControl(control, 'top-right');
 });
 ```
+
+### Mapbox GL JS
+
+```typescript
+import mapboxgl from 'mapbox-gl';
+import { OfflineMapManager, OfflineManagerControl } from 'map-gl-offline';
+import 'mapbox-gl/dist/mapbox-gl.css';
+import 'map-gl-offline/dist/style.css';
+
+mapboxgl.accessToken = 'YOUR_MAPBOX_TOKEN';
+
+const map = new mapboxgl.Map({
+  container: 'map',
+  style: 'mapbox://styles/mapbox/standard',
+  center: [-74.006, 40.7128],
+  zoom: 12,
+});
+
+const offlineManager = new OfflineMapManager();
+
+map.on('load', () => {
+  const control = new OfflineManagerControl(offlineManager, {
+    styleUrl: 'mapbox://styles/mapbox/standard',
+    accessToken: mapboxgl.accessToken,
+  });
+  map.addControl(control, 'top-right');
+});
+```
+
+:::tip
+When using MapLibre, pass `mapLib: maplibregl` in the control options to register the `idb://` protocol in web workers. For Mapbox GL JS, the control automatically falls back to a Service Worker.
+:::
 
 ## Use Cases
 

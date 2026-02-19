@@ -9,11 +9,13 @@ Practical examples for common use cases with `map-gl-offline`.
 ## Table of Contents
 
 - [Basic Usage](#basic-usage)
+- [Mapbox GL JS](#mapbox-gl-js)
 - [Region Management](#region-management)
 - [Import/Export](#importexport)
 - [Offline Detection](#offline-detection)
 - [Storage Management](#storage-management)
 - [Error Handling](#error-handling)
+- [Internationalization](#internationalization)
 - [Advanced Patterns](#advanced-patterns)
 
 ---
@@ -61,6 +63,116 @@ await manager.addRegion({
     updateStatusText(progress.message);
   },
 });
+```
+
+---
+
+## Mapbox GL JS
+
+### Basic Mapbox Setup
+
+```typescript
+import mapboxgl from 'mapbox-gl';
+import { OfflineMapManager, OfflineManagerControl } from 'map-gl-offline';
+import 'mapbox-gl/dist/mapbox-gl.css';
+import 'map-gl-offline/dist/style.css';
+
+mapboxgl.accessToken = 'YOUR_MAPBOX_TOKEN';
+
+const map = new mapboxgl.Map({
+  container: 'map',
+  style: 'mapbox://styles/mapbox/streets-v12',
+  center: [-74.006, 40.7128],
+  zoom: 12,
+});
+
+const manager = new OfflineMapManager();
+const control = new OfflineManagerControl(manager, {
+  styleUrl: 'mapbox://styles/mapbox/streets-v12',
+  theme: 'dark',
+});
+
+map.addControl(control, 'top-right');
+```
+
+### Mapbox Standard Style with 3D Buildings
+
+The Mapbox Standard style uses imports and 3D building extrusions. The library automatically resolves imported styles for offline storage.
+
+```typescript
+const map = new mapboxgl.Map({
+  container: 'map',
+  style: 'mapbox://styles/mapbox/standard',
+  center: [-73.985, 40.748],
+  zoom: 15,
+  pitch: 60,
+  bearing: -17,
+});
+
+const manager = new OfflineMapManager();
+const control = new OfflineManagerControl(manager, {
+  styleUrl: 'mapbox://styles/mapbox/standard',
+  accessToken: mapboxgl.accessToken,
+});
+
+map.addControl(control, 'top-right');
+
+// Download a region with 3D buildings
+await manager.addRegion({
+  id: 'manhattan-3d',
+  name: 'Manhattan 3D',
+  bounds: [[-74.02, 40.70], [-73.95, 40.78]],
+  minZoom: 12,
+  maxZoom: 16,
+  styleUrl: 'mapbox://styles/mapbox/standard',
+  accessToken: mapboxgl.accessToken,
+  onProgress: (p) => console.log(`${p.percentage}%`),
+});
+```
+
+### Day/Night Light Presets
+
+Mapbox Standard style supports light presets for different times of day. Use `setConfigProperty` on the map instance after loading the style.
+
+```typescript
+// Available presets: 'day', 'dawn', 'dusk', 'night'
+map.on('style.load', () => {
+  // Set the light preset to night mode
+  map.setConfigProperty('basemap', 'lightPreset', 'night');
+});
+
+// Toggle between presets
+function setLightPreset(preset: 'day' | 'dawn' | 'dusk' | 'night') {
+  map.setConfigProperty('basemap', 'lightPreset', preset);
+}
+```
+
+### Rain and Snow Weather Controls
+
+Mapbox GL JS v3+ supports weather effects with the Standard style. These work with offline maps once the style is loaded from IndexedDB.
+
+```typescript
+// Enable rain
+map.setRain({ intensity: 0.4, color: '#a0c4e8' });
+
+// Enable snow
+map.setSnow({ intensity: 0.6, color: '#ffffff' });
+
+// Clear weather effects
+map.setRain(null);
+map.setSnow(null);
+
+// Example: toggle weather based on user selection
+function setWeather(mode: 'none' | 'rain' | 'snow') {
+  map.setRain(null);
+  map.setSnow(null);
+
+  if (mode === 'rain') {
+    map.setRain({ intensity: 0.4, color: '#a0c4e8' });
+  } else if (mode === 'snow') {
+    map.setSnow({ intensity: 0.6, color: '#ffffff' });
+  }
+}
 ```
 
 ---
@@ -486,6 +598,72 @@ async function downloadRegion(options: OfflineRegionOptions) {
       showToast(`Download failed: ${message}`, 'error');
     }
   }
+}
+```
+
+---
+
+## Internationalization
+
+### Language Switching
+
+The library includes built-in i18n support with English and Arabic translations.
+
+```typescript
+import { i18n, t } from 'map-gl-offline';
+
+// Get current language
+console.log(i18n.getLanguage()); // 'en'
+
+// Switch to Arabic (RTL layout is applied automatically)
+i18n.setLanguage('ar');
+
+// Get a translated string
+const label = t('downloadRegion'); // Translated text for the current language
+
+// List available languages
+const languages = i18n.getAvailableLanguages();
+// [{ code: 'en', name: 'English', nativeName: 'English' },
+//  { code: 'ar', name: 'Arabic', nativeName: 'العربية' }]
+```
+
+### React to Language Changes
+
+```typescript
+import { i18n } from 'map-gl-offline';
+
+// Subscribe to language changes and update UI
+const unsubscribe = i18n.subscribe(() => {
+  console.log('Language changed to:', i18n.getLanguage());
+  console.log('Is RTL:', i18n.isRTL());
+  // Re-render your custom UI components here
+});
+
+// Unsubscribe when no longer needed
+unsubscribe();
+```
+
+### Language Selector UI
+
+```typescript
+import { i18n } from 'map-gl-offline';
+
+function createLanguageSelector(container: HTMLElement) {
+  const select = document.createElement('select');
+
+  for (const lang of i18n.getAvailableLanguages()) {
+    const option = document.createElement('option');
+    option.value = lang.code;
+    option.textContent = lang.nativeName;
+    option.selected = lang.code === i18n.getLanguage();
+    select.appendChild(option);
+  }
+
+  select.addEventListener('change', () => {
+    i18n.setLanguage(select.value as 'en' | 'ar');
+  });
+
+  container.appendChild(select);
 }
 ```
 

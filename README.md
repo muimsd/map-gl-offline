@@ -6,9 +6,7 @@
 
 **[Documentation](https://map-gl-offline.netlify.app)** | **[Live Demo](https://map-gl-offline-demo.netlify.app)**
 
-> **⚠️ Development Notice**: This package is currently under active development and is optimized for **MapLibre GL JS**. Mapbox GL JS support is planned for future releases.
-
-A comprehensive **TypeScript** library for **MapLibre GL JS** that enables complete offline map functionality with vector/raster tiles, styles, fonts, sprites, and glyphs stored in IndexedDB. Features include advanced analytics, intelligent cleanup, and a modern glassmorphic UI control.
+A comprehensive **TypeScript** library for **MapLibre GL JS** and **Mapbox GL JS** that enables complete offline map functionality with vector/raster tiles, styles, fonts, sprites, and glyphs stored in IndexedDB. Features include Mapbox Standard style support, advanced analytics, intelligent cleanup, i18n (English & Arabic with RTL), and a modern glassmorphic UI control.
 
 ## 🎬 Demo
 
@@ -26,6 +24,14 @@ A comprehensive **TypeScript** library for **MapLibre GL JS** that enables compl
 - 🎨 **Sprite Management**: Handle map sprites and icons offline with multi-resolution support (@1x, @2x)
 - 📊 **Real-time Analytics**: Detailed storage analytics, performance metrics, and optimization recommendations
 
+### 🌐 Mapbox GL JS Support
+
+- 🔗 **mapbox:// Protocol Resolution**: Automatic resolution of `mapbox://` style, source, sprite, and glyph URLs
+- 🏙️ **Mapbox Standard Style**: Full support including 3D models, raster-dem terrain, and import-based style resolution
+- 🌅 **Day/Night Light Presets**: Toggle between day and night lighting in Mapbox Standard style
+- 🌧️ **Weather Controls**: Rain and snow effects for Mapbox Standard style
+- 🔍 **Auto-detection**: Automatically detects whether a style is Mapbox or MapLibre and applies the correct handling
+
 ### 🎨 Modern UI Control
 
 - 🖼️ **Glassmorphic Design**: Beautiful modern interface with glassmorphism effects and smooth animations
@@ -34,6 +40,7 @@ A comprehensive **TypeScript** library for **MapLibre GL JS** that enables compl
 - 📊 **Live Progress**: Real-time download progress with detailed statistics
 - 🎯 **Region Management**: Easy-to-use interface for managing multiple offline regions
 - ⚡ **Responsive**: Mobile-friendly design that adapts to all screen sizes
+- 🌍 **Internationalization**: English and Arabic language support with full RTL layout
 
 ### 🛠️ Technical Excellence
 
@@ -64,30 +71,67 @@ VITE_MAPTILER_API_KEY=your_api_key_here
 
 Get a free API key from [Maptiler](https://www.maptiler.com/).
 
+For Mapbox styles, you will also need a Mapbox access token from [Mapbox](https://www.mapbox.com/).
+
 ## 🚀 Quick Start
 
-### Basic Usage with UI Control
+### MapLibre GL JS
 
 ```typescript
 import maplibregl from 'maplibre-gl';
-import { OfflineManagerControl } from 'map-gl-offline';
+import { OfflineMapManager, OfflineManagerControl } from 'map-gl-offline';
 import 'maplibre-gl/dist/maplibre-gl.css';
-import 'map-gl-offline/dist/style.css'; // Import UI styles
+import 'map-gl-offline/dist/style.css';
 
-// Initialize map
+const styleUrl = 'https://api.maptiler.com/maps/streets/style.json?key=YOUR_API_KEY';
+
 const map = new maplibregl.Map({
   container: 'map',
-  style: 'https://api.maptiler.com/maps/streets/style.json?key=YOUR_API_KEY',
+  style: styleUrl,
   center: [-74.006, 40.7128],
   zoom: 12,
 });
 
-// Add offline control to map
+const offlineManager = new OfflineMapManager();
+
 map.on('load', () => {
-  const offlineControl = new OfflineManagerControl({
-    position: 'top-right',
+  const control = new OfflineManagerControl(offlineManager, {
+    styleUrl,
+    theme: 'dark',
+    showBbox: true,
+    mapLib: maplibregl, // enables idb:// protocol in web workers
   });
-  map.addControl(offlineControl);
+  map.addControl(control, 'top-right');
+});
+```
+
+### Mapbox GL JS
+
+```typescript
+import mapboxgl from 'mapbox-gl';
+import { OfflineMapManager, OfflineManagerControl } from 'map-gl-offline';
+import 'mapbox-gl/dist/mapbox-gl.css';
+import 'map-gl-offline/dist/style.css';
+
+mapboxgl.accessToken = 'YOUR_MAPBOX_TOKEN';
+
+const map = new mapboxgl.Map({
+  container: 'map',
+  style: 'mapbox://styles/mapbox/standard',
+  center: [-74.006, 40.7128],
+  zoom: 12,
+});
+
+const offlineManager = new OfflineMapManager();
+
+map.on('load', () => {
+  const control = new OfflineManagerControl(offlineManager, {
+    styleUrl: 'mapbox://styles/mapbox/standard',
+    theme: 'dark',
+    showBbox: true,
+    accessToken: mapboxgl.accessToken,
+  });
+  map.addControl(control, 'top-right');
 });
 ```
 
@@ -98,6 +142,7 @@ The UI control provides:
 - 🗂️ **Region management** (view, delete)
 - 🌓 **Theme toggle** (dark/light mode)
 - 📈 **Storage analytics**
+- 🌍 **Language switcher** (English / Arabic with RTL)
 
 ### Programmatic Usage
 
@@ -210,14 +255,19 @@ const manager = new OfflineMapManager(options?: {
 
 ### OfflineManagerControl
 
-UI control for MapLibre GL with glassmorphic design.
+UI control for MapLibre GL JS and Mapbox GL JS with glassmorphic design.
 
 **Constructor:**
 
 ```typescript
-const control = new OfflineManagerControl({
-  position?: 'top-right' | 'top-left' | 'bottom-right' | 'bottom-left';
-  theme?: 'light' | 'dark' | 'auto';
+const offlineManager = new OfflineMapManager();
+
+const control = new OfflineManagerControl(offlineManager, {
+  styleUrl: 'https://example.com/style.json', // Map style URL (required)
+  theme?: 'light' | 'dark',                   // UI theme (default: 'dark')
+  showBbox?: boolean,                          // Show region bounding boxes (default: false)
+  accessToken?: string,                        // Mapbox access token (for mapbox:// URLs)
+  mapLib?: MapLibProtocol,                     // Map library module (e.g. maplibregl) for idb:// protocol
 });
 ```
 
@@ -228,6 +278,7 @@ const control = new OfflineManagerControl({
 - Region management (view, delete)
 - Theme toggle (dark/light mode)
 - Storage analytics display
+- Language switcher (English / Arabic with RTL support)
 - Responsive mobile-friendly design
 
 ## 🔧 Configuration Options
@@ -377,10 +428,6 @@ const smallerRegion = {
 - Async/await support
 - Web Workers (optional, for background tasks)
 
-## 📄 License
-
-MIT © [Muhammad Imran Siddique](https://github.com/muimsd)
-
 ## 🤝 Contributing
 
 Contributions are welcome! Please see our [Contributing Guide](CONTRIBUTING.md) for details.
@@ -419,6 +466,7 @@ map-gl-offline/
 │   ├── services/          # Tile, font, sprite services
 │   ├── storage/           # IndexedDB management
 │   ├── ui/                # UI components & controls
+│   │   └── translations/  # i18n (English, Arabic)
 │   ├── utils/             # Utilities & helpers
 │   └── types/             # TypeScript definitions
 ├── examples/
@@ -437,7 +485,17 @@ map-gl-offline/
 
 ## 🔄 Recent Updates
 
-### v0.1.0 (Latest)
+### v0.2.0 (Latest)
+
+- ✅ **Mapbox GL JS Support**: Full support for Mapbox styles, including `mapbox://` protocol URL resolution
+- ✅ **Mapbox Standard Style**: 3D models, raster-dem terrain, and import-based style resolution
+- ✅ **Day/Night Light Presets**: Toggle between day and night lighting for Mapbox Standard
+- ✅ **Rain & Snow Weather**: Weather effect controls for Mapbox Standard style
+- ✅ **Import Resolver**: Automatic resolution of Mapbox Standard `imports` in styles
+- ✅ **Internationalization**: English and Arabic language support with full RTL layout
+- ✅ **Auto-detection**: Automatically detects Mapbox vs MapLibre styles
+
+### v0.1.0
 
 - ✅ **Fractional Zoom Fix**: Fixed tile loading at fractional zoom levels
 - ✅ **Modern UI**: Glassmorphic design with dark/light theme
@@ -451,9 +509,9 @@ See [CHANGELOG.md](CHANGELOG.md) for complete version history.
 ## 🙏 Acknowledgments
 
 - [MapLibre GL JS](https://github.com/maplibre/maplibre-gl-js) - Open-source map rendering engine
+- [Mapbox GL JS](https://github.com/mapbox/mapbox-gl-js) - Commercial map rendering engine
 - [IndexedDB](https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API) - Browser storage API
 - [Tilebelt](https://github.com/mapbox/tilebelt) - Tile coordinate utilities
-
 - [Tailwind CSS](https://tailwindcss.com/) - Utility-first CSS framework
 
 ## 📄 License

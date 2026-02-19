@@ -148,42 +148,37 @@ await manager.importRegion({
 ### Manual Cleanup
 
 ```typescript
-// Cleanup tiles older than 7 days
-await manager.cleanupOldTiles(7 * 24 * 60 * 60 * 1000);
-
-// Cleanup fonts older than 30 days
-await manager.cleanupOldFonts(30 * 24 * 60 * 60 * 1000);
-
-// Cleanup expired regions
+// Cleanup expired regions (removes regions past their expiry date)
 await manager.cleanupExpiredRegions();
+
+// Perform cleanup with options
+await manager.performCleanup({ maxAge: 30 }); // days
 ```
 
 ### Automatic Cleanup
 
 ```typescript
-manager.startAutoCleanup({
-  interval: 24 * 60 * 60 * 1000, // Run every 24 hours
-  maxAge: 30 * 24 * 60 * 60 * 1000, // Delete data older than 30 days
+// Setup auto cleanup with interval
+const cleanupId = await manager.setupAutoCleanup({
+  intervalHours: 24, // Run every 24 hours
+  maxAge: 30,        // Remove data older than 30 days
 });
 
-// Stop auto cleanup
-manager.stopAutoCleanup();
+// Stop a specific auto cleanup
+await manager.stopAutoCleanup(cleanupId);
+
+// Stop all auto cleanups
+await manager.stopAllAutoCleanup();
 ```
 
-### Advanced Cleanup Options
+### Region Analytics
 
 ```typescript
-const result = await manager.cleanupWithOptions({
-  maxAge: 30, // Days
-  maxStorageSize: 500 * 1024 * 1024, // 500MB max
-  maxRegions: 10, // Keep at most 10 regions
-  priorityPatterns: ['important-*', 'favorite-*'], // Preserve these
-  onProgress: (progress) => {
-    console.log(`${progress.phase}: ${progress.completed}/${progress.total}`);
-  },
-});
+// Get storage analytics per region
+const analytics = await manager.getRegionAnalytics();
 
-console.log(`Freed ${result.freedSpace} bytes`);
+// Get size of a specific region
+const size = await manager.getRegionSize(regionId);
 ```
 
 ## Download Configuration
@@ -194,10 +189,11 @@ The library uses these defaults for downloads:
 
 ```typescript
 const DOWNLOAD_DEFAULTS = {
-  BATCH_SIZE: 10, // Concurrent downloads
-  MAX_RETRIES: 3, // Retry attempts per item
-  TIMEOUT: 10000, // Request timeout (ms)
-  RETRY_DELAY: 1000, // Delay between retries (ms)
+  BATCH_SIZE: 10,       // Tiles per batch
+  MAX_CONCURRENCY: 5,   // Concurrent downloads
+  MAX_RETRIES: 3,       // Retry attempts per item
+  TIMEOUT: 10000,       // Request timeout (ms)
+  RETRY_DELAY: 1000,    // Delay between retries (ms)
 };
 ```
 
@@ -206,9 +202,9 @@ const DOWNLOAD_DEFAULTS = {
 ```typescript
 const TILE_CONFIG = {
   MIN_ZOOM: 0,
-  MAX_ZOOM: 22,
-  TILE_SIZE: 256,
-  MAX_CONCURRENT: 6, // Browser limit
+  MAX_ZOOM: 24,
+  DEFAULT_EXTENSION: 'pbf',
+  SUPPORTED_EXTENSIONS: ['pbf', 'mvt', 'png', 'jpg', 'jpeg', 'webp', 'glb'],
 };
 ```
 
@@ -218,13 +214,15 @@ const TILE_CONFIG = {
 
 The library uses IndexedDB with the following structure:
 
-- **Database Name**: `map-gl-offline`
+- **Database Name**: `offline-map-db`
+- **Database Version**: `3`
 - **Stores**:
-  - `tiles` - Map tiles (indexed by z/x/y)
-  - `styles` - Style JSON documents
+  - `tiles` - Map tiles (keyed as `{styleId}:{sourceId}:{z}:{x}:{y}.{extension}`)
+  - `styles` - Style JSON documents with embedded `regions[]` array
   - `sprites` - Sprite images and JSON
-  - `fonts` - Font/glyph data
-  - `regions` - Region metadata
+  - `glyphs` - Font glyph data (PBF ranges)
+  - `fonts` - Font files
+  - `regions` - **(deprecated)** Legacy region storage; regions now live in `styles.regions[]`
 
 ### Storage Quota Management
 
@@ -543,6 +541,41 @@ if (result.warnings.length > 0) {
   // e.g., ['Mapbox sources detected but no access token found']
 }
 ```
+
+---
+
+## Mapbox Standard Style Configuration
+
+When using Mapbox Standard or other import-based styles, the library automatically resolves and flattens the `imports` array during download. No additional configuration is needed for offline storage.
+
+### Light Presets (Day/Night)
+
+Mapbox Standard supports configurable light presets via the `lightPreset` config property. These are applied at runtime using the Mapbox GL JS API:
+
+```typescript
+// Set a light preset on the map (requires Mapbox GL JS v3+)
+map.setConfigProperty('basemap', 'lightPreset', 'day');
+```
+
+Available presets: `day`, `night`, `dawn`, `dusk`
+
+### Rain and Snow Controls
+
+Mapbox GL JS v3+ supports weather effects that can be applied at runtime:
+
+```typescript
+// Enable rain
+map.setRain({ intensity: 0.5, color: '#ffffff' });
+
+// Enable snow
+map.setSnow({ intensity: 0.3, color: '#ffffff' });
+
+// Clear weather effects
+map.setRain(null);
+map.setSnow(null);
+```
+
+These runtime settings do not affect offline storage -- the library stores the base style and tiles; weather effects are applied client-side.
 
 ---
 

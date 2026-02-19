@@ -48,6 +48,7 @@ src/
 │   └── offlineMapManager/      # Main manager (modular)
 │       ├── index.ts            # Composed manager class
 │       ├── base.ts             # Base functionality
+│       ├── modules.ts          # Module composition
 │       ├── regionManagement.ts # Region operations
 │       ├── styleManagement.ts  # Style operations
 │       ├── analyticsManagement.ts
@@ -58,6 +59,7 @@ src/
 ├── services/
 │   ├── tileService.ts          # Tile download/storage
 │   ├── fontService.ts          # Font/glyph download
+│   ├── glyphService.ts         # Glyph range management
 │   ├── spriteService.ts        # Sprite download
 │   ├── styleService.ts         # Style management
 │   ├── regionService.ts        # Region CRUD
@@ -70,28 +72,40 @@ src/
 │   └── indexedDbManager.ts     # IndexedDB wrapper
 ├── types/
 │   ├── index.ts                # Type exports
+│   ├── database.ts             # IndexedDB schema types
 │   ├── region.ts               # Region types
 │   ├── tile.ts                 # Tile types
 │   ├── font.ts                 # Font types
+│   ├── glyph.ts                # Glyph types
 │   ├── sprite.ts               # Sprite types
 │   ├── style.ts                # Style types
 │   ├── progress.ts             # Progress types
 │   ├── cleanup.ts              # Cleanup types
 │   ├── import-export.ts        # Import/export types
+│   ├── maintenance.ts          # Maintenance types
 │   └── ui.ts                   # UI types
 ├── ui/
 │   ├── offlineManagerControl.ts # Main UI control
 │   ├── ThemeManager.ts         # Theme management
+│   ├── translations/           # Internationalization (i18n)
+│   │   ├── index.ts            # I18nManager, language registration
+│   │   ├── en.ts               # English translations
+│   │   └── ar.ts               # Arabic translations (RTL)
 │   ├── components/             # UI components
 │   │   ├── shared/             # Reusable components
 │   │   │   ├── BaseComponent.ts
 │   │   │   ├── Button.ts
+│   │   │   ├── LanguageSelector.ts
+│   │   │   ├── List.ts
+│   │   │   ├── MapControlButton.ts
 │   │   │   ├── Modal.ts
 │   │   │   ├── Panel.ts
-│   │   │   └── ...
+│   │   │   ├── PanelContent.ts
+│   │   │   └── RegionDrawingTool.ts
 │   │   ├── DownloadProgress.ts
-│   │   ├── RegionList.ts
-│   │   └── PanelHeader.ts
+│   │   ├── PanelActions.ts
+│   │   ├── PanelHeader.ts
+│   │   └── RegionList.ts
 │   ├── controls/               # Map controls
 │   │   ├── polygonControl.ts
 │   │   └── regionControl.ts
@@ -99,23 +113,32 @@ src/
 │   │   ├── ControlButtonManager.ts
 │   │   ├── PanelManager.ts
 │   │   └── downloadManager.ts
-│   └── modals/                 # Modal dialogs
-│       ├── modalManager.ts
-│       ├── regionFormModal.ts
-│       ├── regionDetailsModal.ts
-│       ├── importExportModal.ts
-│       └── confirmationModal.ts
+│   ├── modals/                 # Modal dialogs
+│   │   ├── modalManager.ts
+│   │   ├── regionFormModal.ts
+│   │   ├── regionDetailsModal.ts
+│   │   ├── importExportModal.ts
+│   │   └── confirmationModal.ts
+│   └── utils/
+│       └── keyboardNav.ts      # Keyboard navigation helpers
 └── utils/
     ├── index.ts                # Utility exports
     ├── logger.ts               # Logging utility
     ├── constants.ts            # Configuration constants
     ├── errorHandling.ts        # Error utilities
-    ├── formatting.ts           # Format utilities
+    ├── formatting.ts           # Format utilities (escapeHtml, etc.)
     ├── validation.ts           # Validation helpers
     ├── styleUtils.ts           # Style manipulation
+    ├── styleProviderUtils.ts   # Mapbox/MapLibre provider detection & URL resolution
+    ├── importResolver.ts       # Mapbox Standard style import resolution
     ├── tileKey.ts              # Tile key generation
     ├── download.ts             # Download utilities
-    ├── idbFetchHandler.ts      # IDB fetch interceptor
+    ├── idbFetchHandler.ts      # idb:// protocol fetch handler
+    ├── convertStyleForSW.ts    # Style conversion for Service Worker mode
+    ├── swRegistration.ts       # Service Worker registration
+    ├── cleanupCompressedTiles.ts # Compressed tile cleanup
+    ├── proxyConfig.ts          # CORS proxy configuration
+    ├── cssPrefix.ts            # CSS class prefixing
     └── icons.ts                # Icon definitions
 ```
 
@@ -221,22 +244,40 @@ const patched = patchStyleForOffline(style, styleId);
 Provides a clean API over IndexedDB using the `idb` library:
 
 ```typescript
-// Database structure
-const db = await openDB('map-gl-offline', 1, {
-  upgrade(db) {
-    db.createObjectStore('tiles', { keyPath: 'key' });
-    db.createObjectStore('fonts', { keyPath: 'key' });
-    db.createObjectStore('sprites', { keyPath: 'key' });
-    db.createObjectStore('styles', { keyPath: 'key' });
-    db.createObjectStore('regions', { keyPath: 'id' });
+// Database structure (version 3)
+const db = await openDB('offline-map-db', DB_VERSION, {
+  upgrade(db, oldVersion, _newVersion, transaction) {
+    // Create stores for fresh installs
+    const stores = ['regions', 'tiles', 'styles', 'sprites', 'glyphs', 'fonts'];
+    for (const store of stores) {
+      if (!db.objectStoreNames.contains(store)) {
+        db.createObjectStore(store, { keyPath: 'key' });
+      }
+    }
+
+    // Migration: v2 -> v3: move regions into styles.regions[]
+    if (oldVersion > 0 && oldVersion < 3) {
+      migrateRegionsToStyles(transaction);
+    }
   },
 });
 ```
 
+Object stores:
+
+| Store | Purpose | Notes |
+|-------|---------|-------|
+| `styles` | Map styles with embedded `regions[]` array | Primary region storage |
+| `tiles` | Vector/raster tile data | Keyed by `{styleId}:{sourceId}:{z}:{x}:{y}.{extension}` |
+| `sprites` | Sprite images and JSON | |
+| `glyphs` | Font glyph data (PBF ranges) | |
+| `fonts` | Font files | |
+| `regions` | **(deprecated)** Legacy region storage | Only kept for migration; regions live in `styles.regions[]` |
+
 Key features:
 - Transaction management
 - Cursor iteration for large datasets
-- Index-based queries
+- Schema migrations (v1 -> v2 -> v3)
 - Quota checking
 
 ## Data Flow
@@ -285,25 +326,28 @@ User initiates download
 
 ### Offline Load Flow
 
+The library patches styles to use `idb://` protocol URLs, then intercepts those requests to serve data from IndexedDB. Two interception strategies are supported:
+
+1. **`addProtocol` (MapLibre GL JS)**: Registers an `idb://` protocol handler via `maplibregl.addProtocol()`. This is the preferred approach for MapLibre.
+2. **Service Worker (Mapbox GL JS v3)**: Since Mapbox GL JS does not support `addProtocol`, the library registers a Service Worker that intercepts `idb://` requests. Styles are converted to use Service Worker-compatible URLs via `convertStyleForSW`.
+
 ```
-Network goes offline
+Map requests idb:// URL
         │
-        ▼
-┌───────────────────┐
-│ Fetch interceptor │
-│ detects idb:// URL│
-└────────┬──────────┘
-         │
-         ▼
-┌───────────────────┐
-│ idbFetchHandler   │
-│ parses URL type   │
-└────────┬──────────┘
-         │
+        ├──── MapLibre ────▶ addProtocol handler
+        │                          │
+        ├──── Mapbox GL ───▶ Service Worker
+        │                          │
+        ▼                          ▼
+┌───────────────────┐    ┌───────────────────┐
+│ idbFetchHandler   │    │ idbFetchHandler   │
+│ parses URL type   │    │ parses URL type   │
+└────────┬──────────┘    └────────┬──────────┘
+         │                        │
     ┌────┴────┬────────────┬────────────┐
     ▼         ▼            ▼            ▼
 ┌───────┐ ┌───────┐  ┌───────────┐ ┌────────┐
-│ tiles │ │ fonts │  │  sprites  │ │ styles │
+│ tiles │ │glyphs │  │  sprites  │ │ styles │
 └───┬───┘ └───┬───┘  └─────┬─────┘ └────┬───┘
     │         │            │            │
     └─────────┴────────────┴────────────┘
@@ -339,12 +383,26 @@ The fetch interceptor converts these to IndexedDB lookups.
 Tiles are stored with composite keys for efficient lookup:
 
 ```typescript
-// Key format: {regionId}_{sourceId}_{z}_{x}_{y}
-const key = `${regionId}_${sourceId}_${z}_${x}_${y}`;
+// Key format: {styleId}:{sourceId}:{z}:{x}:{y}.{extension}
+const key = `${styleId}:${sourceId}:${z}:${x}:${y}.${extension}`;
 
-// Example
-const key = "nyc_openmaptiles_14_4824_6159";
+// Examples
+const key = "mapbox-streets-v12:mapbox.mapbox-streets-v8:14:4824:6159.pbf";
+const rasterKey = "satellite:mapbox.satellite:12:1204:1540.jpg";
 ```
+
+Supported tile extensions: `pbf`, `mvt`, `png`, `jpg`, `jpeg`, `webp`, `glb`.
+
+## Mapbox Standard Style Processing
+
+The library supports Mapbox GL v3+ styles that use the `imports` array (e.g., Mapbox Standard). The `importResolver` recursively fetches imported styles and flattens their sources, layers, sprites, and glyphs into the outer style so the existing download pipeline works unchanged.
+
+Key capabilities:
+- **Import resolution**: Resolves nested `imports[]` up to 5 levels deep (per Mapbox spec)
+- **Config merging**: Applies `config` overrides from imports (e.g., `lightPreset`, font settings)
+- **Mapbox CDN URL rewriting**: Rewrites Mapbox CDN raster tile URLs to use the correct API format with access tokens
+- **3D model sources**: Handles `model` source types and `glb` tile extensions used by Mapbox Standard
+- **raster-dem sources**: Supports terrain DEM sources for 3D terrain rendering
 
 ## Error Handling
 
@@ -379,8 +437,12 @@ Centralized constants prevent magic numbers:
 
 ```typescript
 // src/utils/constants.ts
+export const DB_NAME = 'offline-map-db';
+export const DB_VERSION = 3;
+
 export const DOWNLOAD_DEFAULTS = {
   BATCH_SIZE: 10,
+  MAX_CONCURRENCY: 5,
   MAX_RETRIES: 3,
   TIMEOUT: 10000,
   RETRY_DELAY: 1000,
@@ -388,13 +450,18 @@ export const DOWNLOAD_DEFAULTS = {
 
 export const TILE_CONFIG = {
   MIN_ZOOM: 0,
-  MAX_ZOOM: 22,
-  TILE_SIZE: 256,
+  MAX_ZOOM: 24,
+  DEFAULT_EXTENSION: 'pbf',
+  SUPPORTED_EXTENSIONS: ['pbf', 'mvt', 'png', 'jpg', 'jpeg', 'webp', 'glb'],
 };
 
-export const DB_CONFIG = {
-  NAME: 'map-gl-offline',
-  VERSION: 1,
+export const MAPBOX_API = {
+  BASE_URL: 'https://api.mapbox.com',
+  STYLES_PATH: '/styles/v1',
+  FONTS_PATH: '/fonts/v1',
+  TILES_PATH: '/v4',
+  MODELS_PATH: '/models/v1',
+  PROTOCOL: 'mapbox://',
 };
 ```
 
@@ -402,15 +469,34 @@ export const DB_CONFIG = {
 
 ```
 tests/
-├── unit/
-│   ├── services/           # Service unit tests
-│   ├── storage/            # Storage layer tests
-│   └── utils/              # Utility tests
-├── integration/
-│   ├── download.test.ts    # Full download flow
-│   └── offline.test.ts     # Offline behavior
-└── e2e/
-    └── control.test.ts     # UI control tests
+├── services/               # Service unit tests
+│   ├── tileService.test.ts
+│   ├── fontService.test.ts
+│   ├── glyphService.test.ts
+│   ├── spriteService.test.ts
+│   ├── styleService.test.ts
+│   ├── regionService.test.ts
+│   ├── cleanupService.test.ts
+│   ├── analyticsService.test.ts
+│   ├── maintenanceService.test.ts
+│   ├── importExportService.test.ts
+│   └── resourceService.test.ts
+├── storage/                # Storage layer tests
+│   └── indexedDbManager.test.ts
+├── utils/                  # Utility tests
+├── ui/                     # UI component tests
+│   ├── offlineManagerControl.test.ts
+│   ├── ThemeManager.test.ts
+│   ├── components/
+│   ├── controls/
+│   ├── managers/
+│   └── modals/
+├── integration/            # Integration tests
+│   └── serviceIntegration.test.ts
+├── e2e/                    # End-to-end tests
+│   └── downloadTiles.test.ts
+├── offlineManager.test.ts  # Main manager tests
+└── setup.ts                # Test setup (fake-indexeddb)
 ```
 
 Key testing patterns:
