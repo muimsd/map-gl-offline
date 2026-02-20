@@ -3,7 +3,7 @@
  * Supports both Mapbox GL and MapLibre GL styles
  */
 
-import type { BaseStyle, StyleProvider, MapboxGLStyle } from '../types/style';
+import type { BaseStyle, StyleProvider, MapboxGLStyle } from '@/types/style';
 import { MAPBOX_API } from './constants';
 
 /**

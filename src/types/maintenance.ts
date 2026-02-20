@@ -1,4 +1,4 @@
-import { EnhancedGlyphStats } from '../services/glyphService';
+import { EnhancedGlyphStats } from '@/services/glyphService';
 import { TileStats } from './tile';
 import { EnhancedFontStats } from './font';
 import { EnhancedSpriteStats } from './sprite';

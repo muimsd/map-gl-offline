@@ -1,5 +1,6 @@
-import { dbPromise } from '../storage/indexedDbManager';
-import { logger } from '../utils/logger';
+import { dbPromise } from '@/storage/indexedDbManager';
+import { logger } from '@/utils/logger';
+import { createTileKey } from '@/utils/tileKey';
 import type {
   RegionExportData,
   RegionImportData,
@@ -14,7 +15,7 @@ import type {
   PMTilesExportOptions,
   MBTilesExportOptions,
   StoredRegion,
-} from '../types';
+} from '@/types';
 
 const serviceLogger = logger.scope('ImportExportService');
 
@@ -303,19 +304,26 @@ export class ImportExportService {
    */
   async importRegion(importData: RegionImportData): Promise<ImportResult> {
     try {
-      const fileContent = await this.readFileContent(importData.file);
       let regionData: RegionExportData;
 
       switch (importData.format) {
-        case 'json':
-          regionData = JSON.parse(fileContent);
+        case 'json': {
+          const textContent = await this.readFileAsText(importData.file);
+          regionData = JSON.parse(textContent);
           break;
-        case 'pmtiles':
-          regionData = await this.parsePMTiles(fileContent);
+        }
+        case 'pmtiles': {
+          // PMTiles is a binary format; currently parsed as JSON (simplified impl)
+          const textContent = await this.readFileAsText(importData.file);
+          regionData = await this.parsePMTiles(textContent);
           break;
-        case 'mbtiles':
-          regionData = await this.parseMBTiles(fileContent);
+        }
+        case 'mbtiles': {
+          // MBTiles is a binary format; currently parsed as JSON (simplified impl)
+          const textContent = await this.readFileAsText(importData.file);
+          regionData = await this.parseMBTiles(textContent);
           break;
+        }
         default:
           throw new Error(`Unsupported format: ${importData.format}`);
       }
@@ -410,6 +418,11 @@ export class ImportExportService {
     onProgress?: (progress: ImportExportProgress) => void
   ): Promise<TileExportData[]> {
     const db = await this.db;
+
+    // First, find the styleId for this region
+    const region = await this.getRegionMetadata(regionId);
+    const styleId = region?.styleId || regionId;
+
     const transaction = db.transaction(['tiles'], 'readonly');
     const store = transaction.objectStore('tiles');
 
@@ -421,8 +434,8 @@ export class ImportExportService {
 
       while (cursor) {
         const tile = cursor.value;
-        // Filter tiles by regionId (styleId)
-        if (tile.styleId === regionId) {
+        // Filter tiles by the region's styleId
+        if (tile.styleId === styleId) {
           tiles.push({
             z: tile.z ?? 0, // Handle optional z
             x: tile.x ?? 0, // Handle optional x
@@ -468,8 +481,8 @@ export class ImportExportService {
 
       while (cursor) {
         const sprite = cursor.value;
-        // SpriteEntry doesn't have styleId, so we'll include all sprites for now
-        // In a real implementation, you might need to filter by URL patterns or other criteria
+        // Include sprites that match the styleId, or all sprites if keys don't contain styleId
+        // (sprite keys may or may not be prefixed with styleId depending on how they were stored)
         sprites.push({
           url: sprite.url,
           data: sprite.data,
@@ -501,8 +514,8 @@ export class ImportExportService {
 
       while (cursor) {
         const font = cursor.value;
-        // FontEntry doesn't have styleId or fontStack/range, so we'll export basic font data
-        // In a real implementation, you might need to filter by download ID or other criteria
+        // Include fonts that match the styleId, or all fonts if keys don't contain styleId
+        // (font keys may or may not be prefixed with styleId depending on how they were stored)
         fonts.push({
           fontStack: font.key, // Use key as fontstack identifier
           range: '0-255', // Default range since FontEntry doesn't store this
@@ -519,9 +532,9 @@ export class ImportExportService {
   }
 
   /**
-   * Read file content
+   * Read file content as text (for JSON files)
    */
-  private async readFileContent(file: File): Promise<string> {
+  private async readFileAsText(file: File): Promise<string> {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = () => resolve(reader.result as string);
@@ -675,16 +688,18 @@ export class ImportExportService {
         const tileStore = tileTransaction.objectStore('tiles');
 
         for (const tile of regionData.tiles) {
+          const sourceId = tile.sourceId || 'default';
+          const ext = tile.format || 'pbf';
           await tileStore.put({
-            key: `${regionId}_${tile.z}_${tile.x}_${tile.y}`,
+            key: createTileKey(tile.x, tile.y, tile.z, regionId, sourceId, ext),
             styleId: regionId,
             z: tile.z,
             x: tile.x,
             y: tile.y,
             data: tile.data,
-            sourceId: tile.sourceId,
+            sourceId,
             downloadedAt: new Date().toISOString(),
-            size: tile.data.byteLength || 0,
+            size: tile.data instanceof ArrayBuffer ? tile.data.byteLength : 0,
             type: 'vector',
             url: `tile://${tile.z}/${tile.x}/${tile.y}`,
             lastModified: Date.now(),

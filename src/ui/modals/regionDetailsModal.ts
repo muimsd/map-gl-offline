@@ -4,12 +4,12 @@
  * Refactored to use modular components
  */
 
-import { Modal, ModalConfig } from '../components/shared/Modal';
-import { Button } from '../components/shared/Button';
-import { icons } from '../../utils/icons';
-import { formatDate } from '../../utils/formatting';
-import { StoredRegion } from '../../types/region';
-import { t, i18n } from '../translations';
+import { Modal, ModalConfig } from '@/ui/components/shared/Modal';
+import { Button } from '@/ui/components/shared/Button';
+import { icons } from '@/utils/icons';
+import { formatDate } from '@/utils/formatting';
+import { StoredRegion } from '@/types/region';
+import { t, i18n } from '@/ui/translations';
 
 export interface RegionDetailsOptions {
   region: StoredRegion;

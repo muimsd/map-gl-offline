@@ -1,4 +1,4 @@
-import type { MapboxStyle } from '../types/style';
+import type { MapboxStyle } from '@/types/style';
 
 /**
  * Convert a style with `idb://` URLs to use absolute `/__offline__/` HTTP URLs

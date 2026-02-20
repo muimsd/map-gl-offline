@@ -10,7 +10,7 @@
 import { fetchWithRetry } from './download';
 import { isMapboxProtocol, resolveMapboxUrl } from './styleProviderUtils';
 import { logger } from './logger';
-import type { BaseStyle } from '../types/style';
+import type { BaseStyle } from '@/types/style';
 
 const importLogger = logger.scope('ImportResolver');
 

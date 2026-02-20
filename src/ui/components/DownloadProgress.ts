@@ -2,7 +2,7 @@
  * Download progress section for the offline manager
  */
 
-import { icons } from '../../utils/icons';
+import { icons } from '@/utils/icons';
 
 export interface DownloadProgress {
   regionId: string;

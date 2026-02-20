@@ -1,4 +1,4 @@
-import { dbPromise } from '../storage/indexedDbManager';
+import { dbPromise } from '@/storage/indexedDbManager';
 import { downloadFonts } from './fontService';
 import { downloadSprites } from './spriteService';
 import {
@@ -7,8 +7,8 @@ import {
   logger,
   hasImports,
   resolveImports,
-} from '../utils';
-import { GLYPH_CONFIG } from '../utils/constants';
+} from '@/utils';
+import { GLYPH_CONFIG } from '@/utils/constants';
 import {
   detectStyleProvider,
   extractAccessToken,
@@ -17,7 +17,7 @@ import {
   validateStyleForProvider,
   isMapboxProtocol,
   resolveMapboxUrl,
-} from '../utils/styleProviderUtils';
+} from '@/utils/styleProviderUtils';
 import type {
   StyleEntry,
   BaseStyle,
@@ -29,7 +29,7 @@ import type {
   EnhancedStyleStats,
   FontDownloadResult,
   SpriteDownloadResult,
-} from '../types';
+} from '@/types';
 
 // Helper functions to work with StyleEntry structure
 function createStyleEntry(
@@ -418,7 +418,7 @@ export async function downloadStyles(
 
       try {
         // Extract font stacks from style layers (expression-aware)
-        const { extractAllFontNames } = await import('../utils/styleUtils');
+        const { extractAllFontNames } = await import('@/utils/styleUtils');
         const fontStackArray = extractAllFontNames(style);
         logger.debug(`Found ${fontStackArray.length} font stacks for glyph download`);
 

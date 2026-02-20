@@ -1,6 +1,6 @@
 import { openDB, IDBPDatabase } from 'idb';
-import { OfflineMapDB } from '../types';
-import { DB_NAME, DB_VERSION } from '../utils/constants';
+import { OfflineMapDB } from '@/types';
+import { DB_NAME, DB_VERSION } from '@/utils/constants';
 
 /**
  * Creates all required object stores for the offline map database.

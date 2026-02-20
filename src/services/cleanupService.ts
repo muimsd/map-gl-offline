@@ -1,6 +1,7 @@
-import { dbPromise } from '../storage/indexedDbManager';
-import { logger } from '../utils';
-import type { StoredRegion, RegionCleanupOptions, CleanupResult, RegionAnalytics } from '../types';
+import { dbPromise } from '@/storage/indexedDbManager';
+import { logger } from '@/utils';
+import { parseTileKey } from '@/utils/tileKey';
+import type { StoredRegion, RegionCleanupOptions, CleanupResult, RegionAnalytics } from '@/types';
 
 const cleanupLogger = logger.scope('CleanupService');
 
@@ -409,16 +410,23 @@ export class CleanupService {
     let totalSize = 0;
 
     let styleId = styleIdParam;
+    let regionMinZoom = 0;
+    let regionMaxZoom = 22;
 
-    // If styleId not provided, search in styles.regions[]
+    // Find the region's styleId and zoom range from styles.regions[]
     if (!styleId) {
       const styles = await db.getAll('styles');
       for (const style of styles) {
-        const styleEntry = style as { key?: string; regions?: Array<{ id?: string }> };
+        const styleEntry = style as {
+          key?: string;
+          regions?: Array<{ id?: string; minZoom?: number; maxZoom?: number }>;
+        };
         if (styleEntry.regions && Array.isArray(styleEntry.regions)) {
           const found = styleEntry.regions.find(r => r.id === regionId);
           if (found) {
             styleId = styleEntry.key;
+            regionMinZoom = found.minZoom ?? 0;
+            regionMaxZoom = found.maxZoom ?? 22;
             break;
           }
         }
@@ -429,15 +437,19 @@ export class CleanupService {
       return 0;
     }
 
-    // Calculate size from tiles that belong to this style
-    // Filter by tile.styleId property (consistent with getTileStats in tileService)
+    // Calculate size from tiles that belong to this style within the region's zoom range
     const tx = db.transaction(['tiles'], 'readonly');
     for await (const cursor of tx.objectStore('tiles')) {
       const tile = cursor.value;
-      // Check if the tile's styleId matches the region's styleId
-      if (tile.styleId === styleId) {
-        totalSize += tile.size || 0;
+      if (tile.styleId !== styleId) continue;
+
+      // Filter by zoom range when possible
+      const parsed = parseTileKey(tile.key);
+      if (parsed && (parsed.z < regionMinZoom || parsed.z > regionMaxZoom)) {
+        continue;
       }
+
+      totalSize += tile.size || 0;
     }
 
     return totalSize;

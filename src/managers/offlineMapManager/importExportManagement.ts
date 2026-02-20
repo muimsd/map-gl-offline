@@ -5,7 +5,7 @@ import type {
   PMTilesExportOptions,
   MBTilesExportOptions,
   RegionImportData,
-} from '../../types';
+} from '@/types';
 import type { OfflineManagerServices } from './base';
 
 export interface ImportExportManagement {

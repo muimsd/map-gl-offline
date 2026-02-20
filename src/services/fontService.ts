@@ -1,11 +1,11 @@
-import { dbPromise } from '../storage/indexedDbManager';
-import { fetchResourceWithRetry, processBatch, createProgressTracker, logger } from '../utils';
+import { dbPromise } from '@/storage/indexedDbManager';
+import { fetchResourceWithRetry, processBatch, createProgressTracker, logger } from '@/utils';
 import type {
   EnhancedFontStats,
   FontDownloadOptions,
   FontDownloadResult,
   FontEntry,
-} from '../types';
+} from '@/types';
 
 const fontLogger = logger.scope('FontService');
 

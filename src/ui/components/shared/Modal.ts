@@ -4,7 +4,7 @@
  */
 
 import { BaseComponent, ComponentConfig } from './BaseComponent';
-import { t } from '../../translations';
+import { t } from '@/ui/translations';
 
 export interface ModalConfig extends ComponentConfig {
   title?: string;

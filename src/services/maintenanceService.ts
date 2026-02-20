@@ -1,16 +1,16 @@
-import { logger } from '../utils';
+import { logger } from '@/utils';
 import type {
   StorageAnalyticsReport,
   MaintenanceOptions,
   MaintenanceResults,
   RegionCleanupOptions,
   CleanupResult,
-} from '../types';
+} from '@/types';
 
 const maintenanceLogger = logger.scope('MaintenanceService');
 
 // Re-export types for convenience
-export type { MaintenanceOptions, MaintenanceResults } from '../types/maintenance';
+export type { MaintenanceOptions, MaintenanceResults } from '@/types/maintenance';
 
 export class MaintenanceService {
   constructor(

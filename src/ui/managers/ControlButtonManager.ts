@@ -4,10 +4,10 @@
  * Refactored to use modular Button component
  */
 
-import { icons } from '../../utils/icons';
-import { Button, ButtonConfig } from '../components/shared/Button';
-import { t } from '../translations';
-import type { CssPrefix } from '../../utils/cssPrefix';
+import { icons } from '@/utils/icons';
+import { Button, ButtonConfig } from '@/ui/components/shared/Button';
+import { t } from '@/ui/translations';
+import type { CssPrefix } from '@/utils/cssPrefix';
 
 export interface ButtonManagerOptions {
   onTogglePanel: () => void;

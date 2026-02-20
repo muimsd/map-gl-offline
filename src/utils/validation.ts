@@ -4,7 +4,7 @@
  */
 
 import { ERROR_MESSAGES } from './constants';
-import type { OfflineRegionOptions } from '../types';
+import type { OfflineRegionOptions } from '@/types';
 
 /**
  * Validate geographic bounds

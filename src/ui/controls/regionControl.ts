@@ -5,12 +5,12 @@
 
 import type { Map as MaplibreMap } from 'maplibre-gl';
 import { PolygonControl, PolygonControlOptions } from './polygonControl';
-import { RegionFormModal, RegionFormData, RegionFormOptions } from '../modals/regionFormModal';
-import { DownloadManager } from '../managers/downloadManager';
-import { ModalManager } from '../modals/modalManager';
-import { icons } from '../../utils/icons';
-import { logger } from '../../utils/logger';
-import type { CssPrefix } from '../../utils/cssPrefix';
+import { RegionFormModal, RegionFormData, RegionFormOptions } from '@/ui/modals/regionFormModal';
+import { DownloadManager } from '@/ui/managers/downloadManager';
+import { ModalManager } from '@/ui/modals/modalManager';
+import { icons } from '@/utils/icons';
+import { logger } from '@/utils/logger';
+import type { CssPrefix } from '@/utils/cssPrefix';
 
 const regionLogger = logger.scope('RegionControl');
 

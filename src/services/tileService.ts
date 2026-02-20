@@ -1,4 +1,4 @@
-import { dbPromise } from '../storage/indexedDbManager';
+import { dbPromise } from '@/storage/indexedDbManager';
 import * as tilebelt from '@mapbox/tilebelt';
 import {
   fetchResourceWithRetry,
@@ -7,13 +7,13 @@ import {
   validateResource,
   logger,
   createTileKey,
-} from '../utils';
+} from '@/utils';
 import {
   isMapboxProtocol,
   resolveMapboxUrl,
   rewriteMapboxCdnTileUrl,
-} from '../utils/styleProviderUtils';
-import type { FetchResourceResult } from '../utils';
+} from '@/utils/styleProviderUtils';
+import type { FetchResourceResult } from '@/utils';
 import type {
   TileDownloadOptions,
   TileDownloadResult,
@@ -21,7 +21,7 @@ import type {
   OfflineRegionOptions,
   MapboxStyle,
   TileEntry,
-} from '../types';
+} from '@/types';
 
 const tileLogger = logger.scope('TileService');
 

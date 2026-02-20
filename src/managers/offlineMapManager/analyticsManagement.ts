@@ -1,4 +1,4 @@
-import type { StorageAnalyticsReport } from '../../types';
+import type { StorageAnalyticsReport } from '@/types';
 import type { OfflineManagerServices } from './base';
 import type { CleanupManagement } from './cleanupManagement';
 

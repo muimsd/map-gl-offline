@@ -4,21 +4,21 @@
  */
 
 import { BaseComponent } from './BaseComponent';
-import { OfflineMapManager } from '../../../managers/offlineMapManager';
-import { DownloadManager, DownloadProgress } from '../../managers/downloadManager';
-import { ModalManager } from '../../modals/modalManager';
-import { RegionDetailsModal } from '../../modals/regionDetailsModal';
-import { StoredRegion } from '../../../types/region';
-import { StorageAnalyticsReport } from '../../../types/maintenance';
-import { ConfirmationModal } from '../../modals/confirmationModal';
-// import { ImportExportModal } from '../../modals/ImportExportModal.js';
-import { createHeader } from '../PanelHeader';
-import { createActionButtons } from '../PanelActions';
-import { createRegionsList } from '../RegionList';
-import { createDownloadProgressSection } from '../DownloadProgress';
-import { formatBytes } from '../../../utils/formatting';
-import { themeManager } from '../../ThemeManager';
-import { logger } from '../../../utils/logger';
+import { OfflineMapManager } from '@/managers/offlineMapManager';
+import { DownloadManager, DownloadProgress } from '@/ui/managers/downloadManager';
+import { ModalManager } from '@/ui/modals/modalManager';
+import { RegionDetailsModal } from '@/ui/modals/regionDetailsModal';
+import { StoredRegion } from '@/types/region';
+import { StorageAnalyticsReport } from '@/types/maintenance';
+import { ConfirmationModal } from '@/ui/modals/confirmationModal';
+// import { ImportExportModal } from '@/ui/modals/ImportExportModal.js';
+import { createHeader } from '@/ui/components/PanelHeader';
+import { createActionButtons } from '@/ui/components/PanelActions';
+import { createRegionsList } from '@/ui/components/RegionList';
+import { createDownloadProgressSection } from '@/ui/components/DownloadProgress';
+import { formatBytes } from '@/utils/formatting';
+import { themeManager } from '@/ui/ThemeManager';
+import { logger } from '@/utils/logger';
 
 const contentLogger = logger.scope('PanelContent');
 

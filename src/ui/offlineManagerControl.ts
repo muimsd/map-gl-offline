@@ -36,18 +36,18 @@
  */
 
 import type { IControl, Map as MaplibreMap, StyleSpecification, GeoJSONSource } from 'maplibre-gl';
-import { OfflineMapManager } from '../managers/offlineMapManager';
+import { OfflineMapManager } from '@/managers/offlineMapManager';
 import { themeManager } from './ThemeManager';
-import { idbFetchHandler } from '../utils/idbFetchHandler';
-import { logger } from '../utils/logger';
-import { escapeHtml } from '../utils/formatting';
+import { idbFetchHandler } from '@/utils/idbFetchHandler';
+import { logger } from '@/utils/logger';
+import { escapeHtml } from '@/utils/formatting';
 import { i18n } from './translations';
 import {
   registerOfflineServiceWorker,
   unregisterOfflineServiceWorker,
-} from '../utils/swRegistration';
-import { convertStyleForServiceWorker } from '../utils/convertStyleForSW';
-import type { MapboxStyle } from '../types/style';
+} from '@/utils/swRegistration';
+import { convertStyleForServiceWorker } from '@/utils/convertStyleForSW';
+import type { MapboxStyle } from '@/types/style';
 
 // Import refactored modular components
 import { ButtonManager } from './managers/ControlButtonManager';
@@ -55,7 +55,7 @@ import { PanelRenderer } from './managers/PanelManager';
 import { RegionControl } from './controls/regionControl';
 import { DownloadManager } from './managers/downloadManager';
 import { ModalManager } from './modals/modalManager';
-import { detectCssPrefix, CssPrefix } from '../utils/cssPrefix';
+import { detectCssPrefix, CssPrefix } from '@/utils/cssPrefix';
 
 const controlLogger = logger.scope('OfflineControl');
 
@@ -743,7 +743,7 @@ export class OfflineManagerControl implements IControl {
     }
 
     try {
-      const { loadStyleById } = await import('../services/styleService');
+      const { loadStyleById } = await import('@/services/styleService');
 
       // Load the style from IndexedDB
       const styleEntry = await loadStyleById(styleId);
@@ -792,7 +792,7 @@ export class OfflineManagerControl implements IControl {
 
     try {
       // Import the loadStyles function from styleService
-      const { loadStyles } = await import('../services/styleService');
+      const { loadStyles } = await import('@/services/styleService');
 
       // Get stored styles from IndexedDB
       const styles = await loadStyles();

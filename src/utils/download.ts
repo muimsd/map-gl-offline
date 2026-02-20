@@ -1,4 +1,4 @@
-import type { DownloadProgress } from '../types';
+import type { DownloadProgress } from '@/types';
 import { logger } from './logger';
 import { applyProxy, type ProxyType } from './proxyConfig';
 

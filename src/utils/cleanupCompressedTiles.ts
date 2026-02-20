@@ -1,4 +1,4 @@
-import { dbPromise } from '../storage/indexedDbManager';
+import { dbPromise } from '@/storage/indexedDbManager';
 import { logger } from './logger';
 
 const cleanupLogger = logger.scope('CleanupCompressedTiles');

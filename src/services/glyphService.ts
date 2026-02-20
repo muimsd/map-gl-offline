@@ -1,6 +1,6 @@
-import { dbPromise } from '../storage/indexedDbManager';
-import { fetchWithRetry, parseCacheExpiry, logger } from '../utils';
-import type { GlyphDownloadOptions, GlyphDownloadResult, GlyphEntry, GlyphRange } from '../types';
+import { dbPromise } from '@/storage/indexedDbManager';
+import { fetchWithRetry, parseCacheExpiry, logger } from '@/utils';
+import type { GlyphDownloadOptions, GlyphDownloadResult, GlyphEntry, GlyphRange } from '@/types';
 
 const glyphLogger = logger.scope('GlyphService');
 

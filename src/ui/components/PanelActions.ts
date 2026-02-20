@@ -3,8 +3,8 @@
  * Refactored to use modular components
  */
 
-import { icons } from '../../utils/icons';
-import { Theme } from '../ThemeManager';
+import { icons } from '@/utils/icons';
+import { Theme } from '@/ui/ThemeManager';
 import { Button } from './shared/Button';
 
 export interface ActionButtonsProps {

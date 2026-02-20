@@ -1,4 +1,4 @@
-import type { ResourceService } from '../../services/resourceService';
+import type { ResourceService } from '@/services/resourceService';
 import type { OfflineManagerServices } from './base';
 
 export type ResourceServiceMethod<TMethod extends keyof ResourceService> = ResourceService[TMethod];

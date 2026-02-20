@@ -1,8 +1,8 @@
-import { CleanupService } from '../../services/cleanupService';
-import { RegionService } from '../../services/regionService';
-import { ResourceService } from '../../services/resourceService';
-import { AnalyticsService } from '../../services/analyticsService';
-import { ImportExportService } from '../../services/importExportService';
+import { CleanupService } from '@/services/cleanupService';
+import { RegionService } from '@/services/regionService';
+import { ResourceService } from '@/services/resourceService';
+import { AnalyticsService } from '@/services/analyticsService';
+import { ImportExportService } from '@/services/importExportService';
 
 export interface OfflineManagerServices {
   regionService: RegionService;

@@ -5,10 +5,10 @@
 
 import { BaseComponent } from './BaseComponent';
 import type { Map as MaplibreMap } from 'maplibre-gl';
-import { DownloadManager } from '../../managers/downloadManager';
-import { ModalManager } from '../../modals/modalManager';
-import { RegionFormModal, RegionFormData } from '../../modals/regionFormModal';
-import { logger } from '../../../utils/logger';
+import { DownloadManager } from '@/ui/managers/downloadManager';
+import { ModalManager } from '@/ui/modals/modalManager';
+import { RegionFormModal, RegionFormData } from '@/ui/modals/regionFormModal';
+import { logger } from '@/utils/logger';
 
 const drawingLogger = logger.scope('RegionDrawingTool');
 

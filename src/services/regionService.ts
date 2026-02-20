@@ -1,10 +1,10 @@
-import { dbPromise } from '../storage/indexedDbManager';
-import { patchStyleForOffline } from '../utils/styleUtils';
-import { logger } from '../utils/logger';
-import { parseTileKey } from '../utils/tileKey';
-import type { OfflineRegionOptions, StoredRegion } from '../types/region';
-import type { StyleEntry } from '../types/style';
-import type { TileEntry } from '../types';
+import { dbPromise } from '@/storage/indexedDbManager';
+import { patchStyleForOffline } from '@/utils/styleUtils';
+import { logger } from '@/utils/logger';
+import { parseTileKey } from '@/utils/tileKey';
+import type { OfflineRegionOptions, StoredRegion } from '@/types/region';
+import type { StyleEntry } from '@/types/style';
+import type { TileEntry } from '@/types';
 import * as tilebelt from '@mapbox/tilebelt';
 
 const regionLogger = logger.scope('RegionService');

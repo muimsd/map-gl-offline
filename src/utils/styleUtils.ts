@@ -1,4 +1,4 @@
-import type { MapboxStyle } from '../types/style';
+import type { MapboxStyle } from '@/types/style';
 import { logger } from './logger';
 
 const styleLogger = logger.scope('StyleUtils');

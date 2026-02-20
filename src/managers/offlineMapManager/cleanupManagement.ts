@@ -1,4 +1,4 @@
-import type { CleanupResult, RegionAnalytics, RegionCleanupOptions } from '../../types';
+import type { CleanupResult, RegionAnalytics, RegionCleanupOptions } from '@/types';
 import type { OfflineManagerServices } from './base';
 
 export interface CleanupManagement {
@@ -21,8 +21,17 @@ export const createCleanupManagement = (services: OfflineManagerServices): Clean
     return result.deletedRegions;
   },
   forceCleanupExpiredRegions: async () => {
-    const result = await services.cleanupService.performCleanup({ maxAge: 0 });
-    return result.deletedRegions;
+    // Clean up regions that have actually passed their expiry date
+    const allRegions = await services.cleanupService.getAllRegions();
+    const now = Date.now();
+    let deletedCount = 0;
+    for (const region of allRegions) {
+      if (region.expiry && region.expiry < now) {
+        await services.regionService.deleteRegion(region.id);
+        deletedCount++;
+      }
+    }
+    return deletedCount;
   },
   setupAutoCleanup: async (options: RegionCleanupOptions & { intervalHours?: number } = {}) =>
     services.cleanupService.setupAutoCleanup(options),

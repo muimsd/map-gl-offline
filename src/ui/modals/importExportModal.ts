@@ -4,18 +4,19 @@
  * Refactored to use modular Modal component for consistency
  */
 
-import { Modal, ModalConfig } from '../components/shared/Modal';
-import { Button } from '../components/shared/Button';
-import { icons } from '../../utils/icons';
-import { logger } from '../../utils/logger';
-import { t, i18n } from '../translations';
+import { Modal, ModalConfig } from '@/ui/components/shared/Modal';
+import { Button } from '@/ui/components/shared/Button';
+import { icons } from '@/utils/icons';
+import { logger } from '@/utils/logger';
+import { escapeHtml } from '@/utils/formatting';
+import { t, i18n } from '@/ui/translations';
 import type {
   StoredRegion,
   ImportExportOptions,
   ExportResult,
   ImportResult,
   RegionImportData,
-} from '../../types';
+} from '@/types';
 
 const modalLogger = logger.scope('ImportExportModal');
 
@@ -133,15 +134,15 @@ export class ImportExportModal {
       <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
         <div class="p-3 rounded-lg bg-white/40 dark:bg-black/20">
           <span class="font-medium text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">${t('importExport.id')}</span>
-          <div class="text-gray-900 dark:text-white font-mono text-xs break-all mt-1">${this.options.region.id}</div>
+          <div class="text-gray-900 dark:text-white font-mono text-xs break-all mt-1">${escapeHtml(this.options.region.id)}</div>
         </div>
         <div class="p-3 rounded-lg bg-white/40 dark:bg-black/20">
           <span class="font-medium text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">${t('importExport.name')}</span>
-          <div class="text-gray-900 dark:text-white font-medium mt-1">${this.options.region.name || t('importExport.unnamed')}</div>
+          <div class="text-gray-900 dark:text-white font-medium mt-1">${escapeHtml(this.options.region.name || t('importExport.unnamed'))}</div>
         </div>
         <div class="p-3 rounded-lg bg-white/40 dark:bg-black/20">
           <span class="font-medium text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">${t('importExport.zoom')}</span>
-          <div class="text-gray-900 dark:text-white font-medium mt-1">Z${this.options.region.minZoom}-${this.options.region.maxZoom}</div>
+          <div class="text-gray-900 dark:text-white font-medium mt-1">Z${escapeHtml(this.options.region.minZoom)}-${escapeHtml(this.options.region.maxZoom)}</div>
         </div>
         <div class="p-3 rounded-lg bg-white/40 dark:bg-black/20">
           <span class="font-medium text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">${t('importExport.created')}</span>

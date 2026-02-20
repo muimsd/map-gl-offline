@@ -45,12 +45,12 @@
  */
 
 import { isStyleDownloaded, loadStyles } from '@/services/styleService';
-import { downloadTiles } from '../../services/tileService';
-import { OfflineMapManager } from '../../managers/offlineMapManager';
-import { RegionFormData } from '../modals/regionFormModal';
-import { logger } from '../../utils/logger';
-import { isMapboxProtocol, resolveMapboxUrl } from '../../utils/styleProviderUtils';
-import { extractAllFontNames } from '../../utils/styleUtils';
+import { downloadTiles } from '@/services/tileService';
+import { OfflineMapManager } from '@/managers/offlineMapManager';
+import { RegionFormData } from '@/ui/modals/regionFormModal';
+import { logger } from '@/utils/logger';
+import { isMapboxProtocol, resolveMapboxUrl } from '@/utils/styleProviderUtils';
+import { extractAllFontNames } from '@/utils/styleUtils';
 
 const downloadLogger = logger.scope('DownloadManager');
 
@@ -301,7 +301,7 @@ export class DownloadManager {
           `Downloading sprites for style: ${finalStyleId} (${spriteSources.length} source(s))`
         );
         try {
-          const { SpriteService } = await import('../../services/spriteService');
+          const { SpriteService } = await import('@/services/spriteService');
           const spriteService = new SpriteService();
           const suffixes = ['.json', '.png', '@2x.json', '@2x.png'];
 
@@ -369,7 +369,7 @@ export class DownloadManager {
         downloadLogger.debug('Downloading glyphs for style:', finalStyleId);
         downloadLogger.debug('Original glyphs URL:', originalStyleForResources.glyphs);
         try {
-          const { GlyphService } = await import('../../services/glyphService');
+          const { GlyphService } = await import('@/services/glyphService');
           const glyphService = new GlyphService();
 
           // Extract font families from layers (expression-aware)

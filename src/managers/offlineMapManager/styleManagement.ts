@@ -4,17 +4,17 @@ import type {
   StyleDownloadResult,
   StyleEntry,
   StyleProvider,
-} from '../../types';
-import { logger } from '../../utils';
+} from '@/types';
+import { logger } from '@/utils';
 
 const styleManagementLogger = logger.scope('StyleManagement');
 
-type StyleServiceModule = typeof import('../../services/styleService');
+type StyleServiceModule = typeof import('@/services/styleService');
 let styleServiceModulePromise: Promise<StyleServiceModule> | null = null;
 
 const loadStyleServiceModule = async (): Promise<StyleServiceModule> => {
   if (!styleServiceModulePromise) {
-    styleServiceModulePromise = import('../../services/styleService');
+    styleServiceModulePromise = import('@/services/styleService');
   }
   return styleServiceModulePromise;
 };

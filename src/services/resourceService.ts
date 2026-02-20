@@ -36,7 +36,7 @@ import type {
   EnhancedFontStats,
   GlyphDownloadOptions,
   GlyphDownloadResult,
-} from '../types';
+} from '@/types';
 
 export class ResourceService {
   // Tile Management Methods

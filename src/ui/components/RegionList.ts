@@ -3,10 +3,10 @@
  * Refactored to use modular Button components
  */
 
-import { icons } from '../../utils/icons';
+import { icons } from '@/utils/icons';
 import { Button } from './shared/Button';
 import { BaseComponent } from './shared/BaseComponent';
-import type { StoredRegion } from '../../types';
+import type { StoredRegion } from '@/types';
 
 export interface RegionsListProps {
   regions: StoredRegion[];

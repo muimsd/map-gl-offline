@@ -4,8 +4,8 @@
  */
 
 import { BaseComponent } from './BaseComponent';
-import { i18n, SupportedLanguage } from '../../translations';
-import { icons } from '../../../utils/icons';
+import { i18n, SupportedLanguage } from '@/ui/translations';
+import { icons } from '@/utils/icons';
 
 export interface LanguageSelectorOptions {
   onChange?: (language: SupportedLanguage) => void;

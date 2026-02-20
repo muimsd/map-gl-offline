@@ -1,4 +1,4 @@
-import type { OfflineRegionOptions, StoredRegion } from '../../types';
+import type { OfflineRegionOptions, StoredRegion } from '@/types';
 import type { OfflineManagerServices } from './base';
 
 export interface RegionManagement {

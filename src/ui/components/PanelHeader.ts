@@ -3,8 +3,8 @@
  * Refactored to use modular components
  */
 
-import { icons } from '../../utils/icons';
-import { Theme, themeManager, ThemePreference } from '../ThemeManager';
+import { icons } from '@/utils/icons';
+import { Theme, themeManager, ThemePreference } from '@/ui/ThemeManager';
 import { Button } from './shared/Button';
 
 export interface HeaderProps {

@@ -4,7 +4,7 @@
  */
 
 import { BaseComponent, ComponentConfig } from './BaseComponent';
-import { t } from '../../translations';
+import { t } from '@/ui/translations';
 
 function escapeHtml(unsafe: unknown): string {
   const str = String(unsafe ?? '');

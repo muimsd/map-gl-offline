@@ -1,9 +1,9 @@
 // idbFetchHandler.ts
 // Intercepts idb:// URLs and serves resources from IndexedDB for MapLibre GL offline mode
-import { dbPromise } from '../storage/indexedDbManager';
+import { dbPromise } from '@/storage/indexedDbManager';
 import type { IDBPDatabase } from 'idb';
-import type { OfflineMapDB } from '../types/database';
-import type { StyleStorageItem } from '../types/style';
+import type { OfflineMapDB } from '@/types/database';
+import type { StyleStorageItem } from '@/types/style';
 import { logger } from './logger';
 import { createTileKey, deriveTileExtension } from './tileKey';
 

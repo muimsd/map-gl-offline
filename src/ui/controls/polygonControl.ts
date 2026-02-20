@@ -5,9 +5,9 @@
 
 import type { Map as MaplibreMap, GeoJSONSource } from 'maplibre-gl';
 import { area, bboxPolygon, difference, convertArea, featureCollection, polygon } from '@turf/turf';
-import { icons } from '../../utils/icons';
-import { logger } from '../../utils/logger';
-import type { CssPrefix } from '../../utils/cssPrefix';
+import { icons } from '@/utils/icons';
+import { logger } from '@/utils/logger';
+import type { CssPrefix } from '@/utils/cssPrefix';
 
 const polygonLogger = logger.scope('PolygonControl');
 

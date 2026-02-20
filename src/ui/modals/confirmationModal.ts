@@ -4,8 +4,8 @@
  * Refactored to use modular components
  */
 
-import { Modal, ModalConfig } from '../components/shared/Modal';
-import { Button } from '../components/shared/Button';
+import { Modal, ModalConfig } from '@/ui/components/shared/Modal';
+import { Button } from '@/ui/components/shared/Button';
 
 export interface ConfirmationModalOptions {
   title: string;

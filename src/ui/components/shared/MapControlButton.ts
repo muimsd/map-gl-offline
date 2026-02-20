@@ -4,8 +4,8 @@
  */
 
 import { BaseComponent, ComponentConfig } from './BaseComponent';
-import { icons } from '../../../utils/icons';
-import type { CssPrefix } from '../../../utils/cssPrefix';
+import { icons } from '@/utils/icons';
+import type { CssPrefix } from '@/utils/cssPrefix';
 
 export interface ControlButtonConfig extends ComponentConfig {
   title?: string;

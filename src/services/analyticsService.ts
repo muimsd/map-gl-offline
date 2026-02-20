@@ -1,4 +1,4 @@
-import { dbPromise } from '../storage/indexedDbManager';
+import { dbPromise } from '@/storage/indexedDbManager';
 import { getTileStats } from './tileService';
 import { getFontAnalytics } from './fontService';
 import { getSpriteAnalytics } from './spriteService';
@@ -10,7 +10,7 @@ import type {
   StorageAnalyticsReport,
   EnhancedFontStats,
   EnhancedSpriteStats,
-} from '../types/';
+} from '@/types';
 
 export class AnalyticsService {
   async getAllTileStats(): Promise<TileStats> {

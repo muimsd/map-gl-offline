@@ -1,17 +1,17 @@
-import { dbPromise } from '../storage/indexedDbManager';
+import { dbPromise } from '@/storage/indexedDbManager';
 import type {
   EnhancedSpriteStats,
   SpriteDownloadOptions,
   SpriteDownloadResult,
   SpriteEntry,
-} from '../types';
+} from '@/types';
 import {
   fetchWithRetry,
   parseCacheExpiry,
   processBatch,
   createProgressTracker,
   logger,
-} from '../utils';
+} from '@/utils';
 
 const spriteLogger = logger.scope('SpriteService');
 

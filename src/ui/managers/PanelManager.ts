@@ -4,29 +4,29 @@
  * Refactored to use modular components
  */
 
-import { OfflineMapManager } from '../../managers/offlineMapManager';
+import { OfflineMapManager } from '@/managers/offlineMapManager';
 import { DownloadManager } from './downloadManager';
-import { ModalManager } from '../modals/modalManager';
-import { RegionDetailsModal } from '../modals/regionDetailsModal';
-import { StoredRegion, StorageAnalyticsReport } from '../../types';
-import { ConfirmationModal } from '../modals/confirmationModal';
-import { ImportExportModal } from '../modals/importExportModal';
-import { formatBytes, escapeHtml } from '../../utils/formatting';
-import { themeManager } from '../ThemeManager';
-import { logger } from '../../utils/logger';
-import { i18n, t } from '../translations';
+import { ModalManager } from '@/ui/modals/modalManager';
+import { RegionDetailsModal } from '@/ui/modals/regionDetailsModal';
+import { StoredRegion, StorageAnalyticsReport } from '@/types';
+import { ConfirmationModal } from '@/ui/modals/confirmationModal';
+import { ImportExportModal } from '@/ui/modals/importExportModal';
+import { formatBytes, escapeHtml } from '@/utils/formatting';
+import { themeManager } from '@/ui/ThemeManager';
+import { logger } from '@/utils/logger';
+import { i18n, t } from '@/ui/translations';
 
 const panelLogger = logger.scope('PanelManager');
 
-import { icons } from '../../utils/icons';
-import type { MapboxStyle, StyleStorageItem } from '../../types/style';
-import { convertStyleForServiceWorker } from '../../utils/convertStyleForSW';
+import { icons } from '@/utils/icons';
+import type { MapboxStyle, StyleStorageItem } from '@/types/style';
+import { convertStyleForServiceWorker } from '@/utils/convertStyleForSW';
 
 // Import modular components
-import { List, ListItemConfig } from '../components/shared/List';
-import { Button } from '../components/shared/Button';
-import { BaseComponent } from '../components/shared/BaseComponent';
-import { LanguageSelector } from '../components/shared/LanguageSelector';
+import { List, ListItemConfig } from '@/ui/components/shared/List';
+import { Button } from '@/ui/components/shared/Button';
+import { BaseComponent } from '@/ui/components/shared/BaseComponent';
+import { LanguageSelector } from '@/ui/components/shared/LanguageSelector';
 
 // Map type for MapLibre GL
 type MaplibreMap = unknown;
@@ -264,7 +264,7 @@ export class PanelRenderer extends BaseComponent {
 
     try {
       // Load styles from IndexedDB and get stats
-      const { loadStyles, getStyleStats } = await import('../../services/styleService');
+      const { loadStyles, getStyleStats } = await import('@/services/styleService');
       const styles = await loadStyles();
       const statsResult = await getStyleStats();
       panelLogger.debug('Loaded styles:', styles);
@@ -760,7 +760,7 @@ export class PanelRenderer extends BaseComponent {
             // (deleteRegion removes the style entry when it's the last region)
             let accessToken: string | undefined;
             try {
-              const { loadStyleById } = await import('../../services/styleService');
+              const { loadStyleById } = await import('@/services/styleService');
               const styleEntry = await loadStyleById(region.styleId);
               accessToken = styleEntry?.accessToken;
             } catch {
@@ -1171,7 +1171,7 @@ export class PanelRenderer extends BaseComponent {
   private async handleFixCompressedTiles(_styleId: string): Promise<void> {
     try {
       const { cleanupCompressedTiles, countCompressedTiles } =
-        await import('../../utils/cleanupCompressedTiles');
+        await import('@/utils/cleanupCompressedTiles');
 
       // First count the compressed tiles
       const stats = await countCompressedTiles();
@@ -1295,7 +1295,7 @@ export class PanelRenderer extends BaseComponent {
 
       // Check for compressed tiles
       try {
-        const { countCompressedTiles } = await import('../../utils/cleanupCompressedTiles');
+        const { countCompressedTiles } = await import('@/utils/cleanupCompressedTiles');
         const compressed = await countCompressedTiles();
 
         if (compressed.gzipped > 0) {
@@ -1484,7 +1484,7 @@ export class PanelRenderer extends BaseComponent {
         cancelText: t('app.cancel'),
         onConfirm: async () => {
           try {
-            const { deleteStyleById } = await import('../../services/styleService');
+            const { deleteStyleById } = await import('@/services/styleService');
             await deleteStyleById(style.key);
             this.modalManager.close();
             // Refresh the panel
