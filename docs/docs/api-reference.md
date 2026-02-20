@@ -254,11 +254,11 @@ console.log(`Cleaned up ${deletedCount} expired regions`);
 
 #### `forceCleanupExpiredRegions(): Promise<number>`
 
-Force cleanup of all regions regardless of age (uses `maxAge: 0`). Returns the number of deleted regions.
+Force cleanup of all regions that have passed their `expiry` timestamp. Unlike `cleanupExpiredRegions` (which uses a 30-day age threshold), this method checks the actual `region.expiry` field and only deletes regions whose expiry has elapsed. Returns the number of deleted regions.
 
 ```typescript
 const deletedCount = await manager.forceCleanupExpiredRegions();
-console.log(`Force-deleted ${deletedCount} regions`);
+console.log(`Force-deleted ${deletedCount} expired regions`);
 ```
 
 #### `performSmartCleanup(options?: RegionCleanupOptions): Promise<CleanupResult>`

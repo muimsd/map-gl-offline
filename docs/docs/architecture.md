@@ -378,13 +378,26 @@ idb://styles/{styleId}
 
 The fetch interceptor converts these to IndexedDB lookups.
 
+## Import Path Alias
+
+All source files use the `@/` path alias (mapped to `src/*` in `tsconfig.json`) instead of relative paths. This provides consistent, refactor-friendly imports:
+
+```typescript
+// All imports use the @/ alias
+import { loadStyles } from '@/services/styleService';
+import { createTileKey, parseTileKey } from '@/utils/tileKey';
+import { escapeHtml } from '@/utils/formatting';
+```
+
 ## Tile Key Format
 
-Tiles are stored with composite keys for efficient lookup:
+Tiles are stored with composite keys for efficient lookup. Use the `createTileKey()` utility from `src/utils/tileKey.ts` for consistent key generation:
 
 ```typescript
 // Key format: {styleId}:{sourceId}:{z}:{x}:{y}.{extension}
-const key = `${styleId}:${sourceId}:${z}:${x}:${y}.${extension}`;
+import { createTileKey, parseTileKey } from '@/utils/tileKey';
+
+const key = createTileKey(styleId, sourceId, z, x, y, extension);
 
 // Examples
 const key = "mapbox-streets-v12:mapbox.mapbox-streets-v8:14:4824:6159.pbf";
@@ -519,3 +532,4 @@ Key testing patterns:
 2. **CORS Handling**: Development proxy for local testing
 3. **Quota Limits**: Respects browser storage quotas
 4. **Data Validation**: Input validation before storage
+5. **XSS Prevention**: User-provided data (region names, IDs) is sanitized with `escapeHtml()` before rendering in HTML templates

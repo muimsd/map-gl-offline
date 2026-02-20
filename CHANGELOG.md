@@ -5,6 +5,36 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- **Expired Region Cleanup**: `forceCleanupExpiredRegions` now checks actual `region.expiry` timestamps instead of deleting all regions
+- **Region Size Calculation**: `getRegionSize` now correctly filters tiles by zoom range using parsed tile keys
+- **Expiry Distribution**: Analytics now uses actual `region.expiry` field instead of `lastModified` for expiry categorization
+- **Auto-Cleanup Shutdown**: `stopAllAutoCleanup` now correctly clears all interval IDs
+- **Import Tile Keys**: Imported tiles now use the standard `createTileKey()` format (`{styleId}:{sourceId}:{z}:{x}:{y}.{ext}`)
+- **Import Atomicity**: Region imports now use a single IndexedDB transaction for consistency
+- **PMTiles Bounds Validation**: Import now validates bounds values with `isFinite()` checks
+- **PMTiles Null Safety**: PMTiles parser handles missing header fields gracefully
+- **Style Resource Deletion**: `deleteStyleResources` uses delimiter-aware prefix matching to avoid deleting resources from styles with similar ID prefixes
+- **Double IDB Read**: `addRegion` eliminated redundant database fetch for style entry
+- **Style Stats Filtering**: `getStyleStats` now accepts optional `styleId` parameter for per-style statistics
+- **Failed Import Cache**: Style service dynamic import resets on failure instead of caching rejected promises
+- **Progress Off-by-One**: Style management progress callback no longer fires at `completed === 0`
+- **HTML Tile Detection**: Improved error page detection to catch all HTML tag names (not just `<!` and `<?`)
+- **DB Migration Race Condition**: IndexedDB v2-to-v3 migration groups regions by styleId for single read-modify-write per style
+- **DB Migration Guard**: Migration now checks that required stores exist before attempting data migration
+- **Maintenance Regions**: `performCompleteMaintenance` now uses `listStoredRegions` to get proper `styleId` on regions
+- **XSS Prevention**: Import/export modal escapes user-provided region data in HTML templates
+
+### Changed
+
+- All source imports converted from relative paths (`../`) to `@/` path alias for consistency
+- Dynamic imports in `regionService` converted to static imports for better tree-shaking
+- Removed dead code: `countGlyphsInData`, `calculateCompressionRatio` from glyph service; `extractSpriteMetadata`, `isProbablySpritesheet` from sprite service
+- Removed redundant database reads in sprite verification and download flows
+
 ## [0.5.2] - 2025-12-31
 
 ### Added
@@ -140,6 +170,7 @@ This is the initial release. For future versions, migration guides will be provi
 
 For more details, see the [README](README.md) and [documentation](https://github.com/muimsd/map-gl-offline).
 
+[Unreleased]: https://github.com/muimsd/map-gl-offline/compare/v0.5.2...HEAD
 [0.5.2]: https://github.com/muimsd/map-gl-offline/compare/v0.5.1...v0.5.2
 [0.5.1]: https://github.com/muimsd/map-gl-offline/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/muimsd/map-gl-offline/compare/v0.1.0...v0.5.0

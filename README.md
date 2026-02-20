@@ -538,7 +538,15 @@ map-gl-offline/
 
 ## 🔄 Recent Updates
 
-### v0.5.2 (Latest)
+### v0.5.3 (Latest)
+
+- ✅ **Bug Fixes**: 20+ bugs resolved from comprehensive codebase audit
+- ✅ **Import Atomicity**: Region imports use single IndexedDB transactions
+- ✅ **Expired Region Cleanup**: `forceCleanupExpiredRegions` now uses actual expiry timestamps
+- ✅ **XSS Prevention**: User data escaped in all UI templates
+- ✅ **Code Quality**: Dead code removal, `@/` path alias for all imports
+
+### v0.5.2
 
 - ✅ **CLI Command**: `npx map-gl-offline init` to copy the Service Worker into your project
 - ✅ **Vite Plugin**: `offlineSwPlugin()` to auto-copy the Service Worker on each build

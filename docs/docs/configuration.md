@@ -146,8 +146,11 @@ await manager.importRegion({
 ### Manual Cleanup
 
 ```typescript
-// Cleanup expired regions (removes regions past their expiry date)
+// Cleanup regions older than 30 days
 await manager.cleanupExpiredRegions();
+
+// Force cleanup regions past their actual expiry timestamp
+await manager.forceCleanupExpiredRegions();
 
 // Perform smart cleanup with options
 await manager.performSmartCleanup({ maxAge: 30 }); // days

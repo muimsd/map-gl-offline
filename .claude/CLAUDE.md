@@ -58,6 +58,19 @@ Current DB version is **3**. Migrations are handled in `src/storage/indexedDbMan
 ### Tile Keys
 Tiles are keyed as: `{styleId}:{sourceId}:{z}:{x}:{y}.{extension}`
 
+Use `createTileKey()` from `src/utils/tileKey.ts` for consistent key generation.
+
+### Import Aliases
+All source files use the `@/` path alias (mapped to `src/*` in tsconfig.json). Use `@/` imports instead of relative paths (`../`):
+
+```typescript
+// Correct
+import { loadStyles } from '@/services/styleService';
+
+// Wrong
+import { loadStyles } from '../services/styleService';
+```
+
 ## Common Commands
 
 ```bash
@@ -88,6 +101,7 @@ npm run dev           # Start Vite dev server
 - Avoid non-null assertions (`!`) - use proper null checks
 - Prefer `const` over `let`
 - Use async/await over `.then()` chains (except in IndexedDB upgrade transactions)
+- Use `@/` path alias for all imports (not relative `../` paths)
 - No emojis in code unless explicitly requested
 
 ## Important Files
@@ -99,6 +113,8 @@ npm run dev           # Start Vite dev server
 | `src/utils/constants.ts` | All magic numbers and config |
 | `src/types/database.ts` | IndexedDB schema types |
 | `src/services/cleanupService.ts` | Storage size calculations |
+| `src/utils/tileKey.ts` | Tile key generation (`createTileKey`, `parseTileKey`) |
+| `src/utils/formatting.ts` | XSS prevention (`escapeHtml`) |
 
 ## Commit Conventions
 
