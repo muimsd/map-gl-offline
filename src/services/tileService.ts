@@ -299,12 +299,13 @@ export class TileService {
             if (tileData.byteLength > 0) {
               view = new Uint8Array(tileData);
 
-              // Check for HTML/XML signatures
+              // Check for HTML/XML signatures — any tag starting with <
               if (
-                (view[0] === 0x3c && view[1] === 0x21) || // <!
-                (view[0] === 0x3c && view[1] === 0x3f) || // <?
-                (view[0] === 0x3c && view[1] === 0x68) || // <h (html)
-                (view[0] === 0x3c && view[1] === 0x48) // <H (HTML)
+                view[0] === 0x3c && // '<'
+                (view[1] === 0x21 || // <!
+                  view[1] === 0x3f || // <?
+                  (view[1] >= 0x41 && view[1] <= 0x5a) || // <A-Z
+                  (view[1] >= 0x61 && view[1] <= 0x7a)) // <a-z
               ) {
                 const textDecoder = new TextDecoder();
                 const preview = textDecoder.decode(

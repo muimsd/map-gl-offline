@@ -550,15 +550,20 @@ export class ImportExportService {
     // This is a simplified implementation
     // In reality, you would use the PMTiles library to parse the binary format
     const data = JSON.parse(content);
+    const header = data?.header || {};
+    const metadata = header?.metadata || {};
 
     return {
       metadata: {
-        id: data.header.metadata.name || 'imported-region',
-        name: data.header.metadata.name || 'Imported Region',
-        description: data.header.metadata.description,
-        bounds: data.header.bounds,
-        minZoom: data.header.minZoom,
-        maxZoom: data.header.maxZoom,
+        id: metadata.name || 'imported-region',
+        name: metadata.name || 'Imported Region',
+        description: metadata.description || '',
+        bounds: header.bounds || [
+          [0, 0],
+          [0, 0],
+        ],
+        minZoom: header.minZoom || 0,
+        maxZoom: header.maxZoom || 14,
         styleUrl: '',
         createdAt: Date.now(),
         exportedAt: Date.now(),
@@ -580,9 +585,16 @@ export class ImportExportService {
     // In reality, you would use SQL.js to parse the SQLite database
     const data = JSON.parse(content);
 
-    const bounds = data.metadata.bounds
+    const rawBounds = data.metadata?.bounds
       ? data.metadata.bounds.split(',').map(Number)
       : [0, 0, 0, 0];
+    // Ensure we have exactly 4 valid numbers
+    const bounds = [
+      isFinite(rawBounds[0]) ? rawBounds[0] : 0,
+      isFinite(rawBounds[1]) ? rawBounds[1] : 0,
+      isFinite(rawBounds[2]) ? rawBounds[2] : 0,
+      isFinite(rawBounds[3]) ? rawBounds[3] : 0,
+    ];
 
     return {
       metadata: {
@@ -655,38 +667,28 @@ export class ImportExportService {
         expiry: Date.now() + 30 * 24 * 60 * 60 * 1000, // Default 30 days expiry
       };
 
-      // Import style with region metadata stored inside styles.regions[]
-      const styleTransaction = db.transaction(['styles'], 'readwrite');
-      const styleStore = styleTransaction.objectStore('styles');
+      // Import style and tiles in a single transaction for atomicity
+      const transaction = db.transaction(['styles', 'tiles'], 'readwrite');
+      const styleStore = transaction.objectStore('styles');
+      const tileStore = transaction.objectStore('tiles');
 
-      if (regionData.style && Object.keys(regionData.style).length > 0) {
-        await styleStore.put({
-          key: regionId,
-          style: regionData.style as BaseStyle,
-          provider: 'auto',
-          regions: [regionMetadata],
-          fonts: [],
-          glyphs: [],
-          sprites: [],
-        });
-      } else {
-        // Create minimal style entry with region
-        await styleStore.put({
-          key: regionId,
-          style: { version: 8, sources: {}, layers: [] } as BaseStyle,
-          provider: 'auto',
-          regions: [regionMetadata],
-          fonts: [],
-          glyphs: [],
-          sprites: [],
-        });
-      }
+      const styleData =
+        regionData.style && Object.keys(regionData.style).length > 0
+          ? (regionData.style as BaseStyle)
+          : ({ version: 8, sources: {}, layers: [] } as BaseStyle);
 
-      // Import tiles
+      await styleStore.put({
+        key: regionId,
+        style: styleData,
+        provider: 'auto',
+        regions: [regionMetadata],
+        fonts: [],
+        glyphs: [],
+        sprites: [],
+      });
+
+      // Import tiles within the same transaction
       if (regionData.tiles && regionData.tiles.length > 0) {
-        const tileTransaction = db.transaction(['tiles'], 'readwrite');
-        const tileStore = tileTransaction.objectStore('tiles');
-
         for (const tile of regionData.tiles) {
           const sourceId = tile.sourceId || 'default';
           const ext = tile.format || 'pbf';

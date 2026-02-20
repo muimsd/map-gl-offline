@@ -2,6 +2,7 @@ import { dbPromise } from '@/storage/indexedDbManager';
 import { patchStyleForOffline } from '@/utils/styleUtils';
 import { logger } from '@/utils/logger';
 import { parseTileKey } from '@/utils/tileKey';
+import { loadStyles } from '@/services/styleService';
 import type { OfflineRegionOptions, StoredRegion } from '@/types/region';
 import type { StyleEntry } from '@/types/style';
 import type { TileEntry } from '@/types';
@@ -128,25 +129,33 @@ export class RegionService {
       }
     }
 
-    // Delete glyphs - glyphs have keys that may include style info in various formats
+    // Delete glyphs - glyphs have keys prefixed with "styleId:" or "styleId_"
     let deletedGlyphs = 0;
     const glyphTx = db.transaction('glyphs', 'readwrite');
     for await (const cursor of glyphTx.store) {
       const glyphEntry = cursor.value;
-      // Check if glyph key contains style ID (may be in different formats)
-      if (glyphEntry.key.includes(styleId)) {
+      // Use delimiter-aware prefix match to avoid "paris" matching "greater-paris"
+      if (
+        glyphEntry.key.startsWith(`${styleId}:`) ||
+        glyphEntry.key.startsWith(`${styleId}_`) ||
+        glyphEntry.key === styleId
+      ) {
         await cursor.delete();
         deletedGlyphs++;
       }
     }
 
-    // Delete sprites - sprites may have keys that include style info
+    // Delete sprites - sprites have keys prefixed with "styleId:" or "styleId_"
     let deletedSprites = 0;
     const spriteTx = db.transaction('sprites', 'readwrite');
     for await (const cursor of spriteTx.store) {
       const spriteEntry = cursor.value;
-      // Check if sprite key contains style ID
-      if (spriteEntry.key.includes(styleId)) {
+      // Use delimiter-aware prefix match to avoid substring collisions
+      if (
+        spriteEntry.key.startsWith(`${styleId}:`) ||
+        spriteEntry.key.startsWith(`${styleId}_`) ||
+        spriteEntry.key === styleId
+      ) {
         await cursor.delete();
         deletedSprites++;
       }
@@ -189,39 +198,24 @@ export class RegionService {
     // Ensure style is already downloaded
     // Try to find style by ID or URL
     let styleId = region.styleId;
-    let styleData: StyleEntry | undefined;
+    let styleEntry: StyleEntry | undefined;
     if (styleId) {
-      styleData = await db.get('styles', styleId);
+      styleEntry = await db.get('styles', styleId);
     } else {
       // Try to find by styleUrl (legacy)
       const allStyles = await db.getAll('styles');
-      styleData = allStyles.find(
-        (s: { style?: { sprite?: unknown }; originalUrl?: string }) =>
-          (region.styleUrl &&
-            typeof s?.style?.sprite === 'string' &&
-            s.style.sprite.includes(region.styleUrl)) ||
-          s?.originalUrl === region.styleUrl
+      styleEntry = allStyles.find(
+        (s: { originalUrl?: string }) => s?.originalUrl === region.styleUrl
       );
-      styleId = styleData?.key;
+      styleId = styleEntry?.key;
     }
-    if (!styleData || !styleId) {
+    if (!styleEntry || !styleId) {
       throw new Error('Style must be downloaded before adding a region.');
     }
 
-    // We'll patch the style after we get the styleEntry
-
-    // Get or create the style entry
-    let styleEntry: StyleEntry = (await db.get('styles', styleId)) as StyleEntry;
-    if (!styleEntry || typeof styleEntry === 'string') {
-      styleEntry = {
-        key: styleId,
-        style: styleData.style,
-        provider: 'auto',
-        regions: [],
-        fonts: [],
-        glyphs: [],
-        sprites: [],
-      };
+    // Ensure styleEntry has proper structure
+    if (typeof styleEntry === 'string') {
+      throw new Error('Style entry is corrupted.');
     }
 
     // Ensure regions is always an array
@@ -367,7 +361,6 @@ export class RegionService {
 
   async listRegions(): Promise<OfflineRegionOptions[]> {
     // Regions are stored inside styles.regions[], not in a separate regions table
-    const { loadStyles } = await import('./styleService');
     const styles = await loadStyles();
     const allRegions: OfflineRegionOptions[] = [];
 
@@ -385,7 +378,6 @@ export class RegionService {
    */
   async listStoredRegions(): Promise<StoredRegion[]> {
     try {
-      const { loadStyles } = await import('./styleService');
       const styles = await loadStyles();
       const allRegions: StoredRegion[] = [];
       for (const style of styles) {

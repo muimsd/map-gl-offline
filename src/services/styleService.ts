@@ -671,9 +671,13 @@ export async function deleteStyleById(styleId: string): Promise<void> {
 /**
  * Get enhanced style statistics
  */
-export async function getStyleStats(): Promise<EnhancedStyleStats> {
+export async function getStyleStats(styleId?: string): Promise<EnhancedStyleStats> {
   try {
-    const allStyles = await loadStyles();
+    let allStyles = await loadStyles();
+    // Filter to a specific style if styleId is provided
+    if (styleId) {
+      allStyles = allStyles.filter(s => s.key === styleId);
+    }
     let totalSize = 0;
     const sourceTypes: Record<string, number> = {};
     const layerTypes: Record<string, number> = {};

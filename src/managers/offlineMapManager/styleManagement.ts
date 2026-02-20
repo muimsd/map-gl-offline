@@ -14,7 +14,11 @@ let styleServiceModulePromise: Promise<StyleServiceModule> | null = null;
 
 const loadStyleServiceModule = async (): Promise<StyleServiceModule> => {
   if (!styleServiceModulePromise) {
-    styleServiceModulePromise = import('@/services/styleService');
+    styleServiceModulePromise = import('@/services/styleService').catch(error => {
+      // Reset so subsequent calls can retry instead of caching the failure
+      styleServiceModulePromise = null;
+      throw error;
+    });
   }
   return styleServiceModulePromise;
 };
@@ -76,9 +80,9 @@ export const createStyleManagement = (): StyleManagement => {
     return deleteStyleById(styleId);
   };
 
-  const getStyleStats = async (_styleId: string) => {
+  const getStyleStats = async (styleId: string) => {
     const { getStyleStats } = await loadStyleServiceModule();
-    return getStyleStats();
+    return getStyleStats(styleId);
   };
 
   const downloadMapboxStyle = async (
@@ -115,7 +119,10 @@ export const createStyleManagement = (): StyleManagement => {
     const result = await cleanupOldStyles({
       maxAge: maxAgeDays * 24 * 60 * 60 * 1000,
       onProgress: progress => {
-        if (progress.completed % 10 === 0 || progress.completed === progress.total) {
+        if (
+          (progress.completed > 0 && progress.completed % 10 === 0) ||
+          progress.completed === progress.total
+        ) {
           styleManagementLogger.debug(
             `Style cleanup progress: ${progress.completed}/${progress.total}`
           );

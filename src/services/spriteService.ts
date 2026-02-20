@@ -213,19 +213,9 @@ export class SpriteService {
           // Store sprite in database
           await db.put('sprites', spriteEntry);
 
-          // Verify the sprite was stored
-          const storedSprite = await db.get('sprites', spriteKey);
-          if (storedSprite) {
-            spriteLogger.debug(
-              `✓ Verified sprite stored with key: ${spriteKey}, size: ${storedSprite.size} bytes`
-            );
-          } else {
-            spriteLogger.error(`✗ Failed to verify sprite storage for key: ${spriteKey}`);
-          }
-
-          // Show total sprite count in database
-          const allSprites = await db.getAll('sprites');
-          spriteLogger.debug(`Database now contains ${allSprites.length} sprites total`);
+          spriteLogger.debug(
+            `Stored sprite with key: ${spriteKey}, size: ${spriteEntry.size} bytes`
+          );
 
           progressTracker.update(1, spriteName);
 
@@ -458,7 +448,8 @@ export class SpriteService {
     const tx = db.transaction(['sprites'], 'readwrite');
 
     let verified = 0;
-    const repaired = 0;
+    // eslint-disable-next-line prefer-const -- will be incremented when repair logic is added
+    let repaired = 0;
     let removed = 0;
 
     let cursor = await tx.objectStore('sprites').openCursor();
@@ -583,28 +574,6 @@ export class SpriteService {
         throw new Error('Invalid WebP signature');
       }
     }
-  }
-
-  private async extractSpriteMetadata(
-    data: ArrayBuffer,
-    contentType: string
-  ): Promise<Record<string, unknown>> {
-    const metadata: Record<string, unknown> = {
-      format: this.detectSpriteType(contentType, ''),
-      compressionRatio: 0.8, // Estimated
-    };
-
-    // For PNG files, we could extract more detailed metadata
-    if (contentType.includes('png')) {
-      metadata.spritesheet = this.isProbablySpritesheet(data);
-    }
-
-    return metadata;
-  }
-
-  private isProbablySpritesheet(data: ArrayBuffer): boolean {
-    // Simple heuristic: larger files are more likely to be spritesheets
-    return data.byteLength > 50 * 1024; // 50KB threshold
   }
 
   private async rateLimitDelay(bandwidthLimit: number): Promise<void> {

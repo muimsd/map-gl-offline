@@ -222,14 +222,18 @@ export class CleanupService {
         smallestRegion = { id: region.id, size: regionSize };
       }
 
-      // Track expiry distribution
-      const timeSinceModified = currentTime - region.lastModified;
-      if (timeSinceModified > 30 * day24h) {
-        expiryDistribution.expired++;
-      } else if (timeSinceModified > 30 * day24h - day24h) {
-        expiryDistribution.expiringWithin24h++;
-      } else if (timeSinceModified > 30 * day24h - day7d) {
-        expiryDistribution.expiringWithin7d++;
+      // Track expiry distribution using the actual expiry timestamp
+      if (region.expiry) {
+        const timeUntilExpiry = region.expiry - currentTime;
+        if (timeUntilExpiry <= 0) {
+          expiryDistribution.expired++;
+        } else if (timeUntilExpiry <= day24h) {
+          expiryDistribution.expiringWithin24h++;
+        } else if (timeUntilExpiry <= day7d) {
+          expiryDistribution.expiringWithin7d++;
+        } else {
+          expiryDistribution.neverExpiring++;
+        }
       } else {
         expiryDistribution.neverExpiring++;
       }
@@ -289,6 +293,7 @@ export class CleanupService {
         clearInterval(intervalId);
       }
       this.autoCleanupIntervals.clear();
+      this.autoCleanupIdMap.clear();
     }
   }
 
@@ -383,6 +388,7 @@ export class CleanupService {
           maxZoom?: number;
           styleUrl?: string;
           created?: number;
+          updated?: number;
           expiry?: number;
         }>;
       };
@@ -394,7 +400,7 @@ export class CleanupService {
               key: region.id,
               styleId: styleEntry.key,
               created: region.created || Date.now(),
-              lastModified: region.created || Date.now(),
+              lastModified: region.updated || region.created || Date.now(),
               expiry: region.expiry || Date.now() + 30 * 24 * 60 * 60 * 1000,
             }) as StoredRegion
         );

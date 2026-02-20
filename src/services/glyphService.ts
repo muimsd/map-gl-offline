@@ -376,7 +376,8 @@ export class GlyphService {
     const db = await this.db;
 
     let verified = 0;
-    const repaired = 0;
+    // eslint-disable-next-line prefer-const -- will be incremented when repair logic is added
+    let repaired = 0;
     let removed = 0;
 
     const tx = db.transaction('glyphs', 'readwrite');
@@ -414,17 +415,6 @@ export class GlyphService {
     if (view[0] === 0x00 && view[1] === 0x00 && view[2] === 0x00 && view[3] === 0x00) {
       throw new Error('Invalid glyph data - appears to be empty');
     }
-  }
-
-  private countGlyphsInData(data: ArrayBuffer): number {
-    // This would require proper protobuf parsing
-    // For now, return estimated count based on size
-    return Math.floor(data.byteLength / 50); // Rough estimate
-  }
-
-  private calculateCompressionRatio(data: ArrayBuffer): number {
-    // Simple estimation - would need actual uncompressed size for accuracy
-    return data.byteLength > 1000 ? 0.3 : 0.8;
   }
 
   private normalizeFontstack(fontstack: string): string {

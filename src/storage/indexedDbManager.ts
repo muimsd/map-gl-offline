@@ -24,6 +24,14 @@ function createStores(db: IDBPDatabase<OfflineMapDB>): void {
  * the upgrade transaction's lifetime (async/await can cause transaction to close).
  */
 function migrateRegionsToStyles(transaction: IDBTransaction): void {
+  // Guard: both stores must exist for migration
+  if (
+    !transaction.objectStoreNames.contains('regions') ||
+    !transaction.objectStoreNames.contains('styles')
+  ) {
+    return;
+  }
+
   const regionsStore = transaction.objectStore('regions');
   const stylesStore = transaction.objectStore('styles');
 
@@ -32,10 +40,21 @@ function migrateRegionsToStyles(transaction: IDBTransaction): void {
   getAllRequest.onsuccess = () => {
     const regions = getAllRequest.result;
 
+    // Group regions by styleId to avoid read-after-write race on the same style
+    const regionsByStyle = new Map<string, typeof regions>();
     for (const region of regions) {
       const styleId = region.styleId;
       if (!styleId) continue;
+      const existing = regionsByStyle.get(styleId);
+      if (existing) {
+        existing.push(region);
+      } else {
+        regionsByStyle.set(styleId, [region]);
+      }
+    }
 
+    // Process each style group with a single read-modify-write
+    for (const [styleId, styleRegions] of regionsByStyle) {
       const getStyleRequest = stylesStore.get(styleId);
 
       getStyleRequest.onsuccess = () => {
@@ -45,26 +64,28 @@ function migrateRegionsToStyles(transaction: IDBTransaction): void {
         // Initialize regions array if needed
         style.regions = style.regions || [];
 
-        // Check if region already exists
-        const exists = style.regions.some((r: { id: string }) => r.id === region.id);
-
-        if (!exists) {
-          style.regions.push({
-            id: region.id,
-            name: region.name,
-            bounds: region.bounds,
-            styleUrl: region.styleUrl,
-            minZoom: region.minZoom,
-            maxZoom: region.maxZoom,
-            created: region.created,
-            expiry: region.expiry,
-            tileExtension: region.tileExtension,
-          });
-          stylesStore.put(style);
+        // Add all regions for this style in one batch
+        for (const region of styleRegions) {
+          const exists = style.regions.some((r: { id: string }) => r.id === region.id);
+          if (!exists) {
+            style.regions.push({
+              id: region.id,
+              name: region.name,
+              bounds: region.bounds,
+              styleUrl: region.styleUrl,
+              minZoom: region.minZoom,
+              maxZoom: region.maxZoom,
+              created: region.created,
+              expiry: region.expiry,
+              tileExtension: region.tileExtension,
+            });
+          }
+          // Delete migrated region from legacy store
+          regionsStore.delete(region.key);
         }
 
-        // Delete migrated region from legacy store
-        regionsStore.delete(region.key);
+        // Single put per style with all regions
+        stylesStore.put(style);
       };
     }
   };

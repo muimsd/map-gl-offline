@@ -29,7 +29,7 @@ export const createOfflineMapManagerModules = (
   });
   const maintenance = createMaintenanceManagement(services, {
     performSmartCleanup: cleanup.performSmartCleanup,
-    listRegions: region.listRegions,
+    listStoredRegions: region.listStoredRegions,
     getComprehensiveStorageAnalytics: analytics.getComprehensiveStorageAnalytics,
   });
   const importExport = createImportExportManagement(services);
