@@ -540,6 +540,10 @@ map-gl-offline/
 
 ### v0.5.3 (Latest)
 
+- ✅ **Bundle Size**: Reduced ESM bundle from 783 KB to 565 KB (28% reduction)
+- ✅ **Turf Tree-Shaking**: Replaced `@turf/turf` monorepo with individual packages (`@turf/area`, `@turf/bbox-polygon`, `@turf/difference`, `@turf/helpers`)
+- ✅ **Externalized Dependencies**: `i18next` and `@turf/*` moved to externals
+- ✅ **Removed Unused Dependency**: Removed `@tabler/icons` (unused, 47 MB install)
 - ✅ **Bug Fixes**: 20+ bugs resolved from comprehensive codebase audit
 - ✅ **Import Atomicity**: Region imports use single IndexedDB transactions
 - ✅ **Expired Region Cleanup**: `forceCleanupExpiredRegions` now uses actual expiry timestamps

@@ -5,7 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.5.3] - 2026-03-08
+
+### Changed
+
+- **Bundle Size**: Reduced ESM bundle from 783 KB to 565 KB (28% reduction) by externalizing `i18next` and replacing `@turf/turf` monorepo with individual packages (`@turf/area`, `@turf/bbox-polygon`, `@turf/difference`, `@turf/helpers`)
+- **Removed Unused Dependency**: Removed `@tabler/icons` (unused, saved 47 MB install size)
 
 ### Fixed
 
@@ -149,7 +154,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Dependencies
 
-- **Core**: `@mapbox/tilebelt`, `idb`, `@turf/turf`, `@tabler/icons`
+- **Core**: `@mapbox/tilebelt`, `idb`, `@turf/area`, `@turf/bbox-polygon`, `@turf/difference`, `@turf/helpers`, `i18next`
 - **Build**: TypeScript, Rollup, Vite
 - **Styling**: Tailwind CSS v4
 - **Peer Dependencies**: MapLibre GL JS >=1.0.0 or Mapbox GL JS >=2.0.0 (optional)
@@ -170,7 +175,7 @@ This is the initial release. For future versions, migration guides will be provi
 
 For more details, see the [README](README.md) and [documentation](https://github.com/muimsd/map-gl-offline).
 
-[Unreleased]: https://github.com/muimsd/map-gl-offline/compare/v0.5.2...HEAD
+[0.5.3]: https://github.com/muimsd/map-gl-offline/compare/v0.5.2...v0.5.3
 [0.5.2]: https://github.com/muimsd/map-gl-offline/compare/v0.5.1...v0.5.2
 [0.5.1]: https://github.com/muimsd/map-gl-offline/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/muimsd/map-gl-offline/compare/v0.1.0...v0.5.0
