@@ -102,8 +102,10 @@
   "type": "module",
   "dependencies": {
     "@mapbox/tilebelt": "^2.0.3",
-    "@tabler/icons": "^3.36.1",
-    "@turf/turf": "^7.3.4",
+    "@turf/area": "^7.3.4",
+    "@turf/bbox-polygon": "^7.3.4",
+    "@turf/difference": "^7.3.4",
+    "@turf/helpers": "^7.3.4",
     "i18next": "^25.8.11",
     "idb": "^8.0.3"
   },

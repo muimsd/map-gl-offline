@@ -4,7 +4,10 @@
  */
 
 import type { Map as MaplibreMap, GeoJSONSource } from 'maplibre-gl';
-import { area, bboxPolygon, difference, convertArea, featureCollection, polygon } from '@turf/turf';
+import { area } from '@turf/area';
+import { bboxPolygon } from '@turf/bbox-polygon';
+import { difference } from '@turf/difference';
+import { convertArea, featureCollection, polygon } from '@turf/helpers';
 import { icons } from '@/utils/icons';
 import { logger } from '@/utils/logger';
 import type { CssPrefix } from '@/utils/cssPrefix';

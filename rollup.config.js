@@ -9,7 +9,11 @@ const external = [
   'maplibre-gl',
   '@mapbox/tilebelt',
   'idb',
-  'uuid'
+  'i18next',
+  '@turf/area',
+  '@turf/bbox-polygon',
+  '@turf/difference',
+  '@turf/helpers'
 ];
 
 export default defineConfig([
@@ -40,7 +44,11 @@ export default defineConfig([
           'maplibre-gl': 'maplibregl',
           '@mapbox/tilebelt': 'tilebelt',
           'idb': 'idb',
-          'uuid': 'uuid'
+          'i18next': 'i18next',
+          '@turf/area': 'turfArea',
+          '@turf/bbox-polygon': 'turfBboxPolygon',
+          '@turf/difference': 'turfDifference',
+          '@turf/helpers': 'turfHelpers'
         }
       }
     ],
