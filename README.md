@@ -512,4 +512,6 @@ MIT © [Muhammad Imran Siddique](https://github.com/muimsd)
 
 [📖 Documentation](https://map-gl-offline.netlify.app) • [🎮 Live Demo](https://map-gl-offline-demo.netlify.app) • [⭐ Star on GitHub](https://github.com/muimsd/map-gl-offline)
 
+<a href="https://www.buymeacoffee.com/muimsd" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" style="height: 60px !important;width: 217px !important;" ></a>
+
 </div>

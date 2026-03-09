@@ -151,6 +151,12 @@ When using MapLibre, pass `mapLib: maplibregl` in the control options to registe
 | Edge    | 79+     | ✅ |
 | Mobile  | Modern  | ✅ |
 
+## Support
+
+If you find this project useful, consider buying me a coffee!
+
+<a href="https://www.buymeacoffee.com/muimsd" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" style={{height: '60px', width: '217px'}} /></a>
+
 ## License
 
 MIT © [Muhammad Imran Siddique](https://github.com/muimsd)
