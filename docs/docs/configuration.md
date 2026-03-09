@@ -65,21 +65,7 @@ await manager.addRegion({
 });
 ```
 
-### Region Options Reference
-
-| Option | Type | Required | Description |
-|--------|------|----------|-------------|
-| `id` | `string` | Yes | Unique identifier for the region |
-| `name` | `string` | Yes | Human-readable display name |
-| `bounds` | `[[lng, lat], [lng, lat]]` | Yes | Geographic bounds (southwest, northeast) |
-| `minZoom` | `number` | Yes | Minimum zoom level to download (e.g., 10) |
-| `maxZoom` | `number` | Yes | Maximum zoom level to download (e.g., 16) |
-| `styleUrl` | `string` | No | Map style URL to use |
-| `expiry` | `number` | No | Expiration timestamp (ms since epoch) |
-| `deleteOnExpiry` | `boolean` | No | Auto-delete when expired (default: false) |
-| `multipleRegions` | `boolean` | No | Part of a multi-region download |
-| `tileExtension` | `string` | No | Tile extension (pbf, mvt, png, jpg, etc.) |
-| `onProgress` | `function` | No | Progress callback function |
+See the [API Reference](./api-reference#offlineregionoptions) for the full `OfflineRegionOptions` type definition.
 
 ## Export Configuration
 

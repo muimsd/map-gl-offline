@@ -33,8 +33,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Maintenance Regions**: `performCompleteMaintenance` now uses `listStoredRegions` to get proper `styleId` on regions
 - **XSS Prevention**: Import/export modal escapes user-provided region data in HTML templates
 
-### Changed
-
 - All source imports converted from relative paths (`../`) to `@/` path alias for consistency
 - Dynamic imports in `regionService` converted to static imports for better tree-shaking
 - Removed dead code: `countGlyphsInData`, `calculateCompressionRatio` from glyph service; `extractSpriteMetadata`, `isProbablySpritesheet` from sprite service
@@ -159,21 +157,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Styling**: Tailwind CSS v4
 - **Peer Dependencies**: MapLibre GL JS >=1.0.0 or Mapbox GL JS >=2.0.0 (optional)
 
-### Breaking Changes
-
-None (initial release)
-
-### Known Issues
-
-None
-
-### Migration Guide
-
-This is the initial release. For future versions, migration guides will be provided here.
-
 ---
 
-For more details, see the [README](README.md) and [documentation](https://github.com/muimsd/map-gl-offline).
+For more details, see the [README](README.md) and [documentation](https://map-gl-offline.netlify.app).
 
 [0.5.3]: https://github.com/muimsd/map-gl-offline/compare/v0.5.2...v0.5.3
 [0.5.2]: https://github.com/muimsd/map-gl-offline/compare/v0.5.1...v0.5.2

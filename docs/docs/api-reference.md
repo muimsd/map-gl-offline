@@ -928,7 +928,7 @@ import {
 } from 'map-gl-offline';
 
 const batchSize = DOWNLOAD_DEFAULTS.BATCH_SIZE; // 10
-const maxZoom = TILE_CONFIG.MAX_ZOOM; // 22
+const maxZoom = TILE_CONFIG.MAX_ZOOM; // 24
 ```
 
 ### Error Handling

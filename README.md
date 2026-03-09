@@ -407,60 +407,6 @@ try {
 }
 ```
 
-### Storage Management
-
-```typescript
-// Check available storage
-if ('storage' in navigator && 'estimate' in navigator.storage) {
-  const { usage, quota } = await navigator.storage.estimate();
-  console.log(`Used: ${usage} / ${quota} bytes`);
-}
-
-// Regular cleanup
-await manager.cleanupExpiredRegions();
-
-// Auto-cleanup on startup
-await manager.setupAutoCleanup({
-  intervalHours: 24, // Daily
-  maxAge: 30, // 30 days
-});
-```
-
-## 🔍 Troubleshooting
-
-### Storage Quota Issues
-
-```typescript
-// Check quota
-const { usage, quota } = await navigator.storage.estimate();
-if (usage / quota > 0.9) {
-  await manager.cleanupExpiredRegions();
-}
-
-// Request persistent storage
-if (navigator.storage?.persist) {
-  const isPersisted = await navigator.storage.persist();
-  console.log(`Persistent storage: ${isPersisted}`);
-}
-```
-
-### Performance Issues
-
-```typescript
-// Reduce concurrency for slower devices
-const lightOptions = {
-  maxConcurrency: 2,
-  batchSize: 10,
-  timeout: 30000,
-};
-
-// Use smaller regions
-const smallerRegion = {
-  minZoom: 11, // Start at higher zoom
-  maxZoom: 15, // End at lower zoom
-};
-```
-
 ## 🌐 Browser Compatibility
 
 | Browser | Version | Support |
@@ -480,7 +426,7 @@ const smallerRegion = {
 
 ## 🤝 Contributing
 
-Contributions are welcome! Please see our [Contributing Guide](CONTRIBUTING.md) for details.
+Contributions are welcome!
 
 ### Development Setup
 
@@ -538,44 +484,13 @@ map-gl-offline/
 
 ## 🔄 Recent Updates
 
-### v0.5.3 (Latest)
-
-- ✅ **Bundle Size**: Reduced ESM bundle from 783 KB to 565 KB (28% reduction)
-- ✅ **Turf Tree-Shaking**: Replaced `@turf/turf` monorepo with individual packages (`@turf/area`, `@turf/bbox-polygon`, `@turf/difference`, `@turf/helpers`)
-- ✅ **Externalized Dependencies**: `i18next` and `@turf/*` moved to externals
-- ✅ **Removed Unused Dependency**: Removed `@tabler/icons` (unused, 47 MB install)
-- ✅ **Bug Fixes**: 20+ bugs resolved from comprehensive codebase audit
-- ✅ **Import Atomicity**: Region imports use single IndexedDB transactions
-- ✅ **Expired Region Cleanup**: `forceCleanupExpiredRegions` now uses actual expiry timestamps
-- ✅ **XSS Prevention**: User data escaped in all UI templates
-- ✅ **Code Quality**: Dead code removal, `@/` path alias for all imports
-
-### v0.5.2
-
-- ✅ **CLI Command**: `npx map-gl-offline init` to copy the Service Worker into your project
-- ✅ **Vite Plugin**: `offlineSwPlugin()` to auto-copy the Service Worker on each build
-- ✅ **Mapbox GL Example**: Full React + Vite example app for Mapbox GL JS
-
-### v0.5.0
-
-- ✅ **Mapbox GL JS Support**: Full support for Mapbox styles, including `mapbox://` protocol URL resolution
-- ✅ **Mapbox Standard Style**: 3D models, raster-dem terrain, and import-based style resolution
-- ✅ **Day/Night Light Presets**: Toggle between day and night lighting for Mapbox Standard
-- ✅ **Rain & Snow Weather**: Weather effect controls for Mapbox Standard style
-- ✅ **Import Resolver**: Automatic resolution of Mapbox Standard `imports` in styles
-- ✅ **Internationalization**: English and Arabic language support with full RTL layout
-- ✅ **Auto-detection**: Automatically detects Mapbox vs MapLibre styles
-
-### v0.1.0
-
-- ✅ **Fractional Zoom Fix**: Fixed tile loading at fractional zoom levels
-- ✅ **Modern UI**: Glassmorphic design with dark/light theme
-- ✅ **Polygon Drawing**: Interactive region selection tool
-- ✅ **Enhanced Analytics**: Comprehensive storage insights
-- ✅ **Performance**: Optimized downloads and memory usage
-- ✅ **TypeScript**: Full type safety throughout
-
 See [CHANGELOG.md](CHANGELOG.md) for complete version history.
+
+**v0.5.3 (Latest):** 28% bundle size reduction (783 KB to 565 KB), 20+ bug fixes, XSS prevention, import atomicity, `@/` path alias for all imports.
+
+**v0.5.2:** CLI command (`npx map-gl-offline init`), Vite plugin for Service Worker, Mapbox GL example app.
+
+**v0.5.0:** Mapbox GL JS support, Standard style with 3D/terrain, day/night presets, rain/snow, i18n (English & Arabic with RTL).
 
 ## 🙏 Acknowledgments
 

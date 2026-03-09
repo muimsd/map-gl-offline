@@ -195,47 +195,12 @@ Internal components:
 
 Services handle specific data types and operations:
 
-#### TileService
+- **TileService** - Tile downloading, storage, and retrieval
+- **FontService** - Font/glyph resource management
+- **SpriteService** - Map sprite downloading and caching
+- **StyleService** - Map style management and offline patching
 
-Handles tile downloading, storage, and retrieval:
-
-```typescript
-import { tileService, downloadTiles } from 'map-gl-offline';
-
-await downloadTiles(region, style, styleId, options);
-const stats = await tileService.getTileStats(styleId);
-```
-
-#### FontService
-
-Manages font/glyph resources:
-
-```typescript
-import { fontService } from 'map-gl-offline';
-
-await fontService.downloadFonts(glyphUrl, fontStacks, styleId, options);
-```
-
-#### SpriteService
-
-Handles map sprites:
-
-```typescript
-import { spriteService } from 'map-gl-offline';
-
-await spriteService.downloadSprites(spriteUrl, styleId, options);
-```
-
-#### StyleService
-
-Manages map styles:
-
-```typescript
-import { loadStyleById, patchStyleForOffline } from 'map-gl-offline';
-
-const style = await loadStyleById(styleId);
-const patched = patchStyleForOffline(style, styleId);
-```
+See the [API Reference](./api-reference#services) for usage examples of each service.
 
 ### Storage Layer
 
