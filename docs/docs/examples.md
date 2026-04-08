@@ -10,6 +10,7 @@ Practical examples for common use cases with `map-gl-offline`.
 
 - [Basic Usage](#basic-usage)
 - [Mapbox GL JS](#mapbox-gl-js)
+- [Extra Tile Sources](#extra-tile-sources)
 - [Region Management](#region-management)
 - [Import/Export](#importexport)
 - [Offline Detection](#offline-detection)
@@ -176,6 +177,87 @@ function setWeather(mode: 'none' | 'rain' | 'snow') {
     map.setSnow({ intensity: 0.6, color: '#ffffff' });
   }
 }
+```
+
+---
+
+## Extra Tile Sources
+
+Save additional vector or raster tile layers alongside the style's own sources. This is useful when you have custom overlay layers that are not part of the base map style.
+
+### Download Region with Extra Vector Layers
+
+```typescript
+await manager.addRegion({
+  id: 'downtown-with-layers',
+  name: 'Downtown + Custom Layers',
+  bounds: [[-74.05, 40.71], [-74.00, 40.76]],
+  minZoom: 10,
+  maxZoom: 16,
+  styleUrl: 'https://example.com/style.json',
+  extraSources: [
+    {
+      id: 'buildings-3d',
+      type: 'vector',
+      tiles: ['https://tiles.example.com/buildings/{z}/{x}/{y}.pbf'],
+      minzoom: 13,
+      maxzoom: 16,
+    },
+    {
+      id: 'transit-lines',
+      type: 'vector',
+      tiles: ['https://tiles.example.com/transit/{z}/{x}/{y}.mvt'],
+      minzoom: 8,
+      maxzoom: 16,
+      attribution: '&copy; Transit Authority',
+    },
+  ],
+});
+```
+
+### Extract Sources from Live Map
+
+When using the UI control, the region form automatically discovers tile sources from the live map and presents them as checkboxes for the user to select. For programmatic use:
+
+```typescript
+// Get all sources from the current map style
+const style = map.getStyle();
+const extraSources = Object.entries(style.sources)
+  .filter(([, source]) => {
+    const s = source as { type: string; tiles?: string[] };
+    return ['vector', 'raster', 'raster-dem'].includes(s.type) && s.tiles?.length;
+  })
+  .map(([id, source]) => {
+    const s = source as { type: string; tiles: string[]; minzoom?: number; maxzoom?: number };
+    return { id, type: s.type, tiles: s.tiles, minzoom: s.minzoom, maxzoom: s.maxzoom };
+  });
+
+// Use the extracted sources in a region download
+await manager.addRegion({
+  id: 'full-offline',
+  name: 'Full Offline Region',
+  bounds: [[-74.05, 40.71], [-74.00, 40.76]],
+  minZoom: 10,
+  maxZoom: 16,
+  styleUrl: 'https://example.com/style.json',
+  extraSources,
+});
+```
+
+### UI Control with Source Selection
+
+When using the `OfflineManagerControl`, the region download form automatically shows all tile sources from the map as selectable checkboxes. Users can pick which additional layers to include in the offline region.
+
+```typescript
+const control = new OfflineManagerControl(manager, {
+  styleUrl: 'https://example.com/style.json',
+  mapLib: maplibregl,
+});
+map.addControl(control, 'top-right');
+
+// When the user draws a region and opens the download form,
+// all vector/raster sources on the map are shown as checkboxes.
+// Selected sources are downloaded alongside the base style tiles.
 ```
 
 ---

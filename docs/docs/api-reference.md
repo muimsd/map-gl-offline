@@ -41,6 +41,33 @@ await manager.addRegion({
 });
 ```
 
+You can also include additional tile sources that are not part of the style:
+
+```typescript
+await manager.addRegion({
+  id: 'my-region',
+  name: 'My Region',
+  bounds: [[-74.05, 40.71], [-74.00, 40.76]],
+  minZoom: 10,
+  maxZoom: 16,
+  styleUrl: 'https://example.com/style.json',
+  extraSources: [
+    {
+      id: 'buildings',
+      type: 'vector',
+      tiles: ['https://tiles.example.com/buildings/{z}/{x}/{y}.pbf'],
+      minzoom: 13,
+      maxzoom: 16,
+    },
+    {
+      id: 'custom-overlay',
+      type: 'vector',
+      tiles: ['https://tiles.example.com/overlay/{z}/{x}/{y}.mvt'],
+    },
+  ],
+});
+```
+
 #### `getStoredRegion(id: string): Promise<StoredRegion | null>`
 
 Retrieve a stored region by its ID.
@@ -540,6 +567,29 @@ interface OfflineRegionOptions {
   deleteOnExpiry?: boolean;
   /** Tile extension (pbf, mvt, png, jpg, etc.) */
   tileExtension?: string;
+  /** Additional tile sources to download alongside the style's own sources */
+  extraSources?: ExtraSource[];
+}
+```
+
+### ExtraSource
+
+Defines an additional tile source to download alongside the style's own sources. This allows saving extra vector (MVT/PBF) or raster layers for a region.
+
+```typescript
+interface ExtraSource {
+  /** Unique identifier for this source (used as sourceId in tile keys and style sources) */
+  id: string;
+  /** Source type. Defaults to 'vector'. */
+  type?: 'vector' | 'raster' | 'raster-dem';
+  /** Tile URL template(s) with {z}, {x}, {y} placeholders */
+  tiles: string[];
+  /** Minimum zoom level for this source */
+  minzoom?: number;
+  /** Maximum zoom level for this source */
+  maxzoom?: number;
+  /** Attribution string for this source */
+  attribution?: string;
 }
 ```
 

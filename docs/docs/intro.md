@@ -15,6 +15,7 @@ A comprehensive **TypeScript** library for **MapLibre GL JS** and **Mapbox GL JS
 
 - **Complete Offline Maps** - Download and store entire map regions with polygon-based selection
 - **Smart Tile Management** - Efficient vector/raster tile downloading, caching, and retrieval
+- **Extra Layer Support** - Save additional vector (MVT/PBF) and raster tile sources alongside the style
 - **Font & Glyph Support** - Comprehensive font and glyph management with Unicode range support
 - **Sprite Management** - Handle map sprites and icons offline with multi-resolution support
 - **Real-time Analytics** - Detailed storage analytics and optimization recommendations

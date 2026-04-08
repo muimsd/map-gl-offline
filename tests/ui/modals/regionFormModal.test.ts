@@ -2,7 +2,7 @@
  * Tests for RegionFormModal Component
  */
 
-import { RegionFormModal, RegionFormOptions, RegionFormData } from '../../../src/ui/modals/regionFormModal';
+import { RegionFormModal, RegionFormOptions, RegionFormData, MapTileSource } from '../../../src/ui/modals/regionFormModal';
 
 describe('RegionFormModal', () => {
   let container: HTMLDivElement;
@@ -350,6 +350,165 @@ describe('RegionFormModal', () => {
 
       // Modal should be created with showThemeToggle: true
       expect(() => modal.show()).not.toThrow();
+    });
+  });
+
+  describe('extra sources picker', () => {
+    const testSources: MapTileSource[] = [
+      {
+        id: 'buildings',
+        type: 'vector',
+        tiles: ['https://example.com/buildings/{z}/{x}/{y}.pbf'],
+        minzoom: 12,
+        maxzoom: 16,
+      },
+      {
+        id: 'satellite',
+        type: 'raster',
+        tiles: ['https://example.com/satellite/{z}/{x}/{y}.png'],
+        minzoom: 0,
+        maxzoom: 18,
+      },
+      {
+        id: 'terrain',
+        type: 'raster-dem',
+        tiles: ['https://example.com/terrain/{z}/{x}/{y}.webp'],
+      },
+    ];
+
+    it('should not show sources section when no mapSources provided', () => {
+      const options = createOptions();
+      const modal = new RegionFormModal(options);
+      const element = modal.show();
+
+      expect(element.textContent).not.toContain('Additional Tile Sources');
+    });
+
+    it('should not show sources section when mapSources is empty', () => {
+      const options = createOptions({ mapSources: [] });
+      const modal = new RegionFormModal(options);
+      const element = modal.show();
+
+      expect(element.textContent).not.toContain('Additional Tile Sources');
+    });
+
+    it('should show sources section with checkboxes when mapSources provided', () => {
+      const options = createOptions({ mapSources: testSources });
+      const modal = new RegionFormModal(options);
+      const element = modal.show();
+
+      expect(element.textContent).toContain('Additional Tile Sources');
+      const checkboxes = element.querySelectorAll('input[type="checkbox"]');
+      expect(checkboxes.length).toBe(3);
+    });
+
+    it('should display source IDs', () => {
+      const options = createOptions({ mapSources: testSources });
+      const modal = new RegionFormModal(options);
+      const element = modal.show();
+
+      expect(element.textContent).toContain('buildings');
+      expect(element.textContent).toContain('satellite');
+      expect(element.textContent).toContain('terrain');
+    });
+
+    it('should display source type badges', () => {
+      const options = createOptions({ mapSources: testSources });
+      const modal = new RegionFormModal(options);
+      const element = modal.show();
+
+      expect(element.textContent).toContain('Vector');
+      expect(element.textContent).toContain('Raster');
+      expect(element.textContent).toContain('Terrain');
+    });
+
+    it('should display zoom range info', () => {
+      const options = createOptions({ mapSources: testSources });
+      const modal = new RegionFormModal(options);
+      const element = modal.show();
+
+      expect(element.textContent).toContain('z12-16');
+      expect(element.textContent).toContain('z0-18');
+    });
+
+    it('should have Select All button', () => {
+      const options = createOptions({ mapSources: testSources });
+      const modal = new RegionFormModal(options);
+      const element = modal.show();
+
+      expect(element.textContent).toContain('Select All');
+    });
+
+    it('should select all sources when Select All is clicked', () => {
+      const options = createOptions({ mapSources: testSources });
+      const modal = new RegionFormModal(options);
+      const element = modal.show();
+
+      // Find and click Select All button
+      const buttons = element.querySelectorAll('button[type="button"]');
+      const selectAllBtn = Array.from(buttons).find(
+        btn => btn.textContent?.trim() === 'Select All'
+      ) as HTMLButtonElement | undefined;
+      expect(selectAllBtn).toBeDefined();
+      selectAllBtn?.click();
+
+      const checkboxes = element.querySelectorAll('input[type="checkbox"]') as NodeListOf<HTMLInputElement>;
+      const allChecked = Array.from(checkboxes).every(cb => cb.checked);
+      expect(allChecked).toBe(true);
+    });
+
+    it('should deselect all sources when Deselect All is clicked', () => {
+      const options = createOptions({ mapSources: testSources });
+      const modal = new RegionFormModal(options);
+      const element = modal.show();
+
+      const buttons = element.querySelectorAll('button[type="button"]');
+      const toggleBtn = Array.from(buttons).find(
+        btn => btn.textContent?.trim() === 'Select All'
+      ) as HTMLButtonElement | undefined;
+
+      // Click twice: first selects all, second deselects all
+      toggleBtn?.click();
+      toggleBtn?.click();
+
+      const checkboxes = element.querySelectorAll('input[type="checkbox"]') as NodeListOf<HTMLInputElement>;
+      const noneChecked = Array.from(checkboxes).every(cb => !cb.checked);
+      expect(noneChecked).toBe(true);
+    });
+
+    it('should not include extraSources in formData when none selected', async () => {
+      const onSave = jest.fn().mockResolvedValue(undefined);
+      const options = createOptions({ onSave, mapSources: testSources });
+      const modal = new RegionFormModal(options);
+      modal.show();
+
+      await modal.save();
+
+      const formData = onSave.mock.calls[0][0] as RegionFormData;
+      expect(formData.extraSources).toBeUndefined();
+    });
+
+    it('should include selected extraSources in formData on save', async () => {
+      const onSave = jest.fn().mockResolvedValue(undefined);
+      const options = createOptions({ onSave, mapSources: testSources });
+      const modal = new RegionFormModal(options);
+      const element = modal.show();
+
+      // Check the first and third checkboxes
+      const checkboxes = element.querySelectorAll('input[type="checkbox"]') as NodeListOf<HTMLInputElement>;
+      checkboxes[0].checked = true; // buildings
+      checkboxes[2].checked = true; // terrain
+
+      await modal.save();
+
+      const formData = onSave.mock.calls[0][0] as RegionFormData;
+      expect(formData.extraSources).toBeDefined();
+      expect(formData.extraSources).toHaveLength(2);
+      expect(formData.extraSources![0].id).toBe('buildings');
+      expect(formData.extraSources![0].type).toBe('vector');
+      expect(formData.extraSources![0].tiles).toEqual(['https://example.com/buildings/{z}/{x}/{y}.pbf']);
+      expect(formData.extraSources![1].id).toBe('terrain');
+      expect(formData.extraSources![1].type).toBe('raster-dem');
     });
   });
 });

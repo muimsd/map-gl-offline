@@ -194,6 +194,7 @@ export class DownloadManager {
       minZoom: formData.minZoom,
       maxZoom: formData.maxZoom,
       styleUrl: formData.styleUrl,
+      extraSources: formData.extraSources,
     };
 
     const regionId = regionConfig.id;

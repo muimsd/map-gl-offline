@@ -26,7 +26,7 @@ jest.mock('../../../src/ui/modals/regionFormModal', () => ({
 }));
 
 // Mock the map object
-const createMockMap = () => ({
+const createMockMap = (styleOverrides?: Record<string, unknown>) => ({
   getContainer: jest.fn().mockReturnValue(document.createElement('div')),
   getBounds: jest.fn().mockReturnValue({
     toArray: () => [[-122.5, 37.7], [-122.3, 37.9]],
@@ -39,6 +39,31 @@ const createMockMap = () => ({
   removeSource: jest.fn(),
   removeLayer: jest.fn(),
   getLayer: jest.fn().mockReturnValue(null),
+  getStyle: jest.fn().mockReturnValue({
+    version: 8,
+    sources: {
+      'openmaptiles': {
+        type: 'vector',
+        tiles: ['https://tiles.example.com/{z}/{x}/{y}.pbf'],
+        minzoom: 0,
+        maxzoom: 14,
+      },
+      'satellite': {
+        type: 'raster',
+        tiles: ['https://tiles.example.com/sat/{z}/{x}/{y}.png'],
+      },
+      'geojson-data': {
+        type: 'geojson',
+        data: { type: 'FeatureCollection', features: [] },
+      },
+      'offline-source': {
+        type: 'vector',
+        tiles: ['idb://region_1/tile/src/{z}/{x}/{y}.pbf'],
+      },
+      ...styleOverrides,
+    },
+    layers: [],
+  }),
 });
 
 // Mock the ModalManager
@@ -300,6 +325,42 @@ describe('RegionControl', () => {
       control.startSelection();
 
       expect(mockPolygonControl.enter).toHaveBeenCalled();
+    });
+
+    it('should pass map tile sources to RegionFormModal on save', () => {
+      const { PolygonControl } = require('../../../src/ui/controls/polygonControl');
+      const { RegionFormModal } = require('../../../src/ui/modals/regionFormModal');
+
+      let savedOnSave: ((bounds: [number, number, number, number], area: number) => void) | undefined;
+      PolygonControl.mockImplementation((map: unknown, opts: { onSave: typeof savedOnSave }) => {
+        savedOnSave = opts.onSave;
+        return {
+          enter: jest.fn(),
+          exit: jest.fn(),
+          triggerSave: jest.fn(),
+        };
+      });
+
+      const options = createOptions();
+      const control = new RegionControl(options);
+      control.startSelection();
+
+      // Simulate polygon save callback
+      savedOnSave?.([-122.5, 37.7, -122.3, 37.9], 25);
+
+      // Verify RegionFormModal was called with mapSources
+      expect(RegionFormModal).toHaveBeenCalled();
+      const formOptions = RegionFormModal.mock.calls[RegionFormModal.mock.calls.length - 1][0];
+
+      // Should include HTTP tile sources (vector + raster) but NOT geojson or idb:// sources
+      expect(formOptions.mapSources).toBeDefined();
+      expect(formOptions.mapSources.length).toBe(2);
+
+      const sourceIds = formOptions.mapSources.map((s: { id: string }) => s.id);
+      expect(sourceIds).toContain('openmaptiles');
+      expect(sourceIds).toContain('satellite');
+      expect(sourceIds).not.toContain('geojson-data');
+      expect(sourceIds).not.toContain('offline-source');
     });
 
     it('should exit polygon control on cancel', () => {

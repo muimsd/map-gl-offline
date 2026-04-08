@@ -5,7 +5,12 @@
 
 import type { Map as MaplibreMap } from 'maplibre-gl';
 import { PolygonControl, PolygonControlOptions } from './polygonControl';
-import { RegionFormModal, RegionFormData, RegionFormOptions } from '@/ui/modals/regionFormModal';
+import {
+  RegionFormModal,
+  RegionFormData,
+  RegionFormOptions,
+  MapTileSource,
+} from '@/ui/modals/regionFormModal';
 import { DownloadManager } from '@/ui/managers/downloadManager';
 import { ModalManager } from '@/ui/modals/modalManager';
 import { icons } from '@/utils/icons';
@@ -129,9 +134,52 @@ export class RegionControl {
   }
 
   /**
+   * Extract tile sources from the live map instance.
+   * Returns vector, raster, and raster-dem sources that have tile URLs.
+   */
+  private extractMapSources(): MapTileSource[] {
+    try {
+      const style = (this.map as { getStyle?: () => Record<string, unknown> })?.getStyle?.();
+      if (!style || !style.sources || typeof style.sources !== 'object') return [];
+
+      const sources: MapTileSource[] = [];
+      for (const [id, raw] of Object.entries(
+        style.sources as Record<string, Record<string, unknown>>
+      )) {
+        const type = raw.type as string | undefined;
+        if (type !== 'vector' && type !== 'raster' && type !== 'raster-dem') continue;
+
+        const tiles = raw.tiles as string[] | undefined;
+        // Only include sources that have resolvable tile URLs (not idb://)
+        if (!tiles || !Array.isArray(tiles) || tiles.length === 0) continue;
+        const hasHttpTiles = tiles.some(
+          (t: string) => t.startsWith('http://') || t.startsWith('https://')
+        );
+        if (!hasHttpTiles) continue;
+
+        sources.push({
+          id,
+          type: type as MapTileSource['type'],
+          tiles: tiles.filter((t: string) => t.startsWith('http://') || t.startsWith('https://')),
+          minzoom: typeof raw.minzoom === 'number' ? raw.minzoom : undefined,
+          maxzoom: typeof raw.maxzoom === 'number' ? raw.maxzoom : undefined,
+          attribution: typeof raw.attribution === 'string' ? raw.attribution : undefined,
+        });
+      }
+      return sources;
+    } catch (error) {
+      regionLogger.warn('Failed to extract map sources:', error);
+      return [];
+    }
+  }
+
+  /**
    * Show region form modal
    */
   private showRegionForm(bounds: [number, number, number, number], area: number): void {
+    const mapSources = this.extractMapSources();
+    regionLogger.debug(`Discovered ${mapSources.length} tile sources from map`);
+
     const formOptions: RegionFormOptions = {
       bounds,
       area,
@@ -140,6 +188,7 @@ export class RegionControl {
       styleUrl: this.options.styleUrl,
       accessToken: this.options.accessToken,
       onThemeToggle: () => this.options.onRegionSaved?.(),
+      mapSources,
     };
 
     this.regionFormModal = new RegionFormModal(formOptions);

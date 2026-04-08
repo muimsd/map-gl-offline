@@ -223,6 +223,22 @@ export class RegionService {
       styleEntry.regions = [];
     }
 
+    // Inject extra sources into the style so they get patched for offline use
+    if (region.extraSources && region.extraSources.length > 0) {
+      for (const extra of region.extraSources) {
+        if (!styleEntry.style.sources[extra.id]) {
+          styleEntry.style.sources[extra.id] = {
+            type: extra.type || 'vector',
+            tiles: extra.tiles,
+            ...(extra.minzoom !== undefined ? { minzoom: extra.minzoom } : {}),
+            ...(extra.maxzoom !== undefined ? { maxzoom: extra.maxzoom } : {}),
+            ...(extra.attribution ? { attribution: extra.attribution } : {}),
+          };
+          regionLogger.debug(`Injected extra source into style: ${extra.id}`);
+        }
+      }
+    }
+
     // Patch style for offline use with the region's maxZoom and tileExtension
     // Pass styleId for sprites since they're stored with the style ID, not region ID
     patchStyleForOffline(
