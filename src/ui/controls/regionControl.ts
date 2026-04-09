@@ -134,18 +134,47 @@ export class RegionControl {
   }
 
   /**
-   * Extract tile sources from the live map instance.
-   * Returns vector, raster, and raster-dem sources that have tile URLs.
+   * Get the source IDs that belong to the current style URL.
+   * These are the sources the style already includes and will be downloaded automatically.
    */
-  private extractMapSources(): MapTileSource[] {
+  private async getStyleSourceIds(): Promise<Set<string>> {
+    try {
+      const styleUrl = this.options.styleUrl;
+      if (!styleUrl) return new Set();
+
+      const response = await fetch(styleUrl);
+      if (!response.ok) return new Set();
+
+      const styleJson = (await response.json()) as { sources?: Record<string, unknown> };
+      if (styleJson.sources && typeof styleJson.sources === 'object') {
+        return new Set(Object.keys(styleJson.sources));
+      }
+    } catch (error) {
+      regionLogger.warn('Failed to fetch style for source filtering:', error);
+    }
+    return new Set();
+  }
+
+  /**
+   * Extract tile sources from the live map instance that are NOT part of the current style.
+   * Returns vector, raster, and raster-dem sources that have tile URLs,
+   * excluding sources that already belong to the style (those are downloaded automatically).
+   */
+  private async extractExtraMapSources(): Promise<MapTileSource[]> {
     try {
       const style = (this.map as { getStyle?: () => Record<string, unknown> })?.getStyle?.();
       if (!style || !style.sources || typeof style.sources !== 'object') return [];
+
+      // Fetch the original style's source IDs so we can exclude them
+      const styleSourceIds = await this.getStyleSourceIds();
 
       const sources: MapTileSource[] = [];
       for (const [id, raw] of Object.entries(
         style.sources as Record<string, Record<string, unknown>>
       )) {
+        // Skip sources that belong to the style itself
+        if (styleSourceIds.has(id)) continue;
+
         const type = raw.type as string | undefined;
         if (type !== 'vector' && type !== 'raster' && type !== 'raster-dem') continue;
 
@@ -176,9 +205,12 @@ export class RegionControl {
   /**
    * Show region form modal
    */
-  private showRegionForm(bounds: [number, number, number, number], area: number): void {
-    const mapSources = this.extractMapSources();
-    regionLogger.debug(`Discovered ${mapSources.length} tile sources from map`);
+  private async showRegionForm(
+    bounds: [number, number, number, number],
+    area: number
+  ): Promise<void> {
+    const mapSources = await this.extractExtraMapSources();
+    regionLogger.debug(`Discovered ${mapSources.length} extra tile sources from map`);
 
     const formOptions: RegionFormOptions = {
       bounds,

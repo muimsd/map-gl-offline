@@ -327,9 +327,23 @@ describe('RegionControl', () => {
       expect(mockPolygonControl.enter).toHaveBeenCalled();
     });
 
-    it('should pass map tile sources to RegionFormModal on save', () => {
+    it('should only pass extra sources (not style sources) to RegionFormModal on save', async () => {
       const { PolygonControl } = require('../../../src/ui/controls/polygonControl');
       const { RegionFormModal } = require('../../../src/ui/modals/regionFormModal');
+
+      // Mock fetch to return the style JSON with its own sources
+      // The style owns 'openmaptiles' - so it should be excluded from extra sources
+      const mockFetch = jest.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          version: 8,
+          sources: {
+            openmaptiles: { type: 'vector', url: 'https://tiles.example.com/v3.json' },
+          },
+          layers: [],
+        }),
+      });
+      global.fetch = mockFetch;
 
       let savedOnSave: ((bounds: [number, number, number, number], area: number) => void) | undefined;
       PolygonControl.mockImplementation((map: unknown, opts: { onSave: typeof savedOnSave }) => {
@@ -345,20 +359,24 @@ describe('RegionControl', () => {
       const control = new RegionControl(options);
       control.startSelection();
 
-      // Simulate polygon save callback
+      // Simulate polygon save callback (async now)
       savedOnSave?.([-122.5, 37.7, -122.3, 37.9], 25);
 
-      // Verify RegionFormModal was called with mapSources
+      // Wait for the async showRegionForm to complete
+      await new Promise(resolve => setTimeout(resolve, 0));
+
+      // Verify RegionFormModal was called with only extra sources
       expect(RegionFormModal).toHaveBeenCalled();
       const formOptions = RegionFormModal.mock.calls[RegionFormModal.mock.calls.length - 1][0];
 
-      // Should include HTTP tile sources (vector + raster) but NOT geojson or idb:// sources
+      // 'satellite' is extra (not in style), 'openmaptiles' is in style so excluded
       expect(formOptions.mapSources).toBeDefined();
-      expect(formOptions.mapSources.length).toBe(2);
+      expect(formOptions.mapSources.length).toBe(1);
+      expect(formOptions.mapSources[0].id).toBe('satellite');
 
+      // Should NOT include style's own source, geojson, or idb:// sources
       const sourceIds = formOptions.mapSources.map((s: { id: string }) => s.id);
-      expect(sourceIds).toContain('openmaptiles');
-      expect(sourceIds).toContain('satellite');
+      expect(sourceIds).not.toContain('openmaptiles');
       expect(sourceIds).not.toContain('geojson-data');
       expect(sourceIds).not.toContain('offline-source');
     });
