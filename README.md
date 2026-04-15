@@ -20,6 +20,7 @@ A comprehensive **TypeScript** library for **MapLibre GL JS** and **Mapbox GL JS
 
 - 🗺️ **Complete Offline Maps**: Download and store entire map regions with polygon-based selection
 - 🎯 **Smart Tile Management**: Efficient vector/raster tile downloading, caching, and retrieval with zoom-level optimization
+- 🧩 **Extra Tile Sources**: Save additional vector (MVT/PBF) and raster tile layers alongside the style's own sources
 - 🔤 **Font & Glyph Support**: Comprehensive font and glyph management with Unicode range support
 - 🎨 **Sprite Management**: Handle map sprites and icons offline with multi-resolution support (@1x, @2x)
 - 📊 **Real-time Analytics**: Detailed storage analytics, performance metrics, and optimization recommendations
@@ -347,8 +348,44 @@ interface OfflineRegionOptions {
   deleteOnExpiry?: boolean; // Auto-delete on expiration
   multipleRegions?: boolean; // Part of a multi-region download
   tileExtension?: string; // Tile extension (pbf, mvt, png, etc.)
+  extraSources?: ExtraSource[]; // Additional tile sources to download alongside the style
+}
+
+interface ExtraSource {
+  id: string; // Unique source identifier
+  type?: 'vector' | 'raster' | 'raster-dem'; // Defaults to 'vector'
+  tiles: string[]; // Tile URL templates with {z}/{x}/{y}
+  minzoom?: number;
+  maxzoom?: number;
+  attribution?: string;
 }
 ```
+
+### Extra Tile Sources
+
+Save additional vector or raster layers (e.g. custom overlays) alongside the style's own sources:
+
+```typescript
+await manager.addRegion({
+  id: 'downtown',
+  name: 'Downtown',
+  bounds: [[-74.05, 40.71], [-74.00, 40.76]],
+  minZoom: 10,
+  maxZoom: 16,
+  styleUrl: 'https://example.com/style.json',
+  extraSources: [
+    {
+      id: 'buildings',
+      type: 'vector',
+      tiles: ['https://tiles.example.com/buildings/{z}/{x}/{y}.pbf'],
+      minzoom: 13,
+      maxzoom: 16,
+    },
+  ],
+});
+```
+
+When using the `OfflineManagerControl`, the region download form auto-discovers tile sources on the live map and shows them as checkboxes — users pick which extra layers to include.
 
 ## 🎯 Use Cases
 
@@ -486,7 +523,9 @@ map-gl-offline/
 
 See [CHANGELOG.md](CHANGELOG.md) for complete version history.
 
-**v0.5.3 (Latest):** 28% bundle size reduction (783 KB to 565 KB), 20+ bug fixes, XSS prevention, import atomicity, `@/` path alias for all imports.
+**v0.5.5 (Latest):** Extra tile source selection for offline regions — pick additional vector/raster layers to download alongside the style's own sources.
+
+**v0.5.3:** 28% bundle size reduction (783 KB to 565 KB), 20+ bug fixes, XSS prevention, import atomicity, `@/` path alias for all imports.
 
 **v0.5.2:** CLI command (`npx map-gl-offline init`), Vite plugin for Service Worker, Mapbox GL example app.
 
