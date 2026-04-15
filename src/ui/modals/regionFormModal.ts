@@ -9,6 +9,7 @@ import { Modal, ModalConfig } from '@/ui/components/shared/Modal';
 import { Button } from '@/ui/components/shared/Button';
 import { icons } from '@/utils/icons';
 import { logger } from '@/utils/logger';
+import { escapeHtml } from '@/utils/formatting';
 import { t, i18n } from '@/ui/translations';
 
 const formLogger = logger.scope('RegionFormModal');
@@ -23,6 +24,26 @@ export interface RegionFormData {
   // Enhanced Mapbox GL support
   provider?: 'mapbox' | 'maplibre' | 'auto';
   accessToken?: string;
+  /** Additional tile sources to download alongside the style's own sources */
+  extraSources?: import('@/types/region').ExtraSource[];
+}
+
+/**
+ * A tile source discovered on the live map, presented to the user for selection.
+ */
+export interface MapTileSource {
+  /** Source ID as it appears in the style */
+  id: string;
+  /** Source type */
+  type: 'vector' | 'raster' | 'raster-dem';
+  /** Tile URL templates */
+  tiles: string[];
+  /** Min zoom level */
+  minzoom?: number;
+  /** Max zoom level */
+  maxzoom?: number;
+  /** Attribution */
+  attribution?: string;
 }
 
 export interface RegionFormOptions {
@@ -33,6 +54,8 @@ export interface RegionFormOptions {
   onThemeToggle?: () => void;
   styleUrl: string;
   accessToken?: string;
+  /** Tile sources discovered from the live map for user selection */
+  mapSources?: MapTileSource[];
 }
 
 export class RegionFormModal {
@@ -46,6 +69,9 @@ export class RegionFormModal {
   private providerSelect?: HTMLSelectElement;
   private accessTokenInput?: HTMLInputElement;
   private accessTokenGroup?: HTMLDivElement;
+  // Extra sources picker
+  private sourceCheckboxes: Map<string, { checkbox: HTMLInputElement; source: MapTileSource }> =
+    new Map();
 
   constructor(options: RegionFormOptions) {
     this.options = options;
@@ -240,10 +266,141 @@ export class RegionFormModal {
 
     form.appendChild(this.accessTokenGroup);
 
+    // Extra sources picker
+    if (this.options.mapSources && this.options.mapSources.length > 0) {
+      const sourcesSection = this.createSourcesPicker(this.options.mapSources);
+      form.appendChild(sourcesSection);
+    }
+
     // Initialize provider detection
     this.detectProviderFromUrl();
 
     return form;
+  }
+
+  /**
+   * Create the extra sources picker section
+   */
+  private createSourcesPicker(sources: MapTileSource[]): HTMLElement {
+    const group = document.createElement('div');
+    group.className = 'flex flex-col gap-3';
+
+    // Header with label and select all/deselect all
+    const header = document.createElement('div');
+    header.className = 'flex items-center justify-between';
+    header.innerHTML = `
+      <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300">
+        ${t('regionForm.extraSources')}
+      </label>
+    `;
+
+    const toggleBtn = document.createElement('button');
+    toggleBtn.type = 'button';
+    toggleBtn.className =
+      'text-xs text-primary-600 dark:text-primary-400 hover:underline cursor-pointer font-medium';
+    toggleBtn.textContent = t('regionForm.selectAll');
+    let allSelected = false;
+    toggleBtn.addEventListener('click', () => {
+      allSelected = !allSelected;
+      for (const { checkbox } of this.sourceCheckboxes.values()) {
+        checkbox.checked = allSelected;
+      }
+      toggleBtn.textContent = allSelected ? t('regionForm.deselectAll') : t('regionForm.selectAll');
+    });
+    header.appendChild(toggleBtn);
+    group.appendChild(header);
+
+    // Info text
+    const info = document.createElement('div');
+    info.className = 'text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1';
+    info.innerHTML = `${icons.infoCircle({ size: 12 })} ${t('regionForm.extraSourcesInfo')}`;
+    group.appendChild(info);
+
+    // Source list
+    const list = document.createElement('div');
+    list.className =
+      'flex flex-col gap-2 max-h-48 overflow-y-auto p-3 rounded-xl glass-input border border-gray-100/50 dark:border-gray-700/50 bg-gray-50/50 dark:bg-gray-800/50';
+
+    for (const source of sources) {
+      const row = document.createElement('label');
+      row.className =
+        'flex items-center gap-3 p-2 rounded-lg hover:bg-white/60 dark:hover:bg-gray-700/40 cursor-pointer transition-colors';
+
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.className =
+        'w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-primary-600 focus:ring-primary-500/50 cursor-pointer flex-shrink-0';
+      checkbox.value = source.id;
+      row.appendChild(checkbox);
+
+      this.sourceCheckboxes.set(source.id, { checkbox, source });
+
+      const details = document.createElement('div');
+      details.className = 'flex flex-col min-w-0';
+
+      const nameRow = document.createElement('div');
+      nameRow.className = 'flex items-center gap-2';
+
+      const name = document.createElement('span');
+      name.className = 'text-sm font-medium text-gray-800 dark:text-gray-200 truncate';
+      name.textContent = source.id;
+      nameRow.appendChild(name);
+
+      const typeKey = `regionForm.sourceType.${source.type}` as Parameters<typeof t>[0];
+      const badge = document.createElement('span');
+      badge.className =
+        source.type === 'vector'
+          ? 'text-[10px] px-1.5 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 font-medium flex-shrink-0'
+          : source.type === 'raster'
+            ? 'text-[10px] px-1.5 py-0.5 rounded-full bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 font-medium flex-shrink-0'
+            : 'text-[10px] px-1.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 font-medium flex-shrink-0';
+      badge.textContent = t(typeKey);
+      nameRow.appendChild(badge);
+
+      details.appendChild(nameRow);
+
+      // Zoom range info
+      const zoomMin = source.minzoom ?? 0;
+      const zoomMax = source.maxzoom ?? 22;
+      const meta = document.createElement('span');
+      meta.className = 'text-[11px] text-gray-500 dark:text-gray-400 truncate';
+      meta.textContent = `z${zoomMin}-${zoomMax}`;
+      if (source.tiles.length > 0) {
+        try {
+          const hostname = new URL(source.tiles[0]).hostname;
+          meta.textContent += ` · ${escapeHtml(hostname)}`;
+        } catch {
+          // ignore invalid URLs
+        }
+      }
+      details.appendChild(meta);
+
+      row.appendChild(details);
+      list.appendChild(row);
+    }
+
+    group.appendChild(list);
+    return group;
+  }
+
+  /**
+   * Get the selected extra sources from the picker
+   */
+  private getSelectedExtraSources(): import('@/types/region').ExtraSource[] {
+    const selected: import('@/types/region').ExtraSource[] = [];
+    for (const { checkbox, source } of this.sourceCheckboxes.values()) {
+      if (checkbox.checked) {
+        selected.push({
+          id: source.id,
+          type: source.type,
+          tiles: source.tiles,
+          minzoom: source.minzoom,
+          maxzoom: source.maxzoom,
+          attribution: source.attribution,
+        });
+      }
+    }
+    return selected;
   }
 
   /**
@@ -340,6 +497,8 @@ export class RegionFormModal {
    */
   private async handleSave(): Promise<void> {
     try {
+      const selectedSources = this.getSelectedExtraSources();
+
       const formData: RegionFormData = {
         name: this.nameInput?.value || `Region ${Date.now()}`,
         minZoom: parseInt(this.minZoomInput?.value || '1'),
@@ -349,6 +508,7 @@ export class RegionFormModal {
         // Enhanced Mapbox GL support
         provider: this.providerSelect?.value as 'mapbox' | 'maplibre' | 'auto',
         accessToken: this.accessTokenInput?.value || undefined,
+        extraSources: selectedSources.length > 0 ? selectedSources : undefined,
       };
 
       this.modal?.hide();

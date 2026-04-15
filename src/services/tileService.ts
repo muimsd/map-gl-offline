@@ -73,6 +73,22 @@ export class TileService {
       throw new Error('Style does not contain any sources to download tiles from');
     }
 
+    // Inject extra sources from the region into the style for downloading
+    if (region.extraSources && region.extraSources.length > 0) {
+      for (const extra of region.extraSources) {
+        if (!style.sources[extra.id]) {
+          style.sources[extra.id] = {
+            type: extra.type || 'vector',
+            tiles: extra.tiles,
+            ...(extra.minzoom !== undefined ? { minzoom: extra.minzoom } : {}),
+            ...(extra.maxzoom !== undefined ? { maxzoom: extra.maxzoom } : {}),
+            ...(extra.attribution ? { attribution: extra.attribution } : {}),
+          };
+          tileLogger.debug(`Injected extra source: ${extra.id}`, extra.tiles);
+        }
+      }
+    }
+
     // Generate tile coordinates once for the region
     const tileCoords = this.generateTileCoordinates(region);
 

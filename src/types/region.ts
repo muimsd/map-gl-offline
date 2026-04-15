@@ -18,6 +18,30 @@ export interface StoredRegion extends OfflineRegionOptions {
 }
 
 /**
+ * An additional tile source to download alongside the style's own sources.
+ * Allows saving extra vector (MVT/PBF) or raster layers for a region.
+ */
+export interface ExtraSource {
+  /** Unique identifier for this source (used as sourceId in tile keys and style sources) */
+  id: string;
+  /**
+   * Source type. Defaults to 'vector'.
+   */
+  type?: 'vector' | 'raster' | 'raster-dem';
+  /**
+   * Tile URL template(s) with {z}, {x}, {y} placeholders.
+   * Example: 'https://example.com/tiles/{z}/{x}/{y}.pbf'
+   */
+  tiles: string[];
+  /** Minimum zoom level for this source */
+  minzoom?: number;
+  /** Maximum zoom level for this source */
+  maxzoom?: number;
+  /** Attribution string for this source */
+  attribution?: string;
+}
+
+/**
  * Configuration options for an offline region
  */
 export interface OfflineRegionOptions {
@@ -55,4 +79,9 @@ export interface OfflineRegionOptions {
   deleteOnExpiry?: boolean;
   /** The actual tile extension used (mvt, pbf, png, jpg, etc.) */
   tileExtension?: string;
+  /**
+   * Additional tile sources to download alongside the style's own sources.
+   * These are injected into the style for offline rendering.
+   */
+  extraSources?: ExtraSource[];
 }

@@ -61,6 +61,15 @@ export const en = {
   'regionForm.downloadRegion': 'Download Region',
   'regionForm.area': 'Area',
   'regionForm.bounds': 'Bounds',
+  'regionForm.extraSources': 'Additional Tile Sources',
+  'regionForm.extraSourcesInfo':
+    'Select extra layers from the map to include in this offline region',
+  'regionForm.noExtraSources': 'No additional tile sources found on the map',
+  'regionForm.sourceType.vector': 'Vector',
+  'regionForm.sourceType.raster': 'Raster',
+  'regionForm.sourceType.raster-dem': 'Terrain',
+  'regionForm.selectAll': 'Select All',
+  'regionForm.deselectAll': 'Deselect All',
 
   // Region List
   'regionList.empty': 'No offline styles or regions found. Click "Add Region" to get started.',

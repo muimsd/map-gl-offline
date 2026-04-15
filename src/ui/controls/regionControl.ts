@@ -5,7 +5,12 @@
 
 import type { Map as MaplibreMap } from 'maplibre-gl';
 import { PolygonControl, PolygonControlOptions } from './polygonControl';
-import { RegionFormModal, RegionFormData, RegionFormOptions } from '@/ui/modals/regionFormModal';
+import {
+  RegionFormModal,
+  RegionFormData,
+  RegionFormOptions,
+  MapTileSource,
+} from '@/ui/modals/regionFormModal';
 import { DownloadManager } from '@/ui/managers/downloadManager';
 import { ModalManager } from '@/ui/modals/modalManager';
 import { icons } from '@/utils/icons';
@@ -129,9 +134,84 @@ export class RegionControl {
   }
 
   /**
+   * Get the source IDs that belong to the current style URL.
+   * These are the sources the style already includes and will be downloaded automatically.
+   */
+  private async getStyleSourceIds(): Promise<Set<string>> {
+    try {
+      const styleUrl = this.options.styleUrl;
+      if (!styleUrl) return new Set();
+
+      const response = await fetch(styleUrl);
+      if (!response.ok) return new Set();
+
+      const styleJson = (await response.json()) as { sources?: Record<string, unknown> };
+      if (styleJson.sources && typeof styleJson.sources === 'object') {
+        return new Set(Object.keys(styleJson.sources));
+      }
+    } catch (error) {
+      regionLogger.warn('Failed to fetch style for source filtering:', error);
+    }
+    return new Set();
+  }
+
+  /**
+   * Extract tile sources from the live map instance that are NOT part of the current style.
+   * Returns vector, raster, and raster-dem sources that have tile URLs,
+   * excluding sources that already belong to the style (those are downloaded automatically).
+   */
+  private async extractExtraMapSources(): Promise<MapTileSource[]> {
+    try {
+      const style = (this.map as { getStyle?: () => Record<string, unknown> })?.getStyle?.();
+      if (!style || !style.sources || typeof style.sources !== 'object') return [];
+
+      // Fetch the original style's source IDs so we can exclude them
+      const styleSourceIds = await this.getStyleSourceIds();
+
+      const sources: MapTileSource[] = [];
+      for (const [id, raw] of Object.entries(
+        style.sources as Record<string, Record<string, unknown>>
+      )) {
+        // Skip sources that belong to the style itself
+        if (styleSourceIds.has(id)) continue;
+
+        const type = raw.type as string | undefined;
+        if (type !== 'vector' && type !== 'raster' && type !== 'raster-dem') continue;
+
+        const tiles = raw.tiles as string[] | undefined;
+        // Only include sources that have resolvable tile URLs (not idb://)
+        if (!tiles || !Array.isArray(tiles) || tiles.length === 0) continue;
+        const hasHttpTiles = tiles.some(
+          (t: string) => t.startsWith('http://') || t.startsWith('https://')
+        );
+        if (!hasHttpTiles) continue;
+
+        sources.push({
+          id,
+          type: type as MapTileSource['type'],
+          tiles: tiles.filter((t: string) => t.startsWith('http://') || t.startsWith('https://')),
+          minzoom: typeof raw.minzoom === 'number' ? raw.minzoom : undefined,
+          maxzoom: typeof raw.maxzoom === 'number' ? raw.maxzoom : undefined,
+          attribution: typeof raw.attribution === 'string' ? raw.attribution : undefined,
+        });
+      }
+      return sources;
+    } catch (error) {
+      regionLogger.warn('Failed to extract map sources:', error);
+      return [];
+    }
+  }
+
+  /**
    * Show region form modal
    */
-  private showRegionForm(bounds: [number, number, number, number], area: number): void {
+  private async showRegionForm(
+    bounds: [number, number, number, number],
+    area: number
+  ): Promise<void> {
+    const mapSources = await this.extractExtraMapSources();
+    regionLogger.debug(`Discovered ${mapSources.length} extra tile sources from map`);
+
     const formOptions: RegionFormOptions = {
       bounds,
       area,
@@ -140,6 +220,7 @@ export class RegionControl {
       styleUrl: this.options.styleUrl,
       accessToken: this.options.accessToken,
       onThemeToggle: () => this.options.onRegionSaved?.(),
+      mapSources,
     };
 
     this.regionFormModal = new RegionFormModal(formOptions);

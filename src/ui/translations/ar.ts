@@ -62,6 +62,14 @@ export const ar = {
   'regionForm.downloadRegion': 'تحميل المنطقة',
   'regionForm.area': 'المساحة',
   'regionForm.bounds': 'الحدود',
+  'regionForm.extraSources': 'مصادر بلاطات إضافية',
+  'regionForm.extraSourcesInfo': 'اختر طبقات إضافية من الخريطة لتضمينها في هذه المنطقة',
+  'regionForm.noExtraSources': 'لم يتم العثور على مصادر بلاطات إضافية على الخريطة',
+  'regionForm.sourceType.vector': 'متجه',
+  'regionForm.sourceType.raster': 'نقطي',
+  'regionForm.sourceType.raster-dem': 'تضاريس',
+  'regionForm.selectAll': 'تحديد الكل',
+  'regionForm.deselectAll': 'إلغاء تحديد الكل',
 
   // Region List - قائمة المناطق
   'regionList.empty': 'لم يتم العثور على أنماط أو مناطق غير متصلة. انقر على "إضافة منطقة" للبدء.',
