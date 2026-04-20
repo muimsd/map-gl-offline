@@ -782,43 +782,6 @@ export class OfflineManagerControl implements IControl {
   }
 
   /**
-   * Load styles from IndexedDB and apply to map
-   */
-  private async loadStylesFromIDB(): Promise<void> {
-    if (!this.map) {
-      controlLogger.warn('Map not available for loading IDB styles');
-      return;
-    }
-
-    try {
-      // Import the loadStyles function from styleService
-      const { loadStyles } = await import('@/services/styleService');
-
-      // Get stored styles from IndexedDB
-      const styles = await loadStyles();
-
-      if (styles.length === 0) {
-        controlLogger.warn('No styles found in IndexedDB');
-        alert('No offline styles available. Please download a style first.');
-        return;
-      }
-
-      // If only one style, load it directly
-      if (styles.length === 1) {
-        const styleToLoad = styles[0];
-        await this.loadOfflineStyle(styleToLoad.key);
-        this.renderPanel();
-        return;
-      }
-
-      // Multiple styles - show selection dialog
-      this.showStyleSelectionModal(styles);
-    } catch (error) {
-      controlLogger.error('Error loading styles from IDB:', error);
-    }
-  }
-
-  /**
    * Show modal to select which style to load
    */
   private showStyleSelectionModal(
@@ -907,17 +870,31 @@ export class OfflineManagerControl implements IControl {
    * ```
    */
   async loadOfflineStyles(): Promise<void> {
-    await this.loadStylesFromIDB();
-  }
+    if (!this.map) {
+      controlLogger.warn('Map not available for loading IDB styles');
+      return;
+    }
 
-  /**
-   * Load a specific offline style by its ID.
-   * Alias for `loadOfflineStyle()` for API clarity.
-   *
-   * @param styleId - The unique identifier of the stored style
-   */
-  async loadSpecificOfflineStyle(styleId: string): Promise<void> {
-    await this.loadOfflineStyle(styleId);
+    try {
+      const { loadStyles } = await import('@/services/styleService');
+      const styles = await loadStyles();
+
+      if (styles.length === 0) {
+        controlLogger.warn('No styles found in IndexedDB');
+        alert('No offline styles available. Please download a style first.');
+        return;
+      }
+
+      if (styles.length === 1) {
+        await this.loadOfflineStyle(styles[0].key);
+        this.renderPanel();
+        return;
+      }
+
+      this.showStyleSelectionModal(styles);
+    } catch (error) {
+      controlLogger.error('Error loading styles from IDB:', error);
+    }
   }
 
   /**

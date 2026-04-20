@@ -515,14 +515,6 @@ Load offline styles from IndexedDB. If only one style is stored, it is loaded au
 await control.loadOfflineStyles();
 ```
 
-#### `loadSpecificOfflineStyle(styleId: string): Promise<void>`
-
-Alias for `loadOfflineStyle()`. Loads a specific offline style by ID.
-
-```typescript
-await control.loadSpecificOfflineStyle('style_1234567890');
-```
-
 #### `updateStyleUrl(newStyleUrl: string): void`
 
 Update the style URL used for new region downloads. Also updates the internal region control so subsequent downloads use the new style.

@@ -1,107 +1,33 @@
-import { dbPromise } from '@/storage/indexedDbManager';
 import { getTileStats } from './tileService';
-import { getFontAnalytics } from './fontService';
-import { getSpriteAnalytics } from './spriteService';
+import { getFontStats } from './fontService';
+import { getSpriteStats } from './spriteService';
 import { getGlyphStats, EnhancedGlyphStats } from './glyphService';
 import type {
   RegionAnalytics,
-  StyleEntry,
   TileStats,
   StorageAnalyticsReport,
   EnhancedFontStats,
   EnhancedSpriteStats,
 } from '@/types';
 
+// The underlying stats functions already iterate every entry in their
+// respective stores, so the "getAll*" methods are just readable aliases
+// — one scan per store, no per-style sub-iteration.
 export class AnalyticsService {
   async getAllTileStats(): Promise<TileStats> {
-    const db = await dbPromise;
-    const styles = await db.getAll('styles');
-
-    let totalCount = 0;
-    let totalSize = 0;
-    const combinedZoomStats = new Map<number, { count: number; size: number }>();
-    let oldestTile: Date | undefined;
-    let newestTile: Date | undefined;
-
-    for (const style of styles) {
-      const styleStats = await getTileStats((style as StyleEntry).key);
-      totalCount += styleStats.count || 0;
-      totalSize += styleStats.totalSize || 0;
-
-      // Track oldest/newest across all styles
-      if (styleStats.oldestTile && (!oldestTile || styleStats.oldestTile < oldestTile)) {
-        oldestTile = styleStats.oldestTile;
-      }
-      if (styleStats.newestTile && (!newestTile || styleStats.newestTile > newestTile)) {
-        newestTile = styleStats.newestTile;
-      }
-
-      // Combine zoom level statistics
-      if (styleStats.zoomLevelStats) {
-        styleStats.zoomLevelStats.forEach((stats, zoom) => {
-          const existing = combinedZoomStats.get(zoom) || { count: 0, size: 0 };
-          combinedZoomStats.set(zoom, {
-            count: existing.count + stats.count,
-            size: existing.size + stats.size,
-          });
-        });
-      }
-    }
-
-    return {
-      count: totalCount,
-      totalSize,
-      averageSize: totalCount > 0 ? totalSize / totalCount : 0,
-      oldestTile,
-      newestTile,
-      zoomLevelStats: combinedZoomStats,
-    };
+    return getTileStats();
   }
 
   async getAllFontStats(): Promise<EnhancedFontStats> {
-    const analytics = await getFontAnalytics();
-    // Access the nested properties from analytics
-    const basic = analytics.basic as { totalFonts: number; totalSize: number; averageSize: number };
-    const distribution = analytics.distribution as Record<string, number>;
-
-    return {
-      count: basic.totalFonts,
-      totalSize: basic.totalSize,
-      averageSize: basic.averageSize,
-      fonts: [],
-      fontsByType: distribution,
-      corruptedFonts: [],
-    };
+    return getFontStats();
   }
 
   async getAllSpriteStats(): Promise<EnhancedSpriteStats> {
-    const analytics = await getSpriteAnalytics();
-    // Access the nested properties from analytics
-    const basic = analytics.basic as {
-      totalSprites: number;
-      totalSize: number;
-      averageSize: number;
-    };
-    const distribution = analytics.distribution as {
-      spritesByType: Record<string, number>;
-      sizeByType: Record<string, number>;
-    };
-
-    return {
-      count: basic.totalSprites,
-      totalSize: basic.totalSize,
-      averageSize: basic.totalSize / Math.max(basic.totalSprites, 1),
-      sprites: [],
-      spritesByType: distribution.spritesByType,
-      sizeByType: distribution.sizeByType,
-      corruptedSprites: [],
-    };
+    return getSpriteStats();
   }
 
   async getAllGlyphStats(): Promise<EnhancedGlyphStats> {
-    // Since getGlyphStats() operates globally and doesn't take parameters,
-    // we can just call it directly instead of iterating through styles
-    return await getGlyphStats();
+    return getGlyphStats();
   }
 
   async getComprehensiveStorageAnalytics(
