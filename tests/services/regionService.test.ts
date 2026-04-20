@@ -519,6 +519,31 @@ describe('RegionService', () => {
       expect(phases).toEqual(expect.arrayContaining(['style', 'sprites', 'glyphs', 'tiles', 'metadata']));
     });
 
+    it('does not auto-fill tileExtension from tileResult (regression: mixed-format styles)', async () => {
+      // tileResult.tileExtension is the first source's extension only; passing
+      // it through to addRegion→patchStyleForOffline would override ALL
+      // sources (e.g., .png from a raster source would clobber vector .pbf).
+      await seedStyle();
+      mockDownloadTiles.mockResolvedValueOnce({
+        totalTiles: 0,
+        downloadedTiles: 0,
+        skippedTiles: 0,
+        failedTiles: 0,
+        totalSize: 0,
+        downloadTime: 0,
+        averageSpeed: 0,
+        errors: [],
+        tileExtension: 'png', // raster, e.g.
+      });
+
+      await regionService.downloadRegion(makeRegion()); // region has no tileExtension
+
+      const db = await dbPromise;
+      const style = await db.get('styles', 'test-style-id');
+      const stored = style?.regions[0] as { tileExtension?: string } | undefined;
+      expect(stored?.tileExtension).toBeUndefined();
+    });
+
     it('downloads the style when missing and then continues the pipeline', async () => {
       mockDownloadStyleWithProvider.mockImplementation(async (styleUrl: string) => {
         // Emulate downloadStyleWithProvider by writing the style to the DB

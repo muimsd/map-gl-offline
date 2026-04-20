@@ -452,13 +452,15 @@ export class RegionService {
       },
     });
 
-    // 5. Metadata — must run last, since addRegion patches style URLs to idb://
+    // 5. Metadata — must run last, since addRegion patches style URLs to idb://.
+    // Do NOT auto-fill tileExtension from tileResult: that's only the first
+    // source's extension, and addRegion feeds it to patchStyleForOffline which
+    // would override ALL sources — breaking mixed raster+vector styles. The
+    // patcher extracts per-source extensions from tile URL patterns when
+    // tileExtension is undefined. Callers who need to force an extension can
+    // still pass `region.tileExtension` explicitly.
     emit('metadata', 0, 1, 'Saving region metadata');
-    await this.addRegion({
-      ...region,
-      styleId,
-      tileExtension: region.tileExtension ?? tileResult.tileExtension,
-    });
+    await this.addRegion({ ...region, styleId });
     emit('metadata', 1, 1, 'Region ready');
 
     return {
