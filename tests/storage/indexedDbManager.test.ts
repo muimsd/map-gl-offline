@@ -1,7 +1,11 @@
 /**
  * Tests for IndexedDB Manager
  */
-import { dbPromise } from '../../src/storage/indexedDbManager';
+import {
+  dbPromise,
+  OfflineMapDBVersionError,
+  resetOfflineMapDB,
+} from '../../src/storage/indexedDbManager';
 import { DB_NAME, DB_VERSION } from '../../src/utils/constants';
 import type { StyleProvider } from '../../src/types/style';
 
@@ -274,6 +278,35 @@ describe('IndexedDB Manager', () => {
       }
 
       expect(totalSize).toBe(600);
+    });
+  });
+
+  describe('OfflineMapDBVersionError', () => {
+    it('reports requested and existing versions in the message', () => {
+      const err = new OfflineMapDBVersionError(3, 4);
+      expect(err.name).toBe('OfflineMapDBVersionError');
+      expect(err.requestedVersion).toBe(3);
+      expect(err.existingVersion).toBe(4);
+      expect(err.message).toContain('version 4');
+      expect(err.message).toContain('version 3');
+      expect(err.message).toContain('resetOfflineMapDB');
+    });
+
+    it('handles unknown existing version', () => {
+      const err = new OfflineMapDBVersionError(3, undefined);
+      expect(err.message).toContain('unknown');
+    });
+  });
+
+  describe('resetOfflineMapDB', () => {
+    // Intentionally does not invoke the helper: calling it would wipe the DB
+    // that dbPromise holds an open connection to, breaking later tests in
+    // sibling suites. Just assert the export shape.
+    it('is exported as an async function', () => {
+      expect(typeof resetOfflineMapDB).toBe('function');
+      // An async function returns a Promise when called; we just check the
+      // callable signature here, not the side effect.
+      expect(resetOfflineMapDB).toHaveLength(0);
     });
   });
 });

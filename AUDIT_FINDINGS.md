@@ -5,7 +5,7 @@
 
 Priority is rated **P1** (correctness bug, can corrupt data or silently drop work) or **P2** (minor/cosmetic).
 
-**Status:** A-E all fixed in the follow-up PR stacked on top of PR #19. F resolved in-place with an explanatory comment.
+**Status:** A-E all fixed in the follow-up PR stacked on top of PR #19. F resolved in-place with an explanatory comment. G (new finding during browser testing) fixed in the same follow-up PR.
 
 ---
 
@@ -160,6 +160,25 @@ The style `key` is a hash-like identifier, not a URL. Matching it against a URL 
 **Impact:** Benign dead branch — never matches. Harmless but confusing.
 
 **Proposed fix:** If the legacy case is real, keep it but add a comment explaining. If the legacy case no longer exists in any shipping version, drop the `s.key === styleUrl` check. Check DB version migrations to decide.
+
+---
+
+## P1 — IndexedDB `VersionError` cascades into unrecoverable UI state (added 2026-04-20)
+
+**Location:** `src/storage/indexedDbManager.ts:111` (the module-level `openDB` call).
+
+**Observed** during live browser testing — a different app at the same origin (`localhost:5173`) had previously created `offline-map-db` at version 4. Our library requests version 3, so `openDB` rejects with a raw `DOMException: VersionError: The requested version (3) is less than the existing version (4).`
+
+The rejection surfaces from `dbPromise` into every consumer (`loadStyles`, `loadAllStoredRegions`, `cleanupService.getAllRegions`, etc.), flooding the console with repeats of the same low-level error. The UI (`PanelManager.render`) crashes with no meaningful message for the end user.
+
+**Impact:** Any user who runs multiple apps that share this IDB name, or who downgrades the library version, sees a broken Offline Manager panel with no recovery path.
+
+**Proposed fix:**
+1. Convert the raw `VersionError` into an actionable `OfflineMapDBVersionError` that exposes `requestedVersion` and `existingVersion` and points the caller at a recovery helper.
+2. Export `resetOfflineMapDB()` — a destructive wipe that callers can invoke after catching the typed error.
+3. Consumers that already `try/catch` the DB (most service methods) already log-and-degrade, so the fix is mostly about giving them a typed error they can inspect to decide whether to offer a "reset" UX.
+
+**Test needed:** Unit tests for the error class shape and for `resetOfflineMapDB` being callable.
 
 ---
 

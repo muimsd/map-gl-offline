@@ -3,6 +3,44 @@ import { OfflineMapDB } from '@/types';
 import { DB_NAME, DB_VERSION } from '@/utils/constants';
 
 /**
+ * Thrown when the on-disk IndexedDB is at a higher schema version than the
+ * library was built against — i.e. after a downgrade, or when another app
+ * sharing the origin already created a DB with the same name at a newer
+ * version. Raw `VersionError` from IDB is not actionable for library consumers;
+ * this subclass lets callers detect and surface a clear message, or decide
+ * whether to call `resetOfflineMapDB()` to recover (destructive — deletes all
+ * stored offline data).
+ */
+export class OfflineMapDBVersionError extends Error {
+  constructor(
+    public readonly requestedVersion: number,
+    public readonly existingVersion: number | undefined
+  ) {
+    super(
+      `offline-map storage is at version ${existingVersion ?? 'unknown'}, but this build ` +
+        `requests version ${requestedVersion}. This usually means another app at the same ` +
+        `origin created an incompatible database, or the library was downgraded. ` +
+        `Call resetOfflineMapDB() to wipe it (destructive — deletes stored offline data).`
+    );
+    this.name = 'OfflineMapDBVersionError';
+  }
+}
+
+/**
+ * Deletes the offline-map IndexedDB database. Destructive — wipes all stored
+ * styles/tiles/sprites/glyphs/fonts. Intended recovery path for callers that
+ * caught an {@link OfflineMapDBVersionError}.
+ */
+export async function resetOfflineMapDB(): Promise<void> {
+  await new Promise<void>((resolve, reject) => {
+    const req = indexedDB.deleteDatabase(DB_NAME);
+    req.onsuccess = () => resolve();
+    req.onerror = () => reject(req.error);
+    req.onblocked = () => resolve(); // will complete once other connections close
+  });
+}
+
+/**
  * Creates all required object stores for the offline map database.
  * Called during initial database creation or when stores are missing.
  */
@@ -108,15 +146,39 @@ function migrateRegionsToStyles(transaction: IDBTransaction): void {
  * const style = await db.get('styles', 'my-style-id');
  * ```
  */
-export const dbPromise = openDB<OfflineMapDB>(DB_NAME, DB_VERSION, {
-  upgrade(db, oldVersion, _newVersion, transaction) {
-    // Create all stores for fresh installs
-    createStores(db);
+async function openOfflineMapDB(): Promise<IDBPDatabase<OfflineMapDB>> {
+  try {
+    return await openDB<OfflineMapDB>(DB_NAME, DB_VERSION, {
+      upgrade(db, oldVersion, _newVersion, transaction) {
+        // Create all stores for fresh installs
+        createStores(db);
 
-    // Migration: v2 -> v3
-    // Move regions from 'regions' store to styles.regions[]
-    if (oldVersion > 0 && oldVersion < 3) {
-      migrateRegionsToStyles(transaction as unknown as IDBTransaction);
+        // Migration: v2 -> v3
+        // Move regions from 'regions' store to styles.regions[]
+        if (oldVersion > 0 && oldVersion < 3) {
+          migrateRegionsToStyles(transaction as unknown as IDBTransaction);
+        }
+      },
+    });
+  } catch (error) {
+    // Convert raw IDB VersionError into something library consumers can
+    // inspect and recover from via resetOfflineMapDB().
+    const isVersionError =
+      error instanceof DOMException
+        ? error.name === 'VersionError'
+        : (error as { name?: string })?.name === 'VersionError';
+    if (isVersionError) {
+      let existingVersion: number | undefined;
+      try {
+        const dbs = (await indexedDB.databases?.()) ?? [];
+        existingVersion = dbs.find(d => d.name === DB_NAME)?.version;
+      } catch {
+        // databases() unavailable (Firefox pre-126); leave existingVersion undefined
+      }
+      throw new OfflineMapDBVersionError(DB_VERSION, existingVersion);
     }
-  },
-});
+    throw error;
+  }
+}
+
+export const dbPromise = openOfflineMapDB();
