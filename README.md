@@ -285,9 +285,10 @@ The constructor accepts optional service overrides for dependency injection (adv
 
 - `getComprehensiveStorageAnalytics()` - Get detailed storage statistics
 - `getRegionAnalytics()` - Get aggregate analytics across all regions
-- `getTileStatistics(styleId: string)` - Get tile-specific statistics
-- `getFontStatistics(styleId: string)` - Get font statistics
-- `getSpriteStatistics(styleId: string)` - Get sprite statistics
+- `getTileStats(styleId?: string)` - Get tile statistics (optionally filtered by style)
+- `getFontStats()` - Get font statistics
+- `getSpriteStats()` - Get sprite statistics
+- `getGlyphStats()` - Get glyph statistics
 
 **Cleanup & Maintenance Methods:**
 
