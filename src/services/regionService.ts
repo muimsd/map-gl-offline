@@ -581,49 +581,44 @@ export class RegionService {
   }
 
   async listRegions(): Promise<OfflineRegionOptions[]> {
-    // Regions are stored inside styles.regions[], not in a separate regions table
-    const styles = await loadStyles();
-    const allRegions: OfflineRegionOptions[] = [];
-
-    for (const style of styles) {
-      if (style.regions && Array.isArray(style.regions)) {
-        allRegions.push(...(style.regions as OfflineRegionOptions[]));
-      }
-    }
-
-    return allRegions;
+    // StoredRegion extends OfflineRegionOptions; no need for a second iteration.
+    return this.listStoredRegions();
   }
 
   /**
    * List all stored regions from styles (used for UI and fitBounds)
    */
   async listStoredRegions(): Promise<StoredRegion[]> {
-    try {
-      const styles = await loadStyles();
-      const allRegions: StoredRegion[] = [];
-      for (const style of styles) {
-        if (style.regions && Array.isArray(style.regions)) {
-          const regionsWithStyle = style.regions.map(
-            region =>
-              ({
-                ...region,
-                key: region.id,
-                styleId: style.key,
-                created: region.created || Date.now(),
-                lastModified: region.updated || region.created || Date.now(),
-                expiry: region.expiry || Date.now() + 30 * 24 * 60 * 60 * 1000,
-              }) as StoredRegion
-          );
-          allRegions.push(...regionsWithStyle);
-        }
+    return loadAllStoredRegions();
+  }
+}
+
+/**
+ * Flatten every `styles.regions[]` entry into a `StoredRegion[]` with the
+ * backing style's id, plus defaults for `created`/`lastModified`/`expiry`.
+ * Shared by `RegionService.listStoredRegions` and `CleanupService.getAllRegions`.
+ */
+export async function loadAllStoredRegions(): Promise<StoredRegion[]> {
+  try {
+    const styles = await loadStyles();
+    const allRegions: StoredRegion[] = [];
+    for (const style of styles) {
+      if (!style.regions || !Array.isArray(style.regions)) continue;
+      for (const region of style.regions) {
+        allRegions.push({
+          ...region,
+          key: region.id,
+          styleId: style.key,
+          created: region.created || Date.now(),
+          lastModified: region.updated || region.created || Date.now(),
+          expiry: region.expiry || Date.now() + 30 * 24 * 60 * 60 * 1000,
+        } as StoredRegion);
       }
-      regionLogger.debug('Extracted regions from styles:', allRegions);
-      return allRegions;
-    } catch (error) {
-      regionLogger.error('Error loading regions from styles:', error);
-      // Fallback to cleanup service method if available
-      // return this.cleanupService.getAllRegions();
-      return [];
     }
+    regionLogger.debug('Extracted regions from styles:', allRegions);
+    return allRegions;
+  } catch (error) {
+    regionLogger.error('Error loading regions from styles:', error);
+    return [];
   }
 }

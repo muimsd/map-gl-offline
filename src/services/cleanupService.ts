@@ -1,6 +1,7 @@
 import { dbPromise } from '@/storage/indexedDbManager';
 import { logger } from '@/utils';
 import { parseTileKey } from '@/utils/tileKey';
+import { loadAllStoredRegions } from '@/services/regionService';
 import type { StoredRegion, RegionCleanupOptions, CleanupResult, RegionAnalytics } from '@/types';
 
 const cleanupLogger = logger.scope('CleanupService');
@@ -372,43 +373,7 @@ export class CleanupService {
   }
 
   async getAllRegions(): Promise<StoredRegion[]> {
-    const db = await this.db;
-    const allRegions: StoredRegion[] = [];
-
-    // Regions are stored inside styles.regions[], not in a separate regions table
-    const styles = await db.getAll('styles');
-    for (const style of styles) {
-      const styleEntry = style as {
-        key?: string;
-        regions?: Array<{
-          id?: string;
-          name?: string;
-          bounds?: [[number, number], [number, number]];
-          minZoom?: number;
-          maxZoom?: number;
-          styleUrl?: string;
-          created?: number;
-          updated?: number;
-          expiry?: number;
-        }>;
-      };
-      if (styleEntry.regions && Array.isArray(styleEntry.regions)) {
-        const regionsWithStyle = styleEntry.regions.map(
-          region =>
-            ({
-              ...region,
-              key: region.id,
-              styleId: styleEntry.key,
-              created: region.created || Date.now(),
-              lastModified: region.updated || region.created || Date.now(),
-              expiry: region.expiry || Date.now() + 30 * 24 * 60 * 60 * 1000,
-            }) as StoredRegion
-        );
-        allRegions.push(...regionsWithStyle);
-      }
-    }
-
-    return allRegions;
+    return loadAllStoredRegions();
   }
 
   async getRegionSize(regionId: string, styleIdParam?: string): Promise<number> {
