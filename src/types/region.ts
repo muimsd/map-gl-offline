@@ -1,3 +1,57 @@
+import type { StyleProvider } from './style';
+import type { TileDownloadOptions, TileDownloadResult } from './tile';
+import type { SpriteDownloadResult } from './sprite';
+import type { GlyphDownloadResult } from './glyph';
+import type { StyleDownloadResult } from './style';
+
+/**
+ * Phase of a region download pipeline, reported via `DownloadRegionOptions.onProgress`.
+ */
+export type DownloadRegionPhase = 'style' | 'sprites' | 'glyphs' | 'tiles' | 'metadata';
+
+/**
+ * Progress update emitted by `OfflineMapManager.downloadRegion`.
+ */
+export interface DownloadRegionProgress {
+  phase: DownloadRegionPhase;
+  completed: number;
+  total: number;
+  percentage: number;
+  message?: string;
+}
+
+/**
+ * Options for the programmatic `downloadRegion` pipeline.
+ */
+export interface DownloadRegionOptions {
+  /** Called with per-phase progress during style → sprites → glyphs → tiles → metadata. */
+  onProgress?: (progress: DownloadRegionProgress) => void;
+  /** Style provider hint when the style needs to be fetched. Defaults to 'auto'. */
+  provider?: StyleProvider;
+  /** Mapbox access token; required when the style or sources use mapbox:// URLs. */
+  accessToken?: string;
+  /** Skip glyph download entirely. Default: false. */
+  skipGlyphs?: boolean;
+  /** Skip sprite download entirely. Default: false. */
+  skipSprites?: boolean;
+  /** Override Unicode glyph ranges fetched per font. Defaults to `GLYPH_CONFIG.COMPREHENSIVE_RANGES`. */
+  glyphRanges?: string[];
+  /** Extra options forwarded to the tile download step. */
+  tileOptions?: TileDownloadOptions;
+}
+
+/**
+ * Result of a full `downloadRegion` pipeline.
+ */
+export interface DownloadRegionResult {
+  regionId: string;
+  styleId: string;
+  styleResult?: StyleDownloadResult;
+  spriteResults: SpriteDownloadResult[];
+  glyphResult?: GlyphDownloadResult;
+  tileResult: TileDownloadResult;
+}
+
 /**
  * Stored region with metadata
  * Extends OfflineRegionOptions with database-specific fields

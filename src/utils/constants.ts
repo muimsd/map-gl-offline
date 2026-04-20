@@ -57,6 +57,9 @@ export const GLYPH_CONFIG = {
     '4096-4351', // Georgian + Hangul Jamo
     '4352-4607', // Ethiopic
     '4608-4863', // Cherokee + Canadian Aboriginal
+    '7680-7935', // Latin Extended Additional
+    '8192-8447', // General Punctuation, Superscripts/Subscripts, Currency Symbols
+    '8448-8703', // Letterlike Symbols, Number Forms, Arrows
     '11904-12031', // CJK Radicals Supplement
     '12032-12255', // Kangxi Radicals + CJK Symbols
     '12288-12543', // Hiragana + Katakana
@@ -66,6 +69,8 @@ export const GLYPH_CONFIG = {
     '40960-42127', // Yi Syllables + Yi Radicals
     '44032-55203', // Hangul Syllables (Korean)
     '63744-64255', // CJK Compatibility Ideographs
+    '64256-64511', // Alphabetic Presentation Forms
+    '65024-65279', // Variation Selectors
     '65280-65535', // Halfwidth and Fullwidth Forms
   ] as const,
 } as const;

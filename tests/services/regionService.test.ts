@@ -1,15 +1,72 @@
 /**
  * Tests for Region Service
  */
+const mockDownloadTiles = jest.fn();
+const mockDownloadSprites = jest.fn();
+const mockDownloadGlyphs = jest.fn();
+const mockDownloadStyleWithProvider = jest.fn();
+
+jest.mock('../../src/services/tileService', () => {
+  const actual = jest.requireActual('../../src/services/tileService');
+  return {
+    ...actual,
+    downloadTiles: (...args: unknown[]) => mockDownloadTiles(...args),
+  };
+});
+
+jest.mock('../../src/services/spriteService', () => {
+  const actual = jest.requireActual('../../src/services/spriteService');
+  return {
+    ...actual,
+    downloadSprites: (...args: unknown[]) => mockDownloadSprites(...args),
+  };
+});
+
+jest.mock('../../src/services/glyphService', () => {
+  const actual = jest.requireActual('../../src/services/glyphService');
+  return {
+    ...actual,
+    downloadGlyphs: (...args: unknown[]) => mockDownloadGlyphs(...args),
+  };
+});
+
+jest.mock('../../src/services/styleService', () => {
+  const actual = jest.requireActual('../../src/services/styleService');
+  return {
+    ...actual,
+    downloadStyleWithProvider: (...args: unknown[]) => mockDownloadStyleWithProvider(...args),
+  };
+});
+
 import { RegionService } from '../../src/services/regionService';
 import { dbPromise } from '../../src/storage/indexedDbManager';
 import type { StyleProvider } from '../../src/types/style';
+import { GLYPH_CONFIG } from '../../src/utils/constants';
 
 describe('RegionService', () => {
   let regionService: RegionService;
 
   beforeEach(async () => {
     regionService = new RegionService();
+
+    mockDownloadTiles.mockReset();
+    mockDownloadSprites.mockReset();
+    mockDownloadGlyphs.mockReset();
+    mockDownloadStyleWithProvider.mockReset();
+
+    mockDownloadTiles.mockResolvedValue({
+      totalTiles: 0,
+      downloadedTiles: 0,
+      skippedTiles: 0,
+      failedTiles: 0,
+      totalSize: 0,
+      downloadTime: 0,
+      averageSpeed: 0,
+      errors: [],
+      tileExtension: 'pbf',
+    });
+    mockDownloadSprites.mockResolvedValue({ downloaded: 0, failed: 0 });
+    mockDownloadGlyphs.mockResolvedValue({ downloaded: 0, failed: 0 });
 
     // Clear all relevant stores before each test
     const db = await dbPromise;
@@ -384,6 +441,132 @@ describe('RegionService', () => {
       expect(style).toBeDefined();
       expect(style?.regions.length).toBe(1);
       expect(style?.regions[0].id).toBe('region-2');
+    });
+  });
+
+  describe('downloadRegion', () => {
+    const seedStyle = async (overrides: Partial<Record<string, unknown>> = {}) => {
+      const db = await dbPromise;
+      await db.put('styles', {
+        key: 'test-style-id',
+        style: {
+          version: 8,
+          sources: { v: { tiles: ['http://tiles/{z}/{x}/{y}.pbf'] } },
+          layers: [
+            { id: 'text', type: 'symbol', layout: { 'text-font': ['Open Sans Regular'] } },
+          ],
+          sprite: 'https://example.com/sprites/sprite',
+          glyphs: 'https://example.com/fonts/{fontstack}/{range}.pbf',
+        },
+        originalUrl: 'https://example.com/style.json',
+        originalSpriteUrl: 'https://example.com/sprites/sprite',
+        originalGlyphsUrl: 'https://example.com/fonts/{fontstack}/{range}.pbf',
+        provider: 'auto' as StyleProvider,
+        regions: [],
+        fonts: [],
+        glyphs: [],
+        sprites: [],
+        ...overrides,
+      });
+    };
+
+    const makeRegion = () => ({
+      id: 'region-prog',
+      name: 'Programmatic Region',
+      bounds: [[-122.5, 37.7], [-122.3, 37.9]] as [[number, number], [number, number]],
+      minZoom: 10,
+      maxZoom: 12,
+      styleUrl: 'https://example.com/style.json',
+    });
+
+    it('throws when no styleUrl is provided', async () => {
+      await expect(
+        regionService.downloadRegion({
+          id: 'x',
+          name: 'x',
+          bounds: [[0, 0], [1, 1]],
+          minZoom: 0,
+          maxZoom: 0,
+        } as never)
+      ).rejects.toThrow('Region must have a styleUrl');
+    });
+
+    it('runs sprites → glyphs → tiles → metadata and stores the region', async () => {
+      await seedStyle();
+      const phases: string[] = [];
+
+      const result = await regionService.downloadRegion(makeRegion(), {
+        onProgress: p => {
+          if (!phases.includes(p.phase)) phases.push(p.phase);
+        },
+      });
+
+      expect(mockDownloadSprites).toHaveBeenCalledTimes(1);
+      expect(mockDownloadGlyphs).toHaveBeenCalledTimes(1);
+      expect(mockDownloadTiles).toHaveBeenCalledTimes(1);
+
+      // Glyph ranges must come from the comprehensive-ranges constant
+      const glyphRanges = mockDownloadGlyphs.mock.calls[0][3];
+      expect(glyphRanges).toEqual([...GLYPH_CONFIG.COMPREHENSIVE_RANGES]);
+
+      // Metadata persisted last, inside styles.regions[]
+      const db = await dbPromise;
+      const style = await db.get('styles', 'test-style-id');
+      expect(style?.regions).toHaveLength(1);
+      expect(style?.regions[0]).toMatchObject({ id: 'region-prog', styleId: 'test-style-id' });
+
+      expect(result.styleId).toBe('test-style-id');
+      expect(phases).toEqual(expect.arrayContaining(['style', 'sprites', 'glyphs', 'tiles', 'metadata']));
+    });
+
+    it('downloads the style when missing and then continues the pipeline', async () => {
+      mockDownloadStyleWithProvider.mockImplementation(async (styleUrl: string) => {
+        // Emulate downloadStyleWithProvider by writing the style to the DB
+        const db = await dbPromise;
+        await db.put('styles', {
+          key: 'fresh-style-id',
+          style: { version: 8, sources: { v: { tiles: ['http://t/{z}/{x}/{y}.pbf'] } }, layers: [] },
+          originalUrl: styleUrl,
+          provider: 'auto' as StyleProvider,
+          regions: [],
+          fonts: [],
+          glyphs: [],
+          sprites: [],
+        });
+        return {
+          styleId: 'fresh-style-id',
+          success: true,
+          downloadTime: 0,
+          styleSize: 0,
+          sourcesProcessed: 0,
+          sourcesEmbedded: 0,
+          errors: [],
+          analytics: { sourceTypes: {}, layerTypes: {}, totalLayers: 0, hasGlyphs: false, hasSprites: false },
+        };
+      });
+
+      const result = await regionService.downloadRegion(makeRegion());
+
+      expect(mockDownloadStyleWithProvider).toHaveBeenCalledWith(
+        'https://example.com/style.json',
+        expect.objectContaining({ enableSourceEmbedding: true, skipExisting: true })
+      );
+      expect(mockDownloadTiles).toHaveBeenCalledTimes(1);
+      expect(result.styleId).toBe('fresh-style-id');
+    });
+
+    it('skips sprites and glyphs when asked', async () => {
+      await seedStyle();
+      await regionService.downloadRegion(makeRegion(), { skipSprites: true, skipGlyphs: true });
+      expect(mockDownloadSprites).not.toHaveBeenCalled();
+      expect(mockDownloadGlyphs).not.toHaveBeenCalled();
+      expect(mockDownloadTiles).toHaveBeenCalledTimes(1);
+    });
+
+    it('loadRegion is an alias for downloadRegion', async () => {
+      await seedStyle();
+      await regionService.loadRegion(makeRegion());
+      expect(mockDownloadTiles).toHaveBeenCalledTimes(1);
     });
   });
 });

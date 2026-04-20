@@ -44,13 +44,9 @@
  * @module downloadManager
  */
 
-import { isStyleDownloaded, loadStyles } from '@/services/styleService';
-import { downloadTiles } from '@/services/tileService';
 import { OfflineMapManager } from '@/managers/offlineMapManager';
 import { RegionFormData } from '@/ui/modals/regionFormModal';
 import { logger } from '@/utils/logger';
-import { isMapboxProtocol, resolveMapboxUrl } from '@/utils/styleProviderUtils';
-import { extractAllFontNames } from '@/utils/styleUtils';
 
 const downloadLogger = logger.scope('DownloadManager');
 
@@ -198,362 +194,29 @@ export class DownloadManager {
     };
 
     const regionId = regionConfig.id;
+    this.updateUIForDownloadStart();
 
     try {
-      // Check if style is downloaded (by styleUrl only)
-      const styleExists = await isStyleDownloaded(undefined, regionConfig.styleUrl);
-
-      let finalStyleId: string;
-      if (!styleExists) {
-        // Enhanced style download with Mapbox GL support
-        downloadLogger.debug(`Downloading style with provider: ${formData.provider}`);
-
-        // Use the enhanced downloadStyleWithProvider for Mapbox GL support
-        const styleDownloadOptions = {
-          skipExisting: true,
-          enableSourceEmbedding: true, // CRITICAL: Embed TileJSON into sources for tile downloads
-          provider: formData.provider || 'auto',
-          accessToken: formData.accessToken,
-          onProgress: (progress: { percentage?: number }) => {
-            downloadLogger.debug(`Style download progress: ${progress.percentage}%`);
-            this.updateProgress(
-              regionId,
-              regionConfig.name,
-              'style',
-              progress.percentage || 0,
-              100,
-              'Downloading style'
-            );
-          },
-        };
-
-        const styleResult = await this.offlineManager.downloadStyle(
-          regionConfig.styleUrl,
-          styleDownloadOptions
-        );
-
-        if (!styleResult.success) {
-          throw new Error(`Failed to download style: ${styleResult.errors.join(', ')}`);
-        }
-
-        finalStyleId = styleResult.styleId;
-        downloadLogger.debug(`Style downloaded successfully: ${finalStyleId}`);
-      } else {
-        // Find the existing style to get its ID
-        const styles = await loadStyles();
-        const existingStyle = styles.find(s => {
-          const sprite = s?.style?.sprite;
-          const spriteMatch = typeof sprite === 'string' && sprite.includes(regionConfig.styleUrl);
-          return spriteMatch || s?.originalUrl === regionConfig.styleUrl;
-        });
-        if (!existingStyle) {
-          throw new Error('Style exists but could not be found');
-        }
-        finalStyleId = existingStyle.key;
-        downloadLogger.debug(`Using existing style: ${finalStyleId}`);
-      }
-
-      // Update region config with the styleId from the downloaded/existing style
-      const finalRegionConfig = {
-        ...regionConfig,
-        styleId: finalStyleId,
-      };
-
-      // Update UI to show download starting
-      this.updateUIForDownloadStart();
-
-      // IMPORTANT: Get the style data BEFORE calling addRegion(), which patches URLs to idb://
-      // We need the original HTTP URLs for downloading resources
-      const styles = await loadStyles();
-      const styleData = styles.find((s: { key?: string }) => s.key === finalStyleId);
-      if (!styleData) {
-        throw new Error('Style not found for resource download');
-      }
-
-      // Get the stored style which has embedded TileJSON data
-      // This is the style we'll use for tile downloads (it has the tiles array)
-      // MUST be loaded before addRegion() patches the URLs
-      const styleWithEmbeddedSources = styleData.style;
-
-      // Use original sprite/glyph URLs stored in the style metadata
-      // These are preserved from when the style was first downloaded
-      const originalSpriteUrl = styleData.originalSpriteUrl;
-      const originalGlyphsUrl = styleData.originalGlyphsUrl;
-
-      downloadLogger.debug('Original URLs from style metadata:', {
-        sprite: originalSpriteUrl,
-        glyphs: originalGlyphsUrl,
-      });
-
-      // Create a copy of the style with original URLs for resource downloads
-      const originalStyleForResources = {
-        ...styleData.style,
-        sprite: originalSpriteUrl,
-        glyphs: originalGlyphsUrl,
-      };
-
-      // Download sprites if the style has them
-      // Supports both string format ("https://...") and array format ([{id, url}, ...])
-      const rawSprite = originalStyleForResources?.sprite;
-      const spriteSources = this.normalizeSpriteProperty(rawSprite);
-
-      if (spriteSources.length > 0) {
-        downloadLogger.debug(
-          `Downloading sprites for style: ${finalStyleId} (${spriteSources.length} source(s))`
-        );
-        try {
-          const { SpriteService } = await import('@/services/spriteService');
-          const spriteService = new SpriteService();
-          const suffixes = ['.json', '.png', '@2x.json', '@2x.png'];
-
-          let totalSpriteFiles = 0;
-          let completedSpriteFiles = 0;
-
-          for (const source of spriteSources) {
-            let spriteBase = source.url;
-            if (isMapboxProtocol(spriteBase) && formData.accessToken) {
-              spriteBase = resolveMapboxUrl(spriteBase, formData.accessToken);
-            }
-
-            // Build sprite URLs; insert suffixes before query string if present
-            const qIndex = spriteBase.indexOf('?');
-            const spriteUrls = suffixes.map(suffix =>
-              qIndex !== -1
-                ? spriteBase.slice(0, qIndex) + suffix + spriteBase.slice(qIndex)
-                : spriteBase + suffix
-            );
-
-            downloadLogger.debug(
-              `Sprite source "${source.id}": ${spriteUrls.length} URLs to download`
-            );
-
-            totalSpriteFiles += spriteUrls.length;
-
-            await spriteService.downloadSprites(spriteUrls, finalStyleId, {
-              onProgress: (progress: { completed: number; total: number }) => {
-                const current = completedSpriteFiles + progress.completed;
-                downloadLogger.debug(`Sprite download: ${current}/${totalSpriteFiles}`);
-                this.updateProgress(
-                  regionId,
-                  regionConfig.name,
-                  'sprites',
-                  current,
-                  totalSpriteFiles,
-                  'Downloading sprites'
-                );
-              },
-              enableValidation: true,
-              skipExisting: false,
-              // For array sprites, use the source ID as name prefix so each
-              // source's files get distinct storage keys
-              namePrefix: source.id !== 'sprite' ? source.id : undefined,
-            });
-
-            completedSpriteFiles += spriteUrls.length;
-          }
-          downloadLogger.debug('Sprites downloaded successfully');
-        } catch (spriteError) {
-          downloadLogger.error('Failed to download sprites (non-fatal):', spriteError);
-        }
-      } else if (rawSprite) {
-        downloadLogger.debug(
-          'Skipping sprite download - sprite URL is already patched or unrecognized:',
-          rawSprite
-        );
-      }
-
-      // Download glyphs if the style has them
-      if (
-        originalStyleForResources?.glyphs &&
-        !originalStyleForResources.glyphs.startsWith('idb://')
-      ) {
-        downloadLogger.debug('Downloading glyphs for style:', finalStyleId);
-        downloadLogger.debug('Original glyphs URL:', originalStyleForResources.glyphs);
-        try {
-          const { GlyphService } = await import('@/services/glyphService');
-          const glyphService = new GlyphService();
-
-          // Extract font families from layers (expression-aware)
-          const fontFamilyArray = extractAllFontNames(
-            styleData.style as { layers?: Array<{ layout?: { [key: string]: unknown } }> }
+      await this.offlineManager.downloadRegion(regionConfig, {
+        provider: formData.provider || 'auto',
+        accessToken: formData.accessToken,
+        onProgress: progress => {
+          const uiPhase: DownloadProgress['phase'] | undefined =
+            progress.phase === 'metadata' ? undefined : progress.phase;
+          this.updateProgress(
+            regionId,
+            regionConfig.name,
+            uiPhase,
+            progress.completed,
+            progress.total,
+            progress.message ?? `Downloading ${progress.phase}`
           );
-          const fontFamilies = new Set<string>(fontFamilyArray);
-
-          if (fontFamilies.size > 0) {
-            downloadLogger.debug('Fonts to download:', Array.from(fontFamilies));
-
-            // Download comprehensive set of glyph ranges for complete font coverage
-            // These ranges cover most common Unicode blocks
-            const glyphRanges = [
-              '0-255', // Basic Latin + Latin-1 Supplement
-              '256-511', // Latin Extended-A + Latin Extended-B
-              '512-767', // IPA Extensions + Spacing Modifier Letters
-              '768-1023', // Combining Diacritical Marks + Greek and Coptic
-              '1024-1279', // Cyrillic + Cyrillic Supplement
-              '1280-1535', // Armenian + Hebrew
-              '1536-1791', // Arabic
-              '1792-2047', // Syriac + Arabic Supplement + Thaana
-              '2048-2303', // NKo + Samaritan + Mandaic
-              '2304-2559', // Devanagari + Bengali
-              '2560-2815', // Gurmukhi + Gujarati
-              '8192-8447', // General Punctuation, Superscripts/Subscripts, Currency Symbols
-              '8448-8703', // Letterlike Symbols, Number Forms, Arrows
-              '2816-3071', // Oriya + Tamil
-              '3072-3327', // Telugu + Kannada
-              '3328-3583', // Malayalam + Sinhala
-              '3584-3839', // Thai + Lao
-              '3840-4095', // Tibetan + Myanmar
-              '4096-4351', // Georgian + Hangul Jamo
-              '4352-4607', // Ethiopic
-              '4608-4863', // Cherokee + Canadian Aboriginal
-              '11904-12031', // CJK Radicals Supplement
-              '12032-12255', // Kangxi Radicals + CJK Symbols
-              '12288-12543', // Hiragana + Katakana
-              '12544-12799', // Bopomofo + Hangul Compatibility Jamo
-              '19968-20223', // CJK Unified Ideographs (first block)
-              '20224-20479', // CJK Unified Ideographs
-              '40960-42127', // Yi Syllables + Yi Radicals
-              '44032-55203', // Hangul Syllables (Korean)
-              '7680-7935', // Latin Extended Additional
-              '63744-64255', // CJK Compatibility Ideographs
-              '64256-64511', // Alphabetic Presentation Forms
-              '65024-65279', // Variation Selectors
-              '65280-65535', // Halfwidth and Fullwidth Forms
-            ];
-
-            let glyphsUrl = originalStyleForResources.glyphs;
-            if (isMapboxProtocol(glyphsUrl) && formData.accessToken) {
-              glyphsUrl = resolveMapboxUrl(glyphsUrl, formData.accessToken);
-            }
-
-            await glyphService.downloadGlyphs(
-              glyphsUrl, // Use ORIGINAL unpatched glyphs URL (resolved if mapbox://)
-              Array.from(fontFamilies),
-              finalStyleId,
-              glyphRanges,
-              {
-                onProgress: (progress: { completed: number; total: number }) => {
-                  downloadLogger.debug(`Glyph download: ${progress.completed}/${progress.total}`);
-                  this.updateProgress(
-                    regionId,
-                    regionConfig.name,
-                    'glyphs',
-                    progress.completed,
-                    progress.total,
-                    'Downloading glyphs'
-                  );
-                },
-              }
-            );
-            downloadLogger.debug('Glyphs downloaded successfully');
-          } else {
-            downloadLogger.debug('No fonts found in style layers');
-          }
-        } catch (glyphError) {
-          downloadLogger.error('Failed to download glyphs (non-fatal):', glyphError);
-        }
-      } else if (originalStyleForResources?.glyphs?.startsWith('idb://')) {
-        downloadLogger.debug(
-          'Skipping glyph download - glyphs URL is already patched:',
-          originalStyleForResources.glyphs
-        );
-      }
-
-      // Then download tiles for the region
-      downloadLogger.debug('Starting tile download for region:', regionId);
-      downloadLogger.debug('Region config:', finalRegionConfig);
-      downloadLogger.debug('Style data sources:', Object.keys(styleData.style?.sources || {}));
-
-      // Use the already-fetched style data
-      if (!styleData) {
-        throw new Error('Style not found for tile download');
-      }
-
-      if (!styleData.style) {
-        throw new Error('Style data does not contain style object');
-      }
-
-      if (!styleData.style.sources || Object.keys(styleData.style.sources).length === 0) {
-        throw new Error(
-          'Style does not contain any sources for tile download. ' +
-            'If this style uses imports (e.g. Mapbox Standard), import resolution may have failed.'
-        );
-      }
-
-      downloadLogger.debug('Calling downloadTiles with finalStyleId:', finalStyleId);
-      downloadLogger.debug(
-        'Stored style sources:',
-        Object.keys(styleWithEmbeddedSources?.sources || {})
-      );
-
-      // Log source details to verify we have tile URLs
-      if (styleWithEmbeddedSources?.sources) {
-        for (const [sourceId, source] of Object.entries(styleWithEmbeddedSources.sources)) {
-          const typedSource = source as { tiles?: string[]; url?: string };
-          downloadLogger.debug(`Source ${sourceId}:`, {
-            hasTiles: !!typedSource.tiles,
-            tilesCount: typedSource.tiles?.length,
-            firstTileUrl: typedSource.tiles?.[0],
-            hasUrl: !!typedSource.url,
-          });
-        }
-      }
-
-      // Use stored style with embedded TileJSON (has tiles array) for tile downloads
-      const tileResult = await downloadTiles(
-        finalRegionConfig,
-        styleWithEmbeddedSources,
-        finalStyleId,
-        {
-          onProgress: progress => {
-            downloadLogger.debug(
-              `Tile download progress: ${progress.completed}/${progress.total} (${progress.percentage.toFixed(1)}%)`
-            );
-            this.updateProgress(
-              regionId,
-              regionConfig.name,
-              'tiles',
-              progress.completed,
-              progress.total,
-              progress.message || 'Downloading tiles'
-            );
-          },
-          skipExisting: false, // Always download tiles to ensure fresh data
-          batchSize: 20,
+        },
+        tileOptions: {
           maxConcurrency: 10,
-        }
-      );
-
-      downloadLogger.debug('Tile download completed for region:', regionId);
-      downloadLogger.debug('Tile download result:', {
-        totalTiles: tileResult.totalTiles,
-        downloadedTiles: tileResult.downloadedTiles,
-        failedTiles: tileResult.failedTiles,
-        skippedTiles: tileResult.skippedTiles,
-        totalSize: tileResult.totalSize,
-        tileExtension: tileResult.tileExtension, // Extension used for tiles (mvt, pbf, etc.)
-        hasErrors: tileResult.errors?.length > 0,
+        },
       });
 
-      if (tileResult.failedTiles > 0 || (tileResult.errors && tileResult.errors.length > 0)) {
-        downloadLogger.error('Tile download had errors:', tileResult.errors);
-      }
-
-      if (tileResult.downloadedTiles === 0 && tileResult.skippedTiles === 0) {
-        downloadLogger.warn(
-          'WARNING: No tiles were downloaded! Check the style sources and TileJSON.'
-        );
-      }
-
-      // NOW add the region metadata - this patches the style URLs to idb:// for offline use
-      // This MUST happen AFTER all downloads are complete since patching converts URLs to idb://
-      // NOTE: Do NOT pass tileExtension here. patchStyleForOffline extracts the correct extension
-      // per-source from the tile URL patterns. Passing a single extension from the first source
-      // would incorrectly override all sources (e.g., applying .png from a raster source to vector sources).
-      downloadLogger.debug('Adding region metadata and patching style for offline use');
-      await this.offlineManager.addRegion(finalRegionConfig);
-
-      // Download complete
       this.handleDownloadComplete(regionId);
     } catch (error) {
       downloadLogger.error('Error downloading region:', error);
@@ -609,28 +272,6 @@ export class DownloadManager {
   private updateUIForDownloadStart(): void {
     this.options.updateButton?.('Downloading...', true);
     this.options.updateProgressBadge?.('0%', true);
-  }
-
-  /**
-   * Normalize the style's sprite property into a uniform array of {id, url} sources.
-   * Handles string format, array format, and filters out already-patched idb:// URLs.
-   */
-  private normalizeSpriteProperty(sprite: unknown): Array<{ id: string; url: string }> {
-    if (!sprite) return [];
-
-    // Array format: [{id: "default", url: "https://..."}, ...]
-    if (Array.isArray(sprite)) {
-      return (sprite as Array<{ id: string; url: string }>).filter(
-        entry => entry && typeof entry.url === 'string' && !entry.url.startsWith('idb://')
-      );
-    }
-
-    // String format: "https://example.com/sprites/sprite"
-    if (typeof sprite === 'string' && !sprite.startsWith('idb://')) {
-      return [{ id: 'sprite', url: sprite }];
-    }
-
-    return [];
   }
 
   /**
