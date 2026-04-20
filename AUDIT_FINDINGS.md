@@ -5,6 +5,8 @@
 
 Priority is rated **P1** (correctness bug, can corrupt data or silently drop work) or **P2** (minor/cosmetic).
 
+**Status:** A-E all fixed in the follow-up PR stacked on top of PR #19. F resolved in-place with an explanatory comment.
+
 ---
 
 ## P1 — `expiry` field has inconsistent semantics (duration on write, timestamp on read)

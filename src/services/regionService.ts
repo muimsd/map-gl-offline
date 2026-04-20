@@ -22,6 +22,21 @@ import * as tilebelt from '@mapbox/tilebelt';
 
 const regionLogger = logger.scope('RegionService');
 
+/**
+ * True when `key` belongs to the given styleId.
+ *
+ * Font/glyph/sprite keys use `:` (or `::`) as the delimiter after styleId
+ * (see `glyphService.createGlyphKey` and `spriteService.createSpriteKey`).
+ * The prior implementation also accepted `styleId_` as a match, which was
+ * the source of the cross-style collision: `"abc_def:..."` starts with
+ * `"abc_"`, so deleting style `abc` collaterally wiped `abc_def`'s
+ * resources. `_` never legitimately appears as the delimiter, so it's
+ * dropped here.
+ */
+export function resourceKeyBelongsToStyle(key: string, styleId: string): boolean {
+  return key === styleId || key.startsWith(`${styleId}:`);
+}
+
 export class RegionService {
   /**
    * Check if a tile overlaps with any region bounds
@@ -129,45 +144,30 @@ export class RegionService {
 
     regionLogger.debug(`Deleting all resources for style: ${styleId}`);
 
-    // Delete fonts - fonts have keys like "styleId:fontname"
+    // Use a delimiter-aware prefix match uniformly across fonts/glyphs/sprites
+    // so styleIds with shared prefixes (e.g. `abc` vs `abc_def`) don't collide.
     let deletedFonts = 0;
     const fontTx = db.transaction('fonts', 'readwrite');
     for await (const cursor of fontTx.store) {
-      const fontEntry = cursor.value;
-      // Check if font key starts with "styleId:"
-      if (fontEntry.key.startsWith(`${styleId}:`)) {
+      if (resourceKeyBelongsToStyle(cursor.value.key, styleId)) {
         await cursor.delete();
         deletedFonts++;
       }
     }
 
-    // Delete glyphs - glyphs have keys prefixed with "styleId:" or "styleId_"
     let deletedGlyphs = 0;
     const glyphTx = db.transaction('glyphs', 'readwrite');
     for await (const cursor of glyphTx.store) {
-      const glyphEntry = cursor.value;
-      // Use delimiter-aware prefix match to avoid "paris" matching "greater-paris"
-      if (
-        glyphEntry.key.startsWith(`${styleId}:`) ||
-        glyphEntry.key.startsWith(`${styleId}_`) ||
-        glyphEntry.key === styleId
-      ) {
+      if (resourceKeyBelongsToStyle(cursor.value.key, styleId)) {
         await cursor.delete();
         deletedGlyphs++;
       }
     }
 
-    // Delete sprites - sprites have keys prefixed with "styleId:" or "styleId_"
     let deletedSprites = 0;
     const spriteTx = db.transaction('sprites', 'readwrite');
     for await (const cursor of spriteTx.store) {
-      const spriteEntry = cursor.value;
-      // Use delimiter-aware prefix match to avoid substring collisions
-      if (
-        spriteEntry.key.startsWith(`${styleId}:`) ||
-        spriteEntry.key.startsWith(`${styleId}_`) ||
-        spriteEntry.key === styleId
-      ) {
+      if (resourceKeyBelongsToStyle(cursor.value.key, styleId)) {
         await cursor.delete();
         deletedSprites++;
       }
@@ -261,23 +261,39 @@ export class RegionService {
       styleId
     );
 
-    // Add region metadata to the style entry
-    const bboxExists = styleEntry.regions.some(
-      (r: OfflineRegionOptions) => JSON.stringify(r.bounds) === JSON.stringify(region.bounds)
+    // Add or update region metadata on the style entry.
+    // `expiry` is stored as an absolute timestamp (per the type doc and all
+    // readers in cleanupService/cleanupManagement/RegionList). If the caller
+    // didn't pass one, default to now + 30 days.
+    const DEFAULT_EXPIRY_MS = 30 * 24 * 60 * 60 * 1000;
+    const expiry = region.expiry ?? Date.now() + DEFAULT_EXPIRY_MS;
+
+    // Dedup by id, not bounds: two regions may legitimately share bounds but
+    // have distinct ids. Dropping by bounds silently orphans the new region's
+    // tiles (its id never lands in styles.regions[]).
+    const existingIndex = styleEntry.regions.findIndex(
+      (r: OfflineRegionOptions & { regionId?: string }) =>
+        r.id === region.id || r.regionId === region.id
     );
 
-    if (!bboxExists) {
-      const expiryTime = region.expiry || 30 * 24 * 60 * 60 * 1000; // Default to 30 days if not specified
-      const expiry = Date.now() + expiryTime;
-      const regionWithMeta = {
-        ...region,
-        regionId: region.id,
-        created: Date.now(),
-        expiry,
-      };
+    const regionWithMeta = {
+      ...region,
+      regionId: region.id,
+      // Preserve original `created` on update; set it now on first insert.
+      created:
+        existingIndex >= 0
+          ? ((styleEntry.regions[existingIndex] as { created?: number }).created ?? Date.now())
+          : Date.now(),
+      updated: Date.now(),
+      expiry,
+    };
+
+    if (existingIndex >= 0) {
+      styleEntry.regions[existingIndex] = regionWithMeta;
+    } else {
       styleEntry.regions.push(regionWithMeta);
-      await db.put('styles', styleEntry);
     }
+    await db.put('styles', styleEntry);
   }
 
   async loadRegion(
@@ -425,7 +441,9 @@ export class RegionService {
           glyphsUrl = resolveMapboxUrl(glyphsUrl, effectiveAccessToken);
         }
         const ranges = glyphRanges ?? [...GLYPH_CONFIG.COMPREHENSIVE_RANGES];
-        emit('glyphs', 0, ranges.length * fontFamilies.size, 'Downloading glyphs');
+        // No pre-emit — the service's first onProgress callback drives the
+        // initial total (pre-estimating `ranges * families` caused a visible
+        // jump when the real total came in).
         try {
           glyphResult = await downloadGlyphs(glyphsUrl, Array.from(fontFamilies), styleId, ranges, {
             onProgress: (progress: { completed: number; total: number }) => {
@@ -484,6 +502,11 @@ export class RegionService {
     }
     if (region.styleUrl) {
       const all = await db.getAll('styles');
+      // `s.key === styleUrl` looks like a dead branch today (style.id is never
+      // a URL; see styleService.ts where id is derived from the URL's last
+      // path segment or falls back to `style_${Date.now()}`), but we keep it
+      // for backward compatibility with any legacy rows that predate the
+      // styleId-vs-URL separation. Matches the logic in isStyleDownloaded().
       return all.find(
         (s: Record<string, unknown> & { key?: string; originalUrl?: string }) =>
           s?.key === region.styleUrl || s?.originalUrl === region.styleUrl
