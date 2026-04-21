@@ -304,4 +304,77 @@ describe('ResourceService', () => {
       });
     });
   });
+
+  describe('Download delegators', () => {
+    // These delegators just pass args through to the underlying service
+    // modules. Assert the shape and that calls complete without throwing.
+    it('downloadFontsWithOptions returns a result shape', async () => {
+      const res = await service.downloadFontsWithOptions([], 'style-x', {
+        storageQuotaCheck: false,
+        validateFonts: false,
+      });
+      expect(res).toHaveProperty('downloadedFonts');
+    });
+
+    it('downloadSpritesWithOptions returns a result shape', async () => {
+      const res = await service.downloadSpritesWithOptions([], 'style-x', {
+        storageQuotaCheck: false,
+        enableValidation: false,
+      });
+      expect(res).toHaveProperty('downloadedSprites');
+    });
+
+    it('downloadGlyphsWithOptions returns a result shape', async () => {
+      const res = await service.downloadGlyphsWithOptions(
+        'https://example.com/fonts/{fontstack}/{range}.pbf',
+        [],
+        'style-x',
+        [],
+        {}
+      );
+      expect(res).toHaveProperty('downloadedGlyphs');
+    });
+
+    it('downloadTilesWithOptions fails early with no sources', async () => {
+      await expect(
+        service.downloadTilesWithOptions(
+          {
+            id: 'r1',
+            name: 'r1',
+            bounds: [[-1, -1], [1, 1]] as [[number, number], [number, number]],
+            minZoom: 0,
+            maxZoom: 0,
+          },
+          { version: 8, sources: {}, layers: [] },
+          'style-x',
+          { storageQuotaCheck: false, probeSourcesBeforeDownload: false }
+        )
+      ).rejects.toThrow(/sources/i);
+    });
+  });
+
+  describe('Model management delegators', () => {
+    it('getModelStats returns an empty-state object', async () => {
+      const res = await service.getModelStats();
+      expect(res).toBeDefined();
+      expect(typeof res.count).toBe('number');
+    });
+
+    it('cleanupOldModels returns a number', async () => {
+      const n = await service.cleanupOldModels({ maxAge: 1 });
+      expect(typeof n).toBe('number');
+    });
+
+    it('verifyAndRepairModels returns the expected shape', async () => {
+      const res = await service.verifyAndRepairModels();
+      expect(res).toHaveProperty('verified');
+      expect(res).toHaveProperty('repaired');
+      expect(res).toHaveProperty('removed');
+    });
+
+    it('downloadModelsWithOptions returns a result shape', async () => {
+      const res = await service.downloadModelsWithOptions({}, 'style-x', {});
+      expect(res).toBeDefined();
+    });
+  });
 });

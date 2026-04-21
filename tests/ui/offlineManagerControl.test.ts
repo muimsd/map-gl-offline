@@ -707,6 +707,65 @@ describe('OfflineManagerControl', () => {
       expect(document.querySelector('.modal-backdrop')).toBeNull();
     });
 
+    it('proxies Carto tile subdomain requests on localhost', async () => {
+      const origFetch = jest.fn().mockResolvedValue(new Response('ok'));
+      window.fetch = origFetch as unknown as typeof window.fetch;
+      control = new OfflineManagerControl(mockOfflineManager as any);
+      await window.fetch(
+        'https://tiles-a.basemaps.cartocdn.com/rastertiles/voyager/14/100/200.png'
+      );
+      const calledWith = origFetch.mock.calls[0][0];
+      // The interceptor rewrites it to /tiles/carto-a/...
+      expect(String(calledWith)).toContain('/tiles/carto-a');
+    });
+
+    it('proxies OSM tile requests on localhost', async () => {
+      const origFetch = jest.fn().mockResolvedValue(new Response('ok'));
+      window.fetch = origFetch as unknown as typeof window.fetch;
+      control = new OfflineManagerControl(mockOfflineManager as any);
+      await window.fetch('https://tile.openstreetmap.org/14/100/200.png');
+      const calledWith = origFetch.mock.calls[0][0];
+      expect(String(calledWith)).toContain('/tiles/osm');
+    });
+
+    it('proxies Carto tile-b/c/d subdomains on localhost', async () => {
+      const origFetch = jest.fn().mockResolvedValue(new Response('ok'));
+      window.fetch = origFetch as unknown as typeof window.fetch;
+      control = new OfflineManagerControl(mockOfflineManager as any);
+      await window.fetch(
+        'https://tiles-b.basemaps.cartocdn.com/rastertiles/voyager/14/100/200.png'
+      );
+      await window.fetch(
+        'https://tiles-c.basemaps.cartocdn.com/rastertiles/voyager/14/100/200.png'
+      );
+      await window.fetch(
+        'https://tiles-d.basemaps.cartocdn.com/rastertiles/voyager/14/100/200.png'
+      );
+      expect(String(origFetch.mock.calls[0][0])).toContain('/tiles/carto-b');
+      expect(String(origFetch.mock.calls[1][0])).toContain('/tiles/carto-c');
+      expect(String(origFetch.mock.calls[2][0])).toContain('/tiles/carto-d');
+    });
+
+    it('proxies Carto TileJSON requests on localhost', async () => {
+      const origFetch = jest.fn().mockResolvedValue(new Response('ok'));
+      window.fetch = origFetch as unknown as typeof window.fetch;
+      control = new OfflineManagerControl(mockOfflineManager as any);
+      await window.fetch(
+        'https://tiles.basemaps.cartocdn.com/gl/voyager-gl-style/style.json'
+      );
+      expect(String(origFetch.mock.calls[0][0])).toContain('/carto-api');
+    });
+
+    it('proxies the legacy no-subdomain Carto tile format on localhost', async () => {
+      const origFetch = jest.fn().mockResolvedValue(new Response('ok'));
+      window.fetch = origFetch as unknown as typeof window.fetch;
+      control = new OfflineManagerControl(mockOfflineManager as any);
+      await window.fetch(
+        'https://tiles.basemaps.cartocdn.com/rastertiles/voyager/14/100/200.png'
+      );
+      expect(String(origFetch.mock.calls[0][0])).toContain('/tiles/carto-a');
+    });
+
     it('style selection modal applies selected style', async () => {
       mockLoadStyles.mockResolvedValueOnce([
         { key: 's1', style: { version: 8, name: 'One', sources: {}, layers: [] } },

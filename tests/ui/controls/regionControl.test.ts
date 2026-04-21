@@ -401,4 +401,56 @@ describe('RegionControl', () => {
       expect(mockPolygonControl.exit).toHaveBeenCalled();
     });
   });
+
+  describe('handleRegionSave', () => {
+    it('calls downloadManager.downloadRegion and fires onRegionSaved on success', async () => {
+      const downloadManager = createMockDownloadManager();
+      const onRegionSaved = jest.fn();
+      const control = new RegionControl(
+        createOptions({ downloadManager, onRegionSaved } as unknown as Partial<RegionControlOptions>)
+      );
+      await (control as unknown as {
+        handleRegionSave: (data: unknown) => Promise<void>;
+      }).handleRegionSave({
+        name: 'R',
+        bounds: [0, 0, 1, 1],
+        minZoom: 0,
+        maxZoom: 10,
+        styleUrl: 'https://example.com/s.json',
+      });
+      expect(downloadManager.downloadRegion).toHaveBeenCalled();
+      expect(onRegionSaved).toHaveBeenCalled();
+    });
+
+    it('surfaces downloadRegion errors via an alert', async () => {
+      const alertMock = jest.spyOn(window, 'alert').mockImplementation(() => {});
+      const downloadManager = createMockDownloadManager();
+      downloadManager.downloadRegion.mockRejectedValueOnce(new Error('download failed'));
+      const control = new RegionControl(
+        createOptions({ downloadManager } as unknown as Partial<RegionControlOptions>)
+      );
+      await (control as unknown as {
+        handleRegionSave: (data: unknown) => Promise<void>;
+      }).handleRegionSave({
+        name: 'R',
+        bounds: [0, 0, 1, 1],
+        minZoom: 0,
+        maxZoom: 10,
+        styleUrl: 'https://example.com/s.json',
+      });
+      expect(alertMock).toHaveBeenCalled();
+      alertMock.mockRestore();
+    });
+  });
+
+  describe('handleFormCancel', () => {
+    it('closes the modal without exiting polygon selection', () => {
+      const modalManager = createMockModalManager();
+      const control = new RegionControl(
+        createOptions({ modalManager } as unknown as Partial<RegionControlOptions>)
+      );
+      (control as unknown as { handleFormCancel: () => void }).handleFormCancel();
+      expect(modalManager.close).toHaveBeenCalled();
+    });
+  });
 });

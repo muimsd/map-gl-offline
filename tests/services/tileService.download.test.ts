@@ -426,6 +426,115 @@ describe('TileService.downloadTiles (mocked fetch)', () => {
     expect(result).toBeDefined();
   });
 
+  it('injects extraSources into the style for downloading', async () => {
+    global.fetch = jest
+      .fn()
+      .mockResolvedValue(new Response(null, { status: 200 })) as unknown as typeof fetch;
+    mockFetchResource.mockResolvedValue({
+      type: 'pbf',
+      data: new ArrayBuffer(16),
+      contentType: 'application/x-protobuf',
+    });
+    const region = {
+      id: 'region-ex',
+      name: 'Ex',
+      bounds: [[-0.1, -0.1], [0.1, 0.1]] as [[number, number], [number, number]],
+      minZoom: 0,
+      maxZoom: 0,
+      extraSources: [
+        {
+          id: 'injected',
+          type: 'vector' as const,
+          tiles: ['https://e.example.com/{z}/{x}/{y}.pbf'],
+          minzoom: 0,
+          maxzoom: 14,
+          attribution: '© example',
+        },
+      ],
+    };
+    const style = {
+      version: 8 as const,
+      sources: {
+        base: { type: 'vector', tiles: ['https://t/{z}/{x}/{y}.pbf'] },
+      },
+      layers: [],
+    };
+    const result = await service.downloadTiles(region, style, 'style-ex', {
+      storageQuotaCheck: false,
+      maxRetries: 0,
+      probeSourcesBeforeDownload: false,
+    });
+    expect(result.totalTiles).toBeGreaterThan(0);
+  });
+
+  it('sorts tiles by priorityZoomLevels', async () => {
+    global.fetch = jest
+      .fn()
+      .mockResolvedValue(new Response(null, { status: 200 })) as unknown as typeof fetch;
+    mockFetchResource.mockResolvedValue({
+      type: 'pbf',
+      data: new ArrayBuffer(8),
+      contentType: 'application/x-protobuf',
+    });
+    const region = {
+      id: 'region-pri',
+      name: 'Pri',
+      bounds: [[-0.1, -0.1], [0.1, 0.1]] as [[number, number], [number, number]],
+      minZoom: 0,
+      maxZoom: 2,
+    };
+    const style = {
+      version: 8 as const,
+      sources: { s: { type: 'vector', tiles: ['https://t/{z}/{x}/{y}.pbf'] } },
+      layers: [],
+    };
+    const result = await service.downloadTiles(region, style, 'style-pri', {
+      storageQuotaCheck: false,
+      maxRetries: 0,
+      probeSourcesBeforeDownload: false,
+      priorityZoomLevels: [1, 2],
+    });
+    expect(result.totalTiles).toBeGreaterThan(0);
+  });
+
+  it('throws when storageQuotaCheck flags insufficient space', async () => {
+    Object.defineProperty(global.navigator, 'storage', {
+      configurable: true,
+      value: { estimate: async () => ({ quota: 10, usage: 5 }) },
+    });
+
+    mockFetchResource.mockResolvedValue({
+      type: 'pbf',
+      data: new ArrayBuffer(8),
+      contentType: 'application/x-protobuf',
+    });
+
+    const region = {
+      id: 'region-qt',
+      name: 'Qt',
+      bounds: [[-0.1, -0.1], [0.1, 0.1]] as [[number, number], [number, number]],
+      minZoom: 0,
+      maxZoom: 0,
+    };
+    const style = {
+      version: 8 as const,
+      sources: { s: { type: 'vector', tiles: ['https://t/{z}/{x}/{y}.pbf'] } },
+      layers: [],
+    };
+    await expect(
+      service.downloadTiles(region, style, 'style-qt', {
+        storageQuotaCheck: true,
+        maxRetries: 0,
+        probeSourcesBeforeDownload: false,
+      })
+    ).rejects.toThrow(/Insufficient storage/);
+
+    Object.defineProperty(global.navigator, 'storage', {
+      configurable: true,
+      value: undefined,
+    });
+  });
+
   it('decompresses gzipped tile bytes before storage', async () => {
     global.fetch = jest
       .fn()

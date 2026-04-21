@@ -302,6 +302,50 @@ describe('styleProviderUtils', () => {
 
       expect(processed).toEqual(style);
     });
+
+    it('resolves mapbox:// sprite URLs into HTTPS URLs with an access token', () => {
+      const style = {
+        version: 8,
+        sources: {},
+        layers: [],
+        sprite: 'mapbox://sprites/mapbox/standard/abc',
+      } as unknown as BaseStyle;
+      const processed = processStyleSources(style, 'mapbox', 'pk.test');
+      expect(typeof processed.sprite).toBe('string');
+      expect(processed.sprite as string).toContain('access_token=pk.test');
+    });
+
+    it('processes an array-shaped sprite config with mapbox:// entries', () => {
+      const style = {
+        version: 8,
+        sources: {},
+        layers: [],
+        sprite: [
+          { id: 'a', url: 'mapbox://sprites/mapbox/standard/abc' },
+          { id: 'b', url: 'https://api.mapbox.com/styles/v1/user/style/sprite' },
+          { id: 'c', url: 'https://other.example/sprite' },
+        ],
+      } as unknown as BaseStyle;
+      const processed = processStyleSources(style, 'mapbox', 'pk.test');
+      const arr = processed.sprite as unknown as Array<{ id: string; url: string }>;
+      // mapbox:// entry becomes an HTTPS URL with access_token.
+      expect(arr[0].url).toContain('access_token=pk.test');
+      // mapbox.com entry gets access_token appended.
+      expect(arr[1].url).toContain('access_token=pk.test');
+      // other URLs pass through unchanged.
+      expect(arr[2].url).toBe('https://other.example/sprite');
+    });
+
+    it('resolves mapbox:// glyphs URL into an HTTPS glyphs URL', () => {
+      const style = {
+        version: 8,
+        sources: {},
+        layers: [],
+        glyphs: 'mapbox://fonts/mapbox/{fontstack}/{range}.pbf',
+      } as unknown as BaseStyle;
+      const processed = processStyleSources(style, 'mapbox', 'pk.test');
+      expect(processed.glyphs).toContain('access_token=pk.test');
+    });
   });
 
   describe('validateStyleForProvider', () => {
