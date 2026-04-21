@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.6.0] - 2026-04-21
 
+> Upgrading from 0.5.x? See the [migration guide](https://map-gl-offline.netlify.app/docs/migration-0.6).
+
+
 ### Added
 
 - **Programmatic `downloadRegion` API**: `OfflineMapManager.downloadRegion(region, options?)` runs the full pipeline (style → sprites → glyphs → tiles → metadata) and returns a `DownloadRegionResult`. Per-phase `onProgress` callback with `{ phase, completed, total, percentage, message }`. `loadRegion` is now a thin alias that forwards to `downloadRegion` (was previously a stub logging "loadTiles function not yet implemented"). Closes #18.

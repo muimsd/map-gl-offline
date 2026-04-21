@@ -253,41 +253,61 @@ Key features:
 User initiates download
         │
         ▼
-┌───────────────────┐
-│ OfflineMapManager │
-│   .addRegion()    │
-└────────┬──────────┘
-         │
-         ▼
-┌───────────────────┐     ┌──────────────┐
-│  StyleService     │────▶│ Fetch style  │
-│  .downloadStyle() │     │ JSON         │
-└────────┬──────────┘     └──────────────┘
-         │
-         ▼
-┌───────────────────┐     ┌──────────────┐
-│  SpriteService    │────▶│ Fetch sprite │
-│  .downloadSprites │     │ images & JSON│
-└────────┬──────────┘     └──────────────┘
-         │
-         ▼
-┌───────────────────┐     ┌──────────────┐
-│  FontService      │────▶│ Fetch glyphs │
-│  .downloadFonts() │     │ for each font│
-└────────┬──────────┘     └──────────────┘
-         │
-         ▼
-┌───────────────────┐     ┌──────────────┐
-│  TileService      │────▶│ Fetch tiles  │
-│  .downloadTiles() │     │ in batches   │
-└────────┬──────────┘     └──────────────┘
-         │
-         ▼
-┌───────────────────┐
-│  IndexedDB        │
-│  (all data stored)│
-└───────────────────┘
+┌────────────────────────┐
+│   OfflineMapManager    │
+│    .downloadRegion()   │    ← primary programmatic entry point
+└────────────┬───────────┘       (emits per-phase onProgress events)
+             │
+             ▼
+┌────────────────────────┐     ┌────────────────┐
+│    StyleService        │────▶│ Fetch style    │
+│    .downloadStyle()    │     │ (if missing)   │
+│     (phase: 'style')   │     └────────────────┘
+└────────────┬───────────┘
+             │
+             ▼
+┌────────────────────────┐     ┌────────────────┐
+│    SpriteService       │────▶│ Fetch sprite   │
+│   .downloadSprites()   │     │ images + JSON  │
+│    (phase: 'sprites')  │     └────────────────┘
+└────────────┬───────────┘
+             │
+             ▼
+┌────────────────────────┐     ┌────────────────┐
+│    GlyphService        │────▶│ Fetch glyphs   │
+│    .downloadGlyphs()   │     │ for each font  │
+│    (phase: 'glyphs')   │     └────────────────┘
+└────────────┬───────────┘
+             │
+             ▼
+┌────────────────────────┐     ┌────────────────┐
+│  Source probe (3 tiles │────▶│ Skip sparse    │
+│  per source, majority  │     │ sources whose  │
+│  rule)                 │     │ probes 404     │
+└────────────┬───────────┘     └────────────────┘
+             │
+             ▼
+┌────────────────────────┐     ┌────────────────┐
+│    TileService         │────▶│ Fetch tiles    │
+│    .downloadTiles()    │     │ in batches     │
+│    (phase: 'tiles')    │     └────────────────┘
+└────────────┬───────────┘
+             │
+             ▼
+┌────────────────────────┐     ┌────────────────┐
+│  RegionService         │────▶│ Persist region │
+│  .addRegion()          │     │ metadata; patch│
+│  (phase: 'metadata')   │     │ style to idb://│
+└────────────┬───────────┘     └────────────────┘
+             │
+             ▼
+┌────────────────────────┐
+│     IndexedDB          │
+│  (all data stored)     │
+└────────────────────────┘
 ```
+
+`addRegion` is the final metadata-only step of the pipeline — it can also be called directly when you want to record a region without downloading assets (e.g. after manually importing tiles via `importRegion`). Most callers use `downloadRegion` instead.
 
 ### Offline Load Flow
 
