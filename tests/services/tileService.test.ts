@@ -540,6 +540,70 @@ describe('TileService', () => {
         'Style does not contain any sources to download tiles from'
       );
     });
+
+    it('skips known-sparse Mapbox tilesets by default (Standard style noise fix)', async () => {
+      // Two sources: a non-sparse one and a known-sparse Mapbox tileset.
+      // With the default filter the sparse one should contribute zero tiles.
+      const region = {
+        id: 'test-sparse',
+        name: 'Sparse',
+        bounds: [[55.27, 25.2], [55.28, 25.21]] as [[number, number], [number, number]],
+        minZoom: 1,
+        maxZoom: 1, // keep totals tiny so we don't hit the network
+      };
+      const style = {
+        version: 8 as const,
+        sources: {
+          landmarks: {
+            type: 'vector',
+            tiles: [
+              'https://a.tiles.mapbox.com/v4/mapbox.mapbox-landmark-pois-v1/{z}/{x}/{y}.vector.pbf',
+            ],
+          },
+        },
+        layers: [],
+      };
+      const result = await service.downloadTiles(region, style, 'test-sparse-style', {
+        storageQuotaCheck: false,
+        maxRetries: 0,
+      });
+      // Sparse source was fully pre-filtered; nothing was planned for download.
+      expect(result.totalTiles).toBe(0);
+      expect(result.failedTiles).toBe(0);
+    });
+
+    it('can be overridden with skipSparseSources: false', async () => {
+      // Same style as above, but opt-in to downloading the sparse tileset.
+      // We only assert the pipeline doesn't pre-filter it — the actual fetch
+      // will 404 but that's downstream of the filter we're testing.
+      const region = {
+        id: 'test-sparse-included',
+        name: 'Sparse included',
+        bounds: [[55.27, 25.2], [55.28, 25.21]] as [[number, number], [number, number]],
+        minZoom: 1,
+        maxZoom: 1, // keep tile count tiny
+      };
+      const style = {
+        version: 8 as const,
+        sources: {
+          landmarks: {
+            type: 'vector',
+            tiles: [
+              'https://a.tiles.mapbox.com/v4/mapbox.mapbox-landmark-pois-v1/{z}/{x}/{y}.vector.pbf',
+            ],
+          },
+        },
+        layers: [],
+      };
+      const result = await service.downloadTiles(region, style, 'test-style-included', {
+        skipSparseSources: false,
+        storageQuotaCheck: false,
+        maxRetries: 0,
+      });
+      // The source wasn't pre-filtered; some tiles were attempted even if
+      // they ultimately 404'd or errored (downstream of our filter).
+      expect(result.totalTiles).toBeGreaterThan(0);
+    });
   });
 
   describe('exported functions', () => {

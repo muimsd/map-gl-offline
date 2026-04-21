@@ -67,7 +67,31 @@ export interface TileDownloadOptions {
   bandwidthLimit?: number;
   /** Check storage quota before download (default: true) */
   storageQuotaCheck?: boolean;
+  /**
+   * Skip known-sparse Mapbox tilesets (landmark-POIs, indoor, terrain, etc.)
+   * that only have data at specific locations and return 404 for most
+   * `{z}/{x}/{y}` coordinates. Included in styles like Mapbox Standard,
+   * where they produce large volumes of expected-but-noisy 404s. Default: true.
+   * Override with a custom array to add/replace the default skip list, or
+   * `false` to disable all skipping.
+   */
+  skipSparseSources?: boolean | string[];
 }
+
+/**
+ * Source IDs that are known-sparse on Mapbox's CDN. Referenced by composite
+ * styles (Streets, Standard) but return 404 for most tile coordinates
+ * because their data only exists at specific landmarks / indoor areas /
+ * terrain sources. Skipping them keeps the offline cache focused on the
+ * basemap sources the user actually sees.
+ */
+export const SPARSE_MAPBOX_SOURCE_IDS: readonly string[] = [
+  'mapbox.mapbox-landmark-pois-v1',
+  'mapbox.indoor-v3',
+  'mapbox.mapbox-terrain-v2',
+  'mapbox.mapbox-terrain-dem-v1',
+  'mapbox.mapbox-3d-buildings-v1',
+];
 
 /**
  * Result of a tile download operation

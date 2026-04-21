@@ -14,13 +14,14 @@ import {
   rewriteMapboxCdnTileUrl,
 } from '@/utils/styleProviderUtils';
 import type { FetchResourceResult } from '@/utils';
-import type {
-  TileDownloadOptions,
-  TileDownloadResult,
-  TileStats,
-  OfflineRegionOptions,
-  MapboxStyle,
-  TileEntry,
+import {
+  SPARSE_MAPBOX_SOURCE_IDS,
+  type TileDownloadOptions,
+  type TileDownloadResult,
+  type TileStats,
+  type OfflineRegionOptions,
+  type MapboxStyle,
+  type TileEntry,
 } from '@/types';
 
 const tileLogger = logger.scope('TileService');
@@ -60,7 +61,17 @@ export class TileService {
       validateTiles = false,
       compressTiles = false,
       bandwidthLimit,
+      skipSparseSources = true,
     } = options;
+
+    // Resolve the effective skip list. `true` = defaults, `false` = no skipping,
+    // array = custom list (replaces defaults).
+    const sparseSkipList: readonly string[] =
+      skipSparseSources === true
+        ? SPARSE_MAPBOX_SOURCE_IDS
+        : skipSparseSources === false
+          ? []
+          : skipSparseSources;
 
     const startTime = Date.now();
     let totalSize = 0;
@@ -183,6 +194,24 @@ export class TileService {
         minzoom: sourceConfig.minzoom,
         maxzoom: sourceConfig.maxzoom,
       });
+
+      // Skip known-sparse Mapbox tilesets: they produce large volumes of
+      // expected 404s that flood the browser console and slow the download
+      // for little gain (landmark/indoor/terrain data is locale-specific).
+      // Match against the source's own id AND any mapbox.* id embedded in
+      // its tile URLs, since composite styles sometimes rename the source.
+      if (sparseSkipList.length > 0) {
+        const isSparseById = sparseSkipList.includes(sourceId);
+        const isSparseByUrl = (sourceConfig.tiles ?? []).some(t =>
+          sparseSkipList.some(sparse => t.includes(`/${sparse}/`))
+        );
+        if (isSparseById || isSparseByUrl) {
+          tileLogger.info(
+            `Skipping sparse Mapbox tileset "${sourceId}" (pass skipSparseSources:false to include it)`
+          );
+          continue;
+        }
+      }
 
       const tiles = sourceConfig.tiles;
 
