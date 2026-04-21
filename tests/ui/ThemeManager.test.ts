@@ -181,6 +181,27 @@ describe('ThemeManager', () => {
     });
   });
 
+  describe('init from localStorage', () => {
+    it('honors a saved light/dark preference on load', () => {
+      jest.isolateModules(() => {
+        localStorage.setItem('offline-manager-theme', 'dark');
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        const { themeManager: fresh } = require('../../src/ui/ThemeManager');
+        expect(fresh.getPreference()).toBe('dark');
+        localStorage.removeItem('offline-manager-theme');
+      });
+    });
+
+    it('defaults to system when no saved preference exists', () => {
+      jest.isolateModules(() => {
+        localStorage.removeItem('offline-manager-theme');
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        const { themeManager: fresh } = require('../../src/ui/ThemeManager');
+        expect(fresh.getPreference()).toBe('system');
+      });
+    });
+  });
+
   describe('subscribe', () => {
     it('should notify listeners when theme changes', () => {
       const listener = jest.fn();

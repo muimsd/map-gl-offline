@@ -652,6 +652,70 @@ describe('CleanupService', () => {
     });
   });
 
+  describe('generateRecommendations branches', () => {
+    it('emits "no offline regions" recommendation when no regions exist', async () => {
+      const result = await service.runCleanup();
+      expect(result.scannedRegions).toBe(0);
+    });
+
+    it('emits an expired-regions recommendation', async () => {
+      const db = await dbPromise;
+      const now = Date.now();
+      const day = 86400000;
+      await storeRegionInStyle(db, 'exp-style', {
+        id: 'expired-1',
+        name: 'Expired',
+        bounds: [[0, 0], [1, 1]],
+        styleUrl: 'https://example.com/s.json',
+        minZoom: 0,
+        maxZoom: 10,
+        created: now - 40 * day,
+        // Already expired.
+        expiry: now - day,
+      });
+      const result = await service.runCleanup({ maxAge: 30 });
+      expect(result.recommendations.join(' ')).toBeTruthy();
+    });
+
+    it('emits an expiring-soon recommendation', async () => {
+      const db = await dbPromise;
+      const now = Date.now();
+      const day = 86400000;
+      await storeRegionInStyle(db, 'soon-style', {
+        id: 'soon-1',
+        name: 'Soon',
+        bounds: [[0, 0], [1, 1]],
+        styleUrl: 'https://example.com/s.json',
+        minZoom: 0,
+        maxZoom: 10,
+        created: now,
+        expiry: now + 3 * day, // expires in 3 days
+      });
+      const result = await service.runCleanup();
+      expect(result.scannedRegions).toBeGreaterThan(0);
+    });
+
+    it('emits an auto-cleanup recommendation when no limits are set', async () => {
+      const db = await dbPromise;
+      await storeRegionInStyle(db, 'plain-style', {
+        id: 'plain-1',
+        name: 'Plain',
+        bounds: [[0, 0], [1, 1]],
+        styleUrl: 'https://example.com/s.json',
+        minZoom: 0,
+        maxZoom: 10,
+        created: Date.now(),
+        expiry: Date.now() + 86400000,
+      });
+      const result = await service.runCleanup(); // no options
+      expect(
+        result.recommendations.some(r =>
+          r.toLowerCase().includes('automatic cleanup')
+        )
+      ).toBe(true);
+    });
+  });
+
   describe('runCleanup with maxStorageSize', () => {
     it('deletes additional regions when storage exceeds maxStorageSize', async () => {
       const db = await dbPromise;
