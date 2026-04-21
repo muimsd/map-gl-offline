@@ -53,12 +53,28 @@ const regions = style.regions; // Array of regions
 ```
 
 ### Database Version
-Current DB version is **3**. Migrations are handled in `src/storage/indexedDbManager.ts`.
+Current DB version is **3**. Migrations are handled in `src/storage/indexedDbManager.ts`. When on-disk version > supported version, `dbPromise` throws `OfflineMapDBVersionError` (not raw `DOMException`); consumers can call `resetOfflineMapDB()` to recover.
 
 ### Tile Keys
 Tiles are keyed as: `{styleId}:{sourceId}:{z}:{x}:{y}.{extension}`
 
 Use `createTileKey()` from `src/utils/tileKey.ts` for consistent key generation.
+
+### Region Download Pipeline
+`OfflineMapManager.downloadRegion(region, options?)` is the primary programmatic entry point. It runs the full pipeline (style → sprites → glyphs → tiles → metadata) with per-phase `onProgress`. `loadRegion` is an alias.
+
+`addRegion` only stores region metadata and patches the style's URLs to `idb://`. It does **not** fetch tiles, sprites, or glyphs. Most callers want `downloadRegion`.
+
+Tile downloads probe each source with 3 representative tiles (start/middle/end) before committing the full plan; sources with majority-404 (sparse-for-this-region) are skipped. Disable via `tileOptions: { probeSourcesBeforeDownload: false }`.
+
+### `OfflineRegionOptions.expiry`
+`expiry` is an **absolute timestamp** (ms since epoch), matching the type doc. `addRegion` stores it verbatim. If omitted, it defaults to `Date.now() + 30 days`. Do not add `Date.now()` to caller-supplied values — that was a pre-0.6.0 bug that corrupted real timestamps.
+
+### Region dedup
+`addRegion` upserts by `region.id` (not bounds). Two regions sharing bounds with distinct ids both persist; repeated id → replaced in place (`created` preserved, `updated` refreshed).
+
+### Resource-Key Boundaries
+Font/glyph/sprite keys are `styleId:…` (single colon). For deletion/cleanup, use `resourceKeyBelongsToStyle(key, styleId)` from `src/services/regionService.ts`, not ad-hoc `startsWith`, to avoid collisions with sibling styles like `abc_def`.
 
 ### Import Aliases
 All source files use the `@/` path alias (mapped to `src/*` in tsconfig.json). Use `@/` imports instead of relative paths (`../`):
@@ -70,6 +86,9 @@ import { loadStyles } from '@/services/styleService';
 // Wrong
 import { loadStyles } from '../services/styleService';
 ```
+
+### OfflineMapManager class shape
+The class uses class/interface declaration merging — every method from the `*Management` module interfaces is attached at runtime via `Object.assign(this, this.modules)` in the constructor. Adding a new method to a `*Management` interface makes it automatically available on `OfflineMapManager` with no edits to `src/managers/offlineMapManager/index.ts`.
 
 ## Common Commands
 
@@ -128,3 +147,7 @@ npm run dev           # Start Vite dev server
 2. Using `async/await` inside IndexedDB `upgrade` callbacks (use IDBRequest callbacks)
 3. Adding `db.clear('regions')` in new tests
 4. Hardcoding DB version numbers (use `DB_VERSION` constant)
+5. Treating `region.expiry` as a duration — it's an absolute timestamp (ms since epoch)
+6. Using `addRegion` to download tiles — it's metadata-only; use `downloadRegion`
+7. `startsWith(styleId + '_')` for resource cleanup — use `resourceKeyBelongsToStyle()`
+8. Using the old `getXxxStatistics` names on `ResourceService` — they were renamed to `getXxxStats` in 0.6.0
