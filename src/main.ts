@@ -270,6 +270,31 @@ function initMapbox() {
   });
   mapboxMap = map;
 
+  // If the token is rejected (401 / "invalid access token"), Mapbox GL
+  // emits an `error` event rather than throwing. Detect that, drop the
+  // stored token, and re-show the prompt so the user can enter a valid one.
+  map.on('error', e => {
+    const err = (e as { error?: unknown }).error;
+    const errMsg = (err as { message?: string } | undefined)?.message ?? '';
+    const status = (err as { status?: number } | undefined)?.status;
+    const isAuthFailure =
+      status === 401 || /invalid.*access token/i.test(errMsg) || /401/.test(errMsg);
+    if (!isAuthFailure) return;
+
+    console.warn('Mapbox token rejected; clearing and re-prompting.');
+    // Only clear tokens we stored ourselves — never clobber an env-provided one.
+    if (localStorage.getItem('mapbox-access-token')) {
+      localStorage.removeItem('mapbox-access-token');
+    }
+    try {
+      map.remove();
+    } catch {
+      // already torn down
+    }
+    mapboxMap = null;
+    showMapboxTokenPrompt();
+  });
+
   map.addControl(new mapboxgl.NavigationControl(), 'top-right');
   map.addControl(new mapboxgl.AttributionControl({ compact: true }), 'bottom-right');
   map.addControl(new mapboxgl.ScaleControl(), 'bottom-left');
