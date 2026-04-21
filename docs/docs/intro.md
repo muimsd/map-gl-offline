@@ -134,6 +134,34 @@ map.on('load', () => {
 When using MapLibre, pass `mapLib: maplibregl` in the control options to register the `idb://` protocol in web workers. For Mapbox GL JS, the control automatically falls back to a Service Worker.
 :::
 
+### Programmatic download (no UI)
+
+Skip the UI control and drive the pipeline directly. `downloadRegion` runs the full flow (**style → sprites → glyphs → tiles → metadata**) with per-phase progress.
+
+```typescript
+import { OfflineMapManager } from 'map-gl-offline';
+
+const offlineManager = new OfflineMapManager();
+
+await offlineManager.downloadRegion(
+  {
+    id: 'sf',
+    name: 'San Francisco',
+    bounds: [[-122.5, 37.7], [-122.3, 37.9]],
+    minZoom: 10,
+    maxZoom: 14,
+    styleUrl: 'https://api.maptiler.com/maps/streets/style.json?key=YOUR_KEY',
+  },
+  {
+    onProgress: ({ phase, percentage }) => {
+      console.log(`[${phase}] ${percentage.toFixed(1)}%`);
+    },
+  },
+);
+```
+
+See [Getting Started](/docs/getting-started) for more, or the [API reference](/docs/api-reference) for every option.
+
 ## Use Cases
 
 - **Outdoor & Recreation Apps** - Hiking, camping, and adventure apps with offline trail maps

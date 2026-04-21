@@ -160,6 +160,8 @@ try {
 }
 ```
 
+> **Upgrading from 0.5.x?** Read the [0.6.0 migration guide](https://map-gl-offline.netlify.app/docs/migration-0.6) — covers the rename of `ResourceService.getXxxStatistics` → `getXxxStats`, the `addRegion` vs `downloadRegion` split, and the `expiry` timestamp fix.
+
 ## API at a glance
 
 - **Regions** — `downloadRegion`, `loadRegion`, `addRegion`, `getStoredRegion`, `listStoredRegions`, `listRegions`, `deleteRegion`

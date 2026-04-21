@@ -8,6 +8,7 @@ const sidebars: SidebarsConfig = {
     'configuration',
     'examples',
     'architecture',
+    'migration-0.6',
   ],
 };
 
