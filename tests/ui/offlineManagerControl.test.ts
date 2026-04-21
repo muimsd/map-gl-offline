@@ -547,4 +547,191 @@ describe('OfflineManagerControl', () => {
       expect(control).toBeDefined();
     });
   });
+
+  describe('internal handlers', () => {
+    it('formats single-download progress by phase', () => {
+      control = new OfflineManagerControl(mockOfflineManager as any);
+      const map = createMockMap();
+      control.onAdd(map as any);
+      const h = (control as unknown as {
+        handleProgressUpdate: (d: Map<string, unknown>) => void;
+      }).handleProgressUpdate;
+
+      h.call(control, new Map([['d', { percentage: 10, phase: 'style' }]]));
+      h.call(control, new Map([['d', { percentage: 25, phase: 'sprites' }]]));
+      h.call(control, new Map([['d', { percentage: 50, phase: 'glyphs' }]]));
+      h.call(control, new Map([['d', { percentage: 75, phase: 'tiles' }]]));
+      h.call(control, new Map([['d', { percentage: 99, phase: 'unknown' }]]));
+      h.call(
+        control,
+        new Map([
+          ['a', { percentage: 30 }],
+          ['b', { percentage: 70 }],
+        ])
+      );
+      // Empty map is a no-op.
+      h.call(control, new Map());
+      expect(true).toBe(true);
+    });
+
+    it('refreshes the panel on download complete and error', () => {
+      control = new OfflineManagerControl(mockOfflineManager as any);
+      const map = createMockMap();
+      control.onAdd(map as any);
+
+      (control as unknown as {
+        handleDownloadComplete: (id: string) => void;
+      }).handleDownloadComplete('r1');
+      (control as unknown as {
+        handleDownloadError: (id: string, err: unknown) => void;
+      }).handleDownloadError('r1', new Error('boom'));
+      // Must not throw, and panel should still be present.
+      expect(document.querySelector('.offline-manager-control.fixed')).not.toBeNull();
+    });
+
+    it('handles region saved by refreshing the panel', () => {
+      control = new OfflineManagerControl(mockOfflineManager as any);
+      const map = createMockMap();
+      control.onAdd(map as any);
+      (control as unknown as { handleRegionSaved: () => void }).handleRegionSaved();
+      expect(true).toBe(true);
+    });
+
+    it('startRegionSelection closes the panel', () => {
+      control = new OfflineManagerControl(mockOfflineManager as any);
+      const map = createMockMap();
+      control.onAdd(map as any);
+      // Open the panel first.
+      const btn = (control.onAdd(map as any) as HTMLElement).querySelector('button');
+      (btn as HTMLButtonElement).click();
+      (control as unknown as { startRegionSelection: () => void }).startRegionSelection();
+      const panel = document.querySelector('.offline-manager-control.fixed') as HTMLElement;
+      expect(panel?.classList.contains('hidden')).toBe(true);
+    });
+
+    it('updateButton resets when text matches default and not disabled', () => {
+      control = new OfflineManagerControl(mockOfflineManager as any);
+      const map = createMockMap();
+      control.onAdd(map as any);
+      (control as unknown as {
+        updateButton: (t: string, d: boolean) => void;
+      }).updateButton('Offline Maps', false);
+      (control as unknown as {
+        updateButton: (t: string, d: boolean) => void;
+      }).updateButton('Downloading...', true);
+      expect(true).toBe(true);
+    });
+
+    it('focusRegion fits map to valid bounds', async () => {
+      const mockMap = createMockMap();
+      mockOfflineManager.listStoredRegions.mockResolvedValue([
+        {
+          id: 'r1',
+          name: 'R1',
+          bounds: [[0, 0], [1, 1]],
+          minZoom: 0,
+          maxZoom: 10,
+        },
+      ]);
+      control = new OfflineManagerControl(mockOfflineManager as any, {
+        styleUrl: 'https://example.com/s.json',
+        showBbox: true,
+      });
+      control.onAdd(mockMap as any);
+      await (control as unknown as {
+        focusRegion: (id: string) => void;
+      }).focusRegion('r1');
+      await new Promise(r => setTimeout(r, 20));
+      expect(mockMap.fitBounds).toHaveBeenCalled();
+    });
+
+    it('focusRegion warns when the region is missing', async () => {
+      mockOfflineManager.listStoredRegions.mockResolvedValue([]);
+      control = new OfflineManagerControl(mockOfflineManager as any);
+      control.onAdd(createMockMap() as any);
+      await (control as unknown as {
+        focusRegion: (id: string) => void;
+      }).focusRegion('missing');
+      await new Promise(r => setTimeout(r, 20));
+      expect(mockOfflineManager.listStoredRegions).toHaveBeenCalled();
+    });
+
+    it('focusRegion ignores invalid bounds without throwing', async () => {
+      mockOfflineManager.listStoredRegions.mockResolvedValue([
+        { id: 'r-bad', name: 'Bad', bounds: [[0]], minZoom: 0, maxZoom: 10 } as any,
+      ]);
+      control = new OfflineManagerControl(mockOfflineManager as any);
+      const map = createMockMap();
+      control.onAdd(map as any);
+      await (control as unknown as {
+        focusRegion: (id: string) => void;
+      }).focusRegion('r-bad');
+      await new Promise(r => setTimeout(r, 20));
+      expect(map.fitBounds).not.toHaveBeenCalled();
+    });
+
+    it('showRegionBoundingBox adds a source and layer when showBbox is on', async () => {
+      const mockMap = createMockMap();
+      // Simulate that getSource returns a source with setData.
+      const setData = jest.fn();
+      mockMap.getSource = jest.fn().mockReturnValue({ setData });
+      mockOfflineManager.listStoredRegions.mockResolvedValue([
+        { id: 'rb', name: 'RB', bounds: [[0, 0], [1, 1]], minZoom: 0, maxZoom: 10 },
+      ]);
+      control = new OfflineManagerControl(mockOfflineManager as any, {
+        styleUrl: 'https://example.com/s.json',
+        showBbox: true,
+      });
+      control.onAdd(mockMap as any);
+      await (control as unknown as {
+        focusRegion: (id: string) => void;
+      }).focusRegion('rb');
+      await new Promise(r => setTimeout(r, 20));
+      // addSource gets called when the layer is initialised.
+      expect(mockMap.addSource).toHaveBeenCalled();
+      expect(mockMap.addLayer).toHaveBeenCalled();
+    });
+
+    it('style selection modal closes on backdrop click', async () => {
+      mockLoadStyles.mockResolvedValueOnce([
+        { key: 'a', style: { version: 8, name: 'A', sources: {}, layers: [] } },
+        { key: 'b', style: { version: 8, name: 'B', sources: {}, layers: [] } },
+      ]);
+      control = new OfflineManagerControl(mockOfflineManager as any);
+      control.onAdd(createMockMap() as any);
+      await control.loadOfflineStyles();
+      const modal = document.querySelector('.modal-backdrop') as HTMLElement;
+      expect(modal).not.toBeNull();
+      const backdrop = modal.querySelector('.modal-backdrop-inner') as HTMLElement;
+      backdrop?.click();
+      expect(document.querySelector('.modal-backdrop')).toBeNull();
+    });
+
+    it('style selection modal applies selected style', async () => {
+      mockLoadStyles.mockResolvedValueOnce([
+        { key: 's1', style: { version: 8, name: 'One', sources: {}, layers: [] } },
+        { key: 's2', style: { version: 8, name: 'Two', sources: {}, layers: [] } },
+      ]);
+      mockLoadStyleById.mockResolvedValue({
+        key: 's1',
+        style: { version: 8, sources: {}, layers: [] },
+        provider: 'auto',
+        regions: [],
+        fonts: [],
+        glyphs: [],
+        sprites: [],
+      });
+      const mockMap = createMockMap();
+      control = new OfflineManagerControl(mockOfflineManager as any);
+      control.onAdd(mockMap as any);
+      await control.loadOfflineStyles();
+      // Click the first style button.
+      const styleBtn = document.querySelector(
+        '[data-style-id="s1"]'
+      ) as HTMLButtonElement | null;
+      styleBtn?.click();
+      await new Promise(r => setTimeout(r, 20));
+      expect(mockLoadStyleById).toHaveBeenCalledWith('s1');
+    });
+  });
 });

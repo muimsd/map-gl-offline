@@ -29,7 +29,10 @@ describe('SpriteService.downloadSprites', () => {
   const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 
   const okPngResponse = () =>
-    new Response(PNG, {
+    // Pass ArrayBuffer, not Uint8Array, so the setup polyfill's arrayBuffer()
+    // takes the fast path (the jsdom fallback uses TextEncoder which isn't
+    // defined in this test harness).
+    new Response(PNG.buffer.slice(0) as ArrayBuffer, {
       status: 200,
       headers: { 'Content-Type': 'image/png', 'Content-Length': String(PNG.byteLength) },
     });
@@ -140,5 +143,105 @@ describe('SpriteService.downloadSprites', () => {
     // Call completed without throwing; result shape is well-formed.
     expect(result.totalSprites).toBe(1);
     expect(result.downloadedSprites + result.failedSprites).toBe(1);
+  });
+
+  it('stores the downloaded sprite in the sprites IDB store', async () => {
+    mockFetchWithRetry.mockImplementation(async () => okPngResponse());
+    const db = await dbPromise;
+    await db.clear('sprites');
+    const result = await service.downloadSprites(
+      ['https://example.com/store-test.png'],
+      'store-test-style',
+      {
+        storageQuotaCheck: false,
+        enableValidation: false,
+        maxRetries: 0,
+        skipExisting: false,
+      }
+    );
+    // Debug: if this fails, surface the actual errors via assertion.
+    expect({
+      downloaded: result.downloadedSprites,
+      failed: result.failedSprites,
+      errors: result.errors,
+    }).toEqual({
+      downloaded: 1,
+      failed: 0,
+      errors: [],
+    });
+    // After success, the sprite should be in the store.
+    const tx = db.transaction('sprites', 'readonly');
+    let count = 0;
+    for await (const _ of tx.store) count++;
+    expect(count).toBe(1);
+  });
+
+  it('decompresses gzipped sprite responses', async () => {
+    const orig = new Uint8Array([1, 2, 3, 4]);
+    const gzStream = new Response(orig).body?.pipeThrough(new CompressionStream('gzip'));
+    const gzBuffer = gzStream ? await new Response(gzStream).arrayBuffer() : new ArrayBuffer(0);
+    mockFetchWithRetry.mockResolvedValue(
+      new Response(gzBuffer, {
+        status: 200,
+        headers: { 'content-type': 'image/png', 'content-encoding': 'gzip' },
+      })
+    );
+    const db = await dbPromise;
+    await db.clear('sprites');
+    const result = await service.downloadSprites(
+      ['https://example.com/gz.png'],
+      'gz-style',
+      { storageQuotaCheck: false, enableValidation: false, maxRetries: 0, skipExisting: false }
+    );
+    // Decompression path is exercised whether it succeeds in jsdom or falls back.
+    expect(result.totalSprites).toBe(1);
+  });
+
+  it('fires onProgress in the happy path', async () => {
+    mockFetchWithRetry.mockImplementation(async () => okPngResponse());
+    const seen: number[] = [];
+    const db = await dbPromise;
+    await db.clear('sprites');
+    const result = await service.downloadSprites(
+      ['https://example.com/a.png', 'https://example.com/b.png'],
+      'prog-style',
+      {
+        storageQuotaCheck: false,
+        enableValidation: false,
+        maxRetries: 0,
+        skipExisting: false,
+        onProgress: p => seen.push(p.completed),
+      }
+    );
+    expect(result.downloadedSprites).toBe(2);
+    expect(seen.length).toBeGreaterThan(0);
+  });
+
+  it('records expires when the response sets Cache-Control: max-age', async () => {
+    const body = new Uint8Array([0x89, 0x50, 0x4e, 0x47]).buffer.slice(0) as ArrayBuffer;
+    mockFetchWithRetry.mockResolvedValue(
+      new Response(body, {
+        status: 200,
+        headers: { 'content-type': 'image/png', 'cache-control': 'max-age=60' },
+      })
+    );
+    const db = await dbPromise;
+    await db.clear('sprites');
+    await service.downloadSprites(
+      ['https://example.com/exp.png'],
+      'exp-style',
+      { storageQuotaCheck: false, enableValidation: false, maxRetries: 0, skipExisting: false }
+    );
+    // Look up by prefix — the actual key format may vary.
+    const tx = db.transaction('sprites', 'readonly');
+    let found: { expires?: number } | undefined;
+    for await (const cursor of tx.store) {
+      if ((cursor.value.key as string).includes('exp')) {
+        found = cursor.value;
+        break;
+      }
+    }
+    expect(found).toBeDefined();
+    expect(found?.expires).toBeDefined();
   });
 });

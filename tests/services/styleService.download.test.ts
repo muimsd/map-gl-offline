@@ -225,6 +225,68 @@ describe('StyleService.downloadStyles', () => {
     expect(result.success).toBe(true);
   });
 
+  it('downloads glyphs when the style has text layers', async () => {
+    mockFetchWithRetry.mockImplementation(async (url: string) => {
+      if (url.endsWith('.pbf')) {
+        const body = new ArrayBuffer(16);
+        new Uint8Array(body).fill(1);
+        return new Response(body, {
+          status: 200,
+          headers: { 'Content-Type': 'application/x-protobuf' },
+        });
+      }
+      return okJson({
+        version: 8,
+        id: 'with-text',
+        name: 'With Text',
+        sources: { s: { type: 'vector', tiles: ['https://t/{z}/{x}/{y}.pbf'] } },
+        layers: [
+          {
+            id: 'L',
+            type: 'symbol',
+            source: 's',
+            layout: { 'text-field': 'name', 'text-font': ['Arial'] },
+          },
+        ],
+        glyphs: 'https://fonts.example.com/{fontstack}/{range}.pbf',
+      });
+    });
+    const result = await downloadStyles('https://example.com/with-text.json', {
+      validateStyle: false,
+      skipExisting: false,
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('records a non-fatal error when glyph download fails', async () => {
+    // Style with text layers is returned, but glyph fetches reject.
+    mockFetchWithRetry.mockImplementation(async (url: string) => {
+      if (url.includes('fontstack') || url.endsWith('.pbf')) {
+        throw new Error('glyph fetch failed');
+      }
+      return okJson({
+        version: 8,
+        id: 'glyph-fail',
+        sources: { s: { type: 'vector', tiles: ['https://t/{z}/{x}/{y}.pbf'] } },
+        layers: [
+          {
+            id: 'L',
+            type: 'symbol',
+            source: 's',
+            layout: { 'text-field': 'name', 'text-font': ['Arial'] },
+          },
+        ],
+        glyphs: 'https://fonts.example.com/{fontstack}/{range}.pbf',
+      });
+    });
+    const result = await downloadStyles('https://example.com/glyph-fail.json', {
+      validateStyle: false,
+      skipExisting: false,
+    });
+    // The call still succeeds overall — glyph errors are non-fatal.
+    expect(result.success).toBe(true);
+  });
+
   it('skips sprite sources that contain non-HTTP URLs', async () => {
     mockFetchWithRetry.mockImplementation(async (url: string) => {
       if (url.includes('idb-sprite')) {

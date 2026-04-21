@@ -26,7 +26,12 @@ describe('GlyphService.downloadGlyphs', () => {
   });
 
   const makeResponse = (bytes = 32, headers: Record<string, string> = {}) => {
-    const body = new Uint8Array(bytes);
+    // Use an ArrayBuffer so the setup polyfill's Response.arrayBuffer() takes
+    // the fast path — passing a Uint8Array falls through to TextEncoder which
+    // isn't defined in the test harness.
+    const body = new ArrayBuffer(bytes);
+    // Fill with something non-zero so validateGlyphData() would pass.
+    new Uint8Array(body).fill(1);
     return new Response(body, {
       status: 200,
       headers: {
@@ -69,12 +74,14 @@ describe('GlyphService.downloadGlyphs', () => {
       range: '0-255',
     });
 
-    mockFetchWithRetry.mockImplementation(async () =>
-      new Response(new Uint8Array(8), {
+    mockFetchWithRetry.mockImplementation(async () => {
+      const body = new ArrayBuffer(8);
+      new Uint8Array(body).fill(1);
+      return new Response(body, {
         status: 200,
         headers: { 'Content-Type': 'application/x-protobuf' },
-      })
-    );
+      });
+    });
 
     const result = await service.downloadGlyphs(
       'https://example.com/fonts/{fontstack}/{range}.pbf',
