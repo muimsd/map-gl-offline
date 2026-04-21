@@ -5,7 +5,7 @@
 
 Priority is rated **P1** (correctness bug, can corrupt data or silently drop work) or **P2** (minor/cosmetic).
 
-**Status:** A-E all fixed in the follow-up PR stacked on top of PR #19. F resolved in-place with an explanatory comment. G (new finding during browser testing) fixed in the same follow-up PR.
+**Status:** A-E all fixed in the follow-up PR stacked on top of PR #19. F resolved in-place with an explanatory comment. G (new finding during browser testing) fixed in the same follow-up PR. **H (open)** — `PanelManager.render` race condition surfaced after 0.6.0 shipped; tracked for a future PR.
 
 ---
 
@@ -179,6 +179,30 @@ The rejection surfaces from `dbPromise` into every consumer (`loadStyles`, `load
 3. Consumers that already `try/catch` the DB (most service methods) already log-and-degrade, so the fix is mostly about giving them a typed error they can inspect to decide whether to offer a "reset" UX.
 
 **Test needed:** Unit tests for the error class shape and for `resetOfflineMapDB` being callable.
+
+---
+
+## P2 — `PanelManager.render` crashes on "Style is not done loading" during style switch (added 2026-04-21)
+
+**Location:** `src/ui/managers/PanelManager.ts:1446-1454` (the `setTimeout(() => getStyle?.(), 1000)` verification block) — invoked from the "Apply offline style" / redownload flows.
+
+**Observed** during live Chrome testing of the Offline Manager panel:
+
+```
+Uncaught Error: Style is not done loading
+    at PanelManager.ts:1447:80
+```
+
+The sequence:
+1. UI calls `map.setStyle(patchedStyle, { diff: false })`
+2. A 1-second `setTimeout` then calls `map.getStyle()` to log "Style verification" metadata.
+3. On Mapbox GL JS, `getStyle()` throws `Error: Style is not done loading` if the style load hasn't completed yet. Large composite styles (Mapbox Standard with imports resolved) routinely take longer than 1 s on a cold fetch, so the verification fires into a half-loaded map and the exception is unhandled.
+
+**Impact:** The error is a red herring for most users — the style usually does finish loading — but it floods the console and masks real failures. In some flows (panel tearing down, reload mid-style-load) it also prevents the "verification complete" log path, so ops workflows that rely on the follow-up logs miss the signal.
+
+**Proposed fix:** Replace the blind `setTimeout(verification, 1000)` with either `map.once('idle', verification)` (preferred — fires exactly when the style and its dependencies settle) or a guarded `if (map.isStyleLoaded()) verification()`. Same call pattern applies for MapLibre (`map.once('idle', …)`). Also: wrap the `getStyle()` read in a try/catch so the verification log can fail silently without surfacing an exception.
+
+**Test needed:** Replace the real map with a stub exposing `setStyle`, `once`, `isStyleLoaded`, `getStyle` and assert the verification log fires on `'idle'`, not on a hard timer. Regression test: simulate `getStyle()` throwing and assert no exception escapes the verification block.
 
 ---
 
