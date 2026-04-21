@@ -541,15 +541,20 @@ describe('TileService', () => {
       );
     });
 
-    it('skips known-sparse Mapbox tilesets by default (Standard style noise fix)', async () => {
-      // Two sources: a non-sparse one and a known-sparse Mapbox tileset.
-      // With the default filter the sparse one should contribute zero tiles.
+    it('skips sources whose probe tile 404s (sparse-for-this-region detection)', async () => {
+      // Mock fetch so the probe returns 404 for this source.
+      const realFetch = global.fetch;
+      const mockFetch = jest.fn().mockResolvedValue(
+        new Response(null, { status: 404 })
+      );
+      global.fetch = mockFetch as unknown as typeof fetch;
+
       const region = {
-        id: 'test-sparse',
-        name: 'Sparse',
+        id: 'test-probe-404',
+        name: 'Probe 404',
         bounds: [[55.27, 25.2], [55.28, 25.21]] as [[number, number], [number, number]],
         minZoom: 1,
-        maxZoom: 1, // keep totals tiny so we don't hit the network
+        maxZoom: 1,
       };
       const style = {
         version: 8 as const,
@@ -563,25 +568,34 @@ describe('TileService', () => {
         },
         layers: [],
       };
-      const result = await service.downloadTiles(region, style, 'test-sparse-style', {
-        storageQuotaCheck: false,
-        maxRetries: 0,
-      });
-      // Sparse source was fully pre-filtered; nothing was planned for download.
-      expect(result.totalTiles).toBe(0);
-      expect(result.failedTiles).toBe(0);
+      try {
+        const result = await service.downloadTiles(region, style, 'test-probe-404-style', {
+          storageQuotaCheck: false,
+          maxRetries: 0,
+        });
+        // Source was dropped after probe; nothing planned.
+        expect(result.totalTiles).toBe(0);
+        expect(result.failedTiles).toBe(0);
+        // Exactly one fetch: the probe.
+        expect(mockFetch).toHaveBeenCalledTimes(1);
+      } finally {
+        global.fetch = realFetch;
+      }
     });
 
-    it('can be overridden with skipSparseSources: false', async () => {
-      // Same style as above, but opt-in to downloading the sparse tileset.
-      // We only assert the pipeline doesn't pre-filter it — the actual fetch
-      // will 404 but that's downstream of the filter we're testing.
+    it('can be disabled with probeSourcesBeforeDownload: false', async () => {
+      const realFetch = global.fetch;
+      const mockFetch = jest.fn().mockResolvedValue(
+        new Response(null, { status: 404 })
+      );
+      global.fetch = mockFetch as unknown as typeof fetch;
+
       const region = {
-        id: 'test-sparse-included',
-        name: 'Sparse included',
+        id: 'test-probe-disabled',
+        name: 'Probe disabled',
         bounds: [[55.27, 25.2], [55.28, 25.21]] as [[number, number], [number, number]],
         minZoom: 1,
-        maxZoom: 1, // keep tile count tiny
+        maxZoom: 1,
       };
       const style = {
         version: 8 as const,
@@ -595,14 +609,17 @@ describe('TileService', () => {
         },
         layers: [],
       };
-      const result = await service.downloadTiles(region, style, 'test-style-included', {
-        skipSparseSources: false,
-        storageQuotaCheck: false,
-        maxRetries: 0,
-      });
-      // The source wasn't pre-filtered; some tiles were attempted even if
-      // they ultimately 404'd or errored (downstream of our filter).
-      expect(result.totalTiles).toBeGreaterThan(0);
+      try {
+        const result = await service.downloadTiles(region, style, 'test-probe-disabled-style', {
+          probeSourcesBeforeDownload: false,
+          storageQuotaCheck: false,
+          maxRetries: 0,
+        });
+        // Probe disabled — the source makes it into the plan, tiles attempted.
+        expect(result.totalTiles).toBeGreaterThan(0);
+      } finally {
+        global.fetch = realFetch;
+      }
     });
   });
 

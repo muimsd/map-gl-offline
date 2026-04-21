@@ -68,33 +68,21 @@ export interface TileDownloadOptions {
   /** Check storage quota before download (default: true) */
   storageQuotaCheck?: boolean;
   /**
-   * Skip known-sparse Mapbox tilesets (landmark-POIs, indoor, terrain, etc.)
-   * that only have data at specific locations and return 404 for most
-   * `{z}/{x}/{y}` coordinates. Included in styles like Mapbox Standard,
-   * where they produce large volumes of expected-but-noisy 404s. Default: true.
-   * Override with a custom array to add/replace the default skip list, or
-   * `false` to disable all skipping.
+   * Before committing to download a source's full tile plan, probe one
+   * representative tile. If that probe returns 404, the source is treated
+   * as sparse-for-this-region and skipped entirely. This adapts to the
+   * region (some cities have indoor/landmark/3D-building data, others
+   * don't) without requiring a static skip list.
+   *
+   * One probe HTTP request is added per source. The probe itself may
+   * 404 (visible in the Network tab), but downstream we then avoid
+   * dozens of follow-up 404s.
+   *
+   * Default: `true`. Set `false` to download every source regardless
+   * (old behavior — noisier, but guaranteed-complete).
    */
-  skipSparseSources?: boolean | string[];
+  probeSourcesBeforeDownload?: boolean;
 }
-
-/**
- * Source IDs that are known-sparse on Mapbox's CDN. Referenced by composite
- * styles (Streets, Standard) but return 404 for most tile coordinates
- * because their data only exists at specific landmarks / indoor areas /
- * terrain sources. Skipping them keeps the offline cache focused on the
- * basemap sources the user actually sees.
- */
-export const SPARSE_MAPBOX_SOURCE_IDS: readonly string[] = [
-  'mapbox.mapbox-landmark-pois-v1',
-  'mapbox.indoor-v3',
-  'mapbox.mapbox-terrain-v2',
-  'mapbox.mapbox-terrain-dem-v1',
-  'mapbox.mapbox-3d-buildings-v1',
-  // Standard style's 3D-buildings source — sparse (only covers major cities
-  // with modeled procedural buildings); returns 404 for most coordinates.
-  'mapbox.procedural-buildings-v1',
-];
 
 /**
  * Result of a tile download operation
