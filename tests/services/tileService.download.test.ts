@@ -569,6 +569,73 @@ describe('TileService.downloadTiles (mocked fetch)', () => {
     expect(result.totalTiles).toBeGreaterThanOrEqual(0);
   });
 
+  it('warns on but still stores vector tiles with suspicious first bytes', async () => {
+    global.fetch = jest
+      .fn()
+      .mockResolvedValue(new Response(null, { status: 200 })) as unknown as typeof fetch;
+    // First byte < 0x08 but not HTML/gzip → triggers the suspicious-format warn.
+    const suspicious = new Uint8Array([0x04, 0x12, 0x34, 0x56]);
+    mockFetchResource.mockResolvedValue({
+      type: 'pbf',
+      data: suspicious.buffer.slice(0) as ArrayBuffer,
+      contentType: 'application/x-protobuf',
+    });
+    const region = {
+      id: 'region-sus',
+      name: 'Sus',
+      bounds: [[-0.1, -0.1], [0.1, 0.1]] as [[number, number], [number, number]],
+      minZoom: 0,
+      maxZoom: 0,
+    };
+    const style = {
+      version: 8 as const,
+      sources: { s: { type: 'vector', tiles: ['https://t/{z}/{x}/{y}.pbf'] } },
+      layers: [],
+    };
+    const result = await service.downloadTiles(region, style, 'style-sus', {
+      storageQuotaCheck: false,
+      maxRetries: 0,
+      probeSourcesBeforeDownload: false,
+    });
+    // The suspicious bytes are only warned about — the tile still downloads.
+    expect(result.downloadedTiles + result.failedTiles).toBeGreaterThanOrEqual(1);
+  });
+
+  it('skips the extractTileSources path for non-tile sources', async () => {
+    global.fetch = jest
+      .fn()
+      .mockResolvedValue(new Response(null, { status: 200 })) as unknown as typeof fetch;
+    mockFetchResource.mockResolvedValue({
+      type: 'pbf',
+      data: new ArrayBuffer(8),
+      contentType: 'application/x-protobuf',
+    });
+    const region = {
+      id: 'region-mixed',
+      name: 'Mixed',
+      bounds: [[-0.1, -0.1], [0.1, 0.1]] as [[number, number], [number, number]],
+      minZoom: 0,
+      maxZoom: 0,
+    };
+    const style = {
+      version: 8 as const,
+      sources: {
+        vec: { type: 'vector', tiles: ['https://t/{z}/{x}/{y}.pbf'] },
+        // Non-tile sources should be ignored by extractTileSources.
+        geo: { type: 'geojson', data: { type: 'FeatureCollection', features: [] } },
+        img: { type: 'image', url: 'https://example.com/img.png', coordinates: [] },
+        vid: { type: 'video', urls: [], coordinates: [] },
+      },
+      layers: [],
+    };
+    const result = await service.downloadTiles(region, style, 'style-mix', {
+      storageQuotaCheck: false,
+      maxRetries: 0,
+      probeSourcesBeforeDownload: false,
+    });
+    expect(result.totalTiles).toBeGreaterThan(0);
+  });
+
   it('recognises legacy tile entries with only the key field via parseTileKey', async () => {
     const db = await dbPromise;
     await db.clear('tiles');

@@ -402,6 +402,53 @@ describe('RegionControl', () => {
     });
   });
 
+  describe('handleSaveClick', () => {
+    it('forwards the save click to polygonControl.triggerSave when selection is active', () => {
+      const { PolygonControl } = require('../../../src/ui/controls/polygonControl');
+      const triggerSave = jest.fn();
+      PolygonControl.mockImplementation(() => ({
+        enter: jest.fn(),
+        exit: jest.fn(),
+        getCurrentBounds: jest.fn(),
+        getCurrentArea: jest.fn(),
+        triggerSave,
+      }));
+      const control = new RegionControl(createOptions());
+      control.startSelection();
+      (control as unknown as { handleSaveClick: () => void }).handleSaveClick();
+      expect(triggerSave).toHaveBeenCalled();
+    });
+
+    it('no-ops when polygonControl is not active', () => {
+      const control = new RegionControl(createOptions());
+      expect(() =>
+        (control as unknown as { handleSaveClick: () => void }).handleSaveClick()
+      ).not.toThrow();
+    });
+  });
+
+  describe('polygon onCancel', () => {
+    it('cancelSelection is invoked when polygon control cancels', () => {
+      const { PolygonControl } = require('../../../src/ui/controls/polygonControl');
+      let savedOnCancel: (() => void) | undefined;
+      PolygonControl.mockImplementation((_map: unknown, opts: { onCancel: () => void }) => {
+        savedOnCancel = opts.onCancel;
+        return {
+          enter: jest.fn(),
+          exit: jest.fn(),
+          getCurrentBounds: jest.fn(),
+          getCurrentArea: jest.fn(),
+          triggerSave: jest.fn(),
+        };
+      });
+      const control = new RegionControl(createOptions());
+      control.startSelection();
+      expect(savedOnCancel).toBeDefined();
+      savedOnCancel?.();
+      expect(control.isSelectionActive()).toBe(false);
+    });
+  });
+
   describe('extractExtraMapSources error path', () => {
     it('returns an empty array when map.getStyle throws', async () => {
       const failingMap = {
