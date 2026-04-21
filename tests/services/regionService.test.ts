@@ -38,10 +38,27 @@ jest.mock('../../src/services/styleService', () => {
   };
 });
 
-import { RegionService } from '../../src/services/regionService';
+import { RegionService, resourceKeyBelongsToStyle } from '../../src/services/regionService';
 import { dbPromise } from '../../src/storage/indexedDbManager';
 import type { StyleProvider } from '../../src/types/style';
 import { GLYPH_CONFIG } from '../../src/utils/constants';
+
+describe('resourceKeyBelongsToStyle', () => {
+  it('matches exact styleId', () => {
+    expect(resourceKeyBelongsToStyle('abc', 'abc')).toBe(true);
+  });
+  it('matches keys with colon delimiter', () => {
+    expect(resourceKeyBelongsToStyle('abc:NotoSans/0-255', 'abc')).toBe(true);
+  });
+  it('does not match a sibling styleId that shares a prefix', () => {
+    expect(resourceKeyBelongsToStyle('abc_def:NotoSans/0-255', 'abc')).toBe(false);
+    expect(resourceKeyBelongsToStyle('abcdef:foo', 'abc')).toBe(false);
+    expect(resourceKeyBelongsToStyle('abc_NotoSans', 'abc')).toBe(false);
+  });
+  it('does not match unrelated keys', () => {
+    expect(resourceKeyBelongsToStyle('xyz:foo', 'abc')).toBe(false);
+  });
+});
 
 describe('RegionService', () => {
   let regionService: RegionService;
@@ -66,7 +83,22 @@ describe('RegionService', () => {
       tileExtension: 'pbf',
     });
     mockDownloadSprites.mockResolvedValue({ downloaded: 0, failed: 0 });
-    mockDownloadGlyphs.mockResolvedValue({ downloaded: 0, failed: 0 });
+    // Simulate the real glyphService.downloadGlyphs which fires onProgress
+    // at least once (the orchestrator relies on this to surface the `glyphs`
+    // phase now that we no longer pre-emit a synthetic progress event).
+    mockDownloadGlyphs.mockImplementation(
+      async (
+        _url: string,
+        fontstacks: string[],
+        _styleId: string,
+        ranges: string[],
+        opts?: { onProgress?: (p: { completed: number; total: number }) => void }
+      ) => {
+        const total = fontstacks.length * ranges.length;
+        opts?.onProgress?.({ completed: total, total });
+        return { downloaded: total, failed: 0 };
+      }
+    );
 
     // Clear all relevant stores before each test
     const db = await dbPromise;
@@ -95,7 +127,10 @@ describe('RegionService', () => {
           {
             id: 'region-1',
             name: 'Region One',
-            bounds: [[-122.5, 37.5], [-122.0, 38.0]] as [[number, number], [number, number]],
+            bounds: [
+              [-122.5, 37.5],
+              [-122.0, 38.0],
+            ] as [[number, number], [number, number]],
             styleUrl: 'https://example.com/style.json',
             minZoom: 0,
             maxZoom: 10,
@@ -105,7 +140,10 @@ describe('RegionService', () => {
           {
             id: 'region-2',
             name: 'Region Two',
-            bounds: [[-73.5, 40.5], [-73.0, 41.0]] as [[number, number], [number, number]],
+            bounds: [
+              [-73.5, 40.5],
+              [-73.0, 41.0],
+            ] as [[number, number], [number, number]],
             styleUrl: 'https://example.com/style.json',
             minZoom: 0,
             maxZoom: 10,
@@ -135,7 +173,10 @@ describe('RegionService', () => {
           {
             id: 'region-1',
             name: 'Test Region',
-            bounds: [[-122.5, 37.5], [-122.0, 38.0]],
+            bounds: [
+              [-122.5, 37.5],
+              [-122.0, 38.0],
+            ],
             minZoom: 0,
             maxZoom: 10,
             created: Date.now() - 10000,
@@ -175,7 +216,10 @@ describe('RegionService', () => {
       const region = {
         id: 'test-region',
         name: 'Test',
-        bounds: [[-122.5, 37.5], [-122.0, 38.0]] as [[number, number], [number, number]],
+        bounds: [
+          [-122.5, 37.5],
+          [-122.0, 38.0],
+        ] as [[number, number], [number, number]],
         minZoom: 0,
         maxZoom: 10,
         styleUrl: '',
@@ -188,7 +232,10 @@ describe('RegionService', () => {
       const region = {
         id: 'test-region',
         name: 'Test',
-        bounds: [[-122.5, 37.5], [-122.0, 38.0]] as [[number, number], [number, number]],
+        bounds: [
+          [-122.5, 37.5],
+          [-122.0, 38.0],
+        ] as [[number, number], [number, number]],
         minZoom: 0,
         maxZoom: 10,
         styleUrl: 'https://example.com/style.json',
@@ -218,7 +265,10 @@ describe('RegionService', () => {
         id: 'new-region',
         styleId: 'test-style',
         name: 'New Region',
-        bounds: [[-122.5, 37.5], [-122.0, 38.0]] as [[number, number], [number, number]],
+        bounds: [
+          [-122.5, 37.5],
+          [-122.0, 38.0],
+        ] as [[number, number], [number, number]],
         minZoom: 0,
         maxZoom: 10,
         styleUrl: 'https://example.com/style.json',
@@ -260,7 +310,10 @@ describe('RegionService', () => {
         id: 'region-with-extras',
         styleId: 'test-style-extra',
         name: 'Region With Extra Layers',
-        bounds: [[-122.5, 37.5], [-122.0, 38.0]] as [[number, number], [number, number]],
+        bounds: [
+          [-122.5, 37.5],
+          [-122.0, 38.0],
+        ] as [[number, number], [number, number]],
         minZoom: 0,
         maxZoom: 10,
         styleUrl: 'https://example.com/style-extra.json',
@@ -327,7 +380,10 @@ describe('RegionService', () => {
         id: 'region-no-overwrite',
         styleId: 'test-style-no-overwrite',
         name: 'Test',
-        bounds: [[-122.5, 37.5], [-122.0, 38.0]] as [[number, number], [number, number]],
+        bounds: [
+          [-122.5, 37.5],
+          [-122.0, 38.0],
+        ] as [[number, number], [number, number]],
         minZoom: 0,
         maxZoom: 10,
         styleUrl: 'https://example.com/style-no-overwrite.json',
@@ -347,6 +403,144 @@ describe('RegionService', () => {
       const source = style?.style.sources['shared-source'] as { tiles?: string[] };
       // It should be patched to idb:// but from the original URL, not the extra source URL
       expect(source.tiles?.[0]).toMatch(/^idb:\/\//);
+    });
+
+    it('stores region.expiry as a timestamp (regression P1-A)', async () => {
+      // Per the OfflineRegionOptions type, `expiry` is "ms since epoch".
+      // Prior bug treated the caller's value as a duration and stored
+      // `Date.now() + expiry`, corrupting absolute timestamps.
+      const db = await dbPromise;
+      await db.put('styles', {
+        key: 'test-style-expiry',
+        style: { version: 8, sources: {}, layers: [] },
+        provider: 'auto' as StyleProvider,
+        regions: [],
+        fonts: [],
+        glyphs: [],
+        sprites: [],
+        originalUrl: 'https://example.com/style-expiry.json',
+      });
+
+      const expiryTimestamp = Date.UTC(2099, 0, 1); // far-future absolute ts
+      await regionService.addRegion({
+        id: 'region-expiry',
+        styleId: 'test-style-expiry',
+        name: 'Expiry Test',
+        bounds: [
+          [0, 0],
+          [1, 1],
+        ] as [[number, number], [number, number]],
+        minZoom: 0,
+        maxZoom: 0,
+        styleUrl: 'https://example.com/style-expiry.json',
+        expiry: expiryTimestamp,
+      });
+
+      const style = await db.get('styles', 'test-style-expiry');
+      const stored = style?.regions[0] as { expiry: number };
+      expect(stored.expiry).toBe(expiryTimestamp);
+    });
+
+    it('defaults expiry to ~30 days from now when caller omits it (P1-A)', async () => {
+      const db = await dbPromise;
+      await db.put('styles', {
+        key: 'test-style-default-expiry',
+        style: { version: 8, sources: {}, layers: [] },
+        provider: 'auto' as StyleProvider,
+        regions: [],
+        fonts: [],
+        glyphs: [],
+        sprites: [],
+        originalUrl: 'https://example.com/style-default.json',
+      });
+      const before = Date.now();
+      await regionService.addRegion({
+        id: 'region-default',
+        styleId: 'test-style-default-expiry',
+        name: 'Default',
+        bounds: [
+          [0, 0],
+          [1, 1],
+        ] as [[number, number], [number, number]],
+        minZoom: 0,
+        maxZoom: 0,
+        styleUrl: 'https://example.com/style-default.json',
+      });
+      const after = Date.now();
+      const style = await db.get('styles', 'test-style-default-expiry');
+      const expiry = (style?.regions[0] as { expiry: number }).expiry;
+      const thirtyDays = 30 * 24 * 60 * 60 * 1000;
+      expect(expiry).toBeGreaterThanOrEqual(before + thirtyDays);
+      expect(expiry).toBeLessThanOrEqual(after + thirtyDays);
+    });
+
+    it('upserts regions with the same id (regression P1-B)', async () => {
+      // Prior bug: bboxExists check silently skipped persistence when another
+      // region on the same style shared bounds, orphaning the new region's id.
+      // New behavior: dedup by id, and an existing id gets replaced in place.
+      const db = await dbPromise;
+      await db.put('styles', {
+        key: 'test-style-upsert',
+        style: { version: 8, sources: {}, layers: [] },
+        provider: 'auto' as StyleProvider,
+        regions: [],
+        fonts: [],
+        glyphs: [],
+        sprites: [],
+        originalUrl: 'https://example.com/style-upsert.json',
+      });
+
+      const base = {
+        id: 'same-id',
+        styleId: 'test-style-upsert',
+        styleUrl: 'https://example.com/style-upsert.json',
+        bounds: [
+          [0, 0],
+          [1, 1],
+        ] as [[number, number], [number, number]],
+        minZoom: 0,
+        maxZoom: 0,
+      };
+      await regionService.addRegion({ ...base, name: 'First' });
+      await regionService.addRegion({ ...base, name: 'Second (updated)' });
+
+      const style = await db.get('styles', 'test-style-upsert');
+      expect(style?.regions).toHaveLength(1);
+      expect((style?.regions[0] as { name: string }).name).toBe('Second (updated)');
+      expect((style?.regions[0] as { updated?: number }).updated).toBeDefined();
+    });
+
+    it('stores distinct regions even when bounds overlap (regression P1-B)', async () => {
+      const db = await dbPromise;
+      await db.put('styles', {
+        key: 'test-style-same-bounds',
+        style: { version: 8, sources: {}, layers: [] },
+        provider: 'auto' as StyleProvider,
+        regions: [],
+        fonts: [],
+        glyphs: [],
+        sprites: [],
+        originalUrl: 'https://example.com/style-same-bounds.json',
+      });
+      const base = {
+        styleId: 'test-style-same-bounds',
+        styleUrl: 'https://example.com/style-same-bounds.json',
+        bounds: [
+          [0, 0],
+          [1, 1],
+        ] as [[number, number], [number, number]],
+        minZoom: 0,
+        maxZoom: 0,
+      };
+      await regionService.addRegion({ ...base, id: 'region-a', name: 'A' });
+      await regionService.addRegion({ ...base, id: 'region-b', name: 'B' });
+
+      const style = await db.get('styles', 'test-style-same-bounds');
+      expect(style?.regions).toHaveLength(2);
+      expect(style?.regions.map((r: { id: string }) => r.id).sort()).toEqual([
+        'region-a',
+        'region-b',
+      ]);
     });
   });
 
@@ -368,7 +562,10 @@ describe('RegionService', () => {
           {
             id: 'region-to-delete',
             name: 'Delete Me',
-            bounds: [[-122.5, 37.5], [-122.0, 38.0]],
+            bounds: [
+              [-122.5, 37.5],
+              [-122.0, 38.0],
+            ],
             minZoom: 0,
             maxZoom: 10,
           },
@@ -417,14 +614,20 @@ describe('RegionService', () => {
           {
             id: 'region-1',
             name: 'Region One',
-            bounds: [[-122.5, 37.5], [-122.0, 38.0]],
+            bounds: [
+              [-122.5, 37.5],
+              [-122.0, 38.0],
+            ],
             minZoom: 0,
             maxZoom: 10,
           },
           {
             id: 'region-2',
             name: 'Region Two',
-            bounds: [[-73.5, 40.5], [-73.0, 41.0]],
+            bounds: [
+              [-73.5, 40.5],
+              [-73.0, 41.0],
+            ],
             minZoom: 0,
             maxZoom: 10,
           },
@@ -442,6 +645,81 @@ describe('RegionService', () => {
       expect(style?.regions.length).toBe(1);
       expect(style?.regions[0].id).toBe('region-2');
     });
+
+    it('does not delete resources of sibling styles with shared prefix (regression P1-C)', async () => {
+      // Prior bug: `key.startsWith("abc_")` matched glyphs for style "abc_def".
+      // Deleting style "abc" would collaterally wipe style "abc_def"'s resources.
+      const db = await dbPromise;
+
+      // Style `abc` with one region; deleting that region triggers style cleanup.
+      await db.put('styles', {
+        key: 'abc',
+        style: { version: 8, sources: {}, layers: [] },
+        provider: 'auto' as StyleProvider,
+        regions: [
+          {
+            id: 'r-abc',
+            name: 'r-abc',
+            bounds: [
+              [0, 0],
+              [1, 1],
+            ],
+            minZoom: 0,
+            maxZoom: 0,
+          },
+        ],
+        fonts: [],
+        glyphs: [],
+        sprites: [],
+      });
+      await db.put('styles', {
+        key: 'abc_def',
+        style: { version: 8, sources: {}, layers: [] },
+        provider: 'auto' as StyleProvider,
+        regions: [
+          {
+            id: 'r-abc_def',
+            name: 'r',
+            bounds: [
+              [0, 0],
+              [1, 1],
+            ],
+            minZoom: 0,
+            maxZoom: 0,
+          },
+        ],
+        fonts: [],
+        glyphs: [],
+        sprites: [],
+      });
+
+      // Minimal entries — the deletion logic only reads `.key`. Cast to skip
+      // filling unrelated required fields (lastModified/url/etc).
+      const put = async (store: 'glyphs' | 'sprites' | 'fonts', key: string) => {
+        await (db.put as unknown as (s: string, v: Record<string, unknown>) => Promise<unknown>)(
+          store,
+          { key, data: new ArrayBuffer(1), size: 1 }
+        );
+      };
+      await put('glyphs', 'abc:NotoSans/0-255');
+      await put('glyphs', 'abc_def:NotoSans/0-255');
+      await put('sprites', 'abc:sprite.png');
+      await put('sprites', 'abc_def:sprite.png');
+      await put('fonts', 'abc:Roboto');
+      await put('fonts', 'abc_def:Roboto');
+
+      await regionService.deleteRegion('r-abc');
+
+      // `abc_def`'s resources must survive.
+      expect(await db.get('glyphs', 'abc_def:NotoSans/0-255')).toBeDefined();
+      expect(await db.get('sprites', 'abc_def:sprite.png')).toBeDefined();
+      expect(await db.get('fonts', 'abc_def:Roboto')).toBeDefined();
+
+      // `abc`'s resources should be gone.
+      expect(await db.get('glyphs', 'abc:NotoSans/0-255')).toBeUndefined();
+      expect(await db.get('sprites', 'abc:sprite.png')).toBeUndefined();
+      expect(await db.get('fonts', 'abc:Roboto')).toBeUndefined();
+    });
   });
 
   describe('downloadRegion', () => {
@@ -452,9 +730,7 @@ describe('RegionService', () => {
         style: {
           version: 8,
           sources: { v: { tiles: ['http://tiles/{z}/{x}/{y}.pbf'] } },
-          layers: [
-            { id: 'text', type: 'symbol', layout: { 'text-font': ['Open Sans Regular'] } },
-          ],
+          layers: [{ id: 'text', type: 'symbol', layout: { 'text-font': ['Open Sans Regular'] } }],
           sprite: 'https://example.com/sprites/sprite',
           glyphs: 'https://example.com/fonts/{fontstack}/{range}.pbf',
         },
@@ -473,7 +749,10 @@ describe('RegionService', () => {
     const makeRegion = () => ({
       id: 'region-prog',
       name: 'Programmatic Region',
-      bounds: [[-122.5, 37.7], [-122.3, 37.9]] as [[number, number], [number, number]],
+      bounds: [
+        [-122.5, 37.7],
+        [-122.3, 37.9],
+      ] as [[number, number], [number, number]],
       minZoom: 10,
       maxZoom: 12,
       styleUrl: 'https://example.com/style.json',
@@ -484,7 +763,10 @@ describe('RegionService', () => {
         regionService.downloadRegion({
           id: 'x',
           name: 'x',
-          bounds: [[0, 0], [1, 1]],
+          bounds: [
+            [0, 0],
+            [1, 1],
+          ],
           minZoom: 0,
           maxZoom: 0,
         } as never)
@@ -516,7 +798,9 @@ describe('RegionService', () => {
       expect(style?.regions[0]).toMatchObject({ id: 'region-prog', styleId: 'test-style-id' });
 
       expect(result.styleId).toBe('test-style-id');
-      expect(phases).toEqual(expect.arrayContaining(['style', 'sprites', 'glyphs', 'tiles', 'metadata']));
+      expect(phases).toEqual(
+        expect.arrayContaining(['style', 'sprites', 'glyphs', 'tiles', 'metadata'])
+      );
     });
 
     it('does not auto-fill tileExtension from tileResult (regression: mixed-format styles)', async () => {
@@ -550,7 +834,11 @@ describe('RegionService', () => {
         const db = await dbPromise;
         await db.put('styles', {
           key: 'fresh-style-id',
-          style: { version: 8, sources: { v: { tiles: ['http://t/{z}/{x}/{y}.pbf'] } }, layers: [] },
+          style: {
+            version: 8,
+            sources: { v: { tiles: ['http://t/{z}/{x}/{y}.pbf'] } },
+            layers: [],
+          },
           originalUrl: styleUrl,
           provider: 'auto' as StyleProvider,
           regions: [],
@@ -566,7 +854,13 @@ describe('RegionService', () => {
           sourcesProcessed: 0,
           sourcesEmbedded: 0,
           errors: [],
-          analytics: { sourceTypes: {}, layerTypes: {}, totalLayers: 0, hasGlyphs: false, hasSprites: false },
+          analytics: {
+            sourceTypes: {},
+            layerTypes: {},
+            totalLayers: 0,
+            hasGlyphs: false,
+            hasSprites: false,
+          },
         };
       });
 

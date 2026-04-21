@@ -67,6 +67,21 @@ export interface TileDownloadOptions {
   bandwidthLimit?: number;
   /** Check storage quota before download (default: true) */
   storageQuotaCheck?: boolean;
+  /**
+   * Before committing to download a source's full tile plan, probe one
+   * representative tile. If that probe returns 404, the source is treated
+   * as sparse-for-this-region and skipped entirely. This adapts to the
+   * region (some cities have indoor/landmark/3D-building data, others
+   * don't) without requiring a static skip list.
+   *
+   * One probe HTTP request is added per source. The probe itself may
+   * 404 (visible in the Network tab), but downstream we then avoid
+   * dozens of follow-up 404s.
+   *
+   * Default: `true`. Set `false` to download every source regardless
+   * (old behavior — noisier, but guaranteed-complete).
+   */
+  probeSourcesBeforeDownload?: boolean;
 }
 
 /**

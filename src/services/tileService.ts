@@ -60,6 +60,7 @@ export class TileService {
       validateTiles = false,
       compressTiles = false,
       bandwidthLimit,
+      probeSourcesBeforeDownload = true,
     } = options;
 
     const startTime = Date.now();
@@ -226,6 +227,53 @@ export class TileService {
       if (coordsForSource.length === 0) {
         tileLogger.debug(`Skipping source ${sourceId}: all tiles already exist`);
         continue;
+      }
+
+      // Before committing to download a source's full tile plan, probe
+      // a few representative tiles. If the MAJORITY return 404, the
+      // source is sparse-for-this-region and we skip it entirely rather
+      // than pepper the network with 404s across every planned coord.
+      //
+      // Why multi-probe: some sources are locally-dense-but-regionally-
+      // sparse (e.g. `mapbox.mapbox-landmark-pois-v1` has tiles at a few
+      // landmark locations per region but 404 for every other coord).
+      // A single probe on the wrong coord would false-pass and cause a
+      // flood of 404s during the download. Probing start/middle/end of
+      // the plan catches this case.
+      if (probeSourcesBeforeDownload) {
+        const picks = [
+          coordsForSource[0],
+          coordsForSource[Math.floor(coordsForSource.length / 2)],
+          coordsForSource[coordsForSource.length - 1],
+        ];
+        // De-dup for tiny plans where start/middle/end collapse to one.
+        const probeCoords = Array.from(
+          new Map(picks.map(c => [`${c.z}/${c.x}/${c.y}`, c])).values()
+        );
+
+        const probeResults = await Promise.all(
+          probeCoords.map(async coord => {
+            const url = this.populateTemplate(this.selectTileTemplate(tiles, coord), coord);
+            try {
+              const res = await fetch(url);
+              return res.status !== 404;
+            } catch {
+              // Network error — treat as "has data" so we don't skip the
+              // source due to a transient hiccup.
+              return true;
+            }
+          })
+        );
+
+        const successes = probeResults.filter(Boolean).length;
+        const failures = probeResults.length - successes;
+        // Majority-404: more probes failed than succeeded. Skip.
+        if (failures > successes) {
+          tileLogger.info(
+            `Skipping source "${sourceId}" — ${failures}/${probeResults.length} probe tiles returned 404 (sparse for this region)`
+          );
+          continue;
+        }
       }
 
       const ext = extension;
