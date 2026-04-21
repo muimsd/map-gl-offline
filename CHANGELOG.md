@@ -5,6 +5,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0] - 2026-04-21
+
+> Completes offline support for the **Mapbox Standard** style. The gaps at 0.6.0 (3D models, `raster-array` sources, `iconset.pbf`) are all closed.
+
+### Added
+
+- **3D model download pipeline**: `OfflineMapManager.downloadRegion` now fetches every `.glb` referenced by `style.models` (Mapbox Standard declares 32 tree / wind-turbine models). New `models` IndexedDB store (DB version 3 → 4, additive migration — no data moved). New `'models'` phase in `DownloadRegionPhase` with per-phase `onProgress`. Skippable via `DownloadRegionOptions.skipModels`.
+- **`modelService`** exported from the public entry point: `downloadModels`, `getModel`, `getModelStats`, `cleanupOldModels`, `verifyAndRepairModels`, `modelKeyBelongsToStyle`. Also exposed on `OfflineMapManager` / `ResourceService` as `downloadModelsWithOptions`, `getModelStats`, `cleanupOldModels`, `verifyAndRepairModels`.
+- **`raster-array` source type** accepted by `tileService.extractTileSources` and `PanelManager`'s maxzoom guard. Used by Mapbox Standard's `mapbox-landmarks` source (`mapbox.mapbox-landmark-icons-v1`).
+- **`iconset.pbf` companion fetch**: when a resolved sprite URL matches the Mapbox Standard pattern (`api.mapbox.com/styles/v1/<owner>/<style>/<hash>/sprite`), the region downloader appends an `iconset.pbf` URL to the sprite download list. Non-Mapbox providers are unaffected.
+- `patchStyleForOffline` rewrites `style.models` entries to `idb://<styleId>/model/<name>`. Accepts both Mapbox Standard's string-valued shape (`{ "name": "mapbox://..." }`) and the older/generic `{ "name": { "uri": "..." } }` shape.
+- `idbFetchHandler` handles the new `idb://<styleId>/model/<name>` URL form with `Content-Type: model/gltf-binary`.
+- `convertStyleForSW` handles both model value shapes when rewriting `idb://` URLs to `/__offline__/` for the Service Worker path.
+- `deleteStyleResources` now clears the `models` store for the style being deleted.
+
+### Changed
+
+- **DB_VERSION: 3 → 4.** Migration creates the new `models` store via the existing `createStores` helper. No data migration is needed. Existing offline data is preserved.
+- **`DownloadRegionPhase`** widened to include `'models'`. `DownloadProgress.phase` in the UI control's progress callback likewise adds `'models'`.
+- `BaseStyle.models` type loosened to accept both `string` and `{uri}` values, reflecting Mapbox Standard's actual shape.
+
+### Breaking
+
+**None.** All additions are backwards-compatible.
+
 ## [0.6.0] - 2026-04-21
 
 > Upgrading from 0.5.x? See the [migration guide](https://map-gl-offline.netlify.app/docs/migration-0.6).

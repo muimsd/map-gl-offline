@@ -53,7 +53,9 @@ const regions = style.regions; // Array of regions
 ```
 
 ### Database Version
-Current DB version is **3**. Migrations are handled in `src/storage/indexedDbManager.ts`. When on-disk version > supported version, `dbPromise` throws `OfflineMapDBVersionError` (not raw `DOMException`); consumers can call `resetOfflineMapDB()` to recover.
+Current DB version is **4**. Migrations are handled in `src/storage/indexedDbManager.ts`. When on-disk version > supported version, `dbPromise` throws `OfflineMapDBVersionError` (not raw `DOMException`); consumers can call `resetOfflineMapDB()` to recover.
+
+v4 adds the `models` store for 3D model assets (Mapbox Standard trees / wind turbines). Stored entries are keyed `{styleId}::model::{modelName}` with ArrayBuffer data, served back via `idb://{styleId}/model/{name}` URLs in the fetch handler.
 
 ### Tile Keys
 Tiles are keyed as: `{styleId}:{sourceId}:{z}:{x}:{y}.{extension}`
