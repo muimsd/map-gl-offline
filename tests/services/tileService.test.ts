@@ -541,8 +541,8 @@ describe('TileService', () => {
       );
     });
 
-    it('skips sources whose probe tile 404s (sparse-for-this-region detection)', async () => {
-      // Mock fetch so the probe returns 404 for this source.
+    it('skips sources when the majority of probe tiles return 404 (sparse-for-this-region)', async () => {
+      // Mock fetch so all probe tiles return 404.
       const realFetch = global.fetch;
       const mockFetch = jest.fn().mockResolvedValue(
         new Response(null, { status: 404 })
@@ -552,9 +552,9 @@ describe('TileService', () => {
       const region = {
         id: 'test-probe-404',
         name: 'Probe 404',
-        bounds: [[55.27, 25.2], [55.28, 25.21]] as [[number, number], [number, number]],
-        minZoom: 1,
-        maxZoom: 1,
+        bounds: [[55.27, 25.2], [55.4, 25.34]] as [[number, number], [number, number]],
+        minZoom: 10,
+        maxZoom: 12, // enough coords for start/middle/end to be distinct
       };
       const style = {
         version: 8 as const,
@@ -573,11 +573,55 @@ describe('TileService', () => {
           storageQuotaCheck: false,
           maxRetries: 0,
         });
-        // Source was dropped after probe; nothing planned.
         expect(result.totalTiles).toBe(0);
         expect(result.failedTiles).toBe(0);
-        // Exactly one fetch: the probe.
-        expect(mockFetch).toHaveBeenCalledTimes(1);
+        // Up to 3 probes fired, none of them escalated into full tile downloads.
+        expect(mockFetch).toHaveBeenCalled();
+        expect(mockFetch.mock.calls.length).toBeLessThanOrEqual(3);
+      } finally {
+        global.fetch = realFetch;
+      }
+    });
+
+    it('keeps a source when at least half the probes succeed', async () => {
+      // 2 of 3 probes return 200, one returns 404 → majority OK → source proceeds.
+      const realFetch = global.fetch;
+      let probeCallCount = 0;
+      const mockFetch = jest.fn().mockImplementation(async () => {
+        probeCallCount++;
+        // First two probes return 200, third returns 404.
+        const status = probeCallCount <= 2 ? 200 : 404;
+        return new Response(new ArrayBuffer(0), { status });
+      });
+      global.fetch = mockFetch as unknown as typeof fetch;
+
+      const region = {
+        id: 'test-probe-mixed',
+        name: 'Probe mixed',
+        bounds: [[55.27, 25.2], [55.4, 25.34]] as [[number, number], [number, number]],
+        minZoom: 10,
+        maxZoom: 12,
+      };
+      const style = {
+        version: 8 as const,
+        sources: {
+          mixed: {
+            type: 'vector',
+            tiles: [
+              'https://a.tiles.mapbox.com/v4/mapbox.mapbox-landmark-pois-v1/{z}/{x}/{y}.vector.pbf',
+            ],
+          },
+        },
+        layers: [],
+      };
+      try {
+        const result = await service.downloadTiles(region, style, 'test-probe-mixed-style', {
+          probeSourcesBeforeDownload: true,
+          storageQuotaCheck: false,
+          maxRetries: 0,
+        });
+        // Source survived probing; plan was built.
+        expect(result.totalTiles).toBeGreaterThan(0);
       } finally {
         global.fetch = realFetch;
       }
@@ -615,7 +659,6 @@ describe('TileService', () => {
           storageQuotaCheck: false,
           maxRetries: 0,
         });
-        // Probe disabled — the source makes it into the plan, tiles attempted.
         expect(result.totalTiles).toBeGreaterThan(0);
       } finally {
         global.fetch = realFetch;
