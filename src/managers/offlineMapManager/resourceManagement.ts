@@ -22,6 +22,10 @@ export interface ResourceManagement {
   loadGlyphsForStyle: ResourceService['loadGlyphsForStyle'];
   cleanupOldGlyphs: ResourceService['cleanupOldGlyphs'];
   verifyAndRepairGlyphs: ResourceService['verifyAndRepairGlyphs'];
+  downloadModelsWithOptions: ResourceService['downloadModelsWithOptions'];
+  getModelStats: ResourceService['getModelStats'];
+  cleanupOldModels: ResourceService['cleanupOldModels'];
+  verifyAndRepairModels: ResourceService['verifyAndRepairModels'];
 }
 
 export const createResourceManagement = (services: OfflineManagerServices): ResourceManagement => ({
@@ -45,4 +49,9 @@ export const createResourceManagement = (services: OfflineManagerServices): Reso
   loadGlyphsForStyle: (...args) => services.resourceService.loadGlyphsForStyle(...args),
   cleanupOldGlyphs: (...args) => services.resourceService.cleanupOldGlyphs(...args),
   verifyAndRepairGlyphs: (...args) => services.resourceService.verifyAndRepairGlyphs(...args),
+  downloadModelsWithOptions: (...args) =>
+    services.resourceService.downloadModelsWithOptions(...args),
+  getModelStats: (...args) => services.resourceService.getModelStats(...args),
+  cleanupOldModels: (...args) => services.resourceService.cleanupOldModels(...args),
+  verifyAndRepairModels: (...args) => services.resourceService.verifyAndRepairModels(...args),
 });

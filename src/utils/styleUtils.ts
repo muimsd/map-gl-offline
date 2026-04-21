@@ -125,14 +125,28 @@ export function patchStyleForOffline(
     }
   }
 
-  // Patch top-level models (Mapbox Standard 3D landmarks)
+  // Patch top-level models (Mapbox Standard 3D trees / wind turbines).
+  // Two shapes exist in the wild:
+  //   - Mapbox Standard: `{ "maple1-lod1": "mapbox://models/mapbox/maple1-v4-lod1.glb" }` (string values)
+  //   - Older/generic:   `{ "name": { "uri": "mapbox://..." } }`               (object values)
+  // Models are keyed on the style ID (like sprites) so they can be shared
+  // across regions.
   if (style.models) {
-    for (const [modelId, modelConfig] of Object.entries(style.models)) {
-      if (modelConfig.uri) {
-        modelConfig.uri = `idb://${downloadId}/model/${modelId}`;
+    const modelBaseId = styleId || downloadId;
+    const models = style.models as unknown as Record<string, string | { uri?: string }>;
+    let patchedCount = 0;
+    for (const [modelId, value] of Object.entries(models)) {
+      if (typeof value === 'string') {
+        models[modelId] = `idb://${modelBaseId}/model/${modelId}`;
+        patchedCount++;
+      } else if (value && typeof value === 'object' && 'uri' in value && value.uri) {
+        value.uri = `idb://${modelBaseId}/model/${modelId}`;
+        patchedCount++;
       }
     }
-    styleLogger.debug(`Patched ${Object.keys(style.models).length} model URIs`);
+    if (patchedCount > 0) {
+      styleLogger.debug(`Patched ${patchedCount} model URIs (styleId: ${modelBaseId})`);
+    }
   }
 
   styleLogger.debug(`Final patched style:`, style);

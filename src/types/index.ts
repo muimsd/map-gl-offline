@@ -5,6 +5,7 @@ export * from './font';
 export * from './tile';
 export * from './sprite';
 export * from './glyph';
+export * from './model';
 export * from './database';
 export * from './maintenance';
 export * from './progress';

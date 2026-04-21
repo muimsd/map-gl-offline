@@ -5,6 +5,7 @@ import type { FontEntry } from './font';
 import type { TileEntry } from './tile';
 import type { SpriteEntry } from './sprite';
 import type { GlyphEntry } from './glyph';
+import type { ModelEntry } from './model';
 
 export interface OfflineMapDB extends DBSchema {
   /**
@@ -35,5 +36,13 @@ export interface OfflineMapDB extends DBSchema {
   fonts: {
     key: string;
     value: FontEntry;
+  };
+  /**
+   * 3D model files (.glb) referenced by `style.models` entries. Used by
+   * Mapbox Standard for tree / wind-turbine model layers.
+   */
+  models: {
+    key: string;
+    value: ModelEntry;
   };
 }

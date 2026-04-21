@@ -60,12 +60,21 @@ export function convertStyleForServiceWorker(style: MapboxStyle): MapboxStyle {
     }
   }
 
-  // Convert models
+  // Convert models. Two shapes in the wild:
+  //   - Mapbox Standard: `{ name: "idb://..." }` (string value)
+  //   - Older/generic:   `{ name: { uri: "idb://..." } }` (object value)
   if (converted.models) {
-    for (const modelKey of Object.keys(converted.models)) {
-      const model = converted.models[modelKey];
-      if (model.uri && typeof model.uri === 'string' && model.uri.startsWith('idb://')) {
-        model.uri = replace(model.uri);
+    const models = converted.models as Record<string, string | { uri?: string }>;
+    for (const modelKey of Object.keys(models)) {
+      const value = models[modelKey];
+      if (typeof value === 'string') {
+        if (value.startsWith('idb://')) {
+          models[modelKey] = replace(value);
+        }
+      } else if (value && typeof value === 'object') {
+        if (typeof value.uri === 'string' && value.uri.startsWith('idb://')) {
+          value.uri = replace(value.uri);
+        }
       }
     }
   }

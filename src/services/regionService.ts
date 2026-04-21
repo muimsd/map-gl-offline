@@ -173,8 +173,17 @@ export class RegionService {
       }
     }
 
+    let deletedModels = 0;
+    const modelTx = db.transaction('models', 'readwrite');
+    for await (const cursor of modelTx.store) {
+      if (resourceKeyBelongsToStyle(cursor.value.key, styleId)) {
+        await cursor.delete();
+        deletedModels++;
+      }
+    }
+
     regionLogger.info(
-      `Deleted style resources: ${deletedFonts} fonts, ${deletedGlyphs} glyphs, ${deletedSprites} sprites`
+      `Deleted style resources: ${deletedFonts} fonts, ${deletedGlyphs} glyphs, ${deletedSprites} sprites, ${deletedModels} models`
     );
   }
 
@@ -322,6 +331,7 @@ export class RegionService {
       accessToken,
       skipGlyphs = false,
       skipSprites = false,
+      skipModels = false,
       glyphRanges,
       tileOptions,
     } = options;
@@ -479,7 +489,41 @@ export class RegionService {
       }
     }
 
-    // 4. Tiles — use the stored (source-embedded) style, which still has HTTP tile URLs
+    // 4. Models — Mapbox Standard's `style.models` references 3D tree /
+    //    turbine .glb assets. Two value shapes exist in the wild
+    //    (plain string or `{ uri }`) — we accept both.
+    let modelResult: DownloadRegionResult['modelResult'];
+    if (!skipModels && storedStyle.models) {
+      const rawModels = storedStyle.models as Record<string, string | { uri?: string }>;
+      const resolved: Record<string, string> = {};
+      for (const [name, value] of Object.entries(rawModels)) {
+        const uri = typeof value === 'string' ? value : value?.uri;
+        if (!uri) continue;
+        if (uri.startsWith('idb://')) continue; // already patched
+        const httpUrl =
+          isMapboxProtocol(uri) && effectiveAccessToken
+            ? resolveMapboxUrl(uri, effectiveAccessToken)
+            : uri;
+        if (httpUrl.startsWith('http://') || httpUrl.startsWith('https://')) {
+          resolved[name] = httpUrl;
+        }
+      }
+      if (Object.keys(resolved).length > 0) {
+        const { downloadModels } = await import('@/services/modelService');
+        emit('models', 0, Object.keys(resolved).length, 'Downloading 3D models');
+        try {
+          modelResult = await downloadModels(resolved, styleId, {
+            onProgress: (progress: { completed: number; total: number }) => {
+              emit('models', progress.completed, progress.total, 'Downloading 3D models');
+            },
+          });
+        } catch (error) {
+          regionLogger.warn('Model download failed (non-fatal):', error);
+        }
+      }
+    }
+
+    // 5. Tiles — use the stored (source-embedded) style, which still has HTTP tile URLs
     const { downloadTiles } = await import('@/services/tileService');
     const regionForTiles = { ...region, styleId };
     emit('tiles', 0, 100, 'Downloading tiles');
@@ -493,7 +537,7 @@ export class RegionService {
       },
     });
 
-    // 5. Metadata — must run last, since addRegion patches style URLs to idb://.
+    // 6. Metadata — must run last, since addRegion patches style URLs to idb://.
     // Do NOT auto-fill tileExtension from tileResult: that's only the first
     // source's extension, and addRegion feeds it to patchStyleForOffline which
     // would override ALL sources — breaking mixed raster+vector styles. The
@@ -510,6 +554,7 @@ export class RegionService {
       styleResult,
       spriteResults,
       glyphResult,
+      modelResult,
       tileResult,
     };
   }

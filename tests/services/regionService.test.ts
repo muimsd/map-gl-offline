@@ -4,6 +4,7 @@
 const mockDownloadTiles = jest.fn();
 const mockDownloadSprites = jest.fn();
 const mockDownloadGlyphs = jest.fn();
+const mockDownloadModels = jest.fn();
 const mockDownloadStyleWithProvider = jest.fn();
 
 jest.mock('../../src/services/tileService', () => {
@@ -27,6 +28,14 @@ jest.mock('../../src/services/glyphService', () => {
   return {
     ...actual,
     downloadGlyphs: (...args: unknown[]) => mockDownloadGlyphs(...args),
+  };
+});
+
+jest.mock('../../src/services/modelService', () => {
+  const actual = jest.requireActual('../../src/services/modelService');
+  return {
+    ...actual,
+    downloadModels: (...args: unknown[]) => mockDownloadModels(...args),
   };
 });
 
@@ -69,6 +78,7 @@ describe('RegionService', () => {
     mockDownloadTiles.mockReset();
     mockDownloadSprites.mockReset();
     mockDownloadGlyphs.mockReset();
+    mockDownloadModels.mockReset();
     mockDownloadStyleWithProvider.mockReset();
 
     mockDownloadTiles.mockResolvedValue({
@@ -83,6 +93,14 @@ describe('RegionService', () => {
       tileExtension: 'pbf',
     });
     mockDownloadSprites.mockResolvedValue({ downloaded: 0, failed: 0 });
+    mockDownloadModels.mockResolvedValue({
+      totalModels: 0,
+      downloadedModels: 0,
+      skippedModels: 0,
+      failedModels: 0,
+      totalSize: 0,
+      errors: [],
+    });
     // Simulate the real glyphService.downloadGlyphs which fires onProgress
     // at least once (the orchestrator relies on this to surface the `glyphs`
     // phase now that we no longer pre-emit a synthetic progress event).
@@ -906,6 +924,68 @@ describe('RegionService', () => {
       expect(spriteUrls.some(u => u.includes('/sprite@2x.png'))).toBe(true);
       // Plus the new iconset.pbf sibling
       expect(spriteUrls.some(u => u.includes('/iconset.pbf'))).toBe(true);
+    });
+
+    it('downloads style.models during the models phase (Mapbox Standard trees/turbines)', async () => {
+      await seedStyle({
+        style: {
+          version: 8,
+          sources: { v: { tiles: ['http://tiles/{z}/{x}/{y}.pbf'] } },
+          layers: [],
+          sprite: 'https://example.com/sprites/sprite',
+          glyphs: 'https://example.com/fonts/{fontstack}/{range}.pbf',
+          // Mapbox Standard-style model shape: {name: "URI string"}.
+          models: {
+            'maple1-lod1': 'https://api.mapbox.com/models/v1/mapbox/maple1-v4-lod1.glb?access_token=foo',
+            'oak1-lod2': 'https://api.mapbox.com/models/v1/mapbox/oak1-v4-lod2.glb?access_token=foo',
+          },
+        },
+      });
+      const phases: string[] = [];
+      await regionService.downloadRegion(makeRegion(), {
+        onProgress: p => {
+          if (!phases.includes(p.phase)) phases.push(p.phase);
+        },
+      });
+      expect(mockDownloadModels).toHaveBeenCalledTimes(1);
+      const [resolved, styleIdArg] = mockDownloadModels.mock.calls[0];
+      expect(Object.keys(resolved)).toEqual(['maple1-lod1', 'oak1-lod2']);
+      expect(styleIdArg).toBe('test-style-id');
+      expect(phases).toContain('models');
+    });
+
+    it('skips the models phase entirely when skipModels: true', async () => {
+      await seedStyle({
+        style: {
+          version: 8,
+          sources: { v: { tiles: ['http://tiles/{z}/{x}/{y}.pbf'] } },
+          layers: [],
+          models: { 'tree-lod1': 'https://api.mapbox.com/models/v1/mapbox/oak1-v4-lod1.glb' },
+        },
+      });
+      await regionService.downloadRegion(makeRegion(), { skipModels: true });
+      expect(mockDownloadModels).not.toHaveBeenCalled();
+    });
+
+    it('does NOT re-download models that were already patched to idb://', async () => {
+      // Once a region has been downloaded, patchStyleForOffline rewrites
+      // style.models URIs to idb://... — those should be no-ops on a
+      // subsequent download, not generate bogus fetches.
+      await seedStyle({
+        style: {
+          version: 8,
+          sources: { v: { tiles: ['http://tiles/{z}/{x}/{y}.pbf'] } },
+          layers: [],
+          models: {
+            'already-patched': 'idb://test-style-id/model/already-patched',
+            'fresh-model': 'https://api.mapbox.com/models/v1/mapbox/maple1-v4-lod1.glb',
+          },
+        },
+      });
+      await regionService.downloadRegion(makeRegion());
+      const [resolved] = mockDownloadModels.mock.calls[0];
+      expect(Object.keys(resolved)).toEqual(['fresh-model']);
+      expect(resolved['already-patched']).toBeUndefined();
     });
 
     it('does NOT fetch iconset.pbf for non-Mapbox sprite URLs', async () => {

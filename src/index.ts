@@ -62,6 +62,7 @@ export * from './services/tileService';
 export * from './services/fontService';
 export * from './services/glyphService';
 export * from './services/spriteService';
+export * from './services/modelService';
 export * from './services/cleanupService';
 export * from './services/styleService';
 export * from './services/regionService';

@@ -2,12 +2,13 @@ import type { StyleProvider } from './style';
 import type { TileDownloadOptions, TileDownloadResult } from './tile';
 import type { SpriteDownloadResult } from './sprite';
 import type { GlyphDownloadResult } from './glyph';
+import type { ModelDownloadResult } from './model';
 import type { StyleDownloadResult } from './style';
 
 /**
  * Phase of a region download pipeline, reported via `DownloadRegionOptions.onProgress`.
  */
-export type DownloadRegionPhase = 'style' | 'sprites' | 'glyphs' | 'tiles' | 'metadata';
+export type DownloadRegionPhase = 'style' | 'sprites' | 'glyphs' | 'models' | 'tiles' | 'metadata';
 
 /**
  * Progress update emitted by `OfflineMapManager.downloadRegion`.
@@ -34,6 +35,14 @@ export interface DownloadRegionOptions {
   skipGlyphs?: boolean;
   /** Skip sprite download entirely. Default: false. */
   skipSprites?: boolean;
+  /**
+   * Skip 3D model download. Default: false. Models (e.g. Mapbox Standard
+   * trees / wind turbines) are declared via `style.models` and live at
+   * `mapbox://models/…` URLs that only Mapbox serves. Skip for styles that
+   * don't use model layers, or to reduce storage footprint at the cost of
+   * missing tree/turbine rendering.
+   */
+  skipModels?: boolean;
   /** Override Unicode glyph ranges fetched per font. Defaults to `GLYPH_CONFIG.COMPREHENSIVE_RANGES`. */
   glyphRanges?: string[];
   /** Extra options forwarded to the tile download step. */
@@ -49,6 +58,7 @@ export interface DownloadRegionResult {
   styleResult?: StyleDownloadResult;
   spriteResults: SpriteDownloadResult[];
   glyphResult?: GlyphDownloadResult;
+  modelResult?: ModelDownloadResult;
   tileResult: TileDownloadResult;
 }
 

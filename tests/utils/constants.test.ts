@@ -30,8 +30,8 @@ describe('constants', () => {
       expect(DB_NAME).toBe('offline-map-db');
     });
 
-    it('should have DB_VERSION set to 3', () => {
-      expect(DB_VERSION).toBe(3);
+    it('should have DB_VERSION set to 4', () => {
+      expect(DB_VERSION).toBe(4);
     });
   });
 
@@ -56,8 +56,12 @@ describe('constants', () => {
       expect(STORE_NAMES.FONTS).toBe('fonts');
     });
 
-    it('should have exactly 5 stores', () => {
-      expect(Object.keys(STORE_NAMES)).toHaveLength(5);
+    it('should define the models store', () => {
+      expect(STORE_NAMES.MODELS).toBe('models');
+    });
+
+    it('should have exactly 6 stores', () => {
+      expect(Object.keys(STORE_NAMES)).toHaveLength(6);
     });
   });
 
