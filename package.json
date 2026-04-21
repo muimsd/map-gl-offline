@@ -1,6 +1,6 @@
 {
   "name": "map-gl-offline",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "A TypeScript-compatible npm package for MapLibre GL JS that enables comprehensive offline storage and usage of vector/raster tiles, sprites, styles, fonts (glyphs), and entire map regions with advanced analytics, import/export capabilities, and intelligent cleanup.",
   "main": "dist/index.js",
   "module": "dist/index.esm.js",
