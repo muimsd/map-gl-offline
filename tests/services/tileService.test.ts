@@ -664,6 +664,44 @@ describe('TileService', () => {
         global.fetch = realFetch;
       }
     });
+
+    it('accepts raster-array sources (Mapbox Standard landmark-icons)', async () => {
+      // `raster-array` is used by Mapbox Standard's `mapbox-landmarks` source.
+      // Previously filtered out of the plan; this regression guards the fix.
+      const realFetch = global.fetch;
+      const mockFetch = jest.fn().mockResolvedValue(new Response(new ArrayBuffer(0), { status: 200 }));
+      global.fetch = mockFetch as unknown as typeof fetch;
+
+      const region = {
+        id: 'test-raster-array',
+        name: 'Raster array',
+        bounds: [[55.27, 25.2], [55.4, 25.34]] as [[number, number], [number, number]],
+        minZoom: 10,
+        maxZoom: 10,
+      };
+      const style = {
+        version: 8 as const,
+        sources: {
+          'mapbox-landmarks': {
+            type: 'raster-array',
+            tiles: [
+              'https://a.tiles.mapbox.com/v4/mapbox.mapbox-landmark-icons-v1/{z}/{x}/{y}.raster',
+            ],
+          },
+        },
+        layers: [],
+      };
+      try {
+        const result = await service.downloadTiles(region, style, 'test-raster-array-style', {
+          probeSourcesBeforeDownload: false,
+          storageQuotaCheck: false,
+          maxRetries: 0,
+        });
+        expect(result.totalTiles).toBeGreaterThan(0);
+      } finally {
+        global.fetch = realFetch;
+      }
+    });
   });
 
   describe('exported functions', () => {

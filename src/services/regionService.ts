@@ -388,8 +388,13 @@ export class RegionService {
       const spriteSources = normalizeSpriteProperty(originalSpriteUrl);
       if (spriteSources.length > 0) {
         const { downloadSprites } = await import('@/services/spriteService');
-        const suffixes = ['.json', '.png', '@2x.json', '@2x.png'];
-        const totalFiles = spriteSources.length * suffixes.length;
+        // Standard four sprite variants. For Mapbox Standard, an `iconset.pbf`
+        // sibling is also served under the same /styles/v1/.../<hash>/ path
+        // — we detect that case per-source below and append it to the list.
+        const baseSuffixes = ['.json', '.png', '@2x.json', '@2x.png'];
+        // Estimate total files assuming iconset is always included (the actual
+        // number may be smaller; the emit helper clamps progress to total).
+        const totalFiles = spriteSources.length * (baseSuffixes.length + 1);
         let completed = 0;
         emit('sprites', 0, totalFiles, 'Downloading sprites');
 
@@ -399,11 +404,29 @@ export class RegionService {
             spriteBase = resolveMapboxUrl(spriteBase, effectiveAccessToken);
           }
           const qIndex = spriteBase.indexOf('?');
-          const spriteUrls = suffixes.map(suffix =>
-            qIndex !== -1
-              ? spriteBase.slice(0, qIndex) + suffix + spriteBase.slice(qIndex)
-              : spriteBase + suffix
+          const suffixes = [...baseSuffixes];
+          // Mapbox Standard serves an iconset.pbf alongside the sprite under
+          // /styles/v1/{owner}/{style}/{hash}/sprite → the sibling file is
+          // /styles/v1/{owner}/{style}/{hash}/iconset.pbf. The last path
+          // segment is `sprite`, so replacing it with `iconset.pbf` works.
+          const pathWithoutQuery = qIndex !== -1 ? spriteBase.slice(0, qIndex) : spriteBase;
+          const isMapboxStandardSprite = /api\.mapbox\.com\/styles\/v1\/.+\/sprite$/.test(
+            pathWithoutQuery
           );
+          if (isMapboxStandardSprite) {
+            // The path-rewrite suffix replaces the trailing `sprite` segment.
+            suffixes.push('__ICONSET__');
+          }
+          const spriteUrls = suffixes.map(suffix => {
+            if (suffix === '__ICONSET__') {
+              // Replace trailing `sprite` with `iconset.pbf`, preserving query.
+              const base = pathWithoutQuery.replace(/sprite$/, 'iconset.pbf');
+              return qIndex !== -1 ? base + spriteBase.slice(qIndex) : base;
+            }
+            return qIndex !== -1
+              ? spriteBase.slice(0, qIndex) + suffix + spriteBase.slice(qIndex)
+              : spriteBase + suffix;
+          });
           try {
             const result = await downloadSprites(spriteUrls, styleId, {
               enableValidation: true,

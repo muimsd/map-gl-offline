@@ -887,5 +887,38 @@ describe('RegionService', () => {
       await regionService.loadRegion(makeRegion());
       expect(mockDownloadTiles).toHaveBeenCalledTimes(1);
     });
+
+    it('fetches iconset.pbf alongside sprite for Mapbox Standard styles', async () => {
+      // Mapbox Standard serves an iconset.pbf sibling under the same
+      // /styles/v1/.../<hash>/ path as the sprite.json/png. Our sprite
+      // download must include it in the URL list for that family.
+      await seedStyle({
+        originalSpriteUrl:
+          'https://api.mapbox.com/styles/v1/mapbox/standard/abc123/sprite?access_token=pk.foo',
+      });
+      await regionService.downloadRegion(makeRegion());
+      expect(mockDownloadSprites).toHaveBeenCalledTimes(1);
+      const spriteUrls = mockDownloadSprites.mock.calls[0][0] as string[];
+      // Base four variants still fetched
+      expect(spriteUrls.some(u => u.includes('/sprite.json'))).toBe(true);
+      expect(spriteUrls.some(u => u.includes('/sprite.png'))).toBe(true);
+      expect(spriteUrls.some(u => u.includes('/sprite@2x.json'))).toBe(true);
+      expect(spriteUrls.some(u => u.includes('/sprite@2x.png'))).toBe(true);
+      // Plus the new iconset.pbf sibling
+      expect(spriteUrls.some(u => u.includes('/iconset.pbf'))).toBe(true);
+    });
+
+    it('does NOT fetch iconset.pbf for non-Mapbox sprite URLs', async () => {
+      // OpenFreeMap and other providers don't have iconset.pbf — we must
+      // not synthesize a bogus URL that would 404.
+      await seedStyle({
+        originalSpriteUrl: 'https://tiles.openfreemap.org/sprites/ofm_f384/ofm',
+      });
+      await regionService.downloadRegion(makeRegion());
+      const spriteUrls = mockDownloadSprites.mock.calls[0][0] as string[];
+      expect(spriteUrls.some(u => u.includes('iconset.pbf'))).toBe(false);
+      // Base four variants still present
+      expect(spriteUrls).toHaveLength(4);
+    });
   });
 });

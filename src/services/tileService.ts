@@ -750,11 +750,16 @@ export class TileService {
         url: config.url,
       });
 
-      // Handle tile-based sources (vector, raster, raster-dem, batched-model)
+      // Handle tile-based sources (vector, raster, raster-dem, batched-model,
+      // raster-array). `raster-array` is used by Mapbox Standard for layers
+      // like `mapbox-landmarks` (mapbox.mapbox-landmark-icons-v1) — the tiles
+      // are fetched from the same /v4/ endpoint as other tilesets, so the
+      // TileJSON resolution path below handles them uniformly.
       if (
         config.type === 'vector' ||
         config.type === 'raster' ||
         config.type === 'raster-dem' ||
+        config.type === 'raster-array' ||
         config.type === 'batched-model'
       ) {
         // Handle direct tile URLs in the source config
