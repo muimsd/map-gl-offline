@@ -91,6 +91,9 @@ export const SPARSE_MAPBOX_SOURCE_IDS: readonly string[] = [
   'mapbox.mapbox-terrain-v2',
   'mapbox.mapbox-terrain-dem-v1',
   'mapbox.mapbox-3d-buildings-v1',
+  // Standard style's 3D-buildings source — sparse (only covers major cities
+  // with modeled procedural buildings); returns 404 for most coordinates.
+  'mapbox.procedural-buildings-v1',
 ];
 
 /**
