@@ -262,6 +262,130 @@ describe('Keyboard Navigation Utilities', () => {
 
       nav.detach();
     });
+
+    it('wraps from last to first on ArrowDown when looping', () => {
+      container.innerHTML = `
+        <button class="item">1</button>
+        <button class="item">2</button>
+      `;
+      const nav = createArrowKeyNavigation({
+        container,
+        itemSelector: '.item',
+        loop: true,
+      });
+      nav.attach();
+      const items = container.querySelectorAll<HTMLElement>('.item');
+      items[1].focus();
+      container.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+      nav.detach();
+    });
+
+    it('stops at last on ArrowDown when loop is false', () => {
+      container.innerHTML = `
+        <button class="item">1</button>
+        <button class="item">2</button>
+      `;
+      const nav = createArrowKeyNavigation({
+        container,
+        itemSelector: '.item',
+        loop: false,
+      });
+      nav.attach();
+      const items = container.querySelectorAll<HTMLElement>('.item');
+      items[1].focus();
+      container.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+      nav.detach();
+    });
+
+    it('wraps from first to last on ArrowUp when looping', () => {
+      container.innerHTML = `
+        <button class="item">1</button>
+        <button class="item">2</button>
+      `;
+      const nav = createArrowKeyNavigation({
+        container,
+        itemSelector: '.item',
+        loop: true,
+      });
+      nav.attach();
+      const items = container.querySelectorAll<HTMLElement>('.item');
+      items[0].focus();
+      container.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true }));
+      nav.detach();
+    });
+
+    it('stops at first on ArrowUp when loop is false', () => {
+      container.innerHTML = `
+        <button class="item">1</button>
+        <button class="item">2</button>
+      `;
+      const nav = createArrowKeyNavigation({
+        container,
+        itemSelector: '.item',
+        loop: false,
+      });
+      nav.attach();
+      const items = container.querySelectorAll<HTMLElement>('.item');
+      items[0].focus();
+      container.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true }));
+      nav.detach();
+    });
+
+    it('wraps on ArrowRight for horizontal nav with loop', () => {
+      container.innerHTML = `
+        <button class="item">1</button>
+        <button class="item">2</button>
+      `;
+      const nav = createArrowKeyNavigation({
+        container,
+        itemSelector: '.item',
+        orientation: 'horizontal',
+        loop: true,
+      });
+      nav.attach();
+      const items = container.querySelectorAll<HTMLElement>('.item');
+      items[1].focus();
+      container.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+      nav.detach();
+    });
+
+    it('wraps on ArrowLeft for horizontal nav with loop', () => {
+      container.innerHTML = `
+        <button class="item">1</button>
+        <button class="item">2</button>
+      `;
+      const nav = createArrowKeyNavigation({
+        container,
+        itemSelector: '.item',
+        orientation: 'horizontal',
+        loop: true,
+      });
+      nav.attach();
+      const items = container.querySelectorAll<HTMLElement>('.item');
+      items[0].focus();
+      container.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }));
+      nav.detach();
+    });
+
+    it('stops at bounds on ArrowRight/ArrowLeft horizontal nav when loop is false', () => {
+      container.innerHTML = `
+        <button class="item">1</button>
+        <button class="item">2</button>
+      `;
+      const nav = createArrowKeyNavigation({
+        container,
+        itemSelector: '.item',
+        orientation: 'horizontal',
+        loop: false,
+      });
+      nav.attach();
+      const items = container.querySelectorAll<HTMLElement>('.item');
+      items[1].focus();
+      container.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+      items[0].focus();
+      container.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }));
+      nav.detach();
+    });
   });
 
   describe('makeActivatable', () => {

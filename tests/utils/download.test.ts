@@ -128,6 +128,38 @@ describe('download utilities', () => {
       ).rejects.toThrow('Resource not found (404)');
     });
 
+    it('should throw specific error for 400', async () => {
+      mockFetch.mockResolvedValue({
+        ok: false,
+        status: 400,
+        statusText: 'Bad Request',
+      });
+      await expect(
+        fetchResourceWithRetry('https://example.com/bad.png', { retries: 0 })
+      ).rejects.toThrow(/Bad request.*400/);
+    });
+
+    it('should throw a generic HTTP error for other non-ok statuses', async () => {
+      mockFetch.mockResolvedValue({
+        ok: false,
+        status: 500,
+        statusText: 'Server Error',
+      });
+      await expect(
+        fetchResourceWithRetry('https://example.com/err.png', { retries: 0 })
+      ).rejects.toThrow(/HTTP 500/);
+    });
+
+    it('adds CORS guidance to exhausted-retry errors when the error message mentions CORS', async () => {
+      mockFetch.mockRejectedValue(new Error('CORS request blocked'));
+      await expect(
+        fetchResourceWithRetry('https://example.com/cors.png', {
+          retries: 1,
+          retryDelay: 1,
+        })
+      ).rejects.toThrow(/CORS Issue Detected/);
+    });
+
     it('should throw specific error for 403', async () => {
       mockFetch.mockResolvedValue({
         ok: false,

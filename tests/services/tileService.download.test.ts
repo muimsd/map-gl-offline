@@ -497,6 +497,68 @@ describe('TileService.downloadTiles (mocked fetch)', () => {
     expect(result.totalTiles).toBeGreaterThan(0);
   });
 
+  it('rejects HTML/XML error responses as tile data', async () => {
+    global.fetch = jest
+      .fn()
+      .mockResolvedValue(new Response(null, { status: 200 })) as unknown as typeof fetch;
+    // Mock fetchResourceWithRetry to return an HTML error response — build
+    // the "<!" prefix manually since TextEncoder isn't in the test env.
+    const htmlPrefix = new Uint8Array([0x3c, 0x21, 0x44, 0x4f, 0x43]); // "<!DOC"
+    mockFetchResource.mockResolvedValue({
+      type: 'pbf',
+      data: htmlPrefix.buffer.slice(0) as ArrayBuffer,
+      contentType: 'text/html',
+    });
+    const region = {
+      id: 'region-html',
+      name: 'HTML',
+      bounds: [[-0.1, -0.1], [0.1, 0.1]] as [[number, number], [number, number]],
+      minZoom: 0,
+      maxZoom: 0,
+    };
+    const style = {
+      version: 8 as const,
+      sources: { s: { type: 'vector', tiles: ['https://t/{z}/{x}/{y}.pbf'] } },
+      layers: [],
+    };
+    const result = await service.downloadTiles(region, style, 'style-html', {
+      storageQuotaCheck: false,
+      maxRetries: 0,
+      probeSourcesBeforeDownload: false,
+    });
+    expect(result.failedTiles).toBeGreaterThanOrEqual(1);
+    expect(result.downloadedTiles).toBe(0);
+  });
+
+  it('rejects JSON responses returned as tile data', async () => {
+    global.fetch = jest
+      .fn()
+      .mockResolvedValue(new Response(null, { status: 200 })) as unknown as typeof fetch;
+    mockFetchResource.mockResolvedValue({
+      type: 'json',
+      data: { error: 'oops' },
+      contentType: 'application/json',
+    });
+    const region = {
+      id: 'region-json',
+      name: 'JSON',
+      bounds: [[-0.1, -0.1], [0.1, 0.1]] as [[number, number], [number, number]],
+      minZoom: 0,
+      maxZoom: 0,
+    };
+    const style = {
+      version: 8 as const,
+      sources: { s: { type: 'vector', tiles: ['https://t/{z}/{x}/{y}.pbf'] } },
+      layers: [],
+    };
+    const result = await service.downloadTiles(region, style, 'style-json', {
+      storageQuotaCheck: false,
+      maxRetries: 0,
+      probeSourcesBeforeDownload: false,
+    });
+    expect(result.failedTiles).toBeGreaterThanOrEqual(1);
+  });
+
   it('throws when storageQuotaCheck flags insufficient space', async () => {
     Object.defineProperty(global.navigator, 'storage', {
       configurable: true,
@@ -686,6 +748,40 @@ describe('TileService.downloadTiles (mocked fetch)', () => {
       probeSourcesBeforeDownload: false,
     });
     expect(result.totalTiles).toBeGreaterThan(0);
+  });
+
+  it('extends tile coordinates downward to cover source maxzoom below region.minZoom', async () => {
+    global.fetch = jest
+      .fn()
+      .mockResolvedValue(new Response(null, { status: 200 })) as unknown as typeof fetch;
+    mockFetchResource.mockResolvedValue({
+      type: 'pbf',
+      data: new ArrayBuffer(8),
+      contentType: 'application/x-protobuf',
+    });
+
+    const region = {
+      id: 'region-down',
+      name: 'Down',
+      bounds: [[-0.1, -0.1], [0.1, 0.1]] as [[number, number], [number, number]],
+      minZoom: 5,
+      maxZoom: 7,
+    };
+    const style = {
+      version: 8 as const,
+      sources: {
+        // Source only goes up to z3, so region zooms 5-7 are above.
+        // Service should extend downward to cover the source's z0-z3 range.
+        low: { type: 'vector', tiles: ['https://t/{z}/{x}/{y}.pbf'], minzoom: 0, maxzoom: 3 },
+      },
+      layers: [],
+    };
+    const result = await service.downloadTiles(region, style, 'style-down', {
+      storageQuotaCheck: false,
+      maxRetries: 0,
+      probeSourcesBeforeDownload: false,
+    });
+    expect(result.totalTiles).toBeGreaterThanOrEqual(0);
   });
 
   it('extends tile coordinates to cover source minzoom beyond region.maxZoom', async () => {

@@ -225,6 +225,60 @@ describe('StyleService.downloadStyles', () => {
     expect(result.success).toBe(true);
   });
 
+  it('records a non-fatal error when sprite download fails', async () => {
+    mockFetchWithRetry.mockImplementation(async (url: string) => {
+      if (url.endsWith('.json') && url.includes('sprite-fail')) {
+        return okJson({
+          version: 8,
+          id: 'sprite-fail',
+          sources: { s: { type: 'vector', tiles: ['https://t/{z}/{x}/{y}.pbf'] } },
+          layers: [{ id: 'L', type: 'background' }],
+          sprite: 'https://example.com/sprite',
+        });
+      }
+      // All sprite variants reject.
+      throw new Error('sprite fetch failed');
+    });
+    const result = await downloadStyles('https://example.com/sprite-fail.json', {
+      validateStyle: false,
+      skipExisting: false,
+    });
+    // The call succeeds overall; sprite errors are non-fatal.
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects styles with missing layers when validation is enabled', async () => {
+    mockFetchWithRetry.mockImplementation(async () =>
+      okJson({
+        version: 8,
+        id: 'no-layers',
+        sources: { s: { type: 'vector', tiles: ['https://t/{z}/{x}/{y}.pbf'] } },
+        // no layers property
+      })
+    );
+    const result = await downloadStyles('https://example.com/no-layers.json', {
+      validateStyle: true,
+      skipExisting: false,
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects styles with layer missing id/type when validation is enabled', async () => {
+    mockFetchWithRetry.mockImplementation(async () =>
+      okJson({
+        version: 8,
+        id: 'bad-layer',
+        sources: { s: { type: 'vector', tiles: ['https://t/{z}/{x}/{y}.pbf'] } },
+        layers: [{ id: 'L' }], // missing type
+      })
+    );
+    const result = await downloadStyles('https://example.com/bad-layer.json', {
+      validateStyle: true,
+      skipExisting: false,
+    });
+    expect(result.success).toBe(false);
+  });
+
   it('downloads glyphs when the style has text layers', async () => {
     mockFetchWithRetry.mockImplementation(async (url: string) => {
       if (url.endsWith('.pbf')) {

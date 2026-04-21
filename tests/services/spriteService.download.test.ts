@@ -304,6 +304,25 @@ describe('SpriteService.downloadSprites', () => {
     });
   });
 
+  it('applies a bandwidthLimit pause between downloads', async () => {
+    mockFetchWithRetry.mockImplementation(async () => okPngResponse());
+    const db = await dbPromise;
+    await db.clear('sprites');
+    // bandwidthLimit triggers a setTimeout-based rate limit delay for each item.
+    const result = await service.downloadSprites(
+      ['https://example.com/r.png'],
+      'rate-style',
+      {
+        storageQuotaCheck: false,
+        enableValidation: false,
+        maxRetries: 0,
+        skipExisting: false,
+        bandwidthLimit: 1024, // 1 KB/s (tiny delay)
+      }
+    );
+    expect(result.downloadedSprites).toBe(1);
+  });
+
   it('records expires when the response sets Cache-Control: max-age', async () => {
     const body = new Uint8Array([0x89, 0x50, 0x4e, 0x47]).buffer.slice(0) as ArrayBuffer;
     mockFetchWithRetry.mockResolvedValue(
