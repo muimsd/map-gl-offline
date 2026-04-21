@@ -381,6 +381,106 @@ describe('styleManagement', () => {
       );
     });
   });
+
+  it('delegates every public method to the styleService module', async () => {
+    await jest.isolateModulesAsync(async () => {
+      const downloadStyleWithProvider = jest.fn().mockResolvedValue({ styleId: 's' });
+      const loadStyleById = jest.fn().mockResolvedValue({ key: 's' });
+      const loadStyles = jest.fn().mockResolvedValue([]);
+      const deleteStyleById = jest.fn().mockResolvedValue(undefined);
+      const getStyleStats = jest.fn().mockResolvedValue({ styles: [] });
+      const cleanupOldStyles = jest
+        .fn()
+        .mockResolvedValue({ deletedCount: 3, freedSpace: 1000, errors: [] });
+
+      jest.doMock('../../../src/services/styleService', () => ({
+        __esModule: true,
+        downloadStyleWithProvider,
+        loadStyleById,
+        loadStyles,
+        deleteStyleById,
+        getStyleStats,
+        cleanupOldStyles,
+      }));
+      const {
+        createStyleManagement: isolated,
+      } = require('../../../src/managers/offlineMapManager/styleManagement');
+      const mgmt = isolated();
+
+      await mgmt.downloadStyle('u1');
+      expect(downloadStyleWithProvider).toHaveBeenCalledWith('u1', {});
+
+      await mgmt.loadStyleById('s1');
+      expect(loadStyleById).toHaveBeenCalledWith('s1');
+
+      await mgmt.listStyles();
+      expect(loadStyles).toHaveBeenCalled();
+
+      await mgmt.deleteStyle('s2');
+      expect(deleteStyleById).toHaveBeenCalledWith('s2');
+
+      await mgmt.getStyleStats('s3');
+      expect(getStyleStats).toHaveBeenCalledWith('s3');
+
+      await mgmt.downloadMapLibreStyle('u2');
+      expect(downloadStyleWithProvider).toHaveBeenLastCalledWith(
+        'u2',
+        expect.objectContaining({ provider: 'maplibre', forceProvider: true })
+      );
+
+      await mgmt.downloadStyleWithAutoDetection('u3');
+      expect(downloadStyleWithProvider).toHaveBeenLastCalledWith(
+        'u3',
+        expect.objectContaining({ provider: 'auto' })
+      );
+
+      const deleted = await mgmt.cleanupOldStyles(10);
+      expect(cleanupOldStyles).toHaveBeenCalledWith(
+        expect.objectContaining({ maxAge: 10 * 24 * 60 * 60 * 1000 })
+      );
+      expect(deleted).toBe(3);
+    });
+  });
+
+  it('resets the cached import promise when the first load fails', async () => {
+    await jest.isolateModulesAsync(async () => {
+      const calls: Array<'fail' | 'ok'> = [];
+      const downloadStyleWithProvider = jest.fn().mockImplementation(async () => {
+        calls.push('ok');
+        return { styleId: 's' };
+      });
+      // First require throws; we simulate by throwing when the module is
+      // first required via jest.doMock's factory.
+      let shouldThrow = true;
+      jest.doMock('../../../src/services/styleService', () => {
+        if (shouldThrow) {
+          shouldThrow = false;
+          calls.push('fail');
+          throw new Error('transient import failure');
+        }
+        return {
+          __esModule: true,
+          downloadStyleWithProvider,
+          loadStyleById: jest.fn(),
+          loadStyles: jest.fn(),
+          deleteStyleById: jest.fn(),
+          getStyleStats: jest.fn(),
+          cleanupOldStyles: jest.fn(),
+        };
+      });
+
+      const {
+        createStyleManagement: isolated,
+      } = require('../../../src/managers/offlineMapManager/styleManagement');
+      const mgmt = isolated();
+
+      // First call fails the dynamic import.
+      await expect(mgmt.downloadStyle('u')).rejects.toThrow(/transient/);
+      // Second call succeeds (the cached promise was reset on the failure).
+      await expect(mgmt.downloadStyle('u')).resolves.toBeDefined();
+      expect(calls.includes('ok')).toBe(true);
+    });
+  });
 });
 
 describe('importExportManagement', () => {
@@ -488,5 +588,43 @@ describe('maintenanceManagement', () => {
     expect(getComprehensiveStorageAnalytics).toHaveBeenCalled();
     // Verify integrity was NOT enabled, so per-style verify* wasn't fired.
     expect(fns['resourceService.verifyAndRepairFonts']).not.toHaveBeenCalled();
+  });
+
+  it('routes font/sprite/glyph cleanup calls through the wrapper bridges', async () => {
+    const { services, fns } = makeServices();
+    const performSmartCleanup = jest.fn().mockResolvedValue({ deletedRegions: 0 });
+    const listStoredRegions = jest.fn().mockResolvedValue([]);
+    const getComprehensiveStorageAnalytics = jest.fn().mockResolvedValue({});
+
+    createMaintenanceManagement(services, {
+      performSmartCleanup,
+      listStoredRegions,
+      getComprehensiveStorageAnalytics,
+    });
+
+    // Grab the constructor args passed to MaintenanceService by inspecting
+    // the bound cleanupOldFonts/Sprites/Glyphs wrappers via the resource
+    // service mocks. We do this by invoking performCompleteMaintenance with
+    // resource cleanup enabled — MaintenanceService will call the wrappers.
+    const {
+      createMaintenanceManagement: freshCreate,
+    } = require('../../../src/managers/offlineMapManager/maintenanceManagement');
+    const mgmt = freshCreate(services, {
+      performSmartCleanup,
+      listStoredRegions,
+      getComprehensiveStorageAnalytics,
+    });
+
+    await mgmt.performCompleteMaintenance({
+      optimizeStorage: true,
+    });
+
+    // When cleanupExpiredResources fires, MaintenanceService calls the
+    // cleanup wrappers which delegate to resourceService.cleanupOld*.
+    expect(
+      fns['resourceService.cleanupOldFonts'].mock.calls.length +
+        fns['resourceService.cleanupOldSprites'].mock.calls.length +
+        fns['resourceService.cleanupOldGlyphs'].mock.calls.length
+    ).toBeGreaterThan(0);
   });
 });

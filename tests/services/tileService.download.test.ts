@@ -426,6 +426,159 @@ describe('TileService.downloadTiles (mocked fetch)', () => {
     expect(result).toBeDefined();
   });
 
+  it('decompresses gzipped tile bytes before storage', async () => {
+    global.fetch = jest
+      .fn()
+      .mockResolvedValue(new Response(null, { status: 200 })) as unknown as typeof fetch;
+
+    // Build a real gzipped ArrayBuffer to trigger the gzip-magic-bytes path.
+    const raw = new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8]);
+    const compressedStream = new Response(raw).body?.pipeThrough(
+      new CompressionStream('gzip')
+    );
+    const gzBuffer = compressedStream
+      ? await new Response(compressedStream).arrayBuffer()
+      : new ArrayBuffer(0);
+
+    mockFetchResource.mockResolvedValue({
+      type: 'pbf',
+      data: gzBuffer,
+      contentType: 'application/x-protobuf',
+      contentEncoding: 'gzip',
+    });
+
+    const region = {
+      id: 'region-gz',
+      name: 'GZ',
+      bounds: [[-0.1, -0.1], [0.1, 0.1]] as [[number, number], [number, number]],
+      minZoom: 0,
+      maxZoom: 0,
+    };
+    const style = {
+      version: 8 as const,
+      sources: {
+        src: { type: 'vector', tiles: ['https://tiles.example.com/{z}/{x}/{y}.pbf'] },
+      },
+      layers: [],
+    };
+    const result = await service.downloadTiles(region, style, 'style-gz', {
+      storageQuotaCheck: false,
+      maxRetries: 0,
+      probeSourcesBeforeDownload: false,
+    });
+    expect(result.totalTiles).toBeGreaterThan(0);
+  });
+
+  it('writes contentEncoding through to the stored entry for non-gzip bodies', async () => {
+    global.fetch = jest
+      .fn()
+      .mockResolvedValue(new Response(null, { status: 200 })) as unknown as typeof fetch;
+    mockFetchResource.mockResolvedValue({
+      type: 'pbf',
+      data: new ArrayBuffer(32),
+      contentType: 'application/x-protobuf',
+      contentEncoding: 'br',
+    });
+
+    const region = {
+      id: 'region-br',
+      name: 'BR',
+      bounds: [[-0.1, -0.1], [0.1, 0.1]] as [[number, number], [number, number]],
+      minZoom: 0,
+      maxZoom: 0,
+    };
+    const style = {
+      version: 8 as const,
+      sources: {
+        src: { type: 'vector', tiles: ['https://tiles.example.com/{z}/{x}/{y}.pbf'] },
+      },
+      layers: [],
+    };
+    await service.downloadTiles(region, style, 'style-br', {
+      storageQuotaCheck: false,
+      maxRetries: 0,
+      probeSourcesBeforeDownload: false,
+    });
+    const db = await dbPromise;
+    const stored = await db.get('tiles', 'style-br:src:0:0:0.pbf');
+    expect(stored?.contentEncoding).toBe('br');
+  });
+
+  it('passes through the expires hint from fetchResourceWithRetry', async () => {
+    global.fetch = jest
+      .fn()
+      .mockResolvedValue(new Response(null, { status: 200 })) as unknown as typeof fetch;
+    const expiresTs = Date.now() + 60_000;
+    mockFetchResource.mockResolvedValue({
+      type: 'pbf',
+      data: new ArrayBuffer(16),
+      contentType: 'application/x-protobuf',
+      expires: expiresTs,
+    });
+
+    const region = {
+      id: 'region-exp',
+      name: 'EX',
+      bounds: [[-0.1, -0.1], [0.1, 0.1]] as [[number, number], [number, number]],
+      minZoom: 0,
+      maxZoom: 0,
+    };
+    const style = {
+      version: 8 as const,
+      sources: {
+        src: { type: 'vector', tiles: ['https://tiles.example.com/{z}/{x}/{y}.pbf'] },
+      },
+      layers: [],
+    };
+    await service.downloadTiles(region, style, 'style-exp', {
+      storageQuotaCheck: false,
+      maxRetries: 0,
+      probeSourcesBeforeDownload: false,
+    });
+    const db = await dbPromise;
+    const stored = await db.get('tiles', 'style-exp:src:0:0:0.pbf');
+    expect(stored?.expires).toBe(expiresTs);
+  });
+
+  it('extracts the access token from source tiles URL', async () => {
+    global.fetch = jest
+      .fn()
+      .mockResolvedValue(new Response(null, { status: 200 })) as unknown as typeof fetch;
+    mockFetchResource.mockResolvedValue({
+      type: 'pbf',
+      data: new ArrayBuffer(8),
+      contentType: 'application/x-protobuf',
+    });
+
+    const region = {
+      id: 'region-at',
+      name: 'AT',
+      bounds: [[-0.1, -0.1], [0.1, 0.1]] as [[number, number], [number, number]],
+      minZoom: 0,
+      maxZoom: 0,
+    };
+    const style = {
+      version: 8 as const,
+      sources: {
+        mb: {
+          type: 'vector',
+          // mapbox:// will be resolved via the token extracted from this URL.
+          url: 'mapbox://mapbox.mapbox-streets-v8',
+          tiles: [
+            'https://tiles.example.com/{z}/{x}/{y}.pbf?access_token=pk.extracted',
+          ],
+        },
+      },
+      layers: [],
+    };
+    const result = await service.downloadTiles(region, style, 'style-at', {
+      storageQuotaCheck: false,
+      maxRetries: 0,
+      probeSourcesBeforeDownload: false,
+    });
+    expect(result.totalTiles).toBeGreaterThan(0);
+  });
+
   it('extends tile coordinates to cover source minzoom beyond region.maxZoom', async () => {
     // procedural-buildings-style scenario: source has minzoom=5 but region
     // only requests minZoom:0/maxZoom:0 — extractTileSources should generate

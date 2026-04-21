@@ -664,6 +664,132 @@ describe('RegionService', () => {
       expect(style?.regions[0].id).toBe('region-2');
     });
 
+    it('deletes tiles that no longer overlap any remaining region', async () => {
+      const db = await dbPromise;
+
+      // Style with two regions in very different places.
+      await db.put('styles', {
+        key: 'tile-del-style',
+        style: { version: 8, sources: {}, layers: [] },
+        provider: 'auto' as StyleProvider,
+        regions: [
+          {
+            id: 'region-sf',
+            name: 'SF',
+            bounds: [[-122.5, 37.5], [-122.0, 38.0]],
+            minZoom: 0,
+            maxZoom: 3,
+          },
+          {
+            id: 'region-ny',
+            name: 'NY',
+            bounds: [[-73.5, 40.5], [-73.0, 41.0]],
+            minZoom: 0,
+            maxZoom: 3,
+          },
+        ],
+        fonts: [],
+        glyphs: [],
+        sprites: [],
+      });
+
+      // A tile that only overlaps SF (z=3 x=1 y=3 in Mercator is roughly West
+      // coast). A tile that only overlaps NY (z=3 x=2 y=3 is roughly NE).
+      // Use wider tiles (z=0) that cover both so the overlap check has
+      // realistic data; then check that deleting SF leaves the world tile,
+      // since it still overlaps NY.
+      await db.put('tiles', {
+        key: 'tile-del-style:v:0:0:0.pbf',
+        styleId: 'tile-del-style',
+        sourceId: 'v',
+        x: 0,
+        y: 0,
+        z: 0,
+        size: 10,
+        data: new ArrayBuffer(10),
+        downloadedAt: new Date().toISOString(),
+        type: 'vector',
+        url: 'https://example.com/t.pbf',
+        lastModified: Date.now(),
+      });
+
+      await regionService.deleteRegion('region-sf');
+
+      const remaining = await db.getAll('tiles');
+      // Tile still exists (world tile overlaps the remaining NY region).
+      expect(remaining.length).toBe(1);
+      const style = await db.get('styles', 'tile-del-style');
+      expect(style?.regions?.length).toBe(1);
+      expect(style?.regions?.[0].id).toBe('region-ny');
+    });
+
+    it('removes tiles that only belonged to the deleted region', async () => {
+      const db = await dbPromise;
+
+      await db.put('styles', {
+        key: 'removal-style',
+        style: { version: 8, sources: {}, layers: [] },
+        provider: 'auto' as StyleProvider,
+        regions: [
+          {
+            id: 'region-left',
+            name: 'Left',
+            bounds: [[-180, -85], [-90, 85]],
+            minZoom: 0,
+            maxZoom: 3,
+          },
+          {
+            id: 'region-right',
+            name: 'Right',
+            bounds: [[90, -85], [180, 85]],
+            minZoom: 0,
+            maxZoom: 3,
+          },
+        ],
+        fonts: [],
+        glyphs: [],
+        sprites: [],
+      });
+
+      // z=3 tile in the left half (x=1, y=4) would only overlap region-left.
+      await db.put('tiles', {
+        key: 'removal-style:v:3:1:4.pbf',
+        styleId: 'removal-style',
+        sourceId: 'v',
+        x: 1,
+        y: 4,
+        z: 3,
+        size: 10,
+        data: new ArrayBuffer(10),
+        downloadedAt: new Date().toISOString(),
+        type: 'vector',
+        url: 'https://example.com/t.pbf',
+        lastModified: Date.now(),
+      });
+      // z=3 tile in the right half (x=6, y=4).
+      await db.put('tiles', {
+        key: 'removal-style:v:3:6:4.pbf',
+        styleId: 'removal-style',
+        sourceId: 'v',
+        x: 6,
+        y: 4,
+        z: 3,
+        size: 10,
+        data: new ArrayBuffer(10),
+        downloadedAt: new Date().toISOString(),
+        type: 'vector',
+        url: 'https://example.com/t.pbf',
+        lastModified: Date.now(),
+      });
+
+      await regionService.deleteRegion('region-left');
+
+      // The left tile should be deleted; the right tile should remain.
+      const remaining = await db.getAll('tiles');
+      expect(remaining.length).toBe(1);
+      expect(remaining[0].key).toBe('removal-style:v:3:6:4.pbf');
+    });
+
     it('does not delete resources of sibling styles with shared prefix (regression P1-C)', async () => {
       // Prior bug: `key.startsWith("abc_")` matched glyphs for style "abc_def".
       // Deleting style "abc" would collaterally wipe style "abc_def"'s resources.

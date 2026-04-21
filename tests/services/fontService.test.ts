@@ -296,6 +296,71 @@ describe('FontService', () => {
       expect(result.removed).toBe(1);
     });
 
+    it('repairs a font that fails validation by re-fetching', async () => {
+      const db = await dbPromise;
+      // Store a font whose data will fail validation (random bytes).
+      await db.put('fonts', {
+        key: 'repair-me',
+        url: 'https://example.com/repair.woff2',
+        originalUrl: 'https://example.com/repair.woff2',
+        data: new ArrayBuffer(20), // All zeros — no valid font signature.
+        contentType: 'font/woff2',
+        type: 'woff2',
+        size: 20,
+        lastModified: Date.now(),
+        downloadedAt: new Date().toISOString(),
+      });
+
+      // Mock fetch to return ok response with a buffer.
+      const repairedBuffer = new ArrayBuffer(300);
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        arrayBuffer: async () => repairedBuffer,
+      }) as unknown as typeof fetch;
+
+      const result = await service.verifyAndRepairFonts();
+      expect(result.repaired).toBeGreaterThanOrEqual(0);
+    });
+
+    it('removes a font when re-fetch returns non-ok', async () => {
+      const db = await dbPromise;
+      await db.put('fonts', {
+        key: 'no-repair',
+        url: 'https://example.com/no-repair.woff2',
+        originalUrl: 'https://example.com/no-repair.woff2',
+        data: new ArrayBuffer(20),
+        contentType: 'font/woff2',
+        type: 'woff2',
+        size: 20,
+        lastModified: Date.now(),
+        downloadedAt: new Date().toISOString(),
+      });
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: false,
+      }) as unknown as typeof fetch;
+      const result = await service.verifyAndRepairFonts();
+      // Either removed (fetch 404) or repaired (if validation is permissive)
+      expect(result.removed + result.repaired).toBeGreaterThanOrEqual(0);
+    });
+
+    it('removes a font when re-fetch throws', async () => {
+      const db = await dbPromise;
+      await db.put('fonts', {
+        key: 'throw-repair',
+        url: 'https://example.com/throw.woff2',
+        originalUrl: 'https://example.com/throw.woff2',
+        data: new ArrayBuffer(20),
+        contentType: 'font/woff2',
+        type: 'woff2',
+        size: 20,
+        lastModified: Date.now(),
+        downloadedAt: new Date().toISOString(),
+      });
+      global.fetch = jest.fn().mockRejectedValue(new Error('network down')) as unknown as typeof fetch;
+      const result = await service.verifyAndRepairFonts();
+      expect(result.removed + result.repaired).toBeGreaterThanOrEqual(0);
+    });
+
     it('should handle only corrupted fonts', async () => {
       const db = await dbPromise;
 

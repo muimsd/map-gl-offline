@@ -123,6 +123,32 @@ describe('FontService.downloadFonts', () => {
     expect(result.errors[0].error).toMatch(/Unexpected JSON/);
   });
 
+  it('throws when storage quota is below the threshold', async () => {
+    // navigator.storage isn't on jsdom by default — polyfill it with an
+    // estimate that reports ~0 bytes available.
+    Object.defineProperty(global.navigator, 'storage', {
+      configurable: true,
+      value: {
+        estimate: async () => ({ quota: 10, usage: 5 }),
+      },
+    });
+
+    mockFetchResource.mockResolvedValue(makePbfResponse(32));
+    await expect(
+      service.downloadFonts(
+        ['https://example.com/font.pbf'],
+        'style-quota',
+        { storageQuotaCheck: true, validateFonts: false, skipExisting: false }
+      )
+    ).rejects.toThrow(/Insufficient storage/);
+
+    // Restore navigator.storage to avoid leaking state to sibling tests.
+    Object.defineProperty(global.navigator, 'storage', {
+      configurable: true,
+      value: undefined,
+    });
+  });
+
   it('fires progressTracker callbacks via batch processor', async () => {
     mockFetchResource.mockResolvedValue(makePbfResponse(32));
     const result = await service.downloadFonts(
