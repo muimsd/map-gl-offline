@@ -1434,7 +1434,28 @@ describe('PanelRenderer', () => {
       expect(capturedConfirmModals.length).toBeGreaterThan(0);
     });
 
+    it('handleFixCompressedTiles no-issues onConfirm/onCancel close modal', async () => {
+      capturedConfirmModals.length = 0;
+      const { dbPromise } = await import('../../../src/storage/indexedDbManager');
+      const db = await dbPromise;
+      await db.clear('tiles');
+      const mockModalManager = createMockModalManager();
+      const options = createOptions({
+        modalManager: mockModalManager as unknown as PanelRendererOptions['modalManager'],
+      });
+      const renderer = new PanelRenderer(options);
+      await (renderer as unknown as {
+        handleFixCompressedTiles: (id: string) => Promise<void>;
+      }).handleFixCompressedTiles('xyz');
+      const opts = capturedConfirmModals[0];
+      expect(opts).toBeDefined();
+      (opts!.onConfirm as () => void)();
+      (opts!.onCancel as () => void)();
+      expect(mockModalManager.close).toHaveBeenCalled();
+    });
+
     it('handleFixCompressedTiles runs cleanup onConfirm when tiles are compressed', async () => {
+      capturedConfirmModals.length = 0;
       const { dbPromise } = await import('../../../src/storage/indexedDbManager');
       const db = await dbPromise;
       await db.clear('tiles');
@@ -1463,6 +1484,14 @@ describe('PanelRenderer', () => {
       expect(firstModal).toBeDefined();
       // Fire the onConfirm body — exercises lines 1203–1243.
       await (firstModal!.onConfirm as () => Promise<void>)();
+      // A success modal should have been constructed.
+      expect(capturedConfirmModals.length).toBeGreaterThanOrEqual(2);
+      // Fire the success modal's onConfirm + onCancel.
+      const successModal = capturedConfirmModals[capturedConfirmModals.length - 1];
+      (successModal!.onConfirm as () => void)();
+      (successModal!.onCancel as () => void)();
+      // Fire the primary modal's onCancel too.
+      (firstModal!.onCancel as () => void)();
     });
 
     it('handleDeleteRegion onConfirm surfaces deletion errors', async () => {

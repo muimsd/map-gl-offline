@@ -353,6 +353,74 @@ describe('ResourceService', () => {
     });
   });
 
+  describe('Download delegators with default options', () => {
+    // These invocations exercise the default-parameter branches on every
+    // delegator signature (`options: X = {}`).
+    it('downloadFontsWithOptions without options', async () => {
+      await expect(
+        service.downloadFontsWithOptions([], undefined)
+      ).resolves.toBeDefined();
+    });
+
+    it('downloadSpritesWithOptions without options', async () => {
+      await expect(service.downloadSpritesWithOptions([], 'x')).resolves.toBeDefined();
+    });
+
+    it('downloadGlyphsWithOptions without options', async () => {
+      await expect(
+        service.downloadGlyphsWithOptions('https://x/{fontstack}/{range}.pbf', [], 'x')
+      ).resolves.toBeDefined();
+    });
+
+    it('cleanupOldFonts without arguments', async () => {
+      const n = await service.cleanupOldFonts();
+      expect(typeof n).toBe('number');
+    });
+
+    it('cleanupOldSprites without arguments', async () => {
+      const n = await service.cleanupOldSprites();
+      expect(typeof n).toBe('number');
+    });
+
+    it('cleanupOldGlyphs without arguments', async () => {
+      const n = await service.cleanupOldGlyphs();
+      expect(typeof n).toBe('number');
+    });
+
+    it('cleanupOldTiles without arguments', async () => {
+      const n = await service.cleanupOldTiles();
+      expect(typeof n).toBe('number');
+    });
+
+    it('cleanupOldModels without arguments', async () => {
+      const n = await service.cleanupOldModels();
+      expect(typeof n).toBe('number');
+    });
+
+    it('downloadModelsWithOptions without options', async () => {
+      await expect(service.downloadModelsWithOptions({}, 'x')).resolves.toBeDefined();
+    });
+
+    it('downloadTilesWithOptions without options', async () => {
+      // Will reject because the style has no sources, but the default-options
+      // branch is exercised before that throw.
+      await expect(
+        service.downloadTilesWithOptions(
+          {
+            id: 'r',
+            name: 'r',
+            bounds: [[-1, -1], [1, 1]] as [[number, number], [number, number]],
+            minZoom: 0,
+            maxZoom: 0,
+          },
+          { version: 8, sources: {}, layers: [] },
+          'x'
+          // no options — triggers the default branch
+        )
+      ).rejects.toThrow();
+    });
+  });
+
   describe('Model management delegators', () => {
     it('getModelStats returns an empty-state object', async () => {
       const res = await service.getModelStats();
