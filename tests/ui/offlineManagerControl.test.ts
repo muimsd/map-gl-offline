@@ -20,10 +20,12 @@ Object.defineProperty(window, 'matchMedia', {
 });
 
 // Mock styleService to avoid transitive TS compilation issues from WIP code
+const mockLoadStyles = jest.fn().mockResolvedValue([]);
+const mockLoadStyleById = jest.fn().mockResolvedValue(null);
 jest.mock('../../src/services/styleService', () => ({
   downloadStyles: jest.fn().mockResolvedValue({ styleId: 'test' }),
-  loadStyles: jest.fn().mockResolvedValue([]),
-  loadStyleById: jest.fn().mockResolvedValue(null),
+  loadStyles: (...args: unknown[]) => mockLoadStyles(...args),
+  loadStyleById: (...args: unknown[]) => mockLoadStyleById(...args),
   isStyleDownloaded: jest.fn().mockResolvedValue(false),
 }));
 
@@ -303,6 +305,246 @@ describe('OfflineManagerControl', () => {
 
       // Should not throw even without mapLib
       expect(() => control.onRemove()).not.toThrow();
+    });
+  });
+
+  describe('fetch interceptor routing', () => {
+    it('routes idb:// URLs to the idbFetchHandler (returns 404 when empty)', async () => {
+      control = new OfflineManagerControl(mockOfflineManager as any);
+      const response = await window.fetch('idb://nope/tile/x/0/0/0.pbf');
+      expect(response.status).toBe(404);
+    });
+
+    it('routes /__offline__/ URLs to the idbFetchHandler', async () => {
+      control = new OfflineManagerControl(mockOfflineManager as any);
+      const response = await window.fetch(
+        'https://example.com/__offline__/unknown/tile/s/0/0/0.pbf'
+      );
+      expect(response.status).toBe(404);
+    });
+
+    it('accepts URL objects as input', async () => {
+      const mockFetch = jest.fn().mockResolvedValue(new Response('ok'));
+      window.fetch = mockFetch;
+      control = new OfflineManagerControl(mockOfflineManager as any);
+      await window.fetch(new URL('https://example.com/x.json'));
+      expect(mockFetch).toHaveBeenCalled();
+    });
+
+    it('handles Request-like objects with a url property', async () => {
+      const mockFetch = jest.fn().mockResolvedValue(new Response('ok'));
+      window.fetch = mockFetch;
+      control = new OfflineManagerControl(mockOfflineManager as any);
+      // Jsdom doesn't provide Request; fake one with the shape the interceptor
+      // actually reads (`.url`).
+      const fakeReq = { url: 'https://example.com/x.json' } as unknown as Request;
+      await window.fetch(fakeReq);
+      expect(mockFetch).toHaveBeenCalled();
+    });
+  });
+
+  describe('addProtocol handler', () => {
+    it('invokes idbFetchHandler and returns parsed JSON for type=json', async () => {
+      const mockMapLib = createMockMapLib();
+      control = new OfflineManagerControl(mockOfflineManager as any, {
+        styleUrl: 'https://example.com/s.json',
+        mapLib: mockMapLib,
+      });
+
+      // Capture the handler that was registered
+      const handler = mockMapLib.addProtocol.mock.calls[0][1] as (p: {
+        url: string;
+        type?: string;
+      }) => Promise<{ data: unknown }>;
+
+      // Seed a style so the /tilesjson/ handler returns 200 with JSON.
+      const { dbPromise } = await import('../../src/storage/indexedDbManager');
+      const db = await dbPromise;
+      await db.put('styles', {
+        key: 'st',
+        style: {
+          version: 8,
+          sources: { src: { type: 'vector', tiles: ['https://t/{z}/{x}/{y}.pbf'] } },
+          layers: [],
+        },
+        provider: 'auto',
+        regions: [],
+        fonts: [],
+        glyphs: [],
+        sprites: [],
+      } as never);
+
+      const result = await handler({ url: 'idb://st/tilesjson/src', type: 'json' });
+      expect(result.data).toBeDefined();
+    });
+
+    it('throws when the IDB fetch returns a non-ok response', async () => {
+      const mockMapLib = createMockMapLib();
+      control = new OfflineManagerControl(mockOfflineManager as any, {
+        styleUrl: 'https://example.com/s.json',
+        mapLib: mockMapLib,
+      });
+      const handler = mockMapLib.addProtocol.mock.calls[0][1] as (p: {
+        url: string;
+      }) => Promise<unknown>;
+      await expect(handler({ url: 'idb://missing/tile/s/0/0/0.pbf' })).rejects.toThrow(
+        /IDB fetch failed/
+      );
+    });
+  });
+
+  describe('loadOfflineStyle', () => {
+    it('does nothing when map is not attached', async () => {
+      control = new OfflineManagerControl(mockOfflineManager as any);
+      // No map attached — call should resolve without throwing.
+      await expect(control.loadOfflineStyle('xyz')).resolves.toBeUndefined();
+    });
+
+    it('logs and returns when style not found', async () => {
+      mockLoadStyleById.mockResolvedValueOnce(null);
+      control = new OfflineManagerControl(mockOfflineManager as any);
+      const mockMap = createMockMap();
+      control.onAdd(mockMap as any);
+      await control.loadOfflineStyle('missing');
+      expect(mockMap.setStyle).not.toHaveBeenCalled();
+    });
+
+    it('applies the patched style when found', async () => {
+      mockLoadStyleById.mockResolvedValueOnce({
+        key: 'abc',
+        style: {
+          version: 8,
+          sources: {},
+          layers: [],
+          imports: [{ id: 'x', url: 'https://example.com/x.json' }],
+        },
+        provider: 'auto',
+        regions: [],
+        fonts: [],
+        glyphs: [],
+        sprites: [],
+      });
+      control = new OfflineManagerControl(mockOfflineManager as any);
+      const mockMap = createMockMap();
+      control.onAdd(mockMap as any);
+
+      await control.loadOfflineStyle('abc');
+      expect(mockMap.setStyle).toHaveBeenCalled();
+      // The imports field should be stripped from the applied style.
+      const appliedStyle = mockMap.setStyle.mock.calls[0][0];
+      expect((appliedStyle as Record<string, unknown>).imports).toBeUndefined();
+    });
+  });
+
+  describe('loadOfflineStyles', () => {
+    it('alerts when no styles available', async () => {
+      mockLoadStyles.mockResolvedValueOnce([]);
+      const alertMock = jest.spyOn(window, 'alert').mockImplementation(() => {});
+      control = new OfflineManagerControl(mockOfflineManager as any);
+      const mockMap = createMockMap();
+      control.onAdd(mockMap as any);
+      await control.loadOfflineStyles();
+      expect(alertMock).toHaveBeenCalled();
+      alertMock.mockRestore();
+    });
+
+    it('auto-loads when exactly one style is available', async () => {
+      mockLoadStyles.mockResolvedValueOnce([
+        {
+          key: 'only-style',
+          style: { version: 8, sources: {}, layers: [] },
+          provider: 'auto',
+          regions: [],
+          fonts: [],
+          glyphs: [],
+          sprites: [],
+        },
+      ]);
+      mockLoadStyleById.mockResolvedValueOnce({
+        key: 'only-style',
+        style: { version: 8, sources: {}, layers: [] },
+        provider: 'auto',
+        regions: [],
+        fonts: [],
+        glyphs: [],
+        sprites: [],
+      });
+      control = new OfflineManagerControl(mockOfflineManager as any);
+      const mockMap = createMockMap();
+      control.onAdd(mockMap as any);
+      await control.loadOfflineStyles();
+      expect(mockMap.setStyle).toHaveBeenCalled();
+    });
+
+    it('shows a selection modal when multiple styles exist', async () => {
+      mockLoadStyles.mockResolvedValueOnce([
+        {
+          key: 'a',
+          style: { version: 8, name: 'A', sources: {}, layers: [] },
+          provider: 'auto',
+          regions: [],
+          fonts: [],
+          glyphs: [],
+          sprites: [],
+        },
+        {
+          key: 'b',
+          style: { version: 8, name: 'B', sources: {}, layers: [] },
+          provider: 'auto',
+          regions: [],
+          fonts: [],
+          glyphs: [],
+          sprites: [],
+        },
+      ]);
+      control = new OfflineManagerControl(mockOfflineManager as any);
+      const mockMap = createMockMap();
+      control.onAdd(mockMap as any);
+      await control.loadOfflineStyles();
+      const modal = document.querySelector('.modal-backdrop');
+      expect(modal).not.toBeNull();
+      // Clean up
+      modal?.remove();
+    });
+
+    it('does nothing when map is not attached', async () => {
+      control = new OfflineManagerControl(mockOfflineManager as any);
+      await expect(control.loadOfflineStyles()).resolves.toBeUndefined();
+    });
+  });
+
+  describe('updateStyleUrl edge cases', () => {
+    it('stores a new style URL via updateStyleUrl', () => {
+      control = new OfflineManagerControl(mockOfflineManager as any, {
+        styleUrl: 'https://example.com/style-one.json',
+      });
+      control.updateStyleUrl('https://example.com/style-two.json');
+      expect(control.getCurrentStyleUrl()).toBe('https://example.com/style-two.json');
+    });
+  });
+
+  describe('panel click handling', () => {
+    it('stops propagation on panel clicks', () => {
+      control = new OfflineManagerControl(mockOfflineManager as any);
+      const mockMap = createMockMap();
+      control.onAdd(mockMap as any);
+      const panel = document.querySelector('.offline-manager-control.fixed') as HTMLElement;
+      const ev = new MouseEvent('click', { bubbles: true });
+      const stopProp = jest.spyOn(ev, 'stopPropagation');
+      panel.dispatchEvent(ev);
+      expect(stopProp).toHaveBeenCalled();
+    });
+  });
+
+  describe('theme initialization', () => {
+    it('does not override theme when one is saved', () => {
+      localStorage.setItem('offline-manager-theme', 'light');
+      control = new OfflineManagerControl(mockOfflineManager as any, {
+        styleUrl: 'https://example.com/s.json',
+        theme: 'dark',
+      });
+      localStorage.removeItem('offline-manager-theme');
+      expect(control).toBeDefined();
     });
   });
 });

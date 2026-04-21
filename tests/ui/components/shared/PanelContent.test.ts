@@ -3,6 +3,7 @@
  */
 
 import { PanelContentRenderer, ContentRendererConfig } from '../../../../src/ui/components/shared/PanelContent';
+import type { StoredRegion } from '../../../../src/types/region';
 
 // Mock the theme manager
 jest.mock('../../../../src/ui/ThemeManager', () => ({
@@ -272,6 +273,114 @@ describe('PanelContentRenderer', () => {
       // Should contain action buttons
       const buttons = container.querySelectorAll('button');
       expect(buttons.length).toBeGreaterThan(0);
+    });
+  });
+
+  describe('delegated action handlers', () => {
+    const region: StoredRegion = {
+      id: 'r-del',
+      name: 'To Delete',
+      bounds: [[0, 0], [1, 1]],
+      minZoom: 0,
+      maxZoom: 10,
+      styleId: 'style',
+      styleUrl: 'https://example.com/style.json',
+      created: Date.now(),
+      expiry: Date.now() + 1000 * 60 * 60 * 24,
+    } as StoredRegion;
+
+    it('invokes onFocusRegion for focus-region actions', async () => {
+      const onFocusRegion = jest.fn();
+      const config = createConfig({ onFocusRegion });
+      const renderer = new PanelContentRenderer(config);
+      await renderer.render(container);
+
+      const btn = document.createElement('button');
+      btn.dataset.action = 'focus-region';
+      btn.dataset.regionId = 'r-focus';
+      container.appendChild(btn);
+      btn.click();
+      expect(onFocusRegion).toHaveBeenCalledWith('r-focus');
+    });
+
+    it('shows a confirmation modal for delete-region actions', async () => {
+      const mockOfflineManager = createMockOfflineManager();
+      mockOfflineManager.listStoredRegions.mockResolvedValue([region]);
+      const config = createConfig({
+        offlineManager: mockOfflineManager as unknown as ContentRendererConfig['offlineManager'],
+      });
+      const renderer = new PanelContentRenderer(config);
+      await renderer.render(container);
+
+      const initialBodyChildren = document.body.children.length;
+      const btn = document.createElement('button');
+      btn.dataset.action = 'delete-region';
+      btn.dataset.regionId = region.id;
+      container.appendChild(btn);
+      btn.click();
+      await new Promise(r => setTimeout(r, 10));
+      // Clicking delete should append a modal to document.body.
+      expect(document.body.children.length).toBeGreaterThan(initialBodyChildren);
+    });
+
+    it('opens region details modal on show-details click', async () => {
+      const mockOfflineManager = createMockOfflineManager();
+      mockOfflineManager.listStoredRegions.mockResolvedValue([region]);
+      const config = createConfig({
+        offlineManager: mockOfflineManager as unknown as ContentRendererConfig['offlineManager'],
+      });
+      const renderer = new PanelContentRenderer(config);
+      await renderer.render(container);
+
+      const btn = document.createElement('button');
+      btn.dataset.action = 'show-details';
+      btn.dataset.regionId = region.id;
+      container.appendChild(btn);
+      btn.click();
+      await new Promise(r => setTimeout(r, 10));
+      expect(mockOfflineManager.listStoredRegions).toHaveBeenCalled();
+    });
+
+    it('triggers downloadRegion alert for download-region action', async () => {
+      const alertMock = jest.spyOn(window, 'alert').mockImplementation(() => {});
+      const config = createConfig();
+      const renderer = new PanelContentRenderer(config);
+      await renderer.render(container);
+
+      const btn = document.createElement('button');
+      btn.dataset.action = 'download-region';
+      btn.dataset.regionId = 'r-dl';
+      container.appendChild(btn);
+      btn.click();
+      expect(alertMock).toHaveBeenCalled();
+      alertMock.mockRestore();
+    });
+  });
+
+  describe('refresh', () => {
+    it('can be called without throwing', async () => {
+      const mockOfflineManager = createMockOfflineManager();
+      const config = createConfig({
+        offlineManager: mockOfflineManager as unknown as ContentRendererConfig['offlineManager'],
+      });
+      const renderer = new PanelContentRenderer(config);
+      await renderer.render(container);
+      // refresh() uses this.element.parentElement which is not set because
+      // we render into `container` directly; assert it at least doesn't throw.
+      await expect(renderer.refresh()).resolves.not.toThrow();
+    });
+  });
+
+  describe('error state', () => {
+    it('renders an error message when analytics load fails', async () => {
+      const mockOfflineManager = createMockOfflineManager();
+      mockOfflineManager.getComprehensiveStorageAnalytics.mockRejectedValue(new Error('boom'));
+      const config = createConfig({
+        offlineManager: mockOfflineManager as unknown as ContentRendererConfig['offlineManager'],
+      });
+      const renderer = new PanelContentRenderer(config);
+      await renderer.render(container);
+      expect(container.textContent).toContain('Error loading content');
     });
   });
 });

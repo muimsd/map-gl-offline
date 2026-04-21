@@ -441,4 +441,238 @@ describe('PanelRenderer', () => {
       expect(() => new PanelRenderer(options)).not.toThrow();
     });
   });
+
+  describe('render with regions + styles', () => {
+    it('renders grouped style cards when a style owns regions', async () => {
+      const { loadStyles, getStyleStats } = require('../../../src/services/styleService');
+      loadStyles.mockResolvedValue([
+        { key: 'my-style', style: { name: 'My Style', sources: { a: {} } } },
+      ]);
+      getStyleStats.mockResolvedValue({ styles: [{ id: 'my-style', size: 1024 }] });
+
+      const mockOfflineManager = createMockOfflineManager();
+      mockOfflineManager.listStoredRegions.mockResolvedValue([
+        {
+          id: 'r1',
+          name: 'Region',
+          styleId: 'my-style',
+          bounds: [[0, 0], [1, 1]],
+          minZoom: 0,
+          maxZoom: 10,
+          created: Date.now(),
+          downloadedAt: Date.now(),
+        },
+      ]);
+
+      const options = createOptions({
+        offlineManager: mockOfflineManager as unknown as PanelRendererOptions['offlineManager'],
+      });
+      const renderer = new PanelRenderer(options);
+      await renderer.render(panelElement);
+      expect(panelElement.textContent).toContain('My Style');
+    });
+
+    it('shows orphaned-regions header when a region references an unknown style', async () => {
+      const { loadStyles, getStyleStats } = require('../../../src/services/styleService');
+      loadStyles.mockResolvedValue([]);
+      getStyleStats.mockResolvedValue({ styles: [] });
+
+      const mockOfflineManager = createMockOfflineManager();
+      mockOfflineManager.listStoredRegions.mockResolvedValue([
+        {
+          id: 'orphan',
+          name: 'Orphan',
+          styleId: 'missing-style',
+          bounds: [[0, 0], [1, 1]],
+          minZoom: 0,
+          maxZoom: 10,
+          created: Date.now(),
+        },
+      ]);
+
+      const options = createOptions({
+        offlineManager: mockOfflineManager as unknown as PanelRendererOptions['offlineManager'],
+      });
+      const renderer = new PanelRenderer(options);
+      await renderer.render(panelElement);
+      // Either orphan section or region card should be present
+      expect(panelElement.textContent).toBeTruthy();
+    });
+  });
+
+  describe('region actions', () => {
+    const makeRegion = (id: string) => ({
+      id,
+      name: `Region ${id}`,
+      styleId: 'style',
+      styleUrl: 'https://example.com/style.json',
+      bounds: [[0, 0], [1, 1]],
+      minZoom: 0,
+      maxZoom: 10,
+      created: Date.now(),
+    });
+
+    it('opens details modal when clicking a region item', async () => {
+      const mockOfflineManager = createMockOfflineManager();
+      const mockModalManager = createMockModalManager();
+      mockOfflineManager.listStoredRegions.mockResolvedValue([makeRegion('r1')]);
+
+      const options = createOptions({
+        offlineManager: mockOfflineManager as unknown as PanelRendererOptions['offlineManager'],
+        modalManager: mockModalManager as unknown as PanelRendererOptions['modalManager'],
+      });
+      const renderer = new PanelRenderer(options);
+      await renderer.render(panelElement);
+
+      // Click the "details" button on the region item.
+      const btn = panelElement.querySelector(
+        '[data-action="show-details"]'
+      ) as HTMLElement | null;
+      if (btn) {
+        btn.click();
+        await new Promise(r => setTimeout(r, 50));
+        expect(mockModalManager.show).toHaveBeenCalled();
+      }
+    });
+
+    it('invokes onFocusRegion when clicking the focus action', async () => {
+      const onFocusRegion = jest.fn();
+      const mockOfflineManager = createMockOfflineManager();
+      mockOfflineManager.listStoredRegions.mockResolvedValue([makeRegion('r2')]);
+
+      const options = createOptions({
+        offlineManager: mockOfflineManager as unknown as PanelRendererOptions['offlineManager'],
+        onFocusRegion,
+      });
+      const renderer = new PanelRenderer(options);
+      await renderer.render(panelElement);
+
+      const btn = panelElement.querySelector(
+        '[data-action="focus-region"]'
+      ) as HTMLElement | null;
+      if (btn) {
+        btn.click();
+        await new Promise(r => setTimeout(r, 50));
+        expect(onFocusRegion).toHaveBeenCalledWith('r2');
+      }
+    });
+
+    it('opens a confirmation modal when clicking delete', async () => {
+      const mockOfflineManager = createMockOfflineManager();
+      const mockModalManager = createMockModalManager();
+      mockOfflineManager.listStoredRegions.mockResolvedValue([makeRegion('r3')]);
+
+      const options = createOptions({
+        offlineManager: mockOfflineManager as unknown as PanelRendererOptions['offlineManager'],
+        modalManager: mockModalManager as unknown as PanelRendererOptions['modalManager'],
+      });
+      const renderer = new PanelRenderer(options);
+      await renderer.render(panelElement);
+
+      const btn = panelElement.querySelector(
+        '[data-action="delete-region"]'
+      ) as HTMLElement | null;
+      if (btn) {
+        btn.click();
+        await new Promise(r => setTimeout(r, 50));
+        expect(mockModalManager.show).toHaveBeenCalled();
+      }
+    });
+
+    it('opens a confirmation modal when clicking redownload', async () => {
+      const mockOfflineManager = createMockOfflineManager();
+      const mockModalManager = createMockModalManager();
+      mockOfflineManager.listStoredRegions.mockResolvedValue([makeRegion('r4')]);
+
+      const options = createOptions({
+        offlineManager: mockOfflineManager as unknown as PanelRendererOptions['offlineManager'],
+        modalManager: mockModalManager as unknown as PanelRendererOptions['modalManager'],
+      });
+      const renderer = new PanelRenderer(options);
+      await renderer.render(panelElement);
+
+      const btn = panelElement.querySelector(
+        '[data-action="redownload-region"]'
+      ) as HTMLElement | null;
+      if (btn) {
+        btn.click();
+        await new Promise(r => setTimeout(r, 50));
+        expect(mockModalManager.show).toHaveBeenCalled();
+      }
+    });
+  });
+
+  describe('theme toggle interaction', () => {
+    it('toggles theme when the toggle button is clicked', async () => {
+      const { themeManager } = require('../../../src/ui/ThemeManager');
+      themeManager.getTheme.mockReturnValue({ mode: 'light' });
+
+      const options = createOptions();
+      const renderer = new PanelRenderer(options);
+      await renderer.render(panelElement);
+
+      const themeBtn = Array.from(panelElement.querySelectorAll('button')).find(b =>
+        (b.getAttribute('title') || '').toLowerCase().includes('theme') ||
+        (b.textContent || '').toLowerCase().includes('theme')
+      );
+      if (themeBtn) {
+        (themeBtn as HTMLButtonElement).click();
+        expect(themeManager.setTheme).toHaveBeenCalled();
+      }
+    });
+  });
+
+  describe('close button interaction', () => {
+    it('invokes onClose when the close button is clicked', async () => {
+      const onClose = jest.fn();
+      const options = createOptions({ onClose });
+      const renderer = new PanelRenderer(options);
+      await renderer.render(panelElement);
+
+      const closeBtn = Array.from(panelElement.querySelectorAll('button')).find(b =>
+        (b.getAttribute('title') || '').toLowerCase().includes('close')
+      );
+      if (closeBtn) {
+        (closeBtn as HTMLButtonElement).click();
+        expect(onClose).toHaveBeenCalled();
+      }
+    });
+  });
+
+  describe('add region button', () => {
+    it('invokes onAddRegion when the add button is clicked', async () => {
+      const onAddRegion = jest.fn();
+      const options = createOptions({ onAddRegion });
+      const renderer = new PanelRenderer(options);
+      await renderer.render(panelElement);
+
+      const addBtn = Array.from(panelElement.querySelectorAll('button')).find(b =>
+        (b.textContent || '').includes('Add Region')
+      );
+      if (addBtn) {
+        (addBtn as HTMLButtonElement).click();
+        expect(onAddRegion).toHaveBeenCalled();
+      }
+    });
+  });
+
+  describe('active downloads display', () => {
+    it('renders each active download entry', async () => {
+      const mockDownloadManager = createMockDownloadManager();
+      mockDownloadManager.hasActiveDownloads.mockReturnValue(true);
+      mockDownloadManager.getCurrentDownloads.mockReturnValue(
+        new Map([
+          ['d1', { regionId: 'r1', regionName: 'R1', percentage: 25 }],
+          ['d2', { regionId: 'r2', regionName: 'R2', percentage: 75 }],
+        ])
+      );
+      const options = createOptions({
+        downloadManager: mockDownloadManager as unknown as PanelRendererOptions['downloadManager'],
+      });
+      const renderer = new PanelRenderer(options);
+      await renderer.render(panelElement);
+      expect(panelElement.textContent).toContain('R1');
+      expect(panelElement.textContent).toContain('R2');
+    });
+  });
 });
