@@ -173,8 +173,17 @@ export class RegionService {
       }
     }
 
+    let deletedModels = 0;
+    const modelTx = db.transaction('models', 'readwrite');
+    for await (const cursor of modelTx.store) {
+      if (resourceKeyBelongsToStyle(cursor.value.key, styleId)) {
+        await cursor.delete();
+        deletedModels++;
+      }
+    }
+
     regionLogger.info(
-      `Deleted style resources: ${deletedFonts} fonts, ${deletedGlyphs} glyphs, ${deletedSprites} sprites`
+      `Deleted style resources: ${deletedFonts} fonts, ${deletedGlyphs} glyphs, ${deletedSprites} sprites, ${deletedModels} models`
     );
   }
 
@@ -322,6 +331,7 @@ export class RegionService {
       accessToken,
       skipGlyphs = false,
       skipSprites = false,
+      skipModels = false,
       glyphRanges,
       tileOptions,
     } = options;
@@ -388,8 +398,13 @@ export class RegionService {
       const spriteSources = normalizeSpriteProperty(originalSpriteUrl);
       if (spriteSources.length > 0) {
         const { downloadSprites } = await import('@/services/spriteService');
-        const suffixes = ['.json', '.png', '@2x.json', '@2x.png'];
-        const totalFiles = spriteSources.length * suffixes.length;
+        // Standard four sprite variants. For Mapbox Standard, an `iconset.pbf`
+        // sibling is also served under the same /styles/v1/.../<hash>/ path
+        // — we detect that case per-source below and append it to the list.
+        const baseSuffixes = ['.json', '.png', '@2x.json', '@2x.png'];
+        // Estimate total files assuming iconset is always included (the actual
+        // number may be smaller; the emit helper clamps progress to total).
+        const totalFiles = spriteSources.length * (baseSuffixes.length + 1);
         let completed = 0;
         emit('sprites', 0, totalFiles, 'Downloading sprites');
 
@@ -399,11 +414,29 @@ export class RegionService {
             spriteBase = resolveMapboxUrl(spriteBase, effectiveAccessToken);
           }
           const qIndex = spriteBase.indexOf('?');
-          const spriteUrls = suffixes.map(suffix =>
-            qIndex !== -1
-              ? spriteBase.slice(0, qIndex) + suffix + spriteBase.slice(qIndex)
-              : spriteBase + suffix
+          const suffixes = [...baseSuffixes];
+          // Mapbox Standard serves an iconset.pbf alongside the sprite under
+          // /styles/v1/{owner}/{style}/{hash}/sprite → the sibling file is
+          // /styles/v1/{owner}/{style}/{hash}/iconset.pbf. The last path
+          // segment is `sprite`, so replacing it with `iconset.pbf` works.
+          const pathWithoutQuery = qIndex !== -1 ? spriteBase.slice(0, qIndex) : spriteBase;
+          const isMapboxStandardSprite = /api\.mapbox\.com\/styles\/v1\/.+\/sprite$/.test(
+            pathWithoutQuery
           );
+          if (isMapboxStandardSprite) {
+            // The path-rewrite suffix replaces the trailing `sprite` segment.
+            suffixes.push('__ICONSET__');
+          }
+          const spriteUrls = suffixes.map(suffix => {
+            if (suffix === '__ICONSET__') {
+              // Replace trailing `sprite` with `iconset.pbf`, preserving query.
+              const base = pathWithoutQuery.replace(/sprite$/, 'iconset.pbf');
+              return qIndex !== -1 ? base + spriteBase.slice(qIndex) : base;
+            }
+            return qIndex !== -1
+              ? spriteBase.slice(0, qIndex) + suffix + spriteBase.slice(qIndex)
+              : spriteBase + suffix;
+          });
           try {
             const result = await downloadSprites(spriteUrls, styleId, {
               enableValidation: true,
@@ -456,7 +489,41 @@ export class RegionService {
       }
     }
 
-    // 4. Tiles — use the stored (source-embedded) style, which still has HTTP tile URLs
+    // 4. Models — Mapbox Standard's `style.models` references 3D tree /
+    //    turbine .glb assets. Two value shapes exist in the wild
+    //    (plain string or `{ uri }`) — we accept both.
+    let modelResult: DownloadRegionResult['modelResult'];
+    if (!skipModels && storedStyle.models) {
+      const rawModels = storedStyle.models as Record<string, string | { uri?: string }>;
+      const resolved: Record<string, string> = {};
+      for (const [name, value] of Object.entries(rawModels)) {
+        const uri = typeof value === 'string' ? value : value?.uri;
+        if (!uri) continue;
+        if (uri.startsWith('idb://')) continue; // already patched
+        const httpUrl =
+          isMapboxProtocol(uri) && effectiveAccessToken
+            ? resolveMapboxUrl(uri, effectiveAccessToken)
+            : uri;
+        if (httpUrl.startsWith('http://') || httpUrl.startsWith('https://')) {
+          resolved[name] = httpUrl;
+        }
+      }
+      if (Object.keys(resolved).length > 0) {
+        const { downloadModels } = await import('@/services/modelService');
+        emit('models', 0, Object.keys(resolved).length, 'Downloading 3D models');
+        try {
+          modelResult = await downloadModels(resolved, styleId, {
+            onProgress: (progress: { completed: number; total: number }) => {
+              emit('models', progress.completed, progress.total, 'Downloading 3D models');
+            },
+          });
+        } catch (error) {
+          regionLogger.warn('Model download failed (non-fatal):', error);
+        }
+      }
+    }
+
+    // 5. Tiles — use the stored (source-embedded) style, which still has HTTP tile URLs
     const { downloadTiles } = await import('@/services/tileService');
     const regionForTiles = { ...region, styleId };
     emit('tiles', 0, 100, 'Downloading tiles');
@@ -470,7 +537,7 @@ export class RegionService {
       },
     });
 
-    // 5. Metadata — must run last, since addRegion patches style URLs to idb://.
+    // 6. Metadata — must run last, since addRegion patches style URLs to idb://.
     // Do NOT auto-fill tileExtension from tileResult: that's only the first
     // source's extension, and addRegion feeds it to patchStyleForOffline which
     // would override ALL sources — breaking mixed raster+vector styles. The
@@ -487,6 +554,7 @@ export class RegionService {
       styleResult,
       spriteResults,
       glyphResult,
+      modelResult,
       tileResult,
     };
   }

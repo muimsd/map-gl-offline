@@ -12,6 +12,7 @@ const idbLogger = logger.scope('IDBFetch');
 // idb://{downloadId}/tile/{sourceKey}/{url}
 // idb://{downloadId}/glyph/{fontstack}/{range}.pbf
 // idb://{downloadId}/sprite/{spriteName}
+// idb://{styleId}/model/{modelName}
 // idb://{downloadId}/tilesjson/{url}
 
 // Cache for region ID to style mapping to avoid repeated DB queries
@@ -482,6 +483,35 @@ export async function idbFetchHandler(url: string, init?: RequestInit): Promise<
         } else {
           idbLogger.warn(`Font not found: ${key}`);
         }
+        break;
+      }
+      case 'model': {
+        // Model URLs are rewritten by patchStyleForOffline to:
+        //   idb://{styleId}/model/{modelName}
+        // Models are keyed by {styleId}::model::{modelName} in the store.
+        // Mirror the sprite resolution fallback: try the style ID first,
+        // then the download/region ID (in case the request came through a
+        // region-scoped URL).
+        const styleEntry = await findStyleByRegionId(db, downloadId);
+        const actualStyleId = styleEntry?.key || downloadId;
+        const candidates = Array.from(
+          new Set([
+            `${actualStyleId}::model::${decodedResourcePath}`,
+            `${downloadId}::model::${decodedResourcePath}`,
+          ])
+        );
+        idbLogger.debug(`Model candidates for "${decodedResourcePath}":`, candidates);
+        for (const candidateKey of candidates) {
+          const resource = await db.get('models', candidateKey);
+          if (resource?.data) {
+            idbLogger.debug(`Found model using key: ${candidateKey}`);
+            return new Response(resource.data, {
+              status: 200,
+              headers: { 'Content-Type': resource.contentType || 'model/gltf-binary' },
+            });
+          }
+        }
+        idbLogger.warn(`Model not found, tried keys: ${candidates.join(', ')}`);
         break;
       }
       case 'tilesjson': {

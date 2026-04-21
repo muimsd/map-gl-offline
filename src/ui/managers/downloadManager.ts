@@ -79,7 +79,7 @@ export interface DownloadProgress {
   /** Human-readable description of current activity */
   currentResource: string;
   /** Current download phase */
-  phase?: 'style' | 'sprites' | 'glyphs' | 'tiles';
+  phase?: 'style' | 'sprites' | 'glyphs' | 'models' | 'tiles';
 }
 
 /**

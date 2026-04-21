@@ -1385,11 +1385,13 @@ export class PanelRenderer extends BaseComponent {
             }
           }
 
-          // Apply maxzoom to all tile sources (including batched-model for 3D buildings)
+          // Apply maxzoom to all tile sources (including batched-model for 3D
+          // buildings and raster-array for Mapbox Standard landmark icons).
           if (
             src.type === 'vector' ||
             src.type === 'raster' ||
             src.type === 'raster-dem' ||
+            src.type === 'raster-array' ||
             src.type === 'batched-model'
           ) {
             const originalMaxzoom = src.maxzoom as number | undefined;

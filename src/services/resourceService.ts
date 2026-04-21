@@ -22,6 +22,12 @@ import {
   verifyAndRepairGlyphs,
   EnhancedGlyphStats,
 } from './glyphService';
+import {
+  downloadModels,
+  getModelStats,
+  cleanupOldModels,
+  verifyAndRepairModels,
+} from './modelService';
 import type {
   OfflineRegionOptions,
   MapboxStyle,
@@ -36,6 +42,9 @@ import type {
   EnhancedFontStats,
   GlyphDownloadOptions,
   GlyphDownloadResult,
+  ModelDownloadOptions,
+  ModelDownloadResult,
+  EnhancedModelStats,
 } from '@/types';
 
 export class ResourceService {
@@ -143,5 +152,27 @@ export class ResourceService {
 
   async verifyAndRepairGlyphs(): Promise<{ verified: number; repaired: number; removed: number }> {
     return verifyAndRepairGlyphs();
+  }
+
+  // 3D Model Management Methods
+
+  async downloadModelsWithOptions(
+    models: Record<string, string>,
+    styleId: string,
+    options: ModelDownloadOptions = {}
+  ): Promise<ModelDownloadResult> {
+    return downloadModels(models, styleId, options);
+  }
+
+  async getModelStats(): Promise<EnhancedModelStats> {
+    return getModelStats();
+  }
+
+  async cleanupOldModels(options?: { maxAge?: number }): Promise<number> {
+    return cleanupOldModels(options?.maxAge);
+  }
+
+  async verifyAndRepairModels(): Promise<{ verified: number; repaired: number; removed: number }> {
+    return verifyAndRepairModels();
   }
 }

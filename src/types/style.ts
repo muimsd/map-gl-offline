@@ -20,7 +20,16 @@ export interface BaseStyle {
     data?: BaseStyle;
     config?: Record<string, unknown>;
   }>;
-  models?: Record<string, { uri: string; [key: string]: unknown }>;
+  /**
+   * 3D model declarations used by `model` layers (Mapbox Standard trees /
+   * wind turbines). Two shapes are accepted in the wild:
+   *
+   * - Mapbox Standard format — values are plain URI strings:
+   *   `{ "maple1-lod1": "mapbox://models/mapbox/maple1-v4-lod1.glb" }`
+   * - Older / generic format — values wrap the URI in an object:
+   *   `{ "name": { "uri": "mapbox://..." } }`
+   */
+  models?: Record<string, string | { uri?: string; [key: string]: unknown }>;
   [key: string]: unknown;
 }
 

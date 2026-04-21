@@ -5,7 +5,7 @@
 
 // IndexedDB Configuration
 export const DB_NAME = 'offline-map-db';
-export const DB_VERSION = 3;
+export const DB_VERSION = 4;
 
 // Store Names (regions are stored inside styles.regions[], not as a separate store)
 export const STORE_NAMES = {
@@ -14,6 +14,7 @@ export const STORE_NAMES = {
   SPRITES: 'sprites',
   GLYPHS: 'glyphs',
   FONTS: 'fonts',
+  MODELS: 'models',
 } as const;
 
 // Download Configuration

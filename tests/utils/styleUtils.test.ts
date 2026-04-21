@@ -301,6 +301,47 @@ describe('styleUtils', () => {
       expect(patched.sprite).toBe('idb://region-1/sprite/sprite');
     });
 
+    it('patches string-valued models to idb:// URLs (Mapbox Standard shape)', () => {
+      const style: MapboxStyle = {
+        version: 8,
+        sources: {},
+        layers: [],
+        models: {
+          'maple1-lod1': 'mapbox://models/mapbox/maple1-v4-lod1.glb',
+          'oak1-lod2': 'mapbox://models/mapbox/oak1-v4-lod2.glb',
+        },
+      };
+      const patched = patchStyleForOffline(style, 'region-1', undefined, undefined, 'style-xyz');
+      expect(patched.models?.['maple1-lod1']).toBe('idb://style-xyz/model/maple1-lod1');
+      expect(patched.models?.['oak1-lod2']).toBe('idb://style-xyz/model/oak1-lod2');
+    });
+
+    it('patches object-valued models (older/generic {uri} shape)', () => {
+      const style: MapboxStyle = {
+        version: 8,
+        sources: {},
+        layers: [],
+        models: {
+          'some-model': { uri: 'https://example.com/some.glb', extra: 'kept' },
+        },
+      };
+      const patched = patchStyleForOffline(style, 'region-1', undefined, undefined, 'style-xyz');
+      const m = patched.models?.['some-model'] as { uri: string; extra: string };
+      expect(m.uri).toBe('idb://style-xyz/model/some-model');
+      expect(m.extra).toBe('kept'); // non-uri props preserved
+    });
+
+    it('keys models off downloadId when styleId is not provided', () => {
+      const style: MapboxStyle = {
+        version: 8,
+        sources: {},
+        layers: [],
+        models: { 'tree-lod1': 'mapbox://models/mapbox/oak1-v4-lod1.glb' },
+      };
+      const patched = patchStyleForOffline(style, 'region-abc');
+      expect(patched.models?.['tree-lod1']).toBe('idb://region-abc/model/tree-lod1');
+    });
+
     it('should default to pbf when tile URL has no recognizable extension', () => {
       const style: MapboxStyle = {
         version: 8,

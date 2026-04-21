@@ -45,7 +45,7 @@ export async function resetOfflineMapDB(): Promise<void> {
  * Called during initial database creation or when stores are missing.
  */
 function createStores(db: IDBPDatabase<OfflineMapDB>): void {
-  const stores = ['regions', 'tiles', 'styles', 'sprites', 'glyphs', 'fonts'] as const;
+  const stores = ['regions', 'tiles', 'styles', 'sprites', 'glyphs', 'fonts', 'models'] as const;
 
   for (const storeName of stores) {
     if (!db.objectStoreNames.contains(storeName)) {
@@ -138,6 +138,7 @@ function migrateRegionsToStyles(transaction: IDBTransaction): void {
  * - sprites: Sprite images and JSON
  * - glyphs: Font glyph data
  * - fonts: Font files
+ * - models: 3D model files (.glb) for Mapbox Standard tree/turbine layers
  * - regions: (deprecated) Legacy region storage, migrated to styles.regions[]
  *
  * @example
@@ -158,6 +159,9 @@ async function openOfflineMapDB(): Promise<IDBPDatabase<OfflineMapDB>> {
         if (oldVersion > 0 && oldVersion < 3) {
           migrateRegionsToStyles(transaction as unknown as IDBTransaction);
         }
+        // Migration: v3 -> v4
+        // Adds the `models` store for Mapbox Standard 3D model assets.
+        // No data migration needed — createStores above handles it.
       },
     });
   } catch (error) {
