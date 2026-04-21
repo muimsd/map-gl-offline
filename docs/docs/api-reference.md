@@ -172,17 +172,21 @@ const sizeInBytes = await manager.getRegionSize('my-region');
 console.log(`Region uses ${(sizeInBytes / 1024 / 1024).toFixed(1)} MB`);
 ```
 
-#### `getTileStatistics(styleId: string): Promise<TileStats>`
+#### `getTileStats(styleId?: string): Promise<TileStats>`
 
-Get tile-specific statistics for a given style.
+Get tile statistics. Pass a `styleId` to filter; omit to aggregate across all styles.
 
-#### `getFontStatistics(styleId: string): Promise<EnhancedFontStats>`
+#### `getFontStats(): Promise<EnhancedFontStats>`
 
-Get font statistics for a given style.
+Get font statistics aggregated across all styles.
 
-#### `getSpriteStatistics(styleId: string): Promise<EnhancedSpriteStats>`
+#### `getSpriteStats(): Promise<EnhancedSpriteStats>`
 
-Get sprite statistics for a given style.
+Get sprite statistics aggregated across all styles.
+
+#### `getGlyphStats(): Promise<EnhancedGlyphStats>`
+
+Get glyph statistics aggregated across all styles.
 
 ### Import/Export Methods
 
@@ -513,14 +517,6 @@ Load offline styles from IndexedDB. If only one style is stored, it is loaded au
 
 ```typescript
 await control.loadOfflineStyles();
-```
-
-#### `loadSpecificOfflineStyle(styleId: string): Promise<void>`
-
-Alias for `loadOfflineStyle()`. Loads a specific offline style by ID.
-
-```typescript
-await control.loadSpecificOfflineStyle('style_1234567890');
 ```
 
 #### `updateStyleUrl(newStyleUrl: string): void`

@@ -209,6 +209,23 @@ export function extractFontNamesFromTextField(textFont: unknown): string[] {
 }
 
 /**
+ * Normalize a style's `sprite` property into a uniform array of {id, url} sources.
+ * Handles string format, array format, and filters out already-patched idb:// URLs.
+ */
+export function normalizeSpriteProperty(sprite: unknown): Array<{ id: string; url: string }> {
+  if (!sprite) return [];
+  if (Array.isArray(sprite)) {
+    return (sprite as Array<{ id: string; url: string }>).filter(
+      entry => entry && typeof entry.url === 'string' && !entry.url.startsWith('idb://')
+    );
+  }
+  if (typeof sprite === 'string' && !sprite.startsWith('idb://')) {
+    return [{ id: 'sprite', url: sprite }];
+  }
+  return [];
+}
+
+/**
  * Collect all unique font names referenced in a style's layers.
  */
 export function extractAllFontNames(style: {

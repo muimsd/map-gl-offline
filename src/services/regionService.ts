@@ -1,11 +1,23 @@
 import { dbPromise } from '@/storage/indexedDbManager';
-import { patchStyleForOffline } from '@/utils/styleUtils';
+import {
+  extractAllFontNames,
+  normalizeSpriteProperty,
+  patchStyleForOffline,
+} from '@/utils/styleUtils';
 import { logger } from '@/utils/logger';
 import { parseTileKey } from '@/utils/tileKey';
+import { GLYPH_CONFIG } from '@/utils/constants';
+import { isMapboxProtocol, resolveMapboxUrl } from '@/utils/styleProviderUtils';
 import { loadStyles } from '@/services/styleService';
-import type { OfflineRegionOptions, StoredRegion } from '@/types/region';
-import type { StyleEntry } from '@/types/style';
-import type { TileEntry } from '@/types';
+import type {
+  DownloadRegionOptions,
+  DownloadRegionProgress,
+  DownloadRegionResult,
+  OfflineRegionOptions,
+  StoredRegion,
+} from '@/types/region';
+import type { BaseStyle, StyleEntry } from '@/types/style';
+import type { SpriteDownloadResult, TileEntry } from '@/types';
 import * as tilebelt from '@mapbox/tilebelt';
 
 const regionLogger = logger.scope('RegionService');
@@ -268,21 +280,216 @@ export class RegionService {
     }
   }
 
-  async loadRegion(region: OfflineRegionOptions): Promise<void> {
-    const styleId = region.styleId || region.id;
-    if (!styleId) {
-      throw new Error(`No style ID found for region: ${region.id}`);
+  async loadRegion(
+    region: OfflineRegionOptions,
+    options: DownloadRegionOptions = {}
+  ): Promise<DownloadRegionResult> {
+    return this.downloadRegion(region, options);
+  }
+
+  /**
+   * Download everything an offline region needs — style (if missing), sprites, glyphs,
+   * tiles — and then persist region metadata. This is the programmatic equivalent of the
+   * UI control's "Download region" flow.
+   */
+  async downloadRegion(
+    region: OfflineRegionOptions,
+    options: DownloadRegionOptions = {}
+  ): Promise<DownloadRegionResult> {
+    if (!region.styleUrl) {
+      throw new Error('Region must have a styleUrl');
     }
+
+    const {
+      onProgress,
+      provider = 'auto',
+      accessToken,
+      skipGlyphs = false,
+      skipSprites = false,
+      glyphRanges,
+      tileOptions,
+    } = options;
+
+    const emit = (
+      phase: DownloadRegionProgress['phase'],
+      completed: number,
+      total: number,
+      message?: string
+    ) => {
+      if (!onProgress) return;
+      const safeTotal = total > 0 ? total : 1;
+      const clamped = Math.min(completed, safeTotal);
+      onProgress({
+        phase,
+        completed: clamped,
+        total: safeTotal,
+        percentage: (clamped / safeTotal) * 100,
+        message,
+      });
+    };
+
+    // 1. Ensure style is downloaded
+    let styleResult: DownloadRegionResult['styleResult'];
+    let styleId: string;
+    let styleEntry = await this.findStyleEntry(region);
+
+    if (!styleEntry) {
+      regionLogger.debug(`Style not found locally, downloading: ${region.styleUrl}`);
+      const { downloadStyleWithProvider } = await import('@/services/styleService');
+      emit('style', 0, 100, 'Downloading style');
+      styleResult = await downloadStyleWithProvider(region.styleUrl, {
+        provider,
+        accessToken,
+        skipExisting: true,
+        enableSourceEmbedding: true,
+        onProgress: progress => emit('style', progress.percentage ?? 0, 100, 'Downloading style'),
+      });
+      if (!styleResult.success) {
+        throw new Error(`Failed to download style: ${styleResult.errors.join(', ')}`);
+      }
+      styleId = styleResult.styleId;
+      styleEntry = await (await dbPromise).get('styles', styleId);
+      if (!styleEntry) {
+        throw new Error(`Style entry missing after download: ${styleId}`);
+      }
+    } else {
+      styleId = styleEntry.key;
+    }
+    emit('style', 100, 100, 'Style ready');
+
+    // Capture original (pre-patch) resource URLs for sprite/glyph downloads
+    const storedStyle = styleEntry.style as BaseStyle;
+    const storedTokenCandidate = (styleEntry as Record<string, unknown>).accessToken;
+    const effectiveAccessToken =
+      accessToken ?? (typeof storedTokenCandidate === 'string' ? storedTokenCandidate : undefined);
+    const originalSpriteUrl = (styleEntry.originalSpriteUrl ??
+      storedStyle.sprite) as BaseStyle['sprite'];
+    const originalGlyphsUrl = styleEntry.originalGlyphsUrl ?? storedStyle.glyphs;
+
+    // 2. Sprites
+    const spriteResults: SpriteDownloadResult[] = [];
+    if (!skipSprites) {
+      const spriteSources = normalizeSpriteProperty(originalSpriteUrl);
+      if (spriteSources.length > 0) {
+        const { downloadSprites } = await import('@/services/spriteService');
+        const suffixes = ['.json', '.png', '@2x.json', '@2x.png'];
+        const totalFiles = spriteSources.length * suffixes.length;
+        let completed = 0;
+        emit('sprites', 0, totalFiles, 'Downloading sprites');
+
+        for (const source of spriteSources) {
+          let spriteBase = source.url;
+          if (isMapboxProtocol(spriteBase) && effectiveAccessToken) {
+            spriteBase = resolveMapboxUrl(spriteBase, effectiveAccessToken);
+          }
+          const qIndex = spriteBase.indexOf('?');
+          const spriteUrls = suffixes.map(suffix =>
+            qIndex !== -1
+              ? spriteBase.slice(0, qIndex) + suffix + spriteBase.slice(qIndex)
+              : spriteBase + suffix
+          );
+          try {
+            const result = await downloadSprites(spriteUrls, styleId, {
+              enableValidation: true,
+              skipExisting: false,
+              namePrefix: source.id !== 'sprite' ? source.id : undefined,
+              onProgress: (progress: { completed: number; total: number }) => {
+                emit('sprites', completed + progress.completed, totalFiles, 'Downloading sprites');
+              },
+            });
+            spriteResults.push(result);
+          } catch (error) {
+            regionLogger.warn(`Sprite download failed for source ${source.id} (non-fatal):`, error);
+          }
+          completed += suffixes.length;
+          emit('sprites', completed, totalFiles, 'Downloading sprites');
+        }
+      }
+    }
+
+    // 3. Glyphs
+    let glyphResult: DownloadRegionResult['glyphResult'];
+    if (!skipGlyphs && originalGlyphsUrl && !originalGlyphsUrl.startsWith('idb://')) {
+      const fontFamilies = new Set(
+        extractAllFontNames(
+          storedStyle as unknown as {
+            layers?: Array<{ layout?: { [key: string]: unknown } }>;
+            schema?: Record<string, { default?: unknown }>;
+          }
+        )
+      );
+      if (fontFamilies.size > 0) {
+        const { downloadGlyphs } = await import('@/services/glyphService');
+        let glyphsUrl = originalGlyphsUrl;
+        if (isMapboxProtocol(glyphsUrl) && effectiveAccessToken) {
+          glyphsUrl = resolveMapboxUrl(glyphsUrl, effectiveAccessToken);
+        }
+        const ranges = glyphRanges ?? [...GLYPH_CONFIG.COMPREHENSIVE_RANGES];
+        emit('glyphs', 0, ranges.length * fontFamilies.size, 'Downloading glyphs');
+        try {
+          glyphResult = await downloadGlyphs(glyphsUrl, Array.from(fontFamilies), styleId, ranges, {
+            onProgress: (progress: { completed: number; total: number }) => {
+              emit('glyphs', progress.completed, progress.total, 'Downloading glyphs');
+            },
+          });
+        } catch (error) {
+          regionLogger.warn('Glyph download failed (non-fatal):', error);
+        }
+      }
+    }
+
+    // 4. Tiles — use the stored (source-embedded) style, which still has HTTP tile URLs
+    const { downloadTiles } = await import('@/services/tileService');
+    const regionForTiles = { ...region, styleId };
+    emit('tiles', 0, 100, 'Downloading tiles');
+    const tileResult = await downloadTiles(regionForTiles, storedStyle, styleId, {
+      skipExisting: false,
+      batchSize: 20,
+      ...tileOptions,
+      onProgress: progress => {
+        emit('tiles', progress.completed, progress.total, progress.message ?? 'Downloading tiles');
+        tileOptions?.onProgress?.(progress);
+      },
+    });
+
+    // 5. Metadata — must run last, since addRegion patches style URLs to idb://.
+    // Do NOT auto-fill tileExtension from tileResult: that's only the first
+    // source's extension, and addRegion feeds it to patchStyleForOffline which
+    // would override ALL sources — breaking mixed raster+vector styles. The
+    // patcher extracts per-source extensions from tile URL patterns when
+    // tileExtension is undefined. Callers who need to force an extension can
+    // still pass `region.tileExtension` explicitly.
+    emit('metadata', 0, 1, 'Saving region metadata');
+    await this.addRegion({ ...region, styleId });
+    emit('metadata', 1, 1, 'Region ready');
+
+    return {
+      regionId: region.id,
+      styleId,
+      styleResult,
+      spriteResults,
+      glyphResult,
+      tileResult,
+    };
+  }
+
+  /**
+   * Look up the stored style matching a region — by `styleId` first, then `styleUrl`.
+   */
+  private async findStyleEntry(region: OfflineRegionOptions): Promise<StyleEntry | undefined> {
     const db = await dbPromise;
-    const storedStyle = await db.get('styles', styleId);
-
-    if (!storedStyle || !('style' in storedStyle)) {
-      throw new Error(`Style not found for region: ${region.id}`);
+    if (region.styleId) {
+      const byId = await db.get('styles', region.styleId);
+      if (byId) return byId;
     }
-
-    // TODO: Implement loadTiles function in tileService
-    // await loadTiles(region, styleId);
-    regionLogger.warn('loadTiles function not yet implemented');
+    if (region.styleUrl) {
+      const all = await db.getAll('styles');
+      return all.find(
+        (s: Record<string, unknown> & { key?: string; originalUrl?: string }) =>
+          s?.key === region.styleUrl || s?.originalUrl === region.styleUrl
+      );
+    }
+    return undefined;
   }
 
   async deleteRegion(regionId: string): Promise<void> {
@@ -376,49 +583,44 @@ export class RegionService {
   }
 
   async listRegions(): Promise<OfflineRegionOptions[]> {
-    // Regions are stored inside styles.regions[], not in a separate regions table
-    const styles = await loadStyles();
-    const allRegions: OfflineRegionOptions[] = [];
-
-    for (const style of styles) {
-      if (style.regions && Array.isArray(style.regions)) {
-        allRegions.push(...(style.regions as OfflineRegionOptions[]));
-      }
-    }
-
-    return allRegions;
+    // StoredRegion extends OfflineRegionOptions; no need for a second iteration.
+    return this.listStoredRegions();
   }
 
   /**
    * List all stored regions from styles (used for UI and fitBounds)
    */
   async listStoredRegions(): Promise<StoredRegion[]> {
-    try {
-      const styles = await loadStyles();
-      const allRegions: StoredRegion[] = [];
-      for (const style of styles) {
-        if (style.regions && Array.isArray(style.regions)) {
-          const regionsWithStyle = style.regions.map(
-            region =>
-              ({
-                ...region,
-                key: region.id,
-                styleId: style.key,
-                created: region.created || Date.now(),
-                lastModified: region.updated || region.created || Date.now(),
-                expiry: region.expiry || Date.now() + 30 * 24 * 60 * 60 * 1000,
-              }) as StoredRegion
-          );
-          allRegions.push(...regionsWithStyle);
-        }
+    return loadAllStoredRegions();
+  }
+}
+
+/**
+ * Flatten every `styles.regions[]` entry into a `StoredRegion[]` with the
+ * backing style's id, plus defaults for `created`/`lastModified`/`expiry`.
+ * Shared by `RegionService.listStoredRegions` and `CleanupService.getAllRegions`.
+ */
+export async function loadAllStoredRegions(): Promise<StoredRegion[]> {
+  try {
+    const styles = await loadStyles();
+    const allRegions: StoredRegion[] = [];
+    for (const style of styles) {
+      if (!style.regions || !Array.isArray(style.regions)) continue;
+      for (const region of style.regions) {
+        allRegions.push({
+          ...region,
+          key: region.id,
+          styleId: style.key,
+          created: region.created || Date.now(),
+          lastModified: region.updated || region.created || Date.now(),
+          expiry: region.expiry || Date.now() + 30 * 24 * 60 * 60 * 1000,
+        } as StoredRegion);
       }
-      regionLogger.debug('Extracted regions from styles:', allRegions);
-      return allRegions;
-    } catch (error) {
-      regionLogger.error('Error loading regions from styles:', error);
-      // Fallback to cleanup service method if available
-      // return this.cleanupService.getAllRegions();
-      return [];
     }
+    regionLogger.debug('Extracted regions from styles:', allRegions);
+    return allRegions;
+  } catch (error) {
+    regionLogger.error('Error loading regions from styles:', error);
+    return [];
   }
 }

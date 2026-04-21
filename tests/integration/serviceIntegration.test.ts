@@ -43,7 +43,7 @@ describe('Service Integration', () => {
 
       // Both services should see the same data
       const tileStats = await tileService.getTileStats();
-      const resourceStats = await resourceService.getTileStatistics();
+      const resourceStats = await resourceService.getTileStats();
 
       expect(tileStats.count).toBe(1);
       expect(resourceStats.count).toBe(1);
@@ -73,7 +73,7 @@ describe('Service Integration', () => {
 
       // Both services should report tile
       let tileStats = await tileService.getTileStats();
-      let resourceStats = await resourceService.getTileStatistics();
+      let resourceStats = await resourceService.getTileStats();
       expect(tileStats.count).toBe(1);
       expect(resourceStats.count).toBe(1);
 
@@ -82,7 +82,7 @@ describe('Service Integration', () => {
 
       // Both services should report no tiles
       tileStats = await tileService.getTileStats();
-      resourceStats = await resourceService.getTileStatistics();
+      resourceStats = await resourceService.getTileStats();
       expect(tileStats.count).toBe(0);
       expect(resourceStats.count).toBe(0);
     });
@@ -108,7 +108,7 @@ describe('Service Integration', () => {
       });
 
       const spriteStats = await spriteService.getSpriteStats();
-      const resourceStats = await resourceService.getSpriteStatistics();
+      const resourceStats = await resourceService.getSpriteStats();
 
       expect(spriteStats.count).toBe(1);
       expect(resourceStats.count).toBe(1);
@@ -177,10 +177,10 @@ describe('Service Integration', () => {
       });
 
       // Verify all resource types
-      const tileStats = await resourceService.getTileStatistics();
-      const spriteStats = await resourceService.getSpriteStatistics();
-      const fontStats = await resourceService.getFontStatistics();
-      const glyphStats = await resourceService.getGlyphStatistics();
+      const tileStats = await resourceService.getTileStats();
+      const spriteStats = await resourceService.getSpriteStats();
+      const fontStats = await resourceService.getFontStats();
+      const glyphStats = await resourceService.getGlyphStats();
 
       expect(tileStats.count).toBe(1);
       expect(spriteStats.count).toBe(1);
@@ -253,8 +253,8 @@ describe('Service Integration', () => {
       });
 
       // Filter by style
-      const filteredStats = await resourceService.getTileStatistics(styleId);
-      const allStats = await resourceService.getTileStatistics();
+      const filteredStats = await resourceService.getTileStats(styleId);
+      const allStats = await resourceService.getTileStats();
 
       expect(filteredStats.count).toBe(2);
       expect(filteredStats.totalSize).toBe(2500);
@@ -303,8 +303,8 @@ describe('Service Integration', () => {
       const [tileStats, spriteStats, resourceTileStats, resourceSpriteStats] = await Promise.all([
         tileService.getTileStats(),
         spriteService.getSpriteStats(),
-        resourceService.getTileStatistics(),
-        resourceService.getSpriteStatistics(),
+        resourceService.getTileStats(),
+        resourceService.getSpriteStats(),
       ]);
 
       expect(tileStats.count).toBe(1);

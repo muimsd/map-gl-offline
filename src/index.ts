@@ -34,14 +34,23 @@
  * ```typescript
  * const offlineManager = new OfflineMapManager();
  *
- * await offlineManager.addRegion({
- *   id: 'sf',
- *   name: 'San Francisco',
- *   bounds: [[-122.5, 37.7], [-122.3, 37.9]],
- *   minZoom: 10,
- *   maxZoom: 14,
- *   styleUrl: 'https://api.maptiler.com/maps/streets/style.json?key=YOUR_KEY'
- * });
+ * // downloadRegion runs the full pipeline: style (if missing) → sprites → glyphs → tiles → metadata.
+ * // addRegion on its own only stores metadata; use downloadRegion to actually fetch assets.
+ * await offlineManager.downloadRegion(
+ *   {
+ *     id: 'sf',
+ *     name: 'San Francisco',
+ *     bounds: [[-122.5, 37.7], [-122.3, 37.9]],
+ *     minZoom: 10,
+ *     maxZoom: 14,
+ *     styleUrl: 'https://api.maptiler.com/maps/streets/style.json?key=YOUR_KEY',
+ *   },
+ *   {
+ *     onProgress: ({ phase, completed, total, percentage }) => {
+ *       console.log(`[${phase}] ${completed}/${total} (${percentage.toFixed(1)}%)`);
+ *     },
+ *   }
+ * );
  * ```
  */
 

@@ -1,9 +1,21 @@
-import type { OfflineRegionOptions, StoredRegion } from '@/types';
+import type {
+  DownloadRegionOptions,
+  DownloadRegionResult,
+  OfflineRegionOptions,
+  StoredRegion,
+} from '@/types';
 import type { OfflineManagerServices } from './base';
 
 export interface RegionManagement {
   addRegion(region: OfflineRegionOptions): Promise<void>;
-  loadRegion(region: OfflineRegionOptions): Promise<void>;
+  downloadRegion(
+    region: OfflineRegionOptions,
+    options?: DownloadRegionOptions
+  ): Promise<DownloadRegionResult>;
+  loadRegion(
+    region: OfflineRegionOptions,
+    options?: DownloadRegionOptions
+  ): Promise<DownloadRegionResult>;
   deleteRegion(regionId: string): Promise<void>;
   listRegions(): Promise<OfflineRegionOptions[]>;
   listStoredRegions(): Promise<StoredRegion[]>;
@@ -12,7 +24,10 @@ export interface RegionManagement {
 
 export const createRegionManagement = (services: OfflineManagerServices): RegionManagement => ({
   addRegion: async (region: OfflineRegionOptions) => services.regionService.addRegion(region),
-  loadRegion: async (region: OfflineRegionOptions) => services.regionService.loadRegion(region),
+  downloadRegion: async (region: OfflineRegionOptions, options?: DownloadRegionOptions) =>
+    services.regionService.downloadRegion(region, options),
+  loadRegion: async (region: OfflineRegionOptions, options?: DownloadRegionOptions) =>
+    services.regionService.loadRegion(region, options),
   deleteRegion: async (regionId: string) => services.regionService.deleteRegion(regionId),
   listRegions: async () => services.regionService.listRegions(),
   listStoredRegions: async () => services.regionService.listStoredRegions(),

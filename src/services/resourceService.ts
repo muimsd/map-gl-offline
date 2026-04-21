@@ -49,7 +49,7 @@ export class ResourceService {
     return downloadTiles(region, style, styleId, options);
   }
 
-  async getTileStatistics(styleId?: string): Promise<TileStats> {
+  async getTileStats(styleId?: string): Promise<TileStats> {
     return getTileStats(styleId);
   }
 
@@ -70,7 +70,7 @@ export class ResourceService {
     return downloadFonts(fontUrls, downloadId, options);
   }
 
-  async getFontStatistics(): Promise<EnhancedFontStats> {
+  async getFontStats(): Promise<EnhancedFontStats> {
     return getFontStats();
   }
 
@@ -96,7 +96,7 @@ export class ResourceService {
     return downloadSprites(spriteUrls, styleName, options);
   }
 
-  async getSpriteStatistics(): Promise<EnhancedSpriteStats> {
+  async getSpriteStats(): Promise<EnhancedSpriteStats> {
     return getSpriteStats();
   }
 
@@ -124,7 +124,7 @@ export class ResourceService {
     return downloadGlyphs(glyphUrl, fontstacks, styleName, ranges, options);
   }
 
-  async getGlyphStatistics(): Promise<EnhancedGlyphStats> {
+  async getGlyphStats(): Promise<EnhancedGlyphStats> {
     return getGlyphStats();
   }
 

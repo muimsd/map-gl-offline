@@ -17,9 +17,9 @@ describe('ResourceService', () => {
   });
 
   describe('Tile Management', () => {
-    describe('getTileStatistics', () => {
+    describe('getTileStats', () => {
       it('should return empty stats when no tiles exist', async () => {
-        const stats = await service.getTileStatistics();
+        const stats = await service.getTileStats();
 
         expect(stats.count).toBe(0);
         expect(stats.totalSize).toBe(0);
@@ -43,7 +43,7 @@ describe('ResourceService', () => {
           lastModified: Date.now(),
         });
 
-        const stats = await service.getTileStatistics();
+        const stats = await service.getTileStats();
 
         expect(stats.count).toBe(1);
         expect(stats.totalSize).toBe(1000);
@@ -82,7 +82,7 @@ describe('ResourceService', () => {
           lastModified: Date.now(),
         });
 
-        const stats = await service.getTileStatistics('style-1');
+        const stats = await service.getTileStats('style-1');
 
         expect(stats.count).toBe(1);
         expect(stats.totalSize).toBe(1000);
@@ -127,9 +127,9 @@ describe('ResourceService', () => {
   });
 
   describe('Font Management', () => {
-    describe('getFontStatistics', () => {
+    describe('getFontStats', () => {
       it('should return font statistics', async () => {
-        const stats = await service.getFontStatistics();
+        const stats = await service.getFontStats();
 
         expect(stats).toHaveProperty('count');
         expect(stats).toHaveProperty('totalSize');
@@ -179,9 +179,9 @@ describe('ResourceService', () => {
   });
 
   describe('Sprite Management', () => {
-    describe('getSpriteStatistics', () => {
+    describe('getSpriteStats', () => {
       it('should return sprite statistics', async () => {
-        const stats = await service.getSpriteStatistics();
+        const stats = await service.getSpriteStats();
 
         expect(stats).toHaveProperty('count');
         expect(stats).toHaveProperty('totalSize');
@@ -228,9 +228,9 @@ describe('ResourceService', () => {
   });
 
   describe('Glyph Management', () => {
-    describe('getGlyphStatistics', () => {
+    describe('getGlyphStats', () => {
       it('should return glyph statistics', async () => {
-        const stats = await service.getGlyphStatistics();
+        const stats = await service.getGlyphStats();
 
         expect(stats).toHaveProperty('count');
         expect(stats).toHaveProperty('totalSize');

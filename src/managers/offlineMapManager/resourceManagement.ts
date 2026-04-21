@@ -5,19 +5,19 @@ export type ResourceServiceMethod<TMethod extends keyof ResourceService> = Resou
 
 export interface ResourceManagement {
   downloadTilesWithOptions: ResourceService['downloadTilesWithOptions'];
-  getTileStatistics: ResourceService['getTileStatistics'];
+  getTileStats: ResourceService['getTileStats'];
   downloadFontsWithOptions: ResourceService['downloadFontsWithOptions'];
-  getFontStatistics: ResourceService['getFontStatistics'];
+  getFontStats: ResourceService['getFontStats'];
   getFontAnalytics: ResourceService['getFontAnalytics'];
   cleanupOldFonts: ResourceService['cleanupOldFonts'];
   verifyAndRepairFonts: ResourceService['verifyAndRepairFonts'];
   downloadSpritesWithOptions: ResourceService['downloadSpritesWithOptions'];
-  getSpriteStatistics: ResourceService['getSpriteStatistics'];
+  getSpriteStats: ResourceService['getSpriteStats'];
   cleanupOldSprites: ResourceService['cleanupOldSprites'];
   verifyAndRepairSprites: ResourceService['verifyAndRepairSprites'];
   getSpriteAnalytics: ResourceService['getSpriteAnalytics'];
   downloadGlyphsWithOptions: ResourceService['downloadGlyphsWithOptions'];
-  getGlyphStatistics: ResourceService['getGlyphStatistics'];
+  getGlyphStats: ResourceService['getGlyphStats'];
   getGlyphAnalytics: ResourceService['getGlyphAnalytics'];
   loadGlyphsForStyle: ResourceService['loadGlyphsForStyle'];
   cleanupOldGlyphs: ResourceService['cleanupOldGlyphs'];
@@ -26,21 +26,21 @@ export interface ResourceManagement {
 
 export const createResourceManagement = (services: OfflineManagerServices): ResourceManagement => ({
   downloadTilesWithOptions: (...args) => services.resourceService.downloadTilesWithOptions(...args),
-  getTileStatistics: (...args) => services.resourceService.getTileStatistics(...args),
+  getTileStats: (...args) => services.resourceService.getTileStats(...args),
   downloadFontsWithOptions: (...args) => services.resourceService.downloadFontsWithOptions(...args),
-  getFontStatistics: (...args) => services.resourceService.getFontStatistics(...args),
+  getFontStats: (...args) => services.resourceService.getFontStats(...args),
   getFontAnalytics: (...args) => services.resourceService.getFontAnalytics(...args),
   cleanupOldFonts: (...args) => services.resourceService.cleanupOldFonts(...args),
   verifyAndRepairFonts: (...args) => services.resourceService.verifyAndRepairFonts(...args),
   downloadSpritesWithOptions: (...args) =>
     services.resourceService.downloadSpritesWithOptions(...args),
-  getSpriteStatistics: (...args) => services.resourceService.getSpriteStatistics(...args),
+  getSpriteStats: (...args) => services.resourceService.getSpriteStats(...args),
   cleanupOldSprites: (...args) => services.resourceService.cleanupOldSprites(...args),
   verifyAndRepairSprites: (...args) => services.resourceService.verifyAndRepairSprites(...args),
   getSpriteAnalytics: (...args) => services.resourceService.getSpriteAnalytics(...args),
   downloadGlyphsWithOptions: (...args) =>
     services.resourceService.downloadGlyphsWithOptions(...args),
-  getGlyphStatistics: (...args) => services.resourceService.getGlyphStatistics(...args),
+  getGlyphStats: (...args) => services.resourceService.getGlyphStats(...args),
   getGlyphAnalytics: (...args) => services.resourceService.getGlyphAnalytics(...args),
   loadGlyphsForStyle: (...args) => services.resourceService.loadGlyphsForStyle(...args),
   cleanupOldGlyphs: (...args) => services.resourceService.cleanupOldGlyphs(...args),
