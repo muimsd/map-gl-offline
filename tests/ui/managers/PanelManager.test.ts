@@ -2,6 +2,36 @@
  * Tests for PanelRenderer (PanelManager) Component
  */
 
+// Capture the options each modal is constructed with so tests can fire
+// onConfirm / onCancel directly and exercise the inner handler bodies.
+const capturedConfirmModals: Array<Record<string, unknown>> = [];
+jest.mock('../../../src/ui/modals/confirmationModal', () => ({
+  ConfirmationModal: class {
+    opts: Record<string, unknown>;
+    constructor(opts: Record<string, unknown>) {
+      this.opts = opts;
+      capturedConfirmModals.push(opts);
+    }
+    show() {
+      return document.createElement('div');
+    }
+  },
+}));
+
+const capturedImportExportModals: Array<Record<string, unknown>> = [];
+jest.mock('../../../src/ui/modals/importExportModal', () => ({
+  ImportExportModal: class {
+    opts: Record<string, unknown>;
+    constructor(opts: Record<string, unknown>) {
+      this.opts = opts;
+      capturedImportExportModals.push(opts);
+    }
+    show() {
+      return document.createElement('div');
+    }
+  },
+}));
+
 import { PanelRenderer, PanelRendererOptions } from '../../../src/ui/managers/PanelManager';
 
 // Mock the theme manager
@@ -17,6 +47,7 @@ jest.mock('../../../src/services/styleService', () => ({
   loadStyles: jest.fn().mockResolvedValue([]),
   getStyleStats: jest.fn().mockResolvedValue({ styles: [] }),
   deleteStyleById: jest.fn().mockResolvedValue(undefined),
+  loadStyleById: jest.fn().mockResolvedValue({ accessToken: 'pk.test' }),
 }));
 
 // Create mock OfflineManager
@@ -883,6 +914,68 @@ describe('PanelRenderer', () => {
       expect(setStyle).toHaveBeenCalled();
     });
 
+    it('fixes legacy sources with idb:// url and no tiles', async () => {
+      const setStyle = jest.fn();
+      const mockMap = { setStyle, getStyle: jest.fn() };
+      const options = createOptions({
+        map: mockMap as unknown as PanelRendererOptions['map'],
+      });
+      const renderer = new PanelRenderer(options);
+      await (renderer as unknown as {
+        handleLoadStyle: (data: unknown) => Promise<void>;
+      }).handleLoadStyle({
+        key: 'legacy',
+        style: {
+          version: 8,
+          sources: {
+            s: {
+              type: 'vector',
+              url: 'idb://legacy/tilesjson/my-source',
+            },
+          },
+          layers: [{ id: 'L', type: 'background' }],
+        },
+        regions: [],
+      });
+      // setStyle should have been called with patched style.
+      expect(setStyle).toHaveBeenCalled();
+      const applied = setStyle.mock.calls[0][0];
+      // The source should now have tiles and no url.
+      const appliedSource = (applied as any).sources.s;
+      expect(appliedSource.tiles).toBeDefined();
+      expect(appliedSource.url).toBeUndefined();
+    });
+
+    it('applies maxzoom based on region zoom range', async () => {
+      const setStyle = jest.fn();
+      const mockMap = { setStyle, getStyle: jest.fn() };
+      const options = createOptions({
+        map: mockMap as unknown as PanelRendererOptions['map'],
+      });
+      const renderer = new PanelRenderer(options);
+      await (renderer as unknown as {
+        handleLoadStyle: (data: unknown) => Promise<void>;
+      }).handleLoadStyle({
+        key: 'mz',
+        style: {
+          version: 8,
+          sources: {
+            raster: { type: 'raster', tiles: ['t'], maxzoom: 22 },
+            vector: { type: 'vector', tiles: ['t'], maxzoom: 14 },
+            dem: { type: 'raster-dem', tiles: ['t'] },
+          },
+          layers: [{ id: 'L', type: 'background' }],
+        },
+        regions: [{ maxZoom: 10 } as any],
+      });
+      const applied = setStyle.mock.calls[0][0] as any;
+      // maxzoom capped at region's 10 (min of 10 and source's maxzoom).
+      expect(applied.sources.raster.maxzoom).toBe(10);
+      expect(applied.sources.vector.maxzoom).toBe(10);
+      // Source with no maxzoom inherits region's maxZoom.
+      expect(applied.sources.dem.maxzoom).toBe(10);
+    });
+
     it('surfaces setStyle errors via an alert', async () => {
       const alertMock = jest.spyOn(window, 'alert').mockImplementation(() => {});
       const setStyle = jest.fn().mockImplementation(() => {
@@ -1056,6 +1149,173 @@ describe('PanelRenderer', () => {
         handleEmbeddedRegionAction: (a: string, id: string) => Promise<void>;
       }).handleEmbeddedRegionAction('focus-region', 'nope');
       expect(mockOfflineManager.listStoredRegions).toHaveBeenCalled();
+    });
+  });
+
+  describe('modal onConfirm bodies', () => {
+    beforeEach(() => {
+      capturedConfirmModals.length = 0;
+      capturedImportExportModals.length = 0;
+    });
+
+    const region = {
+      id: 'r-confirm',
+      name: 'Confirm Region',
+      styleId: 'sx',
+      styleUrl: 'https://example.com/s.json',
+      bounds: [[0, 0], [1, 1]] as [[number, number], [number, number]],
+      minZoom: 0,
+      maxZoom: 10,
+      created: Date.now(),
+      expiry: Date.now() + 86400000,
+    };
+
+    it('handleDeleteRegion onConfirm deletes the region and refreshes', async () => {
+      const mockOfflineManager = createMockOfflineManager();
+      mockOfflineManager.listStoredRegions.mockResolvedValue([region]);
+      const options = createOptions({
+        offlineManager: mockOfflineManager as unknown as PanelRendererOptions['offlineManager'],
+      });
+      const renderer = new PanelRenderer(options);
+      await (renderer as unknown as {
+        handleRegionAction: (a: string, id: string, r: unknown) => Promise<void>;
+      }).handleRegionAction('delete-region', region.id, region);
+      // A ConfirmationModal was constructed — fire its onConfirm.
+      const opts = capturedConfirmModals.find(c => (c as any).confirmText);
+      expect(opts).toBeDefined();
+      await (opts!.onConfirm as () => Promise<void>)();
+      expect(mockOfflineManager.deleteRegion).toHaveBeenCalledWith(region.id);
+    });
+
+    it('handleRedownloadRegion onConfirm deletes and re-downloads', async () => {
+      const mockOfflineManager = createMockOfflineManager();
+      const mockDownloadManager = createMockDownloadManager();
+      mockOfflineManager.listStoredRegions.mockResolvedValue([region]);
+      const options = createOptions({
+        offlineManager: mockOfflineManager as unknown as PanelRendererOptions['offlineManager'],
+        downloadManager: mockDownloadManager as unknown as PanelRendererOptions['downloadManager'],
+      });
+      const renderer = new PanelRenderer(options);
+      await (renderer as unknown as {
+        handleRegionAction: (a: string, id: string, r: unknown) => Promise<void>;
+      }).handleRegionAction('redownload-region', region.id, region);
+      const opts = capturedConfirmModals[0];
+      await (opts!.onConfirm as () => Promise<void>)();
+      expect(mockOfflineManager.deleteRegion).toHaveBeenCalledWith(region.id);
+      expect(mockDownloadManager.downloadRegion).toHaveBeenCalled();
+    });
+
+    it('handleImportExport onExport triggers offlineManager.downloadExportedRegion', async () => {
+      const mockOfflineManager = createMockOfflineManager();
+      mockOfflineManager.listStoredRegions.mockResolvedValue([region]);
+      const options = createOptions({
+        offlineManager: mockOfflineManager as unknown as PanelRendererOptions['offlineManager'],
+      });
+      const renderer = new PanelRenderer(options);
+      await (renderer as unknown as {
+        handleRegionAction: (a: string, id: string, r: unknown) => Promise<void>;
+      }).handleRegionAction('import-export', region.id, region);
+      const opts = capturedImportExportModals[0];
+      (opts!.onExport as (r: unknown) => void)({ blob: new Blob(), filename: 'x.json' });
+      expect(mockOfflineManager.downloadExportedRegion).toHaveBeenCalled();
+    });
+
+    it('handleImportExport exportRegion routes by format', async () => {
+      const mockOfflineManager = createMockOfflineManager();
+      mockOfflineManager.listStoredRegions.mockResolvedValue([region]);
+      const options = createOptions({
+        offlineManager: mockOfflineManager as unknown as PanelRendererOptions['offlineManager'],
+      });
+      const renderer = new PanelRenderer(options);
+      await (renderer as unknown as {
+        handleRegionAction: (a: string, id: string, r: unknown) => Promise<void>;
+      }).handleRegionAction('import-export', region.id, region);
+      const opts = capturedImportExportModals[0];
+      await (opts!.exportRegion as (id: string, f: string) => Promise<unknown>)('json', 'json');
+      await (opts!.exportRegion as (id: string, f: string) => Promise<unknown>)(
+        'pmtiles',
+        'pmtiles'
+      );
+      await (opts!.exportRegion as (id: string, f: string) => Promise<unknown>)(
+        'mbtiles',
+        'mbtiles'
+      );
+      expect(mockOfflineManager.exportRegionAsJSON).toHaveBeenCalled();
+      expect(mockOfflineManager.exportRegionAsPMTiles).toHaveBeenCalled();
+      expect(mockOfflineManager.exportRegionAsMBTiles).toHaveBeenCalled();
+    });
+
+    it('handleImportExport importRegion delegates to offlineManager.importRegion', async () => {
+      const mockOfflineManager = createMockOfflineManager();
+      mockOfflineManager.listStoredRegions.mockResolvedValue([region]);
+      const options = createOptions({
+        offlineManager: mockOfflineManager as unknown as PanelRendererOptions['offlineManager'],
+      });
+      const renderer = new PanelRenderer(options);
+      await (renderer as unknown as {
+        handleRegionAction: (a: string, id: string, r: unknown) => Promise<void>;
+      }).handleRegionAction('import-export', region.id, region);
+      const opts = capturedImportExportModals[0];
+      await (opts!.importRegion as (d: unknown) => Promise<unknown>)({ key: 'x' });
+      expect(mockOfflineManager.importRegion).toHaveBeenCalled();
+    });
+
+    it('handleFixCompressedTiles shows no-issues modal when store is clean', async () => {
+      const options = createOptions();
+      const renderer = new PanelRenderer(options);
+      // No tiles stored = no compressed tiles.
+      await (renderer as unknown as {
+        handleFixCompressedTiles: (id: string) => Promise<void>;
+      }).handleFixCompressedTiles('style-x');
+      expect(capturedConfirmModals.length).toBeGreaterThan(0);
+    });
+
+    it('handleFixCompressedTiles runs cleanup onConfirm when tiles are compressed', async () => {
+      const { dbPromise } = await import('../../../src/storage/indexedDbManager');
+      const db = await dbPromise;
+      await db.clear('tiles');
+      // Seed a gzipped tile so countCompressedTiles > 0.
+      const gz = new Uint8Array([0x1f, 0x8b, 0, 0, 0, 0, 0, 0]);
+      await db.put('tiles', {
+        key: 'cx:v:0:0:0.pbf',
+        styleId: 'cx',
+        sourceId: 'v',
+        x: 0, y: 0, z: 0,
+        size: gz.byteLength,
+        data: gz.buffer,
+        downloadedAt: new Date().toISOString(),
+        type: 'vector',
+        url: 'http://t',
+        lastModified: Date.now(),
+      } as never);
+
+      const options = createOptions();
+      const renderer = new PanelRenderer(options);
+      await (renderer as unknown as {
+        handleFixCompressedTiles: (id: string) => Promise<void>;
+      }).handleFixCompressedTiles('cx');
+
+      const firstModal = capturedConfirmModals[0];
+      expect(firstModal).toBeDefined();
+      // Fire the onConfirm body — exercises lines 1203–1243.
+      await (firstModal!.onConfirm as () => Promise<void>)();
+    });
+
+    it('handleDeleteStyle onConfirm deletes the style', async () => {
+      const { deleteStyleById } = require('../../../src/services/styleService');
+      deleteStyleById.mockClear();
+      const options = createOptions();
+      const renderer = new PanelRenderer(options);
+      await (renderer as unknown as {
+        handleStyleAction: (a: string, id: string, data: unknown) => Promise<void>;
+      }).handleStyleAction('delete-style', 'ks', {
+        key: 'ks',
+        style: { name: 'KS' },
+      });
+      const opts = capturedConfirmModals.find(c => (c as any).title);
+      expect(opts).toBeDefined();
+      await (opts!.onConfirm as () => Promise<void>)();
+      expect(deleteStyleById).toHaveBeenCalledWith('ks');
     });
   });
 

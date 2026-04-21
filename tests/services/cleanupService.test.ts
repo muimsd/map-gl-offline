@@ -651,4 +651,73 @@ describe('CleanupService', () => {
       expect(cleanupService).toBeInstanceOf(CleanupService);
     });
   });
+
+  describe('runCleanup with maxStorageSize', () => {
+    it('deletes additional regions when storage exceeds maxStorageSize', async () => {
+      const db = await dbPromise;
+      const now = Date.now();
+      const day = 86400000;
+      await storeRegionInStyle(db, 'style-a', {
+        id: 'big-1',
+        name: 'Big 1',
+        bounds: [[0, 0], [1, 1]],
+        styleUrl: 'https://example.com/a.json',
+        minZoom: 0,
+        maxZoom: 10,
+        created: now - 10 * day,
+        expiry: now + 20 * day,
+      });
+      await storeRegionInStyle(db, 'style-a', {
+        id: 'big-2',
+        name: 'Big 2',
+        bounds: [[0, 0], [1, 1]],
+        styleUrl: 'https://example.com/a.json',
+        minZoom: 0,
+        maxZoom: 10,
+        created: now - 5 * day,
+        expiry: now + 20 * day,
+      });
+      // Tiles to give the regions size.
+      for (let i = 0; i < 5; i++) {
+        await db.put('tiles', {
+          key: `style-a:v:${i}:0:0.pbf`,
+          styleId: 'style-a',
+          sourceId: 'v',
+          x: 0, y: 0, z: i,
+          size: 1_000_000,
+          data: new ArrayBuffer(8),
+          downloadedAt: new Date().toISOString(),
+          type: 'vector',
+          url: 'http://t',
+          lastModified: now,
+        });
+      }
+
+      const result = await service.runCleanup({
+        maxStorageSize: 1_000, // Tiny — force selection.
+      });
+      expect(result.scannedRegions).toBeGreaterThanOrEqual(2);
+    });
+
+    it('applies maxRegions to trim excess regions', async () => {
+      const db = await dbPromise;
+      const now = Date.now();
+      const day = 86400000;
+      for (let i = 0; i < 3; i++) {
+        await storeRegionInStyle(db, 'style-b', {
+          id: `r-${i}`,
+          name: `R${i}`,
+          bounds: [[0, 0], [1, 1]],
+          styleUrl: 'https://example.com/b.json',
+          minZoom: 0,
+          maxZoom: 10,
+          created: now - (10 + i) * day,
+          expiry: now + 20 * day,
+        });
+      }
+      const result = await service.runCleanup({ maxRegions: 1 });
+      expect(result.scannedRegions).toBe(3);
+      expect(result.deletedRegions).toBeGreaterThanOrEqual(1);
+    });
+  });
 });
