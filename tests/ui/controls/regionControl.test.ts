@@ -402,6 +402,39 @@ describe('RegionControl', () => {
     });
   });
 
+  describe('extractExtraMapSources error path', () => {
+    it('returns an empty array when map.getStyle throws', async () => {
+      const failingMap = {
+        ...createMockMap(),
+        getStyle: jest.fn().mockImplementation(() => {
+          throw new Error('getStyle failed');
+        }),
+      };
+      const control = new RegionControl(
+        createOptions({ map: failingMap } as unknown as Partial<RegionControlOptions>)
+      );
+      // Call the private method to ensure the catch branch is exercised.
+      const sources = await (control as unknown as {
+        extractExtraMapSources: () => Promise<unknown[]>;
+      }).extractExtraMapSources();
+      expect(sources).toEqual([]);
+    });
+
+    it('returns an empty array when map has no style', async () => {
+      const noStyleMap = {
+        ...createMockMap(),
+        getStyle: jest.fn().mockReturnValue(null),
+      };
+      const control = new RegionControl(
+        createOptions({ map: noStyleMap } as unknown as Partial<RegionControlOptions>)
+      );
+      const sources = await (control as unknown as {
+        extractExtraMapSources: () => Promise<unknown[]>;
+      }).extractExtraMapSources();
+      expect(sources).toEqual([]);
+    });
+  });
+
   describe('handleRegionSave', () => {
     it('calls downloadManager.downloadRegion and fires onRegionSaved on success', async () => {
       const downloadManager = createMockDownloadManager();

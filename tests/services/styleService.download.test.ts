@@ -225,6 +225,134 @@ describe('StyleService.downloadStyles', () => {
     expect(result.success).toBe(true);
   });
 
+  it('runs the storage-quota check in downloadStyles when enabled (warn, no throw)', async () => {
+    Object.defineProperty(global.navigator, 'storage', {
+      configurable: true,
+      value: { estimate: async () => ({ quota: 10, usage: 5 }) },
+    });
+    mockFetchWithRetry.mockImplementation(async () =>
+      okJson({
+        version: 8,
+        id: 'quota-style',
+        sources: {},
+        layers: [],
+      })
+    );
+    const result = await downloadStyles('https://example.com/quota-style.json', {
+      storageQuotaCheck: true,
+      validateStyle: false,
+      skipExisting: false,
+    });
+    expect(result.success).toBe(true);
+    Object.defineProperty(global.navigator, 'storage', {
+      configurable: true,
+      value: undefined,
+    });
+  });
+
+  it('handles storage-quota estimate() rejection gracefully', async () => {
+    Object.defineProperty(global.navigator, 'storage', {
+      configurable: true,
+      value: {
+        estimate: async () => {
+          throw new Error('estimate failed');
+        },
+      },
+    });
+    mockFetchWithRetry.mockImplementation(async () =>
+      okJson({
+        version: 8,
+        id: 'quota-err',
+        sources: {},
+        layers: [],
+      })
+    );
+    const result = await downloadStyles('https://example.com/quota-err.json', {
+      storageQuotaCheck: true,
+      validateStyle: false,
+      skipExisting: false,
+    });
+    // Quota error is caught and logged; download still succeeds.
+    expect(result.success).toBe(true);
+    Object.defineProperty(global.navigator, 'storage', {
+      configurable: true,
+      value: undefined,
+    });
+  });
+
+  it('resolves mapbox:// source URLs in downloadStyles when access token is present', async () => {
+    mockFetchWithRetry.mockImplementation(async (url: string) => {
+      if (url.includes('tilejson') || url.includes('source.json')) {
+        return okJson({ tiles: ['https://t/{z}/{x}/{y}.pbf'], minzoom: 0, maxzoom: 14 });
+      }
+      return okJson({
+        version: 8,
+        id: 'mb-source',
+        sources: {
+          mb: {
+            type: 'vector',
+            url: 'mapbox://mapbox.mapbox-streets-v8',
+          },
+        },
+        layers: [{ id: 'L', type: 'background' }],
+      });
+    });
+    const result = await downloadStyles('https://example.com/mb-source.json', {
+      accessToken: 'pk.tok',
+      enableSourceEmbedding: true,
+      validateStyle: false,
+      skipExisting: false,
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('records a non-fatal error when source embed fetch fails', async () => {
+    mockFetchWithRetry.mockImplementation(async (url: string) => {
+      if (url.includes('source.json')) throw new Error('embed failed');
+      return okJson({
+        version: 8,
+        id: 'embed-err',
+        sources: {
+          s: { type: 'vector', url: 'https://example.com/source.json' },
+        },
+        layers: [{ id: 'L', type: 'background' }],
+      });
+    });
+    const result = await downloadStyles('https://example.com/embed-err.json', {
+      enableSourceEmbedding: true,
+      validateStyle: false,
+      skipExisting: false,
+    });
+    // Outer call succeeds; embed error is recorded on the result.
+    expect(result.success).toBe(true);
+    expect(result.errors.some(e => e.includes('Failed to fetch source'))).toBe(true);
+  });
+
+  it('resolves imports in downloadStyles when the style has imports', async () => {
+    mockFetchWithRetry.mockImplementation(async (url: string) => {
+      if (url.includes('imported')) {
+        return okJson({
+          version: 8,
+          sources: { is: { type: 'vector', tiles: ['https://t/{z}/{x}/{y}.pbf'] } },
+          layers: [{ id: 'IL', type: 'background' }],
+        });
+      }
+      return okJson({
+        version: 8,
+        id: 'import-root',
+        sources: {},
+        layers: [],
+        imports: [{ id: 'imp', url: 'https://example.com/imported.json' }],
+      });
+    });
+    const result = await downloadStyles('https://example.com/import-root.json', {
+      validateStyle: false,
+      skipExisting: false,
+      enableSourceEmbedding: false,
+    });
+    expect(result.success).toBe(true);
+  });
+
   it('records a non-fatal error when sprite download fails', async () => {
     mockFetchWithRetry.mockImplementation(async (url: string) => {
       if (url.endsWith('.json') && url.includes('sprite-fail')) {

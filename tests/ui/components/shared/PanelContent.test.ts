@@ -15,6 +15,35 @@ jest.mock('../../../../src/ui/ThemeManager', () => ({
   },
 }));
 
+// Capture modal options so we can fire the inner callbacks directly.
+const capturedConfirmModals: Array<Record<string, unknown>> = [];
+jest.mock('../../../../src/ui/modals/confirmationModal', () => ({
+  ConfirmationModal: class {
+    opts: Record<string, unknown>;
+    constructor(opts: Record<string, unknown>) {
+      this.opts = opts;
+      capturedConfirmModals.push(opts);
+    }
+    show() {
+      return document.createElement('div');
+    }
+  },
+}));
+
+const capturedDetailsModals: Array<Record<string, unknown>> = [];
+jest.mock('../../../../src/ui/modals/regionDetailsModal', () => ({
+  RegionDetailsModal: class {
+    opts: Record<string, unknown>;
+    constructor(opts: Record<string, unknown>) {
+      this.opts = opts;
+      capturedDetailsModals.push(opts);
+    }
+    show() {
+      return document.createElement('div');
+    }
+  },
+}));
+
 // Create mock OfflineManager
 const createMockOfflineManager = () => ({
   listStoredRegions: jest.fn().mockResolvedValue([]),
@@ -425,6 +454,149 @@ describe('PanelContentRenderer', () => {
 
       alertMock.mockRestore();
       expect(mockOfflineManager.listStoredRegions).toHaveBeenCalled();
+    });
+  });
+
+  describe('modal inner callbacks', () => {
+    const region: StoredRegion = {
+      id: 'r-callback',
+      name: 'Callback',
+      bounds: [[0, 0], [1, 1]],
+      minZoom: 0,
+      maxZoom: 10,
+      styleId: 'sx',
+      styleUrl: 'https://example.com/s.json',
+      created: Date.now(),
+      expiry: Date.now() + 86400000,
+    } as StoredRegion;
+
+    beforeEach(() => {
+      capturedConfirmModals.length = 0;
+      capturedDetailsModals.length = 0;
+    });
+
+    it('details modal onFocus forwards to onFocusRegion', async () => {
+      const onFocusRegion = jest.fn();
+      const mockOfflineManager = createMockOfflineManager();
+      mockOfflineManager.listStoredRegions.mockResolvedValue([region]);
+      const config = createConfig({
+        offlineManager: mockOfflineManager as unknown as ContentRendererConfig['offlineManager'],
+        onFocusRegion,
+      });
+      const renderer = new PanelContentRenderer(config);
+      await renderer.render(container);
+
+      const btn = document.createElement('button');
+      btn.dataset.action = 'show-details';
+      btn.dataset.regionId = region.id;
+      container.appendChild(btn);
+      btn.click();
+      await new Promise(r => setTimeout(r, 10));
+
+      expect(capturedDetailsModals.length).toBeGreaterThan(0);
+      (capturedDetailsModals[0].onFocus as (id: string) => void)('r-callback');
+      expect(onFocusRegion).toHaveBeenCalledWith('r-callback');
+    });
+
+    it('details modal onThemeToggle cycles the theme', async () => {
+      const { themeManager } = require('../../../../src/ui/ThemeManager');
+      const mockOfflineManager = createMockOfflineManager();
+      mockOfflineManager.listStoredRegions.mockResolvedValue([region]);
+      const config = createConfig({
+        offlineManager: mockOfflineManager as unknown as ContentRendererConfig['offlineManager'],
+      });
+      const renderer = new PanelContentRenderer(config);
+      await renderer.render(container);
+
+      const btn = document.createElement('button');
+      btn.dataset.action = 'show-details';
+      btn.dataset.regionId = region.id;
+      container.appendChild(btn);
+      btn.click();
+      await new Promise(r => setTimeout(r, 10));
+
+      const cycleSpy = themeManager.cycleTheme as jest.Mock;
+      cycleSpy.mockClear();
+      (capturedDetailsModals[0].onThemeToggle as () => void)();
+      expect(cycleSpy).toHaveBeenCalled();
+    });
+
+    it('details modal onClose is a no-op that does not throw', async () => {
+      const mockOfflineManager = createMockOfflineManager();
+      mockOfflineManager.listStoredRegions.mockResolvedValue([region]);
+      const config = createConfig({
+        offlineManager: mockOfflineManager as unknown as ContentRendererConfig['offlineManager'],
+      });
+      const renderer = new PanelContentRenderer(config);
+      await renderer.render(container);
+
+      const btn = document.createElement('button');
+      btn.dataset.action = 'show-details';
+      btn.dataset.regionId = region.id;
+      container.appendChild(btn);
+      btn.click();
+      await new Promise(r => setTimeout(r, 10));
+      expect(() => (capturedDetailsModals[0].onClose as () => void)()).not.toThrow();
+    });
+
+    it('delete confirmation onConfirm deletes and re-renders', async () => {
+      const mockOfflineManager = createMockOfflineManager();
+      const config = createConfig({
+        offlineManager: mockOfflineManager as unknown as ContentRendererConfig['offlineManager'],
+      });
+      const renderer = new PanelContentRenderer(config);
+      // Put renderer.element into the DOM so refresh() finds a parentElement.
+      container.appendChild(renderer.getElement());
+      await renderer.render(container);
+
+      const btn = document.createElement('button');
+      btn.dataset.action = 'delete-region';
+      btn.dataset.regionId = region.id;
+      container.appendChild(btn);
+      btn.click();
+      await new Promise(r => setTimeout(r, 10));
+
+      expect(capturedConfirmModals.length).toBeGreaterThan(0);
+      await (capturedConfirmModals[0].onConfirm as () => Promise<void>)();
+      expect(mockOfflineManager.deleteRegion).toHaveBeenCalledWith(region.id);
+    });
+
+    it('delete confirmation onConfirm alerts on failure', async () => {
+      const alertMock = jest.spyOn(window, 'alert').mockImplementation(() => {});
+      const mockOfflineManager = createMockOfflineManager();
+      mockOfflineManager.deleteRegion.mockRejectedValueOnce(new Error('boom'));
+      const config = createConfig({
+        offlineManager: mockOfflineManager as unknown as ContentRendererConfig['offlineManager'],
+      });
+      const renderer = new PanelContentRenderer(config);
+      await renderer.render(container);
+
+      const btn = document.createElement('button');
+      btn.dataset.action = 'delete-region';
+      btn.dataset.regionId = region.id;
+      container.appendChild(btn);
+      btn.click();
+      await new Promise(r => setTimeout(r, 10));
+      await (capturedConfirmModals[0].onConfirm as () => Promise<void>)();
+      expect(alertMock).toHaveBeenCalled();
+      alertMock.mockRestore();
+    });
+
+    it('delete confirmation onCancel is a no-op', async () => {
+      const mockOfflineManager = createMockOfflineManager();
+      const config = createConfig({
+        offlineManager: mockOfflineManager as unknown as ContentRendererConfig['offlineManager'],
+      });
+      const renderer = new PanelContentRenderer(config);
+      await renderer.render(container);
+
+      const btn = document.createElement('button');
+      btn.dataset.action = 'delete-region';
+      btn.dataset.regionId = region.id;
+      container.appendChild(btn);
+      btn.click();
+      await new Promise(r => setTimeout(r, 10));
+      expect(() => (capturedConfirmModals[0].onCancel as () => void)()).not.toThrow();
     });
   });
 

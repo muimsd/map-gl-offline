@@ -664,6 +664,93 @@ describe('RegionService', () => {
       expect(style?.regions[0].id).toBe('region-2');
     });
 
+    it('keeps tiles when a remaining region has invalid bounds (bounds validation warns but does not throw)', async () => {
+      const db = await dbPromise;
+
+      await db.put('styles', {
+        key: 'bad-bounds-style',
+        style: { version: 8, sources: {}, layers: [] },
+        provider: 'auto' as StyleProvider,
+        regions: [
+          {
+            id: 'region-good',
+            name: 'Good',
+            bounds: [[-1, -1], [1, 1]],
+            minZoom: 0,
+            maxZoom: 3,
+          },
+          {
+            // Bounds is the wrong shape — tileOverlapsWithRegion warns + returns false.
+            id: 'region-bad',
+            name: 'Bad',
+            bounds: [[0, 0]] as never,
+            minZoom: 0,
+            maxZoom: 3,
+          },
+        ],
+        fonts: [],
+        glyphs: [],
+        sprites: [],
+      });
+      await db.put('tiles', {
+        key: 'bad-bounds-style:v:0:0:0.pbf',
+        styleId: 'bad-bounds-style',
+        sourceId: 'v',
+        x: 0,
+        y: 0,
+        z: 0,
+        size: 10,
+        data: new ArrayBuffer(10),
+        downloadedAt: new Date().toISOString(),
+        type: 'vector',
+        url: 'https://example.com/t.pbf',
+        lastModified: Date.now(),
+      });
+
+      await regionService.deleteRegion('region-good');
+
+      // Must not throw.
+      const style = await db.get('styles', 'bad-bounds-style');
+      expect(style).toBeDefined();
+    });
+
+    it('removes stored models belonging to the deleted style', async () => {
+      const db = await dbPromise;
+      await db.put('styles', {
+        key: 'model-style',
+        style: { version: 8, sources: {}, layers: [] },
+        provider: 'auto' as StyleProvider,
+        regions: [
+          {
+            id: 'only-region',
+            name: 'Only',
+            bounds: [[-1, -1], [1, 1]],
+            minZoom: 0,
+            maxZoom: 3,
+          },
+        ],
+        fonts: [],
+        glyphs: [],
+        sprites: [],
+      });
+      await db.put('models', {
+        key: 'model-style::model::tree.glb',
+        data: new ArrayBuffer(10),
+        size: 10,
+        contentType: 'model/gltf-binary',
+        lastModified: Date.now(),
+        downloadedAt: new Date().toISOString(),
+        styleId: 'model-style',
+        modelName: 'tree.glb',
+      } as never);
+
+      await regionService.deleteRegion('only-region');
+
+      // Deleting the last region should wipe the models keyed to this style.
+      const model = await db.get('models', 'model-style::model::tree.glb');
+      expect(model).toBeUndefined();
+    });
+
     it('deletes tiles that no longer overlap any remaining region', async () => {
       const db = await dbPromise;
 

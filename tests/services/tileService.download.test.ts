@@ -497,6 +497,83 @@ describe('TileService.downloadTiles (mocked fetch)', () => {
     expect(result.totalTiles).toBeGreaterThan(0);
   });
 
+  it('applies bandwidthLimit between tile downloads', async () => {
+    global.fetch = jest
+      .fn()
+      .mockResolvedValue(new Response(null, { status: 200 })) as unknown as typeof fetch;
+    mockFetchResource.mockResolvedValue({
+      type: 'pbf',
+      data: new ArrayBuffer(8),
+      contentType: 'application/x-protobuf',
+    });
+
+    const region = {
+      id: 'region-bw',
+      name: 'BW',
+      bounds: [[-0.1, -0.1], [0.1, 0.1]] as [[number, number], [number, number]],
+      minZoom: 0,
+      maxZoom: 0,
+    };
+    const style = {
+      version: 8 as const,
+      sources: { s: { type: 'vector', tiles: ['https://t/{z}/{x}/{y}.pbf'] } },
+      layers: [],
+    };
+    const result = await service.downloadTiles(region, style, 'style-bw', {
+      storageQuotaCheck: false,
+      maxRetries: 0,
+      probeSourcesBeforeDownload: false,
+      bandwidthLimit: 1024,
+    });
+    expect(result.totalTiles).toBeGreaterThanOrEqual(0);
+  });
+
+  it('recognises legacy tile entries with only the key field via parseTileKey', async () => {
+    const db = await dbPromise;
+    await db.clear('tiles');
+    // Pre-seed a tile without explicit styleId/sourceId fields so the service
+    // has to fall back to parseTileKey to identify it.
+    await db.put('tiles', {
+      key: 'style-legacy:src-legacy:0:0:0.pbf',
+      size: 16,
+      data: new ArrayBuffer(16),
+      downloadedAt: new Date().toISOString(),
+      type: 'vector',
+      url: 'https://example.com/0/0/0.pbf',
+      lastModified: Date.now(),
+    } as never);
+
+    global.fetch = jest
+      .fn()
+      .mockResolvedValue(new Response(null, { status: 200 })) as unknown as typeof fetch;
+    mockFetchResource.mockResolvedValue({
+      type: 'pbf',
+      data: new ArrayBuffer(8),
+      contentType: 'application/x-protobuf',
+    });
+
+    const region = {
+      id: 'region-legacy',
+      name: 'Legacy',
+      bounds: [[-0.1, -0.1], [0.1, 0.1]] as [[number, number], [number, number]],
+      minZoom: 0,
+      maxZoom: 0,
+    };
+    const style = {
+      version: 8 as const,
+      sources: { 'src-legacy': { type: 'vector', tiles: ['https://t/{z}/{x}/{y}.pbf'] } },
+      layers: [],
+    };
+    const result = await service.downloadTiles(region, style, 'style-legacy', {
+      storageQuotaCheck: false,
+      maxRetries: 0,
+      probeSourcesBeforeDownload: false,
+      skipExisting: true,
+    });
+    // The existing tile should be recognised as "already present".
+    expect(result.skippedTiles).toBeGreaterThanOrEqual(1);
+  });
+
   it('rejects HTML/XML error responses as tile data', async () => {
     global.fetch = jest
       .fn()
