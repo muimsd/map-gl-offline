@@ -504,6 +504,135 @@ describe('CleanupService', () => {
     });
   });
 
+  describe('getExpiredResourceCount', () => {
+    it('returns zeros when no expired resources exist', async () => {
+      const counts = await service.getExpiredResourceCount();
+      expect(counts).toEqual({ tiles: 0, fonts: 0, sprites: 0, glyphs: 0, total: 0 });
+    });
+
+    it('counts resources with past expires across stores', async () => {
+      const db = await dbPromise;
+      const past = Date.now() - 86_400_000;
+      const future = Date.now() + 86_400_000;
+
+      await db.put('tiles', {
+        key: 's:v:1:2:3.pbf',
+        styleId: 's',
+        sourceId: 'v',
+        x: 1, y: 2, z: 3,
+        size: 100,
+        data: new ArrayBuffer(100),
+        downloadedAt: new Date().toISOString(),
+        type: 'vector',
+        url: 'http://t',
+        lastModified: Date.now(),
+        expires: past,
+      });
+      await db.put('tiles', {
+        key: 's:v:1:2:4.pbf',
+        styleId: 's',
+        sourceId: 'v',
+        x: 1, y: 2, z: 4,
+        size: 100,
+        data: new ArrayBuffer(100),
+        downloadedAt: new Date().toISOString(),
+        type: 'vector',
+        url: 'http://t',
+        lastModified: Date.now(),
+        expires: future,
+      });
+      await db.put('fonts', {
+        key: 'font-a',
+        url: 'http://f',
+        originalUrl: 'http://f',
+        data: new ArrayBuffer(10),
+        size: 10,
+        type: 'pbf',
+        contentType: 'application/x-protobuf',
+        lastModified: Date.now(),
+        downloadedAt: new Date().toISOString(),
+        expires: past,
+      });
+      await db.put('sprites', {
+        key: 'sprite-a',
+        data: new ArrayBuffer(5),
+        size: 5,
+        url: 'http://s',
+        lastModified: Date.now(),
+        downloadedAt: new Date().toISOString(),
+        expires: past,
+      });
+      // No expired glyphs -> 0 expected.
+
+      const counts = await service.getExpiredResourceCount();
+      expect(counts.tiles).toBe(1);
+      expect(counts.fonts).toBe(1);
+      expect(counts.sprites).toBe(1);
+      expect(counts.glyphs).toBe(0);
+      expect(counts.total).toBe(3);
+    });
+  });
+
+  describe('cleanupExpiredTiles', () => {
+    it('deletes expired tiles and reports freed space', async () => {
+      const db = await dbPromise;
+      const now = Date.now();
+
+      await db.put('tiles', {
+        key: 's1:v:10:100:200.pbf',
+        styleId: 's1',
+        sourceId: 'v',
+        x: 100, y: 200, z: 10,
+        size: 500,
+        data: new ArrayBuffer(500),
+        downloadedAt: new Date().toISOString(),
+        type: 'vector',
+        url: 'http://t',
+        lastModified: now,
+        expires: now - 1000,
+      });
+      await db.put('tiles', {
+        key: 's1:v:10:100:201.pbf',
+        styleId: 's1',
+        sourceId: 'v',
+        x: 100, y: 201, z: 10,
+        size: 700,
+        data: new ArrayBuffer(700),
+        downloadedAt: new Date().toISOString(),
+        type: 'vector',
+        url: 'http://t',
+        lastModified: now,
+        expires: now + 1000, // not expired
+      });
+
+      const result = await service.cleanupExpiredTiles();
+      expect(result.deleted).toBe(1);
+      expect(result.freedSpace).toBe(500);
+    });
+
+    it('scopes to a specific styleId when provided', async () => {
+      const db = await dbPromise;
+      const past = Date.now() - 1000;
+      const base = {
+        sourceId: 'v',
+        x: 0, y: 0, z: 0,
+        size: 100,
+        data: new ArrayBuffer(100),
+        downloadedAt: new Date().toISOString(),
+        type: 'vector' as const,
+        url: 'http://t',
+        lastModified: Date.now(),
+        expires: past,
+      };
+      await db.put('tiles', { key: 's1:v:0:0:0.pbf', styleId: 's1', ...base });
+      await db.put('tiles', { key: 's2:v:0:0:0.pbf', styleId: 's2', ...base });
+
+      const result = await service.cleanupExpiredTiles('s1');
+      expect(result.deleted).toBe(1);
+      expect(await db.get('tiles', 's2:v:0:0:0.pbf')).toBeDefined();
+    });
+  });
+
   describe('exported functions', () => {
     it('should export getRegionAnalytics function', async () => {
       const analytics = await getRegionAnalytics();
