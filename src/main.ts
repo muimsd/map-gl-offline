@@ -251,15 +251,57 @@ function showMapboxTokenPrompt() {
   });
 }
 
-function initMapbox() {
+/**
+ * Clears a locally-stored Mapbox token (never an env-provided one) and
+ * shows the token-entry prompt. Safe to call from any recovery path.
+ */
+function resetMapboxToken() {
+  if (localStorage.getItem('mapbox-access-token')) {
+    localStorage.removeItem('mapbox-access-token');
+  }
+  showMapboxTokenPrompt();
+}
+
+/**
+ * Pre-flight check for a Mapbox public token. Hits the same style URL the
+ * Map will load — this is the surface that actually validates the token, so
+ * the result is authoritative. Returns `true` on any non-401 (including
+ * network errors) so we don't block legitimate offline/CORS scenarios; the
+ * error-event handler below is the safety net when pre-flight passes but
+ * the Map later fails.
+ */
+async function isMapboxTokenValid(token: string, styleUrl: string): Promise<boolean> {
+  // Convert mapbox://styles/owner/id -> https://api.mapbox.com/styles/v1/owner/id
+  const normalized = styleUrl.startsWith('mapbox://styles/')
+    ? `https://api.mapbox.com/styles/v1/${styleUrl.slice('mapbox://styles/'.length)}`
+    : styleUrl;
+  const url = `${normalized}${normalized.includes('?') ? '&' : '?'}access_token=${encodeURIComponent(
+    token
+  )}`;
+  try {
+    const res = await fetch(url);
+    return res.status !== 401;
+  } catch {
+    return true;
+  }
+}
+
+async function initMapbox() {
   if (!MAPBOX_ACCESS_TOKEN) {
     showMapboxTokenPrompt();
     return;
   }
 
-  mapboxgl.accessToken = MAPBOX_ACCESS_TOKEN;
-
   const defaultMapboxStyle = MAPBOX_STYLES[0];
+
+  const valid = await isMapboxTokenValid(MAPBOX_ACCESS_TOKEN, defaultMapboxStyle.url);
+  if (!valid) {
+    console.warn('Mapbox token rejected (pre-flight); clearing and re-prompting.');
+    resetMapboxToken();
+    return;
+  }
+
+  mapboxgl.accessToken = MAPBOX_ACCESS_TOKEN;
 
   const map = new mapboxgl.Map({
     container: 'map-mapbox',
@@ -270,9 +312,9 @@ function initMapbox() {
   });
   mapboxMap = map;
 
-  // If the token is rejected (401 / "invalid access token"), Mapbox GL
-  // emits an `error` event rather than throwing. Detect that, drop the
-  // stored token, and re-show the prompt so the user can enter a valid one.
+  // Safety net: the pre-flight above can be fooled (CORS, network quirk,
+  // mapbox:// URLs that don't match the resolved style URL). If the Map
+  // itself reports an auth failure, tear it down and re-prompt.
   map.on('error', e => {
     const err = (e as { error?: unknown }).error;
     const errMsg = (err as { message?: string } | undefined)?.message ?? '';
@@ -281,18 +323,14 @@ function initMapbox() {
       status === 401 || /invalid.*access token/i.test(errMsg) || /401/.test(errMsg);
     if (!isAuthFailure) return;
 
-    console.warn('Mapbox token rejected; clearing and re-prompting.');
-    // Only clear tokens we stored ourselves — never clobber an env-provided one.
-    if (localStorage.getItem('mapbox-access-token')) {
-      localStorage.removeItem('mapbox-access-token');
-    }
+    console.warn('Mapbox token rejected (runtime); clearing and re-prompting.');
     try {
       map.remove();
     } catch {
       // already torn down
     }
     mapboxMap = null;
-    showMapboxTokenPrompt();
+    resetMapboxToken();
   });
 
   map.addControl(new mapboxgl.NavigationControl(), 'top-right');
