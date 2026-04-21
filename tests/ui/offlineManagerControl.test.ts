@@ -766,6 +766,44 @@ describe('OfflineManagerControl', () => {
       expect(String(origFetch.mock.calls[0][0])).toContain('/tiles/carto-a');
     });
 
+    it('removes the bbox layer on onRemove when it was added', async () => {
+      const mockMap = createMockMap();
+      const setData = jest.fn();
+      mockMap.getSource = jest.fn().mockReturnValue({ setData });
+      mockMap.getLayer = jest.fn().mockReturnValue({}); // has layer
+      mockOfflineManager.listStoredRegions.mockResolvedValue([
+        { id: 'r-bb', name: 'BB', bounds: [[0, 0], [1, 1]], minZoom: 0, maxZoom: 10 },
+      ]);
+      control = new OfflineManagerControl(mockOfflineManager as any, {
+        styleUrl: 'https://example.com/s.json',
+        showBbox: true,
+      });
+      control.onAdd(mockMap as any);
+      await (control as unknown as {
+        focusRegion: (id: string) => void;
+      }).focusRegion('r-bb');
+      await new Promise(r => setTimeout(r, 20));
+      // Now onRemove should remove the bbox layer + source.
+      control.onRemove();
+      expect(mockMap.removeLayer).toHaveBeenCalled();
+      expect(mockMap.removeSource).toHaveBeenCalled();
+    });
+
+    it('handles loadOfflineStyles error when loadStyles rejects', async () => {
+      mockLoadStyles.mockRejectedValueOnce(new Error('db failed'));
+      control = new OfflineManagerControl(mockOfflineManager as any);
+      control.onAdd(createMockMap() as any);
+      // Must not throw — the error path logs but returns.
+      await expect(control.loadOfflineStyles()).resolves.toBeUndefined();
+    });
+
+    it('handles loadOfflineStyle error when loadStyleById rejects', async () => {
+      mockLoadStyleById.mockRejectedValueOnce(new Error('not found'));
+      control = new OfflineManagerControl(mockOfflineManager as any);
+      control.onAdd(createMockMap() as any);
+      await expect(control.loadOfflineStyle('x')).resolves.toBeUndefined();
+    });
+
     it('style selection modal applies selected style', async () => {
       mockLoadStyles.mockResolvedValueOnce([
         { key: 's1', style: { version: 8, name: 'One', sources: {}, layers: [] } },

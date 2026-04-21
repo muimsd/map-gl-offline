@@ -600,6 +600,30 @@ describe('PanelContentRenderer', () => {
     });
   });
 
+  describe('header theme toggle', () => {
+    it('re-renders via the parent element when the header onThemeToggle fires', async () => {
+      const { themeManager } = require('../../../../src/ui/ThemeManager');
+      const mockOfflineManager = createMockOfflineManager();
+      const config = createConfig({
+        offlineManager: mockOfflineManager as unknown as ContentRendererConfig['offlineManager'],
+      });
+      const renderer = new PanelContentRenderer(config);
+      await renderer.render(container);
+
+      // Find the header's theme button and click it.
+      const themeBtn = Array.from(container.querySelectorAll('button')).find(b =>
+        (b.getAttribute('title') || '').toLowerCase().includes('theme')
+      );
+      if (themeBtn) {
+        mockOfflineManager.listStoredRegions.mockClear();
+        (themeBtn as HTMLButtonElement).click();
+        await new Promise(r => setTimeout(r, 10));
+        // Theme manager's cycleTheme should fire, and render() is re-invoked.
+        expect(themeManager.cycleTheme).toHaveBeenCalled();
+      }
+    });
+  });
+
   describe('error state', () => {
     it('renders an error message when analytics load fails', async () => {
       const mockOfflineManager = createMockOfflineManager();

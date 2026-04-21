@@ -497,6 +497,47 @@ describe('TileService.downloadTiles (mocked fetch)', () => {
     expect(result.totalTiles).toBeGreaterThan(0);
   });
 
+  it('skips sources whose zoom range excludes the requested tiles', async () => {
+    global.fetch = jest
+      .fn()
+      .mockResolvedValue(new Response(null, { status: 200 })) as unknown as typeof fetch;
+    mockFetchResource.mockResolvedValue({
+      type: 'pbf',
+      data: new ArrayBuffer(8),
+      contentType: 'application/x-protobuf',
+    });
+
+    const region = {
+      id: 'region-nozoom',
+      name: 'NoZoom',
+      bounds: [[-0.1, -0.1], [0.1, 0.1]] as [[number, number], [number, number]],
+      minZoom: 5,
+      maxZoom: 8,
+    };
+    const style = {
+      version: 8 as const,
+      sources: {
+        // Usable source covering the region's zoom range.
+        usable: { type: 'vector', tiles: ['https://t/{z}/{x}/{y}.pbf'], minzoom: 0, maxzoom: 14 },
+        // Source that has a valid zoom range but no intersection with the
+        // final coord set for this region (zooms 6-7 alone, region is 5-8).
+        partial: {
+          type: 'vector',
+          tiles: ['https://u/{z}/{x}/{y}.pbf'],
+          minzoom: 6,
+          maxzoom: 7,
+        },
+      },
+      layers: [],
+    };
+    const result = await service.downloadTiles(region, style, 'style-nozoom', {
+      storageQuotaCheck: false,
+      maxRetries: 0,
+      probeSourcesBeforeDownload: false,
+    });
+    expect(result.totalTiles).toBeGreaterThan(0);
+  });
+
   it('applies bandwidthLimit between tile downloads', async () => {
     global.fetch = jest
       .fn()

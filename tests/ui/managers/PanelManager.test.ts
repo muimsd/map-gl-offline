@@ -976,6 +976,77 @@ describe('PanelRenderer', () => {
       expect(applied.sources.dem.maxzoom).toBe(10);
     });
 
+    it('prompts via confirm() when compressed tiles exist, and bails on cancel', async () => {
+      const { dbPromise } = await import('../../../src/storage/indexedDbManager');
+      const db = await dbPromise;
+      await db.clear('tiles');
+      // Seed a gzipped tile so countCompressedTiles > 0.
+      const gz = new Uint8Array([0x1f, 0x8b, 0, 0, 0, 0, 0, 0]);
+      await db.put('tiles', {
+        key: 'loading-style:v:0:0:0.pbf',
+        styleId: 'loading-style',
+        sourceId: 'v',
+        x: 0, y: 0, z: 0,
+        size: gz.byteLength,
+        data: gz.buffer,
+        downloadedAt: new Date().toISOString(),
+        type: 'vector',
+        url: 'http://t',
+        lastModified: Date.now(),
+      } as never);
+
+      const setStyle = jest.fn();
+      const mockMap = { setStyle, getStyle: jest.fn() };
+      const confirmMock = jest.spyOn(window, 'confirm').mockReturnValue(false);
+      const options = createOptions({
+        map: mockMap as unknown as PanelRendererOptions['map'],
+      });
+      const renderer = new PanelRenderer(options);
+      await (renderer as unknown as {
+        handleLoadStyle: (data: unknown) => Promise<void>;
+      }).handleLoadStyle({
+        key: 'loading-style',
+        style: {
+          version: 8,
+          sources: { s: { type: 'vector', tiles: ['idb://loading-style/tile/s/{z}/{x}/{y}.pbf'] } },
+          layers: [{ id: 'L', type: 'background' }],
+        },
+        regions: [],
+      });
+      expect(confirmMock).toHaveBeenCalled();
+      // User cancelled → setStyle never called.
+      expect(setStyle).not.toHaveBeenCalled();
+      confirmMock.mockRestore();
+      await db.clear('tiles');
+    });
+
+    it('reads back the style via setTimeout after setStyle succeeds', async () => {
+      jest.useFakeTimers();
+      const setStyle = jest.fn();
+      const getStyle = jest.fn().mockReturnValue({ sources: { x: {} }, layers: [{}] });
+      const mockMap = { setStyle, getStyle };
+      const options = createOptions({
+        map: mockMap as unknown as PanelRendererOptions['map'],
+      });
+      const renderer = new PanelRenderer(options);
+      await (renderer as unknown as {
+        handleLoadStyle: (data: unknown) => Promise<void>;
+      }).handleLoadStyle({
+        key: 'delayed',
+        style: {
+          version: 8,
+          sources: { s: { type: 'vector', tiles: ['idb://delayed/tile/s/{z}/{x}/{y}.pbf'] } },
+          layers: [{ id: 'L', type: 'background' }],
+        },
+        regions: [],
+      });
+      expect(setStyle).toHaveBeenCalled();
+      // Advance the 1s timer so the verification block in handleLoadStyle runs.
+      jest.advanceTimersByTime(1500);
+      expect(getStyle).toHaveBeenCalled();
+      jest.useRealTimers();
+    });
+
     it('surfaces setStyle errors via an alert', async () => {
       const alertMock = jest.spyOn(window, 'alert').mockImplementation(() => {});
       const setStyle = jest.fn().mockImplementation(() => {
@@ -1443,6 +1514,62 @@ describe('PanelRenderer', () => {
       await (opts!.onConfirm as () => Promise<void>)();
       expect(alertMock).toHaveBeenCalled();
       alertMock.mockRestore();
+    });
+
+    it('handleDeleteRegion onCancel closes the modal', async () => {
+      capturedConfirmModals.length = 0;
+      const mockOfflineManager = createMockOfflineManager();
+      const mockModalManager = createMockModalManager();
+      mockOfflineManager.listStoredRegions.mockResolvedValue([region]);
+      const options = createOptions({
+        offlineManager: mockOfflineManager as unknown as PanelRendererOptions['offlineManager'],
+        modalManager: mockModalManager as unknown as PanelRendererOptions['modalManager'],
+      });
+      const renderer = new PanelRenderer(options);
+      await (renderer as unknown as {
+        handleRegionAction: (a: string, id: string, r: unknown) => Promise<void>;
+      }).handleRegionAction('delete-region', region.id, region);
+      const opts = capturedConfirmModals[0];
+      (opts!.onCancel as () => void)();
+      expect(mockModalManager.close).toHaveBeenCalled();
+    });
+
+    it('handleDeleteRegion catches listStoredRegions failures', async () => {
+      const mockOfflineManager = createMockOfflineManager();
+      mockOfflineManager.listStoredRegions.mockRejectedValueOnce(new Error('list failed'));
+      const options = createOptions({
+        offlineManager: mockOfflineManager as unknown as PanelRendererOptions['offlineManager'],
+      });
+      const renderer = new PanelRenderer(options);
+      // handleRegionAction is sync — it invokes an async handler but returns
+      // void. We just need to ensure it doesn't throw synchronously.
+      expect(() =>
+        (renderer as unknown as {
+          handleRegionAction: (a: string, id: string, r: unknown) => void;
+        }).handleRegionAction('delete-region', 'any', region)
+      ).not.toThrow();
+      // Allow the inner async handler's catch to run.
+      await new Promise(r => setTimeout(r, 10));
+      expect(mockOfflineManager.listStoredRegions).toHaveBeenCalled();
+    });
+
+    it('handleRedownloadRegion handles loadStyleById failure gracefully', async () => {
+      capturedConfirmModals.length = 0;
+      const mockOfflineManager = createMockOfflineManager();
+      mockOfflineManager.listStoredRegions.mockResolvedValue([region]);
+      const { loadStyleById } = require('../../../src/services/styleService');
+      loadStyleById.mockRejectedValueOnce(new Error('style not found'));
+      const options = createOptions({
+        offlineManager: mockOfflineManager as unknown as PanelRendererOptions['offlineManager'],
+      });
+      const renderer = new PanelRenderer(options);
+      await (renderer as unknown as {
+        handleRegionAction: (a: string, id: string, r: unknown) => Promise<void>;
+      }).handleRegionAction('redownload-region', region.id, region);
+      const opts = capturedConfirmModals[0];
+      await (opts!.onConfirm as () => Promise<void>)();
+      // The warning path was exercised — the call still proceeded without throwing.
+      expect(mockOfflineManager.deleteRegion).toHaveBeenCalled();
     });
 
     it('handleDeleteStyle onConfirm deletes the style', async () => {
