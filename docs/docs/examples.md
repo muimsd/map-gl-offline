@@ -48,22 +48,27 @@ map.addControl(control, 'top-right');
 
 ### Programmatic Download
 
+Call `downloadRegion` to run the full pipeline (style → sprites → glyphs → tiles → metadata) with per-phase progress. `addRegion` on its own only stores metadata.
+
 ```typescript
 const manager = new OfflineMapManager();
 
-// Download New York City area
-await manager.addRegion({
-  id: 'nyc',
-  name: 'New York City',
-  bounds: [[-74.259, 40.477], [-73.700, 40.917]],
-  minZoom: 10,
-  maxZoom: 15,
-  styleUrl: 'https://api.maptiler.com/maps/streets/style.json?key=YOUR_KEY',
-  onProgress: (progress) => {
-    updateProgressBar(progress.percentage);
-    updateStatusText(progress.message);
+await manager.downloadRegion(
+  {
+    id: 'nyc',
+    name: 'New York City',
+    bounds: [[-74.259, 40.477], [-73.700, 40.917]],
+    minZoom: 10,
+    maxZoom: 15,
+    styleUrl: 'https://api.maptiler.com/maps/streets/style.json?key=YOUR_KEY',
   },
-});
+  {
+    onProgress: ({ phase, percentage, message }) => {
+      updateProgressBar(percentage);
+      updateStatusText(`[${phase}] ${message ?? ''}`);
+    },
+  },
+);
 ```
 
 ---
@@ -121,17 +126,25 @@ const control = new OfflineManagerControl(manager, {
 
 map.addControl(control, 'top-right');
 
-// Download a region with 3D buildings
-await manager.addRegion({
-  id: 'manhattan-3d',
-  name: 'Manhattan 3D',
-  bounds: [[-74.02, 40.70], [-73.95, 40.78]],
-  minZoom: 12,
-  maxZoom: 16,
-  styleUrl: 'mapbox://styles/mapbox/standard',
-  accessToken: mapboxgl.accessToken,
-  onProgress: (p) => console.log(`${p.percentage}%`),
-});
+// Download a region with 3D buildings. The tile downloader probes each
+// source before committing — sparse Mapbox tilesets (indoor, landmark-POIs,
+// procedural-buildings) that return 404 for most coordinates are
+// automatically dropped, keeping the console clean.
+await manager.downloadRegion(
+  {
+    id: 'manhattan-3d',
+    name: 'Manhattan 3D',
+    bounds: [[-74.02, 40.70], [-73.95, 40.78]],
+    minZoom: 12,
+    maxZoom: 16,
+    styleUrl: 'mapbox://styles/mapbox/standard',
+  },
+  {
+    accessToken: mapboxgl.accessToken,
+    provider: 'mapbox',
+    onProgress: ({ phase, percentage }) => console.log(`[${phase}] ${percentage.toFixed(0)}%`),
+  },
+);
 ```
 
 ### Day/Night Light Presets
@@ -188,7 +201,7 @@ Save additional vector or raster tile layers alongside the style's own sources. 
 ### Download Region with Extra Vector Layers
 
 ```typescript
-await manager.addRegion({
+await manager.downloadRegion({
   id: 'downtown-with-layers',
   name: 'Downtown + Custom Layers',
   bounds: [[-74.05, 40.71], [-74.00, 40.76]],
@@ -233,7 +246,7 @@ const extraSources = Object.entries(style.sources)
   });
 
 // Use the extracted sources in a region download
-await manager.addRegion({
+await manager.downloadRegion({
   id: 'full-offline',
   name: 'Full Offline Region',
   bounds: [[-74.05, 40.71], [-74.00, 40.76]],
@@ -274,13 +287,17 @@ const regions = [
 ];
 
 for (const region of regions) {
-  await manager.addRegion({
-    ...region,
-    minZoom: 10,
-    maxZoom: 14,
-    styleUrl: STYLE_URL,
-    onProgress: (p) => console.log(`${region.name}: ${p.percentage}%`),
-  });
+  await manager.downloadRegion(
+    {
+      ...region,
+      minZoom: 10,
+      maxZoom: 14,
+      styleUrl: STYLE_URL,
+    },
+    {
+      onProgress: ({ percentage }) => console.log(`${region.name}: ${percentage.toFixed(0)}%`),
+    },
+  );
 }
 ```
 
@@ -610,7 +627,7 @@ async function downloadWithRetry(regionOptions: OfflineRegionOptions, maxRetries
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
-      await manager.addRegion(regionOptions);
+      await manager.downloadRegion(regionOptions);
       return; // Success
     } catch (error) {
       lastError = error as Error;
@@ -655,7 +672,7 @@ function sleep(ms: number): Promise<void> {
 ```typescript
 async function downloadRegion(options: OfflineRegionOptions) {
   try {
-    await manager.addRegion(options);
+    await manager.downloadRegion(options);
     showToast('Region downloaded successfully!', 'success');
   } catch (error) {
     const message = getUserErrorMessage(error);
@@ -756,11 +773,10 @@ class DownloadProgressUI {
     this.updatePhase('Preparing...');
 
     try {
-      await manager.addRegion({
-        ...options,
+      await manager.downloadRegion(options, {
         onProgress: (progress) => {
           this.updateProgress(progress.percentage);
-          this.updatePhase(progress.message || 'Downloading...');
+          this.updatePhase(progress.message || `Downloading ${progress.phase}...`);
           this.updateDetails(`${progress.completed}/${progress.total}`);
         },
       });
@@ -829,7 +845,7 @@ async function downloadPreset(presetId: keyof typeof REGION_PRESETS) {
   const preset = REGION_PRESETS[presetId];
   if (!preset) throw new Error(`Unknown preset: ${presetId}`);
 
-  await manager.addRegion({
+  await manager.downloadRegion({
     id: presetId,
     ...preset,
     styleUrl: STYLE_URL,
@@ -862,7 +878,7 @@ class RegionSync {
     for (const serverRegion of serverRegions) {
       if (!localIds.has(serverRegion.id)) {
         console.log(`Downloading missing region: ${serverRegion.name}`);
-        await this.manager.addRegion(serverRegion);
+        await this.manager.downloadRegion(serverRegion);
       }
     }
   }

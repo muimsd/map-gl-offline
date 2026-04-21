@@ -187,26 +187,30 @@ The built-in UI control provides:
 
 ## Programmatic Usage (No UI)
 
-For more control, use the `OfflineMapManager` directly:
+For more control, use the `OfflineMapManager` directly. Call `downloadRegion` to run the full pipeline (style → sprites → glyphs → tiles → metadata):
 
 ```typescript
 const offlineManager = new OfflineMapManager();
 
-// Download a region
-await offlineManager.addRegion({
-  id: 'downtown',
-  name: 'Downtown Area',
-  bounds: [
-    [-74.0559, 40.7128], // Southwest [lng, lat]
-    [-74.0059, 40.7628], // Northeast [lng, lat]
-  ],
-  minZoom: 10,
-  maxZoom: 16,
-  styleUrl: 'https://api.maptiler.com/maps/streets/style.json?key=YOUR_KEY',
-  onProgress: (progress) => {
-    console.log(`Progress: ${progress.percentage}%`);
+// Download a region end-to-end
+await offlineManager.downloadRegion(
+  {
+    id: 'downtown',
+    name: 'Downtown Area',
+    bounds: [
+      [-74.0559, 40.7128], // Southwest [lng, lat]
+      [-74.0059, 40.7628], // Northeast [lng, lat]
+    ],
+    minZoom: 10,
+    maxZoom: 16,
+    styleUrl: 'https://api.maptiler.com/maps/streets/style.json?key=YOUR_KEY',
   },
-});
+  {
+    onProgress: ({ phase, percentage }) => {
+      console.log(`[${phase}] ${percentage.toFixed(1)}%`);
+    },
+  },
+);
 
 // List stored regions
 const regions = await offlineManager.listStoredRegions();

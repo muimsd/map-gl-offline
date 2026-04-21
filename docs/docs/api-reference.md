@@ -25,11 +25,53 @@ The constructor accepts optional service overrides for dependency injection (adv
 
 ### Region Management Methods
 
-#### `addRegion(options: OfflineRegionOptions): Promise<void>`
+#### `downloadRegion(region: OfflineRegionOptions, options?: DownloadRegionOptions): Promise<DownloadRegionResult>`
 
-Download and store a map region for offline use.
+Run the full offline-region pipeline: downloads the style (if not already stored), sprites, glyphs, tiles, then persists region metadata. Progress is reported per phase via `options.onProgress`.
 
 ```typescript
+await manager.downloadRegion(
+  {
+    id: 'my-region',
+    name: 'My Region',
+    bounds: [[-74.05, 40.71], [-74.00, 40.76]],
+    minZoom: 10,
+    maxZoom: 16,
+    styleUrl: 'https://example.com/style.json',
+  },
+  {
+    onProgress: ({ phase, completed, total, percentage, message }) => {
+      // phase: 'style' | 'sprites' | 'glyphs' | 'tiles' | 'metadata'
+      console.log(`[${phase}] ${completed}/${total} (${percentage.toFixed(1)}%)`);
+    },
+  },
+);
+```
+
+**`DownloadRegionOptions`:**
+
+| Option | Type | Description |
+|---|---|---|
+| `onProgress` | `(p: DownloadRegionProgress) => void` | Called with `{ phase, completed, total, percentage, message? }` during each phase. |
+| `provider` | `'auto' \| 'mapbox' \| 'maplibre'` | Style provider hint when fetching the style. Defaults to `'auto'`. |
+| `accessToken` | `string` | Mapbox access token; required for `mapbox://` URLs. |
+| `skipSprites` | `boolean` | Skip the sprite-download phase. Default `false`. |
+| `skipGlyphs` | `boolean` | Skip the glyph-download phase. Default `false`. |
+| `glyphRanges` | `string[]` | Override Unicode glyph ranges. Defaults to `GLYPH_CONFIG.COMPREHENSIVE_RANGES`. |
+| `tileOptions` | `TileDownloadOptions` | Forwarded to the tile download step (e.g. `probeSourcesBeforeDownload`, `batchSize`). |
+
+**`DownloadRegionResult`** includes `regionId`, `styleId`, `styleResult?`, `spriteResults`, `glyphResult?`, and `tileResult`.
+
+#### `loadRegion(region: OfflineRegionOptions, options?: DownloadRegionOptions): Promise<DownloadRegionResult>`
+
+Alias for `downloadRegion`. Kept for naming parity with native offline APIs.
+
+#### `addRegion(options: OfflineRegionOptions): Promise<void>`
+
+Store region metadata inside its style entry and patch the style's URLs to `idb://` for offline use. Does **not** fetch tiles, sprites, or glyphs — for the full pipeline, use `downloadRegion`. The region's `expiry`, if supplied, is stored as an absolute timestamp (ms since epoch); omit it to default to 30 days from now. If a region with the same `id` already exists on the style it is replaced in place (`created` preserved, `updated` refreshed).
+
+```typescript
+// Metadata-only; style must already be downloaded.
 await manager.addRegion({
   id: 'my-region',
   name: 'My Region',
@@ -37,14 +79,13 @@ await manager.addRegion({
   minZoom: 10,
   maxZoom: 16,
   styleUrl: 'https://example.com/style.json',
-  onProgress: (progress) => console.log(progress.percentage),
 });
 ```
 
-You can also include additional tile sources that are not part of the style:
+Both `addRegion` and `downloadRegion` accept `extraSources` for additional tile sources not declared by the style:
 
 ```typescript
-await manager.addRegion({
+await manager.downloadRegion({
   id: 'my-region',
   name: 'My Region',
   bounds: [[-74.05, 40.71], [-74.00, 40.76]],
@@ -187,6 +228,59 @@ Get sprite statistics aggregated across all styles.
 #### `getGlyphStats(): Promise<EnhancedGlyphStats>`
 
 Get glyph statistics aggregated across all styles.
+
+### Tile Download Options
+
+Options that `downloadRegion` forwards to the tile downloader (or that you can pass directly to `downloadTiles` / `ResourceService.downloadTilesWithOptions`).
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `probeSourcesBeforeDownload` | `boolean` | `true` | Fetch 3 representative tiles (start, middle, end) per source before committing its full plan. Majority-404 sources are dropped entirely. Keeps the console clean for composite styles (e.g. Mapbox Standard) that reference sparse tilesets like `indoor-v3` or `landmark-pois-v1` that only have data at specific locations. |
+| `skipExisting` | `boolean` | `true` | Skip tiles already present in IndexedDB. |
+| `batchSize` | `number` | `10` | Concurrent tiles per batch. |
+| `maxRetries` | `number` | `3` | Per-tile retry count before giving up. |
+| `timeout` | `number` | `10000` | Per-tile fetch timeout in ms. |
+| `retryDelay` | `number` | `1000` | Base delay between retries. |
+| `bandwidthLimit` | `number` | — | KB/s ceiling to throttle downloads. |
+| `validateTiles` | `boolean` | `false` | Validate tile payloads after download. |
+| `compressTiles` | `boolean` | `false` | Compress tiles before storage. |
+| `priorityZoomLevels` | `number[]` | `[]` | Download these zoom levels first. |
+| `storageQuotaCheck` | `boolean` | `true` | Refuse to start if available storage is below the safety floor. |
+
+### Storage Resilience
+
+Top-level exports for handling incompatible on-disk state (e.g. after a version downgrade, or when another app shares the IDB name on the same origin).
+
+#### `OfflineMapDBVersionError`
+
+Typed subclass of `Error` thrown from `dbPromise` when the existing database schema is newer than this build supports. Exposes `requestedVersion` and `existingVersion` fields and a message referencing the recovery helper.
+
+#### `resetOfflineMapDB(): Promise<void>`
+
+Destructive helper that deletes the `offline-map-db` IndexedDB database and all stored offline data. Intended as the recovery path after catching an `OfflineMapDBVersionError`.
+
+```typescript
+import { dbPromise, OfflineMapDBVersionError, resetOfflineMapDB } from 'map-gl-offline';
+
+try {
+  await dbPromise;
+} catch (err) {
+  if (err instanceof OfflineMapDBVersionError) {
+    if (confirm('Offline storage is incompatible. Clear it?')) {
+      await resetOfflineMapDB();
+      location.reload();
+    }
+  }
+}
+```
+
+#### `loadAllStoredRegions(): Promise<StoredRegion[]>`
+
+Flatten every stored style's `regions[]` into a single `StoredRegion[]` (populated with `key`, `styleId`, `created`, `lastModified`, `expiry`). Shared by `RegionService.listStoredRegions` and `CleanupService.getAllRegions`; exposed publicly for advanced callers that want direct DB access.
+
+#### `resourceKeyBelongsToStyle(key: string, styleId: string): boolean`
+
+Delimiter-aware prefix match used by the cleanup paths. Returns `true` for `styleId` or `styleId:…` (the canonical key format) but not for sibling styles that share a prefix (e.g. `"abc_def:foo"` does not belong to style `"abc"`). Fixes a long-standing data-loss bug in resource cleanup.
 
 ### Import/Export Methods
 

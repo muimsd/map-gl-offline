@@ -43,27 +43,33 @@ const control = new OfflineManagerControl(offlineManager, {
 When downloading a region, you can configure various options:
 
 ```typescript
-await manager.addRegion({
-  // Required
-  id: 'unique-region-id',
-  name: 'Human Readable Name',
-  bounds: [[-74.05, 40.71], [-74.00, 40.76]], // [[west, south], [east, north]]
-  minZoom: 10,
-  maxZoom: 16,
+await manager.downloadRegion(
+  {
+    // Required
+    id: 'unique-region-id',
+    name: 'Human Readable Name',
+    bounds: [[-74.05, 40.71], [-74.00, 40.76]], // [[west, south], [east, north]]
+    minZoom: 10,
+    maxZoom: 16,
 
-  // Optional
-  styleUrl: 'https://example.com/style.json',
-  expiry: Date.now() + 30 * 24 * 60 * 60 * 1000, // 30 days from now
-  deleteOnExpiry: true,
-  multipleRegions: false,
-  tileExtension: 'pbf', // default: auto-detected from style
-
-  // Callbacks
-  onProgress: (progress) => {
-    console.log(`${progress.percentage}% - ${progress.message}`);
+    // Optional
+    styleUrl: 'https://example.com/style.json',
+    expiry: Date.now() + 30 * 24 * 60 * 60 * 1000, // absolute timestamp (ms since epoch)
+    deleteOnExpiry: true,
+    multipleRegions: false,
+    // tileExtension: 'pbf' — Usually unnecessary; the style patcher extracts
+    // per-source extensions from tile URL patterns. Only set this when you
+    // need to force one extension for every source in the region.
   },
-});
+  {
+    onProgress: ({ phase, percentage, message }) => {
+      console.log(`[${phase}] ${percentage.toFixed(1)}% - ${message ?? ''}`);
+    },
+  },
+);
 ```
+
+> `addRegion` is still available for callers that want to record metadata without downloading assets (e.g., after a manual tile import). Most callers should use `downloadRegion`.
 
 See the [API Reference](./api-reference#offlineregionoptions) for the full `OfflineRegionOptions` type definition.
 
