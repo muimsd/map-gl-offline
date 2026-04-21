@@ -5,6 +5,41 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] - 2026-04-21
+
+### Added
+
+- **Programmatic `downloadRegion` API**: `OfflineMapManager.downloadRegion(region, options?)` runs the full pipeline (style → sprites → glyphs → tiles → metadata) and returns a `DownloadRegionResult`. Per-phase `onProgress` callback with `{ phase, completed, total, percentage, message }`. `loadRegion` is now a thin alias that forwards to `downloadRegion` (was previously a stub logging "loadTiles function not yet implemented"). Closes #18.
+- **Sparse-source probing**: `TileDownloadOptions.probeSourcesBeforeDownload` (default `true`) fetches 3 representative tiles per source (start/middle/end) before committing its full plan; sources whose majority return 404 are skipped entirely. Eliminates the 404 flood for composite styles like Mapbox Standard that reference sparse tilesets (`mapbox.indoor-v3`, `mapbox.mapbox-landmark-pois-v1`, `mapbox.procedural-buildings-v1`). Adapts per-region without a static skip list.
+- **Storage resilience**: new `OfflineMapDBVersionError` class and `resetOfflineMapDB()` helper. When the on-disk IDB is at a higher schema version than the library supports (common in shared-origin dev environments or after downgrades), `dbPromise` now throws a typed, actionable error instead of an opaque `DOMException: VersionError`.
+- **Shared resource-key helper**: `resourceKeyBelongsToStyle(key, styleId)` exported for advanced callers; uses delimiter-aware prefix matching to avoid cross-style collisions.
+- **Shared region-listing helper**: `loadAllStoredRegions()` exported as a single source-of-truth for flattening `styles.regions[]` across all stored styles.
+
+### Changed
+
+- **`addRegion` semantics clarified**: `addRegion` only stores metadata and patches the style to `idb://` URLs. For tile/sprite/glyph downloads, use the new `downloadRegion`.
+- **`expiry` treated as absolute timestamp**: `addRegion` now stores `region.expiry` verbatim (matching the `OfflineRegionOptions` type doc and all consuming readers in cleanup/UI code). Previous behavior stored `Date.now() + region.expiry`, corrupting absolute timestamps into far-future garbage dates.
+- **ID-based region dedup**: `addRegion` now upserts by `region.id` (was deduping by bounds). Two regions sharing bounds but with distinct ids are both persisted; a repeated `id` is replaced in place (original `created` preserved, `updated` refreshed).
+- **UI `DownloadManager.downloadRegion` delegates to the service**: ~370 lines of orchestration removed from the UI layer; UI progress callbacks preserved.
+- **`AnalyticsService.getAll*Stats` simplified**: now 1-line delegations to the underlying `get*Stats` functions. Previously re-derived lossy shapes from analytics; now returns full rich stats (populated `fonts[]`, `sprites[]`, `corruptedFonts[]`, etc.).
+- **`OfflineMapManager` class boilerplate collapsed**: replaces 50+ `declare public X: Module['X']` fields with class/interface declaration merging. Adding a new module method no longer requires editing `src/managers/offlineMapManager/index.ts`.
+
+### Fixed
+
+- **Cross-style resource-deletion collision**: deleting style `"abc"` no longer collaterally wipes glyphs/sprites/fonts of sibling styles like `"abc_def"` (the previous `startsWith("abc_")` match was over-eager).
+- **Font deletion narrower than glyph/sprite**: fonts, glyphs, and sprites now all use the same delimiter-aware prefix match.
+- **`loadOfflineStyles` / `loadStylesFromIDB` duplication**: inlined the private wrapper into the single public call-site; removed the `loadSpecificOfflineStyle` alias (was documented as "alias for `loadOfflineStyle()`" with zero callers).
+- **Duplicate region-listing implementations**: `RegionService.listRegions`, `RegionService.listStoredRegions`, and `CleanupService.getAllRegions` now all delegate to a single shared `loadAllStoredRegions()` helper.
+- **IndexedDB `VersionError` cascade**: caught at the module-level `openDB` call and converted to a typed `OfflineMapDBVersionError` that consumers can inspect for a clean recovery path.
+- **Mapbox token UX (dev harness only)**: invalid `VITE_MAPBOX_ACCESS_TOKEN` or localStorage-stored tokens are now pre-flighted against the style URL; on 401, the bad token is cleared and the user is re-prompted instead of the Mapbox SDK emitting noisy errors.
+
+### Breaking
+
+- **`ResourceService.getXxxStatistics` → `getXxxStats`**: `getTileStatistics`, `getFontStatistics`, `getSpriteStatistics`, `getGlyphStatistics` renamed to `getTileStats`, `getFontStats`, `getSpriteStats`, `getGlyphStats` (matching the underlying service functions). These are methods on `ResourceService` / `OfflineMapManager`; update any direct calls.
+- **`OfflineManagerControl.loadSpecificOfflineStyle` removed**: was documented as a trivial alias for `loadOfflineStyle(styleId)`. Use `loadOfflineStyle(styleId)` directly.
+- **`addRegion` no longer downloads tiles**: callers that expected `addRegion` to download should switch to `downloadRegion`. `addRegion` now upserts by id (see above) rather than silently skipping on bounds match.
+- **`region.expiry` interpreted as absolute timestamp**: callers that were passing a duration (days in ms) will now need to compute `Date.now() + duration` themselves. Callers that were correctly passing an absolute timestamp will get the behavior the type always promised.
+
 ## [0.5.3] - 2026-03-08
 
 ### Changed
