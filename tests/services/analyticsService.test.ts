@@ -207,5 +207,76 @@ describe('AnalyticsService', () => {
 
       expect(report.recommendations.some(r => r.includes('Many regions stored'))).toBe(true);
     });
+
+    it('emits recommendations for every over-threshold metric', async () => {
+      const db = await dbPromise;
+      // Seed a large tile to bump tile count / totalSize / average size.
+      // Use many small entries to simulate volume without gigabytes of data.
+      const bigTile = new ArrayBuffer(60_000); // > 50KB triggers the avg-size rec
+      await db.put('tiles', {
+        key: 'big:v:0:0:0.pbf',
+        styleId: 'big',
+        sourceId: 'v',
+        x: 0, y: 0, z: 0,
+        size: 1100 * 1024 * 1024, // 1.1 GB — triggers the > 1000 MB rec
+        data: bigTile,
+        downloadedAt: new Date().toISOString(),
+        type: 'vector',
+        url: 'http://t',
+        lastModified: Date.now(),
+      });
+
+      // Override stats methods to simulate high counts without having to
+      // actually insert 50k+ tiles/fonts/sprites/glyphs.
+      jest.spyOn(service, 'getAllTileStats').mockResolvedValue({
+        count: 60_000,
+        totalSize: 1100 * 1024 * 1024,
+        averageSize: 60_000,
+        tilesByStyle: {},
+        tilesByType: {},
+      } as never);
+      jest.spyOn(service, 'getAllFontStats').mockResolvedValue({
+        count: 1500,
+        totalSize: 1000,
+        averageSize: 1,
+        fontsByType: {},
+      } as never);
+      jest.spyOn(service, 'getAllSpriteStats').mockResolvedValue({
+        count: 600,
+        totalSize: 1000,
+        averageSize: 1,
+        spritesByStyle: {},
+        spritesByType: {},
+      } as never);
+      jest.spyOn(service, 'getAllGlyphStats').mockResolvedValue({
+        count: 3000,
+        totalSize: 1000,
+        averageSize: 1,
+        glyphsByStack: {},
+      } as never);
+
+      const mockRegionAnalytics = async () => ({
+        totalRegions: 0,
+        totalSize: 0,
+        averageSize: 0,
+        regionsByStyle: {},
+        expiryDistribution: {
+          expired: 0,
+          expiringWithin24h: 0,
+          expiringWithin7d: 0,
+          neverExpiring: 0,
+        },
+      });
+
+      const report = await service.getComprehensiveStorageAnalytics(mockRegionAnalytics);
+      // All the over-threshold recommendation lines should be present.
+      const joined = report.recommendations.join('\n');
+      expect(joined).toMatch(/Large storage usage/i);
+      expect(joined).toMatch(/High tile count/i);
+      expect(joined).toMatch(/Many fonts stored/i);
+      expect(joined).toMatch(/Large number of sprites/i);
+      expect(joined).toMatch(/High glyph count/i);
+      expect(joined).toMatch(/Large average tile size/i);
+    });
   });
 });

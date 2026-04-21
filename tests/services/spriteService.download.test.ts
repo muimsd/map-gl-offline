@@ -217,6 +217,93 @@ describe('SpriteService.downloadSprites', () => {
     expect(seen.length).toBeGreaterThan(0);
   });
 
+  it('rejects PNG responses with an invalid signature when validation is on', async () => {
+    const badPng = new ArrayBuffer(10);
+    new Uint8Array(badPng).fill(0); // No PNG magic bytes.
+    mockFetchWithRetry.mockResolvedValue(
+      new Response(badPng, {
+        status: 200,
+        headers: { 'Content-Type': 'image/png' },
+      })
+    );
+    const result = await service.downloadSprites(
+      ['https://example.com/bad.png'],
+      'png-valid-style',
+      { storageQuotaCheck: false, enableValidation: true, maxRetries: 0, skipExisting: false }
+    );
+    // Validation failure routes to failedSprites.
+    expect(result.failedSprites).toBe(1);
+    expect(result.downloadedSprites).toBe(0);
+  });
+
+  it('accepts PNG responses with valid signature when validation is on', async () => {
+    const body = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2]);
+    mockFetchWithRetry.mockResolvedValue(
+      new Response(body.buffer.slice(0) as ArrayBuffer, {
+        status: 200,
+        headers: { 'Content-Type': 'image/png' },
+      })
+    );
+    const result = await service.downloadSprites(
+      ['https://example.com/ok.png'],
+      'png-ok-style',
+      { storageQuotaCheck: false, enableValidation: true, maxRetries: 0, skipExisting: false }
+    );
+    expect(result.downloadedSprites).toBe(1);
+  });
+
+  it('rejects JPEG responses with an invalid signature when validation is on', async () => {
+    const badJpeg = new ArrayBuffer(10);
+    new Uint8Array(badJpeg).fill(0);
+    mockFetchWithRetry.mockResolvedValue(
+      new Response(badJpeg, {
+        status: 200,
+        headers: { 'Content-Type': 'image/jpeg' },
+      })
+    );
+    const result = await service.downloadSprites(
+      ['https://example.com/bad.jpg'],
+      'jpg-valid-style',
+      { storageQuotaCheck: false, enableValidation: true, maxRetries: 0, skipExisting: false }
+    );
+    expect(result.failedSprites).toBe(1);
+  });
+
+  it('accepts JPEG responses with a valid signature when validation is on', async () => {
+    const body = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0, 0, 0, 0]);
+    mockFetchWithRetry.mockResolvedValue(
+      new Response(body.buffer.slice(0) as ArrayBuffer, {
+        status: 200,
+        headers: { 'Content-Type': 'image/jpeg' },
+      })
+    );
+    const result = await service.downloadSprites(
+      ['https://example.com/ok.jpg'],
+      'jpg-ok-style',
+      { storageQuotaCheck: false, enableValidation: true, maxRetries: 0, skipExisting: false }
+    );
+    expect(result.downloadedSprites).toBe(1);
+  });
+
+  it('throws when storageQuotaCheck flags insufficient space', async () => {
+    Object.defineProperty(global.navigator, 'storage', {
+      configurable: true,
+      value: { estimate: async () => ({ quota: 10, usage: 5 }) },
+    });
+    mockFetchWithRetry.mockImplementation(async () => okPngResponse());
+    await expect(
+      service.downloadSprites(
+        ['https://example.com/a.png'],
+        'quota-style',
+        { storageQuotaCheck: true, enableValidation: false, maxRetries: 0, skipExisting: false }
+      )
+    ).rejects.toThrow(/Insufficient storage/);
+    Object.defineProperty(global.navigator, 'storage', {
+      configurable: true,
+      value: undefined,
+    });
+  });
+
   it('records expires when the response sets Cache-Control: max-age', async () => {
     const body = new Uint8Array([0x89, 0x50, 0x4e, 0x47]).buffer.slice(0) as ArrayBuffer;
     mockFetchWithRetry.mockResolvedValue(
