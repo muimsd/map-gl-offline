@@ -1,6 +1,7 @@
 import { dbPromise } from '@/storage/indexedDbManager';
 import { logger } from '@/utils/logger';
 import { createTileKey } from '@/utils/tileKey';
+import { getSqlJs } from '@/utils/sqlJsLoader';
 import type {
   RegionExportData,
   RegionImportData,
@@ -16,6 +17,14 @@ import type {
   MBTilesExportOptions,
   StoredRegion,
 } from '@/types';
+
+/**
+ * MBTiles uses TMS tile_row ordering; our storage uses XYZ y. Flip across
+ * either direction with the same formula.
+ */
+function flipY(y: number, z: number): number {
+  return (1 << z) - 1 - y;
+}
 
 const serviceLogger = logger.scope('ImportExportService');
 
@@ -223,7 +232,11 @@ export class ImportExportService {
   }
 
   /**
-   * Export region as MBTiles format
+   * Export region as a real binary MBTiles SQLite file.
+   *
+   * Produces a v1.3-compliant MBTiles archive: `metadata` + `tiles` tables,
+   * with `tile_row` flipped to TMS ordering. The resulting blob can be read
+   * by tippecanoe, QGIS, maplibre-native, etc.
    */
   async exportRegionAsMBTiles(
     regionId: string,
@@ -238,61 +251,110 @@ export class ImportExportService {
         message: 'Preparing MBTiles export...',
       });
 
-      // Note: This is a simplified implementation
-      // In a real implementation, you would use SQLite/SQL.js
-      // to create a proper MBTiles SQLite database
-
       const region = await this.getRegionMetadata(regionId);
       if (!region) {
         throw new Error(`Region ${regionId} not found`);
       }
 
-      // Get tiles data
       const tiles = await this.exportTiles(regionId, onProgress);
 
-      // Create MBTiles structure (simplified as JSON for now)
-      const mbtilesData = {
-        metadata: {
-          name: region.name,
-          type: 'overlay',
-          version: '1.0',
-          description: region.name || region.id, // StoredRegion doesn't have description, use name instead
-          format: options.format || 'pbf',
-          bounds: region.bounds.flat().join(','),
-          minzoom: region.minZoom,
-          maxzoom: region.maxZoom,
-          ...options.metadata,
-        },
-        tiles: tiles.map(tile => ({
-          zoom_level: tile.z,
-          tile_column: tile.x,
-          tile_row: tile.y,
-          tile_data: tile.data,
-        })),
-      };
-
-      // Convert to binary format (simplified)
-      const jsonString = JSON.stringify(mbtilesData);
-      const blob = new Blob([jsonString], { type: 'application/octet-stream' });
-
       onProgress({
-        stage: 'complete',
-        percentage: 100,
-        message: 'MBTiles export complete!',
+        stage: 'processing',
+        percentage: 80,
+        message: 'Packing SQLite database...',
       });
 
-      return {
-        success: true,
-        format: 'mbtiles',
-        filename: `${region.name || region.id}.mbtiles`,
-        blob,
-        size: blob.size,
-        statistics: {
-          tilesExported: tiles.length,
-          spritesExported: 0,
-          fontsExported: 0,
-        },
-      };
+      const SQL = await getSqlJs();
+      const db = new SQL.Database();
+      try {
+        db.run(`
+          CREATE TABLE metadata (name TEXT, value TEXT);
+          CREATE TABLE tiles (
+            zoom_level  INTEGER NOT NULL,
+            tile_column INTEGER NOT NULL,
+            tile_row    INTEGER NOT NULL,
+            tile_data   BLOB
+          );
+          CREATE UNIQUE INDEX tile_index ON tiles (zoom_level, tile_column, tile_row);
+          CREATE UNIQUE INDEX name ON metadata (name);
+        `);
+
+        const [[west, south], [east, north]] = region.bounds;
+        const centerLon = (west + east) / 2;
+        const centerLat = (south + north) / 2;
+        const centerZoom = Math.max(
+          region.minZoom,
+          Math.min(region.maxZoom, Math.round((region.minZoom + region.maxZoom) / 2))
+        );
+
+        const metadataRows: Record<string, string> = {
+          name: region.name || region.id,
+          type: 'overlay',
+          version: '1.0',
+          description: region.name || region.id,
+          format: options.format || region.tileExtension || 'pbf',
+          bounds: `${west},${south},${east},${north}`,
+          center: `${centerLon},${centerLat},${centerZoom}`,
+          minzoom: String(region.minZoom),
+          maxzoom: String(region.maxZoom),
+        };
+        for (const [k, v] of Object.entries(options.metadata || {})) {
+          metadataRows[k] = typeof v === 'string' ? v : JSON.stringify(v);
+        }
+
+        const insertMeta = db.prepare(`INSERT INTO metadata (name, value) VALUES (?, ?)`);
+        try {
+          for (const [name, value] of Object.entries(metadataRows)) {
+            insertMeta.run([name, value]);
+          }
+        } finally {
+          insertMeta.free();
+        }
+
+        const insertTile = db.prepare(
+          `INSERT OR REPLACE INTO tiles (zoom_level, tile_column, tile_row, tile_data)
+           VALUES (?, ?, ?, ?)`
+        );
+        try {
+          db.run('BEGIN');
+          for (const tile of tiles) {
+            const bytes =
+              tile.data instanceof ArrayBuffer
+                ? new Uint8Array(tile.data)
+                : new Uint8Array(tile.data as ArrayBufferLike);
+            insertTile.run([tile.z, tile.x, flipY(tile.y, tile.z), bytes]);
+          }
+          db.run('COMMIT');
+        } finally {
+          insertTile.free();
+        }
+
+        const binary = db.export();
+        const blob = new Blob([binary.buffer as ArrayBuffer], {
+          type: 'application/vnd.mapbox-vector-tile',
+        });
+
+        onProgress({
+          stage: 'complete',
+          percentage: 100,
+          message: 'MBTiles export complete!',
+        });
+
+        return {
+          success: true,
+          format: 'mbtiles',
+          filename: `${region.name || region.id}.mbtiles`,
+          blob,
+          size: blob.size,
+          statistics: {
+            tilesExported: tiles.length,
+            spritesExported: 0,
+            fontsExported: 0,
+          },
+        };
+      } finally {
+        db.close();
+      }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
       throw new Error(`MBTiles export failed: ${errorMessage}`);
@@ -303,33 +365,53 @@ export class ImportExportService {
    * Import region from file
    */
   async importRegion(importData: RegionImportData): Promise<ImportResult> {
+    const onProgress = importData.onProgress || (() => {});
     try {
+      onProgress({
+        stage: 'preparing',
+        percentage: 0,
+        message: 'Reading file...',
+      });
+
       let regionData: RegionExportData;
 
       switch (importData.format) {
         case 'json': {
           const textContent = await this.readFileAsText(importData.file);
+          onProgress({ stage: 'importing', percentage: 40, message: 'Parsing JSON...' });
           regionData = JSON.parse(textContent);
           break;
         }
         case 'pmtiles': {
           // PMTiles is a binary format; currently parsed as JSON (simplified impl)
           const textContent = await this.readFileAsText(importData.file);
+          onProgress({ stage: 'importing', percentage: 40, message: 'Parsing PMTiles...' });
           regionData = await this.parsePMTiles(textContent);
           break;
         }
         case 'mbtiles': {
-          // MBTiles is a binary format; currently parsed as JSON (simplified impl)
-          const textContent = await this.readFileAsText(importData.file);
-          regionData = await this.parseMBTiles(textContent);
+          const buffer = await this.readFileAsArrayBuffer(importData.file);
+          onProgress({ stage: 'importing', percentage: 40, message: 'Parsing MBTiles...' });
+          regionData = await this.parseMBTiles(buffer);
           break;
         }
         default:
           throw new Error(`Unsupported format: ${importData.format}`);
       }
 
-      // Import the region data
+      onProgress({
+        stage: 'importing',
+        percentage: 70,
+        message: `Importing ${regionData.tiles?.length ?? 0} tiles...`,
+      });
+
       const result = await this.importRegionData(regionData, importData);
+
+      onProgress({
+        stage: 'complete',
+        percentage: 100,
+        message: result.success ? 'Import complete!' : result.message,
+      });
 
       return result;
     } catch (error) {
@@ -544,6 +626,18 @@ export class ImportExportService {
   }
 
   /**
+   * Read file content as ArrayBuffer (for binary formats like MBTiles/PMTiles)
+   */
+  private async readFileAsArrayBuffer(file: File): Promise<ArrayBuffer> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as ArrayBuffer);
+      reader.onerror = () => reject(new Error('Failed to read file'));
+      reader.readAsArrayBuffer(file);
+    });
+  }
+
+  /**
    * Parse PMTiles file (simplified)
    */
   private async parsePMTiles(content: string): Promise<RegionExportData> {
@@ -578,61 +672,107 @@ export class ImportExportService {
   }
 
   /**
-   * Parse MBTiles file (simplified)
+   * Parse a real binary MBTiles (SQLite) file into our import-data shape.
+   * Un-flips the TMS tile_row back to XYZ y.
    */
-  private async parseMBTiles(content: string): Promise<RegionExportData> {
-    // This is a simplified implementation
-    // In reality, you would use SQL.js to parse the SQLite database
-    const data = JSON.parse(content);
+  private async parseMBTiles(buffer: ArrayBuffer): Promise<RegionExportData> {
+    const bytes = new Uint8Array(buffer);
+    // SQLite header: "SQLite format 3\0" (16 bytes). Validate up front so
+    // non-MBTiles files (e.g. a JSON renamed to .mbtiles) surface a clear
+    // error instead of the opaque "file is not a database" from sql.js.
+    if (bytes.byteLength < 16) {
+      throw new Error('Not a valid MBTiles file: file is too small');
+    }
+    const magic = String.fromCharCode(...bytes.slice(0, 15));
+    if (magic !== 'SQLite format 3') {
+      throw new Error('Not a valid MBTiles file: missing SQLite header');
+    }
 
-    const rawBounds = data.metadata?.bounds
-      ? data.metadata.bounds.split(',').map(Number)
-      : [0, 0, 0, 0];
-    // Ensure we have exactly 4 valid numbers
-    const bounds = [
-      isFinite(rawBounds[0]) ? rawBounds[0] : 0,
-      isFinite(rawBounds[1]) ? rawBounds[1] : 0,
-      isFinite(rawBounds[2]) ? rawBounds[2] : 0,
-      isFinite(rawBounds[3]) ? rawBounds[3] : 0,
-    ];
+    const SQL = await getSqlJs();
+    const db = new SQL.Database(bytes);
 
-    return {
-      metadata: {
-        id: data.metadata.name || 'imported-region',
-        name: data.metadata.name || 'Imported Region',
-        description: data.metadata.description,
-        bounds: [
-          [bounds[0], bounds[1]],
-          [bounds[2], bounds[3]],
-        ],
-        minZoom: data.metadata.minzoom || 0,
-        maxZoom: data.metadata.maxzoom || 14,
-        styleUrl: '',
-        createdAt: Date.now(),
-        exportedAt: Date.now(),
-        version: '1.0.0',
-        format: 'mbtiles',
-      },
-      style: {},
-      tiles:
-        data.tiles.map(
-          (tile: {
-            zoom_level: number;
-            tile_column: number;
-            tile_row: number;
-            tile_data: ArrayBuffer;
-          }) => ({
-            z: tile.zoom_level,
-            x: tile.tile_column,
-            y: tile.tile_row,
-            data: tile.tile_data,
-            format: 'pbf',
+    try {
+      const tablesResult = db.exec(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name IN ('metadata', 'tiles')"
+      );
+      const tableNames = (tablesResult[0]?.values || []).map(r => r[0] as string);
+      if (!tableNames.includes('metadata') || !tableNames.includes('tiles')) {
+        throw new Error('Not a valid MBTiles file: missing required metadata/tiles tables');
+      }
+
+      const metadata: Record<string, string> = {};
+      const metaStmt = db.prepare('SELECT name, value FROM metadata');
+      try {
+        while (metaStmt.step()) {
+          const row = metaStmt.get() as [string, string];
+          metadata[row[0]] = row[1];
+        }
+      } finally {
+        metaStmt.free();
+      }
+
+      const rawBounds = metadata.bounds ? metadata.bounds.split(',').map(Number) : [0, 0, 0, 0];
+      const bounds: [number, number, number, number] = [
+        isFinite(rawBounds[0]) ? rawBounds[0] : 0,
+        isFinite(rawBounds[1]) ? rawBounds[1] : 0,
+        isFinite(rawBounds[2]) ? rawBounds[2] : 0,
+        isFinite(rawBounds[3]) ? rawBounds[3] : 0,
+      ];
+
+      const format = (metadata.format || 'pbf') as TileExportData['format'];
+      const tiles: TileExportData[] = [];
+
+      const tilesStmt = db.prepare(
+        'SELECT zoom_level, tile_column, tile_row, tile_data FROM tiles'
+      );
+      try {
+        while (tilesStmt.step()) {
+          const row = tilesStmt.get() as [number, number, number, Uint8Array];
+          const [z, x, tmsRow, data] = row;
+          // Sliced copy so the buffer is detached from sql.js's heap
+          const copy = new Uint8Array(data.byteLength);
+          copy.set(data);
+          tiles.push({
+            z,
+            x,
+            y: flipY(tmsRow, z),
+            data: copy.buffer,
+            format,
             sourceId: 'imported',
-          })
-        ) || [],
-      sprites: [],
-      fonts: [],
-    };
+          });
+        }
+      } finally {
+        tilesStmt.free();
+      }
+
+      const minZoom = metadata.minzoom !== undefined ? Number(metadata.minzoom) : 0;
+      const maxZoom = metadata.maxzoom !== undefined ? Number(metadata.maxzoom) : 14;
+
+      return {
+        metadata: {
+          id: metadata.name || 'imported-region',
+          name: metadata.name || 'Imported Region',
+          description: metadata.description,
+          bounds: [
+            [bounds[0], bounds[1]],
+            [bounds[2], bounds[3]],
+          ],
+          minZoom,
+          maxZoom,
+          styleUrl: '',
+          createdAt: Date.now(),
+          exportedAt: Date.now(),
+          version: '1.0.0',
+          format: 'mbtiles',
+        },
+        style: {},
+        tiles,
+        sprites: [],
+        fonts: [],
+      };
+    } finally {
+      db.close();
+    }
   }
 
   /**

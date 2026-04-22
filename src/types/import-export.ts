@@ -59,8 +59,6 @@ export interface ImportExportOptions {
   includeTiles?: boolean;
   includeSprites?: boolean;
   includeFonts?: boolean;
-  format?: 'json' | 'pmtiles' | 'mbtiles';
-  compression?: boolean;
   onProgress?: (progress: ImportExportProgress) => void;
 }
 
@@ -79,6 +77,7 @@ export interface RegionImportData {
   overwrite?: boolean;
   newRegionId?: string;
   newRegionName?: string;
+  onProgress?: (progress: ImportExportProgress) => void;
 }
 
 export interface ImportResult {

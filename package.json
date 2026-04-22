@@ -107,7 +107,8 @@
     "@turf/difference": "^7.3.4",
     "@turf/helpers": "^7.3.4",
     "i18next": "^25.8.11",
-    "idb": "^8.0.3"
+    "idb": "^8.0.3",
+    "sql.js": "^1.14.1"
   },
   "peerDependencies": {
     "mapbox-gl": ">=2.0.0",
@@ -134,6 +135,7 @@
     "@types/mapbox-gl": "^3.4.1",
     "@types/maplibre-gl": "^1.14.0",
     "@types/node": "^25.3.0",
+    "@types/sql.js": "^1.4.11",
     "autoprefixer": "^10.4.24",
     "eslint": "^10.0.0",
     "fake-indexeddb": "^6.2.5",
