@@ -168,7 +168,7 @@ Each module provides specific functionality:
 | `StyleManagement` | Style loading, patching, caching |
 | `AnalyticsManagement` | Storage statistics and insights |
 | `CleanupManagement` | Cleanup expired data |
-| `ImportExportManagement` | Import/export to various formats |
+| `ImportExportManagement` | Round-trip regions as binary MBTiles (SQLite) |
 | `MaintenanceManagement` | Verification, repair tasks |
 | `ResourceManagement` | Tile, font, sprite management |
 

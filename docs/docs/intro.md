@@ -19,7 +19,7 @@ A comprehensive **TypeScript** library for **MapLibre GL JS** and **Mapbox GL JS
 - **Font & Glyph Support** - Comprehensive font and glyph management with Unicode range support
 - **Sprite Management** - Handle map sprites and icons offline with multi-resolution support
 - **Real-time Analytics** - Detailed storage analytics and optimization recommendations
-- **Import/Export** - Export regions to JSON, PMTiles, and MBTiles formats
+- **MBTiles Import/Export** - Round-trip regions as real binary v1.3 SQLite MBTiles (vector tiles gzipped, `json.vector_layers` emitted); opens in QGIS, tippecanoe, and maplibre-native
 
 ### Map Library Support
 

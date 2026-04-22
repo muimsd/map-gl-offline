@@ -10,10 +10,7 @@ import type {
   ImportResult,
   ExportResult,
   TileExportData,
-  SpriteExportData,
   BaseStyle,
-  FontExportData,
-  PMTilesExportOptions,
   MBTilesExportOptions,
   StoredRegion,
 } from '@/types';
@@ -113,202 +110,6 @@ export class ImportExportService {
 
   constructor() {
     // No need for initialization since dbPromise is already available
-  }
-
-  /**
-   * Export a region to JSON format
-   */
-  async exportRegionAsJSON(
-    regionId: string,
-    options: ImportExportOptions = {}
-  ): Promise<ExportResult> {
-    const onProgress = options.onProgress || (() => {});
-
-    try {
-      onProgress({
-        stage: 'preparing',
-        percentage: 0,
-        message: 'Preparing export...',
-      });
-
-      // Get region metadata
-      const region = await this.getRegionMetadata(regionId);
-      if (!region) {
-        throw new Error(`Region ${regionId} not found`);
-      }
-
-      onProgress({
-        stage: 'exporting',
-        percentage: 10,
-        message: 'Collecting region data...',
-      });
-
-      const exportData: RegionExportData = {
-        metadata: {
-          id: region.id,
-          name: region.name || region.id,
-          description: region.name || region.id, // StoredRegion doesn't have description, use name instead
-          bounds: region.bounds,
-          minZoom: region.minZoom,
-          maxZoom: region.maxZoom,
-          styleUrl: region.styleUrl || '',
-          createdAt: region.created, // StoredRegion uses 'created' not 'createdAt'
-          exportedAt: Date.now(),
-          version: '1.0.0',
-          format: 'json',
-        },
-        style: {},
-        tiles: [],
-        sprites: [],
-        fonts: [],
-      };
-
-      // Export style if requested
-      if (options.includeStyle !== false) {
-        onProgress({
-          stage: 'exporting',
-          percentage: 20,
-          message: 'Exporting style data...',
-        });
-        exportData.style = await this.exportStyle(regionId);
-      }
-
-      // Export tiles if requested
-      if (options.includeTiles !== false) {
-        onProgress({
-          stage: 'exporting',
-          percentage: 30,
-          message: 'Exporting tiles...',
-        });
-        exportData.tiles = await this.exportTiles(regionId, onProgress);
-      }
-
-      // Export sprites if requested
-      if (options.includeSprites !== false) {
-        onProgress({
-          stage: 'exporting',
-          percentage: 70,
-          message: 'Exporting sprites...',
-        });
-        exportData.sprites = await this.exportSprites(regionId);
-      }
-
-      // Export fonts if requested
-      if (options.includeFonts !== false) {
-        onProgress({
-          stage: 'exporting',
-          percentage: 85,
-          message: 'Exporting fonts...',
-        });
-        exportData.fonts = await this.exportFonts(regionId);
-      }
-
-      onProgress({
-        stage: 'processing',
-        percentage: 95,
-        message: 'Creating export file...',
-      });
-
-      // Create JSON blob
-      const jsonString = JSON.stringify(exportData, null, 2);
-      const blob = new Blob([jsonString], { type: 'application/json' });
-
-      onProgress({
-        stage: 'complete',
-        percentage: 100,
-        message: 'Export complete!',
-      });
-
-      return {
-        success: true,
-        format: 'json',
-        filename: `${region.name || region.id}_export.json`,
-        blob,
-        size: blob.size,
-        statistics: {
-          tilesExported: exportData.tiles.length,
-          spritesExported: exportData.sprites.length,
-          fontsExported: exportData.fonts.length,
-        },
-      };
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-      throw new Error(`Export failed: ${errorMessage}`);
-    }
-  }
-
-  /**
-   * Export region as PMTiles format
-   */
-  async exportRegionAsPMTiles(
-    regionId: string,
-    options: ImportExportOptions & PMTilesExportOptions = {}
-  ): Promise<ExportResult> {
-    const onProgress = options.onProgress || (() => {});
-
-    try {
-      onProgress({
-        stage: 'preparing',
-        percentage: 0,
-        message: 'Preparing PMTiles export...',
-      });
-
-      // Note: This is a simplified implementation
-      // In a real implementation, you would use the PMTiles library
-      // to create a proper PMTiles file format
-
-      const region = await this.getRegionMetadata(regionId);
-      if (!region) {
-        throw new Error(`Region ${regionId} not found`);
-      }
-
-      // Get tiles data
-      const tiles = await this.exportTiles(regionId, onProgress);
-
-      // Create PMTiles header and data structure
-      const pmtilesData = {
-        header: {
-          version: 3,
-          type: 'mvt',
-          compression: options.compression || 'gzip',
-          bounds: region.bounds,
-          minZoom: region.minZoom,
-          maxZoom: region.maxZoom,
-          metadata: {
-            name: region.name,
-            description: region.name || region.id, // StoredRegion doesn't have description, use name instead
-            ...options.metadata,
-          },
-        },
-        tiles: tiles,
-      };
-
-      // Convert to binary format (simplified)
-      const jsonString = JSON.stringify(pmtilesData);
-      const blob = new Blob([jsonString], { type: 'application/octet-stream' });
-
-      onProgress({
-        stage: 'complete',
-        percentage: 100,
-        message: 'PMTiles export complete!',
-      });
-
-      return {
-        success: true,
-        format: 'pmtiles',
-        filename: `${region.name || region.id}.pmtiles`,
-        blob,
-        size: blob.size,
-        statistics: {
-          tilesExported: tiles.length,
-          spritesExported: 0,
-          fontsExported: 0,
-        },
-      };
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-      throw new Error(`PMTiles export failed: ${errorMessage}`);
-    }
   }
 
   /**
@@ -477,7 +278,7 @@ export class ImportExportService {
   }
 
   /**
-   * Import region from file
+   * Import region from a binary MBTiles (SQLite) file.
    */
   async importRegion(importData: RegionImportData): Promise<ImportResult> {
     const onProgress = importData.onProgress || (() => {});
@@ -488,31 +289,13 @@ export class ImportExportService {
         message: 'Reading file...',
       });
 
-      let regionData: RegionExportData;
-
-      switch (importData.format) {
-        case 'json': {
-          const textContent = await this.readFileAsText(importData.file);
-          onProgress({ stage: 'importing', percentage: 40, message: 'Parsing JSON...' });
-          regionData = JSON.parse(textContent);
-          break;
-        }
-        case 'pmtiles': {
-          // PMTiles is a binary format; currently parsed as JSON (simplified impl)
-          const textContent = await this.readFileAsText(importData.file);
-          onProgress({ stage: 'importing', percentage: 40, message: 'Parsing PMTiles...' });
-          regionData = await this.parsePMTiles(textContent);
-          break;
-        }
-        case 'mbtiles': {
-          const buffer = await this.readFileAsArrayBuffer(importData.file);
-          onProgress({ stage: 'importing', percentage: 40, message: 'Parsing MBTiles...' });
-          regionData = await this.parseMBTiles(buffer);
-          break;
-        }
-        default:
-          throw new Error(`Unsupported format: ${importData.format}`);
+      if (importData.format !== 'mbtiles') {
+        throw new Error(`Unsupported format: ${importData.format}`);
       }
+
+      const buffer = await this.readFileAsArrayBuffer(importData.file);
+      onProgress({ stage: 'importing', percentage: 40, message: 'Parsing MBTiles...' });
+      const regionData = await this.parseMBTiles(buffer);
 
       onProgress({
         stage: 'importing',
@@ -664,84 +447,7 @@ export class ImportExportService {
   }
 
   /**
-   * Export sprites data
-   */
-  private async exportSprites(_regionId: string): Promise<SpriteExportData[]> {
-    const db = await this.db;
-    const transaction = db.transaction(['sprites'], 'readonly');
-    const store = transaction.objectStore('sprites');
-
-    const sprites: SpriteExportData[] = [];
-
-    try {
-      let cursor = await store.openCursor();
-
-      while (cursor) {
-        const sprite = cursor.value;
-        // Include sprites that match the styleId, or all sprites if keys don't contain styleId
-        // (sprite keys may or may not be prefixed with styleId depending on how they were stored)
-        sprites.push({
-          url: sprite.url,
-          data: sprite.data,
-          type: sprite.url.endsWith('.json') ? 'json' : 'png',
-          resolution: sprite.url.includes('@2x') ? '2x' : '1x',
-        });
-        cursor = await cursor.continue();
-      }
-
-      return sprites;
-    } catch (error) {
-      serviceLogger.error('Error exporting sprites:', error);
-      return [];
-    }
-  }
-
-  /**
-   * Export fonts data
-   */
-  private async exportFonts(_regionId: string): Promise<FontExportData[]> {
-    const db = await this.db;
-    const transaction = db.transaction(['fonts'], 'readonly');
-    const store = transaction.objectStore('fonts');
-
-    const fonts: FontExportData[] = [];
-
-    try {
-      let cursor = await store.openCursor();
-
-      while (cursor) {
-        const font = cursor.value;
-        // Include fonts that match the styleId, or all fonts if keys don't contain styleId
-        // (font keys may or may not be prefixed with styleId depending on how they were stored)
-        fonts.push({
-          fontStack: font.key, // Use key as fontstack identifier
-          range: '0-255', // Default range since FontEntry doesn't store this
-          data: font.data,
-        });
-        cursor = await cursor.continue();
-      }
-
-      return fonts;
-    } catch (error) {
-      serviceLogger.error('Error exporting fonts:', error);
-      return [];
-    }
-  }
-
-  /**
-   * Read file content as text (for JSON files)
-   */
-  private async readFileAsText(file: File): Promise<string> {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result as string);
-      reader.onerror = () => reject(new Error('Failed to read file'));
-      reader.readAsText(file);
-    });
-  }
-
-  /**
-   * Read file content as ArrayBuffer (for binary formats like MBTiles/PMTiles)
+   * Read file content as ArrayBuffer (for the binary MBTiles file).
    */
   private async readFileAsArrayBuffer(file: File): Promise<ArrayBuffer> {
     return new Promise((resolve, reject) => {
@@ -750,40 +456,6 @@ export class ImportExportService {
       reader.onerror = () => reject(new Error('Failed to read file'));
       reader.readAsArrayBuffer(file);
     });
-  }
-
-  /**
-   * Parse PMTiles file (simplified)
-   */
-  private async parsePMTiles(content: string): Promise<RegionExportData> {
-    // This is a simplified implementation
-    // In reality, you would use the PMTiles library to parse the binary format
-    const data = JSON.parse(content);
-    const header = data?.header || {};
-    const metadata = header?.metadata || {};
-
-    return {
-      metadata: {
-        id: metadata.name || 'imported-region',
-        name: metadata.name || 'Imported Region',
-        description: metadata.description || '',
-        bounds: header.bounds || [
-          [0, 0],
-          [0, 0],
-        ],
-        minZoom: header.minZoom || 0,
-        maxZoom: header.maxZoom || 14,
-        styleUrl: '',
-        createdAt: Date.now(),
-        exportedAt: Date.now(),
-        version: '1.0.0',
-        format: 'pmtiles',
-      },
-      style: {},
-      tiles: data.tiles || [],
-      sprites: [],
-      fonts: [],
-    };
   }
 
   /**
@@ -888,8 +560,6 @@ export class ImportExportService {
         },
         style: {},
         tiles,
-        sprites: [],
-        fonts: [],
       };
     } finally {
       db.close();
@@ -970,17 +640,15 @@ export class ImportExportService {
         }
       }
 
-      // Import sprites and fonts similarly...
-
       return {
         success: true,
         regionId,
         message: 'Region imported successfully',
         statistics: {
           tilesImported: regionData.tiles?.length || 0,
-          spritesImported: regionData.sprites?.length || 0,
-          fontsImported: regionData.fonts?.length || 0,
-          totalSize: 0, // Calculate if needed
+          spritesImported: 0,
+          fontsImported: 0,
+          totalSize: 0,
         },
       };
     } catch (error) {

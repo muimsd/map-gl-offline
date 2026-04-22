@@ -284,86 +284,72 @@ Delimiter-aware prefix match used by the cleanup paths. Returns `true` for `styl
 
 ### Import/Export Methods
 
-The library supports three export formats: **JSON** (full-fidelity, includes all resources), **PMTiles** (web-optimized tile archive), and **MBTiles** (SQLite-based, widely compatible with GIS tools).
+Regions are exchanged as **MBTiles** — a SQLite-based tile container understood by QGIS, tippecanoe, maplibre-native, and every other mainstream GIS tool. Exports are v1.3-compliant: vector tiles are gzipped, `tile_row` is flipped to TMS, and vector exports emit the required `json` metadata (with `vector_layers`) derived from the offline style.
 
-#### `exportRegionAsJSON(regionId: string, options?: ImportExportOptions): Promise<ExportResult>`
-
-Export a region to JSON format. This is the most complete format, supporting tiles, styles, sprites, and fonts. Best for backup/restore workflows within map-gl-offline.
-
-```typescript
-const result = await manager.exportRegionAsJSON('my-region', {
-  includeStyle: true,   // default: true
-  includeTiles: true,   // default: true
-  includeSprites: true, // default: true
-  includeFonts: true,   // default: true
-  onProgress: (p) => {
-    console.log(`[${p.stage}] ${p.percentage}% - ${p.message}`);
-    // [preparing] 0% - Preparing export...
-    // [exporting] 30% - Exporting tiles...
-    // [complete] 100% - Export complete!
-  },
-});
-
-console.log(`Exported ${result.statistics.tilesExported} tiles (${result.size} bytes)`);
-```
-
-#### `exportRegionAsPMTiles(regionId: string, options?: ImportExportOptions & PMTilesExportOptions): Promise<ExportResult>`
-
-Export a region to PMTiles format. PMTiles is a cloud-optimized tile archive format designed for efficient HTTP range request access. Exports tiles only (no sprites or fonts).
-
-```typescript
-const result = await manager.exportRegionAsPMTiles('my-region', {
-  compression: 'gzip',  // 'gzip' | 'brotli' | 'none'
-  clustered: true,       // optimize tile ordering
-  metadata: { attribution: 'My Data', version: '1.0' },
-  onProgress: (p) => console.log(`${p.percentage}%`),
-});
-```
+The MBTiles machinery is lazy-loaded — `sql.js` only joins your bundle when a user triggers an export or import.
 
 #### `exportRegionAsMBTiles(regionId: string, options?: ImportExportOptions & MBTilesExportOptions): Promise<ExportResult>`
 
-Export a region to MBTiles format. MBTiles is a SQLite-based tile storage specification widely used by GIS tools like QGIS, TileMill, and Mapbox Studio. Exports tiles only.
+Export a region to a binary MBTiles file. Vector tiles are gzipped automatically (idempotent — already-gzipped tiles pass through untouched) and raster tiles are written verbatim.
 
 ```typescript
 const result = await manager.exportRegionAsMBTiles('my-region', {
-  format: 'pbf',        // 'pbf' | 'png' | 'jpg'
-  compression: 'gzip',  // 'gzip' | 'none'
-  metadata: { description: 'Offline map data' },
-  onProgress: (p) => console.log(`${p.percentage}%`),
+  format: 'pbf',                          // 'pbf' | 'png' | 'jpg' — written to metadata.format
+  metadata: { attribution: 'My Data' },   // extra rows for the metadata table
+  onProgress: (p) => console.log(`[${p.stage}] ${p.percentage}% — ${p.message}`),
 });
+
+console.log(`Exported ${result.statistics.tilesExported} tiles (${result.size} bytes)`);
+// result.blob is the .mbtiles file, result.filename ends in '.mbtiles'
 ```
+
+The resulting file contains:
+
+- `metadata` rows: `name`, `type` (`baselayer` for vector, `overlay` for raster), `version`, `description`, `format`, `bounds`, `center`, `minzoom`, `maxzoom`, and (for vector) `json` with `vector_layers`.
+- `tiles` rows: `zoom_level`, `tile_column`, `tile_row` (TMS-flipped), `tile_data` (gzipped PBF for vector).
 
 #### `downloadExportedRegion(exportResult: ExportResult): void`
 
-Convenience method to trigger a browser download of an export result. Creates a temporary link and clicks it, then cleans up the object URL.
+Convenience method to trigger a browser download of an export result. Creates a temporary link, clicks it, and revokes the object URL.
 
 ```typescript
-const result = await manager.exportRegionAsJSON('my-region');
+const result = await manager.exportRegionAsMBTiles('my-region');
 manager.downloadExportedRegion(result);
-// Browser download dialog appears with the exported file
 ```
 
 #### `importRegion(data: RegionImportData): Promise<ImportResult>`
 
-Import a region from a file. Supports all three formats (JSON, PMTiles, MBTiles). The imported data is stored in IndexedDB alongside existing regions.
+Import a region from an MBTiles file. The file's SQLite header is validated up front (so a JSON file renamed to `.mbtiles` fails with a clear error rather than a cryptic one from sql.js). Gzipped vector tiles are decompressed on the way in so the offline fetch handler can keep serving them raw.
 
 ```typescript
 const result = await manager.importRegion({
-  file: selectedFile,           // File object from <input type="file">
-  format: 'json',              // 'json' | 'pmtiles' | 'mbtiles'
-  overwrite: true,             // replace existing region with same ID
-  newRegionId: 'imported-region',   // optional: override the region ID
-  newRegionName: 'Imported Region', // optional: override the region name
+  file: selectedFile,                   // File from <input type="file" accept=".mbtiles">
+  format: 'mbtiles',                    // only supported format
+  overwrite: true,                      // replace existing region with same id
+  newRegionId: 'imported-region',       // optional: override the stored region id
+  newRegionName: 'Imported Region',     // optional: override the stored name
+  onProgress: (p) => console.log(p.message),
 });
 
 if (result.success) {
-  console.log(`Imported to region: ${result.regionId}`);
-  console.log(`Tiles: ${result.statistics.tilesImported}`);
-  console.log(`Sprites: ${result.statistics.spritesImported}`);
-  console.log(`Fonts: ${result.statistics.fontsImported}`);
+  console.log(`Imported ${result.statistics.tilesImported} tiles into ${result.regionId}`);
 } else {
   console.error(`Import failed: ${result.message}`);
 }
+```
+
+#### `configureSqlJs(config: { wasmUrl?: string; wasmBinary?: ArrayBuffer | Uint8Array })`
+
+Optional — controls how `sql.js` loads its WebAssembly. By default the library fetches `sql-wasm.wasm` from jsDelivr at call time. Call this before the first export/import to override.
+
+```typescript
+import { configureSqlJs } from 'map-gl-offline';
+
+// Self-hosted wasm (recommended for production)
+configureSqlJs({ wasmUrl: '/static/sql-wasm/' });
+
+// Or, for Node / offline-first setups, pre-fetched binary
+configureSqlJs({ wasmBinary: myPreloadedBuffer });
 ```
 
 ### Cleanup Methods
@@ -725,18 +711,6 @@ interface DownloadProgress {
 
 ```typescript
 interface ImportExportOptions {
-  /** Include style data (default: true) */
-  includeStyle?: boolean;
-  /** Include tiles (default: true) */
-  includeTiles?: boolean;
-  /** Include sprites (default: true) */
-  includeSprites?: boolean;
-  /** Include fonts (default: true) */
-  includeFonts?: boolean;
-  /** Export format */
-  format?: 'json' | 'pmtiles' | 'mbtiles';
-  /** Enable compression */
-  compression?: boolean;
   /** Progress callback */
   onProgress?: (progress: ImportExportProgress) => void;
 }
@@ -767,19 +741,18 @@ interface ImportExportProgress {
 interface ExportResult {
   /** Whether the export succeeded */
   success: boolean;
-  /** Export format used */
-  format: 'json' | 'pmtiles' | 'mbtiles';
-  /** Suggested filename for download */
+  /** Always 'mbtiles' — the only supported export format */
+  format: 'mbtiles';
+  /** Suggested filename for download (ends in .mbtiles) */
   filename: string;
-  /** The exported data as a Blob */
+  /** The exported data as a Blob (application/x-sqlite3) */
   blob: Blob;
   /** Total size in bytes */
   size: number;
-  /** Export statistics */
   statistics: {
     tilesExported: number;
-    spritesExported: number;
-    fontsExported: number;
+    spritesExported: number; // always 0, kept for compatibility
+    fontsExported: number;   // always 0, kept for compatibility
   };
 }
 ```
@@ -796,26 +769,12 @@ interface ImportResult {
   message: string;
   /** Non-fatal warnings */
   warnings?: string[];
-  /** Import statistics */
   statistics: {
     tilesImported: number;
-    spritesImported: number;
-    fontsImported: number;
+    spritesImported: number; // always 0
+    fontsImported: number;   // always 0
     totalSize: number;
   };
-}
-```
-
-### PMTilesExportOptions
-
-```typescript
-interface PMTilesExportOptions {
-  /** Compression algorithm */
-  compression?: 'gzip' | 'brotli' | 'none';
-  /** Optimize tile ordering for clustered access */
-  clustered?: boolean;
-  /** Additional metadata to embed in the PMTiles header */
-  metadata?: Record<string, unknown>;
 }
 ```
 
@@ -823,11 +782,9 @@ interface PMTilesExportOptions {
 
 ```typescript
 interface MBTilesExportOptions {
-  /** Tile data format */
+  /** Tile data format written to metadata.format */
   format?: 'pbf' | 'png' | 'jpg';
-  /** Compression for tile data */
-  compression?: 'gzip' | 'none';
-  /** Additional metadata for the MBTiles metadata table */
+  /** Additional rows for the MBTiles metadata table (JSON-stringified if non-string) */
   metadata?: Record<string, unknown>;
 }
 ```
@@ -836,16 +793,18 @@ interface MBTilesExportOptions {
 
 ```typescript
 interface RegionImportData {
-  /** The file to import (from <input type="file">) */
+  /** MBTiles file (from <input type="file" accept=".mbtiles">) */
   file: File;
-  /** File format to parse */
-  format: 'json' | 'pmtiles' | 'mbtiles';
-  /** Overwrite existing region with the same ID */
+  /** Only 'mbtiles' is supported */
+  format: 'mbtiles';
+  /** Overwrite existing region with the same id */
   overwrite?: boolean;
-  /** Override the region ID from the file */
+  /** Override the region id stored in the file */
   newRegionId?: string;
-  /** Override the region name from the file */
+  /** Override the region name stored in the file */
   newRegionName?: string;
+  /** Progress callback */
+  onProgress?: (progress: ImportExportProgress) => void;
 }
 ```
 

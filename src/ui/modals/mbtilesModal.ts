@@ -85,55 +85,32 @@ export class MBTilesModal {
 
   private createContent(): HTMLElement {
     const content = document.createElement('div');
-    content.className = 'flex flex-col gap-6';
+    content.className = 'flex flex-col gap-6 py-2';
     if (i18n.isRTL()) {
       content.setAttribute('dir', 'rtl');
     }
 
-    content.appendChild(this.createRegionInfoCard());
-
-    const grid = document.createElement('div');
-    grid.className = 'grid grid-cols-1 gap-6';
-    grid.appendChild(this.createExportSection());
-    grid.appendChild(this.createImportSection());
-    content.appendChild(grid);
-
-    content.appendChild(this.createFormatNote());
+    content.appendChild(this.createRegionInfoLine());
+    content.appendChild(this.createExportSection());
+    content.appendChild(this.createImportSection());
 
     return content;
   }
 
-  private createRegionInfoCard(): HTMLElement {
-    const card = document.createElement('div');
-    card.className = 'p-5 glass-input rounded-xl border-0 bg-gray-50/50 dark:bg-gray-800/50';
+  private createRegionInfoLine(): HTMLElement {
     const { region } = this.options;
-
-    card.innerHTML = `
-      <h4 class="text-sm font-bold uppercase tracking-wider text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-        ${icons.mapPin({ size: 16, color: 'currentColor' })}
-        ${t('mbtiles.regionInfo')}
-      </h4>
-      <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-        <div class="p-3 rounded-lg bg-white/40 dark:bg-black/20">
-          <span class="font-medium text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">${t('mbtiles.id')}</span>
-          <div class="text-gray-900 dark:text-white font-mono text-xs break-all mt-1">${escapeHtml(region.id)}</div>
-        </div>
-        <div class="p-3 rounded-lg bg-white/40 dark:bg-black/20">
-          <span class="font-medium text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">${t('mbtiles.name')}</span>
-          <div class="text-gray-900 dark:text-white font-medium mt-1">${escapeHtml(region.name || t('mbtiles.unnamed'))}</div>
-        </div>
-        <div class="p-3 rounded-lg bg-white/40 dark:bg-black/20">
-          <span class="font-medium text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">${t('mbtiles.zoom')}</span>
-          <div class="text-gray-900 dark:text-white font-medium mt-1">Z${escapeHtml(region.minZoom)}-${escapeHtml(region.maxZoom)}</div>
-        </div>
-        <div class="p-3 rounded-lg bg-white/40 dark:bg-black/20">
-          <span class="font-medium text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">${t('mbtiles.created')}</span>
-          <div class="text-gray-900 dark:text-white font-medium mt-1">${new Date(region.created).toLocaleDateString()}</div>
-        </div>
-      </div>
+    const line = document.createElement('div');
+    line.className =
+      'flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-500 dark:text-gray-400';
+    line.innerHTML = `
+      <span class="flex items-center gap-1">
+        ${icons.mapPin({ size: 12, color: 'currentColor' })}
+        <span class="font-mono">${escapeHtml(region.id)}</span>
+      </span>
+      <span>Z${escapeHtml(region.minZoom)}-${escapeHtml(region.maxZoom)}</span>
+      <span>${new Date(region.created).toLocaleDateString()}</span>
     `;
-
-    return card;
+    return line;
   }
 
   private createExportSection(): HTMLElement {
@@ -309,21 +286,6 @@ export class MBTilesModal {
     container.appendChild(text);
 
     return { container, bar, text };
-  }
-
-  private createFormatNote(): HTMLElement {
-    const note = document.createElement('div');
-    note.className = 'p-4 glass-input rounded-xl border-0 bg-blue-50/40 dark:bg-blue-900/20';
-    note.innerHTML = `
-      <h4 class="text-sm font-bold uppercase tracking-wider text-blue-900 dark:text-blue-300 mb-2 flex items-center gap-2">
-        ${icons.infoCircle({ size: 16, color: 'currentColor' })}
-        ${t('mbtiles.aboutTitle')}
-      </h4>
-      <p class="text-xs text-blue-700 dark:text-blue-400 leading-relaxed">
-        ${t('mbtiles.aboutBody')}
-      </p>
-    `;
-    return note;
   }
 
   private createFooter(): HTMLElement {

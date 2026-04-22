@@ -182,9 +182,6 @@ export const ar = {
   'mbtiles.preparingImport': 'جاري تجهيز الاستيراد...',
   'mbtiles.importComplete': 'اكتمل الاستيراد!',
   'mbtiles.importFailed': 'فشل الاستيراد. يرجى المحاولة مرة أخرى.',
-  'mbtiles.aboutTitle': 'حول MBTiles',
-  'mbtiles.aboutBody':
-    'MBTiles هو حاوية قائمة على SQLite لبلاطات الخرائط. يُنتج هذا المُصدِّر ملفات متوافقة مع v1.3 وترتيب TMS، ويقرأ المُستورِد نفس التنسيق إلى التخزين دون الإنترنت.',
 
   // Active Downloads - التحميلات النشطة
   'download.activeCount': 'التحميلات النشطة ({{count}})',

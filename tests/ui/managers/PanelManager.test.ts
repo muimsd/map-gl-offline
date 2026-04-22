@@ -59,8 +59,6 @@ const createMockOfflineManager = () => ({
   deleteRegion: jest.fn().mockResolvedValue(undefined),
   getRegionSize: jest.fn().mockResolvedValue(512000),
   downloadStyle: jest.fn().mockResolvedValue({ success: true }),
-  exportRegionAsJSON: jest.fn().mockResolvedValue({}),
-  exportRegionAsPMTiles: jest.fn().mockResolvedValue({}),
   exportRegionAsMBTiles: jest.fn().mockResolvedValue({}),
   importRegion: jest.fn().mockResolvedValue({}),
   downloadExportedRegion: jest.fn(),

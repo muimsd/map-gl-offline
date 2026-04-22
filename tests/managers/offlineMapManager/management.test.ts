@@ -101,14 +101,6 @@ function makeServices(): {
       }),
     },
     importExportService: {
-      exportRegionAsJSON: fn('importExportService.exportRegionAsJSON', {
-        blob: new Blob(),
-        filename: 'test.json',
-      }),
-      exportRegionAsPMTiles: fn('importExportService.exportRegionAsPMTiles', {
-        blob: new Blob(),
-        filename: 'test.pmtiles',
-      }),
       exportRegionAsMBTiles: fn('importExportService.exportRegionAsMBTiles', {
         blob: new Blob(),
         filename: 'test.mbtiles',
@@ -487,14 +479,6 @@ describe('importExportManagement', () => {
   it('delegates each export / import method to the service', async () => {
     const { services, fns } = makeServices();
     const mgmt = createImportExportManagement(services);
-
-    await mgmt.exportRegionAsJSON('r1', { includeTiles: true });
-    expect(fns['importExportService.exportRegionAsJSON']).toHaveBeenCalledWith('r1', {
-      includeTiles: true,
-    });
-
-    await mgmt.exportRegionAsPMTiles('r1');
-    expect(fns['importExportService.exportRegionAsPMTiles']).toHaveBeenCalled();
 
     await mgmt.exportRegionAsMBTiles('r1');
     expect(fns['importExportService.exportRegionAsMBTiles']).toHaveBeenCalled();

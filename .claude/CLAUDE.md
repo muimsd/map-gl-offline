@@ -92,6 +92,17 @@ import { loadStyles } from '../services/styleService';
 ### OfflineMapManager class shape
 The class uses class/interface declaration merging — every method from the `*Management` module interfaces is attached at runtime via `Object.assign(this, this.modules)` in the constructor. Adding a new method to a `*Management` interface makes it automatically available on `OfflineMapManager` with no edits to `src/managers/offlineMapManager/index.ts`.
 
+### Import/Export is MBTiles-only
+`OfflineMapManager.exportRegionAsMBTiles(regionId, options?)` / `importRegion({ file, format: 'mbtiles', ... })` are the public surface. No JSON or PMTiles paths — they were removed after 0.7.0 once we confirmed JSON produced non-standard files and the PMTiles impl was fake. Invariants for the MBTiles writer in `src/services/importExportService.ts`:
+
+- Vector tiles (`pbf`/`mvt`) are gzipped on export via `CompressionStream('gzip')` — idempotent on already-gzipped bytes. On import they're gunzipped so the offline fetch handler keeps serving raw PBF. Raster tiles pass through untouched.
+- `tile_row` is flipped to TMS on export and back to XYZ on import via `flipY(y, z) = (2^z - 1) - y`.
+- For vector exports, the `json` metadata row is required by QGIS / tippecanoe / maplibre-native. `buildVectorJsonMetadata` derives `vector_layers` from the offline style's sources (populated by `styleService`'s TileJSON expansion) and filters by the source ids that actually contributed tiles.
+- `type` metadata is `baselayer` for vector, `overlay` for raster.
+- `parseMBTiles` validates the SQLite magic header (`"SQLite format 3"`) and the presence of `metadata` / `tiles` tables up front, so a non-MBTiles file renamed to `.mbtiles` gets a clear error instead of a cryptic one from sql.js.
+
+`sql.js` is dynamically imported so it only ships with bundles that call MBTiles code. Default wasm source is jsDelivr; override with `configureSqlJs({ wasmUrl })` or `configureSqlJs({ wasmBinary })`. Tests use `wasmBinary` from `node_modules/sql.js/dist/sql-wasm.wasm` and polyfill `CompressionStream` / `DecompressionStream` from `node:stream/web` in `tests/setup.ts`.
+
 ## Common Commands
 
 ```bash
@@ -153,3 +164,6 @@ npm run dev           # Start Vite dev server
 6. Using `addRegion` to download tiles — it's metadata-only; use `downloadRegion`
 7. `startsWith(styleId + '_')` for resource cleanup — use `resourceKeyBelongsToStyle()`
 8. Using the old `getXxxStatistics` names on `ResourceService` — they were renamed to `getXxxStats` in 0.6.0
+9. Referencing `exportRegionAsJSON` or `exportRegionAsPMTiles` — both were removed after 0.7.0. MBTiles is the only supported format; use `exportRegionAsMBTiles` / `importRegion({ format: 'mbtiles' })`.
+10. Skipping the gzip step for vector tiles in MBTiles output — QGIS/tippecanoe will reject the file. `gzipBytes` in `importExportService.ts` is idempotent, so it's safe to always call.
+11. Exporting vector tiles without populating `metadata.json` — QGIS can't resolve `vector_layers` without it. `buildVectorJsonMetadata` derives the value from the offline style.

@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Real binary MBTiles import/export** via `sql.js`. `exportRegionAsMBTiles` produces a v1.3-compliant SQLite archive with `metadata` + `tiles` tables, `tile_row` flipped to TMS, vector tiles gzipped, and a `json` metadata row containing `vector_layers` derived from the offline style's sources. Opens directly in QGIS, tippecanoe, and maplibre-native. `importRegion({ format: 'mbtiles' })` reads the same format back, un-gzipping vector tiles so the offline fetch handler can keep serving them raw.
+- `configureSqlJs({ wasmUrl?, wasmBinary? })` to override how `sql.js` loads its WebAssembly. Default is `https://cdn.jsdelivr.net/npm/sql.js@<ver>/dist/`; set `wasmUrl` to self-host or `wasmBinary` for Node / pre-fetched setups.
+- Validation on import: non-SQLite files and SQLite files missing the required `metadata`/`tiles` tables are rejected up front with a clear error message instead of a cryptic one from `sql.js`.
+- `onProgress` callback on `RegionImportData` with preparing → parsing → importing → complete stages.
+- New focused **MBTiles Import/Export** modal, reachable from the Import/Export action button on every region row.
+
+### Removed (breaking)
+
+- **`exportRegionAsJSON` and `exportRegionAsPMTiles`** are gone. The JSON export was non-standard and the PMTiles implementation was fake (wrapped JSON in a `.pmtiles` extension). Switch to `exportRegionAsMBTiles` — the produced MBTiles file round-trips through `importRegion` and opens in every mainstream GIS tool.
+- `PMTilesExportOptions`, `SpriteExportData`, `FontExportData` types removed.
+- `ImportExportOptions.format` / `.compression` / `.includeStyle` / `.includeTiles` / `.includeSprites` / `.includeFonts` fields removed — they only applied to the deleted JSON path. `ImportExportOptions` is now `{ onProgress? }`.
+- `RegionImportData.format` narrowed from `'json' | 'pmtiles' | 'mbtiles'` to `'mbtiles'`. `ExportResult.format` / `RegionExportData.metadata.format` likewise narrowed to `'mbtiles'`.
+
+### Added (deps)
+
+- Runtime: `sql.js ^1.14.1` (lazy-loaded — only joins bundles that actually call MBTiles code).
+
 ## [0.7.0] - 2026-04-21
 
 > Completes offline support for the **Mapbox Standard** style. The gaps at 0.6.0 (3D models, `raster-array` sources, `iconset.pbf`) are all closed.

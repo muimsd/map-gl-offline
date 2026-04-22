@@ -52,8 +52,6 @@ describe('OfflineMapManager', () => {
       'verifyAndRepairModels',
       'getComprehensiveStorageAnalytics',
       'performCompleteMaintenance',
-      'exportRegionAsJSON',
-      'exportRegionAsPMTiles',
       'exportRegionAsMBTiles',
       'importRegion',
       'downloadExportedRegion',

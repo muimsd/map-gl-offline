@@ -84,62 +84,6 @@ describe('ImportExportService', () => {
     await db.clear('fonts');
   });
 
-  describe('exportRegionAsJSON', () => {
-    it('throws when region does not exist', async () => {
-      await expect(service.exportRegionAsJSON('non-existent-region')).rejects.toThrow(
-        'Export failed: Region non-existent-region not found'
-      );
-    });
-
-    it('exports region with metadata', async () => {
-      const db = await dbPromise;
-      await storeRegionInStyle(db, 'test-style', {
-        id: 'test-region',
-        name: 'Test Region',
-        bounds: [[-122.5, 37.5], [-122.0, 38.0]],
-        styleUrl: 'https://example.com/style.json',
-        minZoom: 0,
-        maxZoom: 14,
-        created: Date.now(),
-        expiry: Date.now() + 30 * 24 * 60 * 60 * 1000,
-      });
-
-      const result = await service.exportRegionAsJSON('test-region');
-
-      expect(result.success).toBe(true);
-      expect(result.format).toBe('json');
-      expect(result.filename).toContain('Test Region');
-      expect(result.blob).toBeInstanceOf(Blob);
-      expect(result.size).toBeGreaterThan(0);
-    });
-
-    it('calls onProgress callback during export', async () => {
-      const db = await dbPromise;
-      const progressCalls: Array<{ stage: string; percentage: number }> = [];
-
-      await storeRegionInStyle(db, 'test-style', {
-        id: 'test-region',
-        name: 'Test Region',
-        bounds: [[-122.5, 37.5], [-122.0, 38.0]],
-        styleUrl: 'https://example.com/style.json',
-        minZoom: 0,
-        maxZoom: 14,
-        created: Date.now(),
-        expiry: Date.now() + 30 * 24 * 60 * 60 * 1000,
-      });
-
-      await service.exportRegionAsJSON('test-region', {
-        onProgress: (progress) => {
-          progressCalls.push({ stage: progress.stage, percentage: progress.percentage });
-        },
-      });
-
-      expect(progressCalls[0].stage).toBe('preparing');
-      expect(progressCalls[progressCalls.length - 1].stage).toBe('complete');
-      expect(progressCalls[progressCalls.length - 1].percentage).toBe(100);
-    });
-  });
-
   describe('exportRegionAsMBTiles', () => {
     it('throws when region does not exist', async () => {
       await expect(service.exportRegionAsMBTiles('non-existent-region')).rejects.toThrow(
@@ -462,6 +406,24 @@ describe('ImportExportService', () => {
   });
 
   describe('importRegion', () => {
+    // Helper: produce a minimal real MBTiles blob for a region id so the
+    // overwrite tests can drive the full import pipeline.
+    async function makeMbtilesBlobFor(regionId: string): Promise<ArrayBuffer> {
+      const db = await dbPromise;
+      await storeRegionInStyle(db, 'src-style-' + regionId, {
+        id: regionId,
+        name: regionId,
+        bounds: [[-1, -1], [1, 1]],
+        styleUrl: '',
+        minZoom: 0,
+        maxZoom: 1,
+        created: Date.now(),
+        expiry: Date.now() + 30 * 24 * 60 * 60 * 1000,
+      });
+      const res = await service.exportRegionAsMBTiles(regionId);
+      return blobToArrayBuffer(res.blob);
+    }
+
     it('returns failure for unsupported format', async () => {
       const mockFile = new TestFile(['{}'], 'test.unknown', {
         type: 'application/octet-stream',
@@ -469,83 +431,26 @@ describe('ImportExportService', () => {
 
       const result = await service.importRegion({
         file: mockFile,
-        format: 'unknown' as 'json' | 'pmtiles' | 'mbtiles',
+        format: 'unknown' as 'mbtiles',
       });
 
       expect(result.success).toBe(false);
       expect(result.message).toContain('Unsupported format');
     });
 
-    it('imports a valid JSON export', async () => {
-      const exportData = {
-        metadata: {
-          id: 'imported-region',
-          name: 'Imported Region',
-          description: 'Test import',
-          bounds: [[-122.5, 37.5], [-122.0, 38.0]],
-          minZoom: 0,
-          maxZoom: 14,
-          styleUrl: 'https://example.com/style.json',
-          createdAt: Date.now(),
-          exportedAt: Date.now(),
-          version: '1.0.0',
-          format: 'json',
-        },
-        style: {},
-        tiles: [],
-        sprites: [],
-        fonts: [],
-      };
-
-      const mockFile = new TestFile([JSON.stringify(exportData)], 'test.json', {
-        type: 'application/json',
-      }) as unknown as File;
-
-      const result = await service.importRegion({ file: mockFile, format: 'json' });
-
-      expect(result.success).toBe(true);
-      expect(result.regionId).toBe('imported-region');
-    });
-
     it('refuses to overwrite an existing region when overwrite is false', async () => {
-      const db = await dbPromise;
-      await storeRegionInStyle(db, 'test-style', {
-        id: 'existing-region',
-        name: 'Existing Region',
-        bounds: [[-122.5, 37.5], [-122.0, 38.0]],
-        styleUrl: 'https://example.com/style.json',
-        minZoom: 0,
-        maxZoom: 14,
-        created: Date.now(),
-        expiry: Date.now() + 30 * 24 * 60 * 60 * 1000,
+      const buffer = await makeMbtilesBlobFor('existing-region');
+      // Import once to materialise 'existing-region' in the DB.
+      await service.importRegion({
+        file: new TestFile([buffer.slice(0)], 'r.mbtiles') as unknown as File,
+        format: 'mbtiles',
+        newRegionId: 'existing-region',
       });
 
-      const exportData = {
-        metadata: {
-          id: 'existing-region',
-          name: 'Imported Region',
-          bounds: [[-122.5, 37.5], [-122.0, 38.0]],
-          minZoom: 0,
-          maxZoom: 14,
-          styleUrl: 'https://example.com/style.json',
-          createdAt: Date.now(),
-          exportedAt: Date.now(),
-          version: '1.0.0',
-          format: 'json',
-        },
-        style: {},
-        tiles: [],
-        sprites: [],
-        fonts: [],
-      };
-
-      const mockFile = new TestFile([JSON.stringify(exportData)], 'test.json', {
-        type: 'application/json',
-      }) as unknown as File;
-
       const result = await service.importRegion({
-        file: mockFile,
-        format: 'json',
+        file: new TestFile([buffer.slice(0)], 'r.mbtiles') as unknown as File,
+        format: 'mbtiles',
+        newRegionId: 'existing-region',
         overwrite: false,
       });
 
@@ -554,59 +459,21 @@ describe('ImportExportService', () => {
     });
 
     it('overwrites when overwrite is true', async () => {
-      const db = await dbPromise;
-      await storeRegionInStyle(db, 'test-style', {
-        id: 'existing-region',
-        name: 'Existing Region',
-        bounds: [[-122.5, 37.5], [-122.0, 38.0]],
-        styleUrl: 'https://example.com/style.json',
-        minZoom: 0,
-        maxZoom: 14,
-        created: Date.now(),
-        expiry: Date.now() + 30 * 24 * 60 * 60 * 1000,
+      const buffer = await makeMbtilesBlobFor('over-region');
+      await service.importRegion({
+        file: new TestFile([buffer.slice(0)], 'r.mbtiles') as unknown as File,
+        format: 'mbtiles',
+        newRegionId: 'over-region',
       });
 
-      const exportData = {
-        metadata: {
-          id: 'existing-region',
-          name: 'Updated Region',
-          bounds: [[-122.5, 37.5], [-122.0, 38.0]],
-          minZoom: 0,
-          maxZoom: 14,
-          styleUrl: 'https://example.com/style.json',
-          createdAt: Date.now(),
-          exportedAt: Date.now(),
-          version: '1.0.0',
-          format: 'json',
-        },
-        style: {},
-        tiles: [],
-        sprites: [],
-        fonts: [],
-      };
-
-      const mockFile = new TestFile([JSON.stringify(exportData)], 'test.json', {
-        type: 'application/json',
-      }) as unknown as File;
-
       const result = await service.importRegion({
-        file: mockFile,
-        format: 'json',
+        file: new TestFile([buffer.slice(0)], 'r.mbtiles') as unknown as File,
+        format: 'mbtiles',
+        newRegionId: 'over-region',
         overwrite: true,
       });
 
       expect(result.success).toBe(true);
-    });
-
-    it('reports a parse failure for invalid JSON', async () => {
-      const mockFile = new TestFile(['invalid json {{{'], 'test.json', {
-        type: 'application/json',
-      }) as unknown as File;
-
-      const result = await service.importRegion({ file: mockFile, format: 'json' });
-
-      expect(result.success).toBe(false);
-      expect(result.message).toContain('Import failed');
     });
 
     it('rejects a non-SQLite file masquerading as .mbtiles', async () => {

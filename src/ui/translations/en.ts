@@ -186,9 +186,6 @@ export const en = {
   'mbtiles.preparingImport': 'Preparing import...',
   'mbtiles.importComplete': 'Import complete!',
   'mbtiles.importFailed': 'Import failed. Please try again.',
-  'mbtiles.aboutTitle': 'About MBTiles',
-  'mbtiles.aboutBody':
-    'MBTiles is a SQLite-based container for map tiles. This exporter produces v1.3-compliant files with TMS tile ordering; the importer reads the same format back into the offline store.',
 
   // Active Downloads
   'download.activeCount': 'Active Downloads ({{count}})',

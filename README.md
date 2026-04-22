@@ -167,7 +167,7 @@ try {
 - **Regions** — `downloadRegion`, `loadRegion`, `addRegion`, `getStoredRegion`, `listStoredRegions`, `listRegions`, `deleteRegion`
 - **Analytics** — `getComprehensiveStorageAnalytics`, `getRegionAnalytics`, `getTileStats`, `getFontStats`, `getSpriteStats`, `getGlyphStats`
 - **Cleanup** — `cleanupExpiredRegions`, `performSmartCleanup`, `cleanupOld{Fonts,Sprites,Glyphs}`, `verifyAndRepair{Fonts,Sprites,Glyphs}`, `setupAutoCleanup`, `performCompleteMaintenance`
-- **Import / Export** — `exportRegionAsJSON`, `exportRegionAsPMTiles`, `exportRegionAsMBTiles`, `importRegion`
+- **Import / Export** — `exportRegionAsMBTiles`, `importRegion`, `downloadExportedRegion` (binary SQLite MBTiles, QGIS/tippecanoe-compatible)
 - **Storage utilities** — `dbPromise`, `OfflineMapDBVersionError`, `resetOfflineMapDB`, `loadAllStoredRegions`, `resourceKeyBelongsToStyle`
 
 See the **[full API reference](https://map-gl-offline.netlify.app/docs/api-reference)** and **[examples](https://map-gl-offline.netlify.app/docs/examples)** for every option and pattern.
