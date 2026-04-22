@@ -304,6 +304,132 @@ describe('ImportExportService', () => {
       expect(Array.from(restored)).toEqual(Array.from(tileBytes));
     });
 
+    it('gzips vector tiles on export (QGIS/tippecanoe convention)', async () => {
+      const db = await dbPromise;
+      await storeRegionInStyle(db, 'vec-region', {
+        id: 'vec-region',
+        name: 'Vector Region',
+        bounds: [[-1, -1], [1, 1]],
+        styleUrl: '',
+        minZoom: 0,
+        maxZoom: 2,
+        created: Date.now(),
+        expiry: Date.now() + 30 * 24 * 60 * 60 * 1000,
+      });
+
+      // Raw PBF bytes (no gzip magic). tileService stores tiles decompressed,
+      // so the exporter is responsible for re-wrapping.
+      const rawPbf = new Uint8Array([0x1a, 0x0f, 0x0a, 0x03, 0x66, 0x6f, 0x6f]);
+      await db.put('tiles', {
+        key: 'vec-region:source:1:0:0.pbf',
+        styleId: 'vec-region',
+        sourceId: 'source',
+        x: 0,
+        y: 0,
+        z: 1,
+        size: rawPbf.byteLength,
+        data: rawPbf.buffer,
+        downloadedAt: new Date().toISOString(),
+        type: 'vector',
+        url: '',
+        lastModified: Date.now(),
+      });
+
+      const result = await service.exportRegionAsMBTiles('vec-region');
+      const buffer = await blobToArrayBuffer(result.blob);
+      const SQL = await getSqlJs();
+      const sqliteDb = new SQL.Database(new Uint8Array(buffer));
+      try {
+        const rows = sqliteDb.exec('SELECT tile_data FROM tiles');
+        const data = rows[0].values[0][0] as Uint8Array;
+        expect(data[0]).toBe(0x1f);
+        expect(data[1]).toBe(0x8b); // gzip magic
+      } finally {
+        sqliteDb.close();
+      }
+    });
+
+    it('writes vector_layers into the json metadata when the style has them', async () => {
+      const db = await dbPromise;
+      const styleId = 'vl-style';
+
+      await db.put('styles', {
+        key: styleId,
+        style: {
+          version: 8,
+          sources: {
+            main: {
+              type: 'vector',
+              tiles: ['https://example.com/{z}/{x}/{y}.pbf'],
+              vector_layers: [
+                {
+                  id: 'water',
+                  fields: { class: 'String' },
+                  minzoom: 0,
+                  maxzoom: 14,
+                },
+                {
+                  id: 'roads',
+                  fields: { class: 'String', subclass: 'String' },
+                  minzoom: 6,
+                  maxzoom: 14,
+                },
+              ],
+            },
+          },
+          layers: [],
+        },
+        provider: 'auto' as StyleProvider,
+        regions: [
+          {
+            id: 'vl-region',
+            name: 'VL Region',
+            bounds: [[0, 0], [1, 1]],
+            styleUrl: '',
+            minZoom: 0,
+            maxZoom: 2,
+            created: Date.now(),
+            expiry: Date.now() + 30 * 24 * 60 * 60 * 1000,
+          },
+        ],
+        fonts: [],
+        glyphs: [],
+        sprites: [],
+      });
+
+      await db.put('tiles', {
+        key: `${styleId}:main:1:0:0.pbf`,
+        styleId,
+        sourceId: 'main',
+        x: 0,
+        y: 0,
+        z: 1,
+        size: 4,
+        data: new Uint8Array([1, 2, 3, 4]).buffer,
+        downloadedAt: new Date().toISOString(),
+        type: 'vector',
+        url: '',
+        lastModified: Date.now(),
+      });
+
+      const result = await service.exportRegionAsMBTiles('vl-region');
+      const buffer = await blobToArrayBuffer(result.blob);
+      const SQL = await getSqlJs();
+      const sqliteDb = new SQL.Database(new Uint8Array(buffer));
+      try {
+        const rows = sqliteDb.exec("SELECT value FROM metadata WHERE name = 'json'");
+        expect(rows[0].values[0][0]).toBeTruthy();
+        const parsed = JSON.parse(rows[0].values[0][0] as string);
+        expect(parsed.vector_layers).toHaveLength(2);
+        expect(parsed.vector_layers.map((v: { id: string }) => v.id)).toEqual([
+          'water',
+          'roads',
+        ]);
+      } finally {
+        sqliteDb.close();
+      }
+    });
+
     it('accepts custom metadata entries', async () => {
       const db = await dbPromise;
       await storeRegionInStyle(db, 'test-style', {

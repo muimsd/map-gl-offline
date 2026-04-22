@@ -26,6 +26,86 @@ function flipY(y: number, z: number): number {
   return (1 << z) - 1 - y;
 }
 
+/** Vector tile formats that downstream consumers (QGIS, maplibre-native) expect gzipped. */
+const VECTOR_FORMATS = new Set(['pbf', 'mvt']);
+
+function hasGzipMagic(bytes: Uint8Array): boolean {
+  return bytes.length >= 2 && bytes[0] === 0x1f && bytes[1] === 0x8b;
+}
+
+async function drainReadable(readable: ReadableStream<Uint8Array>): Promise<Uint8Array> {
+  const reader = readable.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    if (value) {
+      chunks.push(value);
+      total += value.byteLength;
+    }
+  }
+  const out = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    out.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return out;
+}
+
+async function transformBytes(
+  bytes: Uint8Array,
+  transform: CompressionStream | DecompressionStream
+): Promise<Uint8Array> {
+  const writer = transform.writable.getWriter();
+  // Don't await — the read loop below drives the pipe and we only want
+  // the final bytes, not back-pressure handling for a single chunk.
+  void writer.write(bytes as BufferSource);
+  void writer.close();
+  return drainReadable(transform.readable);
+}
+
+async function gzipBytes(bytes: Uint8Array): Promise<Uint8Array> {
+  return transformBytes(bytes, new CompressionStream('gzip'));
+}
+
+async function gunzipBytes(bytes: Uint8Array): Promise<Uint8Array> {
+  return transformBytes(bytes, new DecompressionStream('gzip'));
+}
+
+/**
+ * Build the MBTiles `json` metadata payload. For vector tiles this is
+ * mandatory for tippecanoe/QGIS/maplibre-native to render — they read
+ * `vector_layers` from here.
+ *
+ * `vector_layers` is inferred from the offline style's vector sources
+ * (populated by the TileJSON expansion step in styleService). Multiple
+ * vector sources are merged; duplicates de-duped by id, first wins.
+ */
+function buildVectorJsonMetadata(style: unknown, sourceIds: Set<string>): string | null {
+  if (!style || typeof style !== 'object') return null;
+  const sources = (style as { sources?: Record<string, unknown> }).sources;
+  if (!sources) return null;
+
+  const merged: Array<Record<string, unknown>> = [];
+  const seen = new Set<string>();
+  for (const [id, src] of Object.entries(sources)) {
+    if (sourceIds.size > 0 && !sourceIds.has(id)) continue;
+    const layers = (src as { vector_layers?: Array<Record<string, unknown>> })?.vector_layers;
+    if (!Array.isArray(layers)) continue;
+    for (const layer of layers) {
+      const layerId = typeof layer?.id === 'string' ? layer.id : null;
+      if (!layerId || seen.has(layerId)) continue;
+      seen.add(layerId);
+      merged.push(layer);
+    }
+  }
+
+  if (merged.length === 0) return null;
+  return JSON.stringify({ vector_layers: merged });
+}
+
 const serviceLogger = logger.scope('ImportExportService');
 
 export class ImportExportService {
@@ -258,9 +338,32 @@ export class ImportExportService {
 
       const tiles = await this.exportTiles(regionId, onProgress);
 
+      // Pick format: caller override → region.tileExtension → default pbf.
+      // Drives both the metadata row and whether tile bytes get gzipped.
+      const format = String(options.format || region.tileExtension || 'pbf').toLowerCase();
+      const isVector = VECTOR_FORMATS.has(format);
+
       onProgress({
         stage: 'processing',
-        percentage: 80,
+        percentage: 75,
+        message: isVector ? 'Compressing vector tiles...' : 'Packing SQLite database...',
+      });
+
+      // Gzip vector tiles. Idempotent: skip tiles already gzipped (downloaded
+      // with their original gzip wrapper intact).
+      const packedTiles: Array<{ z: number; x: number; y: number; data: Uint8Array }> = [];
+      for (const tile of tiles) {
+        const raw =
+          tile.data instanceof ArrayBuffer
+            ? new Uint8Array(tile.data)
+            : new Uint8Array(tile.data as ArrayBufferLike);
+        const data = isVector && !hasGzipMagic(raw) ? await gzipBytes(raw) : raw;
+        packedTiles.push({ z: tile.z, x: tile.x, y: tile.y, data });
+      }
+
+      onProgress({
+        stage: 'processing',
+        percentage: 85,
         message: 'Packing SQLite database...',
       });
 
@@ -289,15 +392,31 @@ export class ImportExportService {
 
         const metadataRows: Record<string, string> = {
           name: region.name || region.id,
-          type: 'overlay',
+          // MBTiles 1.3 type: 'overlay' or 'baselayer'. Baselayer matches how
+          // QGIS treats the dataset (full-coverage map rather than overlay).
+          type: isVector ? 'baselayer' : 'overlay',
           version: '1.0',
           description: region.name || region.id,
-          format: options.format || region.tileExtension || 'pbf',
+          format,
           bounds: `${west},${south},${east},${north}`,
           center: `${centerLon},${centerLat},${centerZoom}`,
           minzoom: String(region.minZoom),
           maxzoom: String(region.maxZoom),
         };
+
+        // For vector tiles, the `json` field with `vector_layers` is required
+        // by the MBTiles 1.3 spec and by every vector tile consumer worth
+        // opening the file in. Derive it from the offline style.
+        if (isVector) {
+          const style = await this.exportStyle(regionId);
+          const sourceIds = new Set(tiles.map(t => t.sourceId).filter(Boolean) as string[]);
+          const json = buildVectorJsonMetadata(
+            (style as { style?: unknown }).style ?? style,
+            sourceIds
+          );
+          if (json) metadataRows.json = json;
+        }
+
         for (const [k, v] of Object.entries(options.metadata || {})) {
           metadataRows[k] = typeof v === 'string' ? v : JSON.stringify(v);
         }
@@ -317,12 +436,8 @@ export class ImportExportService {
         );
         try {
           db.run('BEGIN');
-          for (const tile of tiles) {
-            const bytes =
-              tile.data instanceof ArrayBuffer
-                ? new Uint8Array(tile.data)
-                : new Uint8Array(tile.data as ArrayBufferLike);
-            insertTile.run([tile.z, tile.x, flipY(tile.y, tile.z), bytes]);
+          for (const tile of packedTiles) {
+            insertTile.run([tile.z, tile.x, flipY(tile.y, tile.z), tile.data]);
           }
           db.run('COMMIT');
         } finally {
@@ -331,7 +446,7 @@ export class ImportExportService {
 
         const binary = db.export();
         const blob = new Blob([binary.buffer as ArrayBuffer], {
-          type: 'application/vnd.mapbox-vector-tile',
+          type: 'application/x-sqlite3',
         });
 
         onProgress({
@@ -720,6 +835,7 @@ export class ImportExportService {
       ];
 
       const format = (metadata.format || 'pbf') as TileExportData['format'];
+      const isVector = VECTOR_FORMATS.has(format);
       const tiles: TileExportData[] = [];
 
       const tilesStmt = db.prepare(
@@ -729,14 +845,19 @@ export class ImportExportService {
         while (tilesStmt.step()) {
           const row = tilesStmt.get() as [number, number, number, Uint8Array];
           const [z, x, tmsRow, data] = row;
-          // Sliced copy so the buffer is detached from sql.js's heap
+          // Sliced copy so the buffer is detached from sql.js's heap.
           const copy = new Uint8Array(data.byteLength);
           copy.set(data);
+          // Our IndexedDB stores vector tiles decompressed (tileService
+          // inflates on download). MBTiles vector tiles are gzipped by
+          // convention — un-gzip on the way in so the stored tile matches
+          // what the fetch handler expects to serve.
+          const storedBytes = isVector && hasGzipMagic(copy) ? await gunzipBytes(copy) : copy;
           tiles.push({
             z,
             x,
             y: flipY(tmsRow, z),
-            data: copy.buffer,
+            data: storedBytes.buffer as ArrayBuffer,
             format,
             sourceId: 'imported',
           });
