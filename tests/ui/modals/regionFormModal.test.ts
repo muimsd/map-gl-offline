@@ -100,14 +100,15 @@ describe('RegionFormModal', () => {
     });
 
     it('should have Style URL input with default value', () => {
-      const options = createOptions({ styleUrl: 'https://custom.style.com/style.json' });
+      const styleUrl = 'https://custom.style.com/style.json';
+      const options = createOptions({ styleUrl });
       const modal = new RegionFormModal(options);
       const element = modal.show();
 
       expect(element.textContent).toContain('Style URL');
       const inputs = element.querySelectorAll('input[type="text"]');
       const styleInput = Array.from(inputs).find(
-        (input) => (input as HTMLInputElement).value.includes('custom.style.com')
+        (input) => (input as HTMLInputElement).value === styleUrl
       );
       expect(styleInput).not.toBeNull();
     });

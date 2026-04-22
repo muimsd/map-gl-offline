@@ -258,7 +258,7 @@ export async function idbFetchHandler(url: string, init?: RequestInit): Promise<
           // but tiles are stored with integer zoom levels, so floor the value
           const z = Math.floor(parseFloat(pathParts[pathParts.length - 3]));
           const sourceKey = pathParts.slice(0, pathParts.length - 3).join('/');
-          const yMatch = yExt.match(/(\d+)\.(\w+)/);
+          const yMatch = yExt.match(/^(\d+)\.(\w+)$/);
           if (yMatch) {
             const y = parseInt(yMatch[1]);
             const requestedExt = yMatch[2]; // Extension from URL (for logging only)

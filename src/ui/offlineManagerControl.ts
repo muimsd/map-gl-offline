@@ -242,43 +242,45 @@ export class OfflineManagerControl implements IControl {
 
       // Development proxy for CORS issues (when running on localhost)
       if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
+        let parsed: URL | null = null;
+        try {
+          parsed = new URL(url, location.origin);
+        } catch {
+          parsed = null;
+        }
+        const hostname = parsed?.hostname ?? '';
+        const pathAndQuery = parsed ? parsed.pathname + parsed.search : '';
         // Proxy Carto tile requests (tiles and TileJSON)
-        const isTileRequest = /\/\d+\/\d+\/\d+\.(pbf|mvt|png|jpg|jpeg|webp)/.test(url);
-        const isTileJsonRequest = url.includes('.json') && url.includes('basemaps.cartocdn.com');
+        const isTileRequest = /\/\d+\/\d+\/\d+\.(pbf|mvt|png|jpg|jpeg|webp)/.test(
+          parsed?.pathname ?? ''
+        );
+        const isTileJsonRequest =
+          (parsed?.pathname.endsWith('.json') ?? false) &&
+          (hostname === 'basemaps.cartocdn.com' || hostname.endsWith('.basemaps.cartocdn.com'));
 
-        if (isTileRequest && url.includes('tiles-a.basemaps.cartocdn.com')) {
-          const proxyUrl = url.replace('https://tiles-a.basemaps.cartocdn.com', '/tiles/carto-a');
-          return originalFetch(proxyUrl, init);
-        }
-        if (isTileRequest && url.includes('tiles-b.basemaps.cartocdn.com')) {
-          const proxyUrl = url.replace('https://tiles-b.basemaps.cartocdn.com', '/tiles/carto-b');
-          return originalFetch(proxyUrl, init);
-        }
-        if (isTileRequest && url.includes('tiles-c.basemaps.cartocdn.com')) {
-          const proxyUrl = url.replace('https://tiles-c.basemaps.cartocdn.com', '/tiles/carto-c');
-          return originalFetch(proxyUrl, init);
-        }
-        if (isTileRequest && url.includes('tiles-d.basemaps.cartocdn.com')) {
-          const proxyUrl = url.replace('https://tiles-d.basemaps.cartocdn.com', '/tiles/carto-d');
-          return originalFetch(proxyUrl, init);
+        const cartoSubdomainProxy: Record<string, string> = {
+          'tiles-a.basemaps.cartocdn.com': '/tiles/carto-a',
+          'tiles-b.basemaps.cartocdn.com': '/tiles/carto-b',
+          'tiles-c.basemaps.cartocdn.com': '/tiles/carto-c',
+          'tiles-d.basemaps.cartocdn.com': '/tiles/carto-d',
+        };
+        if (isTileRequest && cartoSubdomainProxy[hostname]) {
+          return originalFetch(cartoSubdomainProxy[hostname] + pathAndQuery, init);
         }
 
         // Proxy TileJSON requests from tiles.basemaps.cartocdn.com
-        if (isTileJsonRequest && url.includes('tiles.basemaps.cartocdn.com')) {
-          const proxyUrl = url.replace('https://tiles.basemaps.cartocdn.com', '/carto-api');
-          return originalFetch(proxyUrl, init);
+        if (isTileJsonRequest && hostname === 'tiles.basemaps.cartocdn.com') {
+          return originalFetch('/carto-api' + pathAndQuery, init);
         }
 
         // Fallback for old format (tiles without subdomain)
-        if (isTileRequest && url.includes('tiles.basemaps.cartocdn.com')) {
-          const proxyUrl = url.replace('https://tiles.basemaps.cartocdn.com', '/tiles/carto-a');
-          return originalFetch(proxyUrl, init);
+        if (isTileRequest && hostname === 'tiles.basemaps.cartocdn.com') {
+          return originalFetch('/tiles/carto-a' + pathAndQuery, init);
         }
 
         // Proxy OpenStreetMap tile requests
-        if (url.includes('tile.openstreetmap.org')) {
-          const proxyUrl = url.replace('https://tile.openstreetmap.org', '/tiles/osm');
-          return originalFetch(proxyUrl, init);
+        if (hostname === 'tile.openstreetmap.org') {
+          return originalFetch('/tiles/osm' + pathAndQuery, init);
         }
       }
 

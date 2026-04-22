@@ -420,9 +420,16 @@ export class RegionService {
           // /styles/v1/{owner}/{style}/{hash}/iconset.pbf. The last path
           // segment is `sprite`, so replacing it with `iconset.pbf` works.
           const pathWithoutQuery = qIndex !== -1 ? spriteBase.slice(0, qIndex) : spriteBase;
-          const isMapboxStandardSprite = /api\.mapbox\.com\/styles\/v1\/.+\/sprite$/.test(
-            pathWithoutQuery
-          );
+          let isMapboxStandardSprite = false;
+          try {
+            const parsed = new URL(pathWithoutQuery);
+            isMapboxStandardSprite =
+              parsed.hostname === 'api.mapbox.com' &&
+              parsed.pathname.startsWith('/styles/v1/') &&
+              parsed.pathname.endsWith('/sprite');
+          } catch {
+            // Non-URL sprite base (e.g. relative); not a Mapbox Standard sprite.
+          }
           if (isMapboxStandardSprite) {
             // The path-rewrite suffix replaces the trailing `sprite` segment.
             suffixes.push('__ICONSET__');
