@@ -10,6 +10,7 @@ import { Button } from '@/ui/components/shared/Button';
 import { icons } from '@/utils/icons';
 import { logger } from '@/utils/logger';
 import { escapeHtml } from '@/utils/formatting';
+import { isMapboxHost } from '@/utils/styleProviderUtils';
 import { t, i18n } from '@/ui/translations';
 
 const formLogger = logger.scope('RegionFormModal');
@@ -425,11 +426,7 @@ export class RegionFormModal {
     const styleUrl = this.styleUrlInput?.value || '';
 
     // Simple detection logic
-    if (
-      styleUrl.startsWith('mapbox://') ||
-      styleUrl.includes('mapbox.com') ||
-      styleUrl.includes('api.mapbox.com')
-    ) {
+    if (styleUrl.startsWith('mapbox://') || isMapboxHost(styleUrl)) {
       if (this.providerSelect) this.providerSelect.value = 'mapbox';
       this.toggleAccessTokenVisibility(true);
     } else if (

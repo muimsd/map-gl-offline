@@ -14,6 +14,38 @@ export function isMapboxProtocol(url: string): boolean {
 }
 
 /**
+ * Parse a URL and return its hostname, or null if the URL is malformed.
+ * Accepts relative URLs when `base` is provided.
+ */
+export function getUrlHostname(url: string, base?: string): string | null {
+  try {
+    return new URL(url, base).hostname.toLowerCase();
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * True if `url`'s hostname equals `host` or is a subdomain of `host`.
+ * Uses URL parsing (not substring matching) to avoid false positives like
+ * `https://evil.com/?x=mapbox.com` matching `mapbox.com`.
+ */
+export function hostMatches(url: string, host: string, base?: string): boolean {
+  const hostname = getUrlHostname(url, base);
+  if (hostname === null) return false;
+  const target = host.toLowerCase();
+  return hostname === target || hostname.endsWith('.' + target);
+}
+
+/**
+ * True for any host under the mapbox.com domain (including api.mapbox.com,
+ * *.tiles.mapbox.com, etc.). Used by provider detection.
+ */
+export function isMapboxHost(url: string, base?: string): boolean {
+  return hostMatches(url, 'mapbox.com', base);
+}
+
+/**
  * Resolve a mapbox:// URL to its HTTPS API equivalent
  *
  * Supported patterns:
@@ -97,11 +129,7 @@ export function rewriteMapboxCdnTileUrl(tileUrl: string): string {
  */
 export function detectStyleProvider(styleUrl: string, style?: BaseStyle): StyleProvider {
   // Check URL patterns
-  if (
-    isMapboxProtocol(styleUrl) ||
-    styleUrl.includes('mapbox.com') ||
-    styleUrl.includes('api.mapbox.com')
-  ) {
+  if (isMapboxProtocol(styleUrl) || isMapboxHost(styleUrl)) {
     return 'mapbox';
   }
 
@@ -125,7 +153,7 @@ export function detectStyleProvider(styleUrl: string, style?: BaseStyle): StyleP
     const sources = style.sources || {};
     for (const [, sourceConfig] of Object.entries(sources)) {
       const source = sourceConfig as { url?: string };
-      if (source.url && (source.url.includes('mapbox.com') || isMapboxProtocol(source.url))) {
+      if (source.url && (isMapboxProtocol(source.url) || isMapboxHost(source.url))) {
         return 'mapbox';
       }
     }
@@ -230,7 +258,7 @@ export function processStyleSources(
         if (isMapboxProtocol(tileUrl) && accessToken) {
           return resolveMapboxUrl(tileUrl, accessToken);
         }
-        if (provider === 'mapbox' && accessToken && tileUrl.includes('mapbox.com')) {
+        if (provider === 'mapbox' && accessToken && isMapboxHost(tileUrl)) {
           return normalizeStyleUrl(tileUrl, accessToken);
         }
         return tileUrl;
@@ -247,7 +275,7 @@ export function processStyleSources(
     if (typeof processedStyle.sprite === 'string') {
       if (isMapboxProtocol(processedStyle.sprite)) {
         processedStyle.sprite = resolveMapboxUrl(processedStyle.sprite, accessToken);
-      } else if (provider === 'mapbox' && processedStyle.sprite.includes('mapbox.com')) {
+      } else if (provider === 'mapbox' && isMapboxHost(processedStyle.sprite)) {
         processedStyle.sprite = normalizeStyleUrl(processedStyle.sprite, accessToken);
       }
     } else if (Array.isArray(processedStyle.sprite)) {
@@ -258,7 +286,7 @@ export function processStyleSources(
         if (typeof entry.url === 'string') {
           if (isMapboxProtocol(entry.url)) {
             return { ...entry, url: resolveMapboxUrl(entry.url, accessToken) };
-          } else if (provider === 'mapbox' && entry.url.includes('mapbox.com')) {
+          } else if (provider === 'mapbox' && isMapboxHost(entry.url)) {
             return { ...entry, url: normalizeStyleUrl(entry.url, accessToken) };
           }
         }
@@ -271,7 +299,7 @@ export function processStyleSources(
   if (processedStyle.glyphs && typeof processedStyle.glyphs === 'string' && accessToken) {
     if (isMapboxProtocol(processedStyle.glyphs)) {
       processedStyle.glyphs = resolveMapboxUrl(processedStyle.glyphs, accessToken);
-    } else if (provider === 'mapbox' && processedStyle.glyphs.includes('mapbox.com')) {
+    } else if (provider === 'mapbox' && isMapboxHost(processedStyle.glyphs)) {
       processedStyle.glyphs = normalizeStyleUrl(processedStyle.glyphs, accessToken);
     }
   }
@@ -324,14 +352,19 @@ export function validateStyleForProvider(
     // Check for Mapbox-specific requirements
     const hasMapboxSources = Object.values(style.sources || {}).some((source: unknown) => {
       const s = source as { url?: string };
-      return s.url && s.url.includes('mapbox.com');
+      return !!s.url && isMapboxHost(s.url);
     });
 
     if (hasMapboxSources) {
       // Check if access token might be needed
       const hasAccessToken = Object.values(style.sources || {}).some((source: unknown) => {
         const s = source as { url?: string };
-        return s.url && s.url.includes('access_token');
+        if (!s.url) return false;
+        try {
+          return new URL(s.url).searchParams.has('access_token');
+        } catch {
+          return false;
+        }
       });
 
       if (!hasAccessToken) {
