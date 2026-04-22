@@ -392,4 +392,118 @@ describe('ImportExportModal', () => {
       expect(element.textContent).toContain('fallback-id');
     });
   });
+
+  describe('handleExport (direct invocation)', () => {
+    it('invokes the exportRegion callback and fires onExport on success', async () => {
+      const exportRegion = jest
+        .fn()
+        .mockResolvedValue({ blob: new Blob(['x']), filename: 'x.json' });
+      const onExport = jest.fn();
+      const options = createOptions({ exportRegion, onExport });
+      const modal = new ImportExportModal(options);
+      modal.show();
+
+      await (modal as unknown as { handleExport: () => Promise<void> }).handleExport();
+      expect(exportRegion).toHaveBeenCalled();
+      expect(onExport).toHaveBeenCalled();
+    });
+
+    it('surfaces export failures via the progress text', async () => {
+      const exportRegion = jest.fn().mockRejectedValue(new Error('export failed'));
+      const options = createOptions({ exportRegion });
+      const modal = new ImportExportModal(options);
+      modal.show();
+
+      await (modal as unknown as { handleExport: () => Promise<void> }).handleExport();
+      expect(exportRegion).toHaveBeenCalled();
+    });
+
+    it('returns early when no exportRegion callback is provided', async () => {
+      const options = createOptions({ exportRegion: undefined });
+      const modal = new ImportExportModal(options);
+      modal.show();
+      await expect(
+        (modal as unknown as { handleExport: () => Promise<void> }).handleExport()
+      ).resolves.toBeUndefined();
+    });
+  });
+
+  describe('handleImport (direct invocation)', () => {
+    const makeFakeFile = (name: string): File => {
+      return {
+        name,
+        size: 10,
+        type: 'application/json',
+      } as unknown as File;
+    };
+
+    it('returns early when no importRegion callback is provided', async () => {
+      const options = createOptions({ importRegion: undefined });
+      const modal = new ImportExportModal(options);
+      modal.show();
+      await expect(
+        (modal as unknown as { handleImport: () => Promise<void> }).handleImport()
+      ).resolves.toBeUndefined();
+    });
+
+    it('invokes the importRegion callback when a file is selected', async () => {
+      const importRegion = jest
+        .fn()
+        .mockResolvedValue({ regionId: 'imp', success: true });
+      const onImport = jest.fn();
+      const options = createOptions({ importRegion, onImport });
+      const modal = new ImportExportModal(options);
+      modal.show();
+
+      // Inject a fake file into the input.
+      const input = (modal as unknown as { importFileInput: HTMLInputElement })
+        .importFileInput;
+      Object.defineProperty(input, 'files', {
+        value: [makeFakeFile('region.json')],
+      });
+      await (modal as unknown as { handleImport: () => Promise<void> }).handleImport();
+      expect(importRegion).toHaveBeenCalled();
+      expect(onImport).toHaveBeenCalled();
+    });
+
+    it('detects .pmtiles and .mbtiles from the file extension', async () => {
+      const importRegion = jest.fn().mockResolvedValue({ success: true });
+      const options = createOptions({ importRegion });
+      const modal = new ImportExportModal(options);
+      modal.show();
+      const input = (modal as unknown as { importFileInput: HTMLInputElement })
+        .importFileInput;
+      Object.defineProperty(input, 'files', {
+        value: [makeFakeFile('r.pmtiles')],
+        configurable: true,
+      });
+      await (modal as unknown as { handleImport: () => Promise<void> }).handleImport();
+      // Reset files so we can reassign.
+      Object.defineProperty(input, 'files', {
+        value: [makeFakeFile('r.mbtiles')],
+        configurable: true,
+      });
+      // Reset isImporting flag to allow a second run.
+      (modal as unknown as { isImporting: boolean }).isImporting = false;
+      await (modal as unknown as { handleImport: () => Promise<void> }).handleImport();
+      expect(importRegion).toHaveBeenCalledTimes(2);
+      const calls = importRegion.mock.calls;
+      expect(calls[0][0].format).toBe('pmtiles');
+      expect(calls[1][0].format).toBe('mbtiles');
+    });
+
+    it('surfaces import failures via the progress text', async () => {
+      const importRegion = jest.fn().mockRejectedValue(new Error('import failed'));
+      const options = createOptions({ importRegion });
+      const modal = new ImportExportModal(options);
+      modal.show();
+      const input = (modal as unknown as { importFileInput: HTMLInputElement })
+        .importFileInput;
+      Object.defineProperty(input, 'files', {
+        value: [makeFakeFile('region.json')],
+      });
+      await (modal as unknown as { handleImport: () => Promise<void> }).handleImport();
+      expect(importRegion).toHaveBeenCalled();
+    });
+  });
 });

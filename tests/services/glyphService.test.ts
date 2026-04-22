@@ -502,6 +502,68 @@ describe('GlyphService', () => {
     });
   });
 
+  describe('parseGlyphKey edge cases via getGlyphStats', () => {
+    it('parses "style::fontstack/range.pbf" format', async () => {
+      const db = await dbPromise;
+      // Store a glyph without the denormalized fontstack/range fields so
+      // getGlyphStats falls back to parseGlyphKey.
+      await db.put('glyphs', {
+        key: 'my-style::Noto Sans/0-255.pbf',
+        data: new ArrayBuffer(10),
+        url: 'u',
+        size: 10,
+        lastModified: Date.now(),
+        downloadedAt: new Date().toISOString(),
+      } as never);
+      const stats = await glyphService.getGlyphStats();
+      expect(stats.count).toBe(1);
+      // fontsByStack should key on the parsed fontstack.
+      expect(Object.keys(stats.fontsByStack)).toContain('Noto Sans');
+    });
+
+    it('parses "style:fontstack_range" format', async () => {
+      const db = await dbPromise;
+      await db.put('glyphs', {
+        key: 'style-x:Arial_0-255',
+        data: new ArrayBuffer(10),
+        url: 'u',
+        size: 10,
+        lastModified: Date.now(),
+        downloadedAt: new Date().toISOString(),
+      } as never);
+      const stats = await glyphService.getGlyphStats();
+      expect(stats.count).toBeGreaterThanOrEqual(1);
+    });
+
+    it('parses "fontstack/range.pbf" format without a style prefix', async () => {
+      const db = await dbPromise;
+      await db.put('glyphs', {
+        key: 'Arial/0-255.pbf',
+        data: new ArrayBuffer(10),
+        url: 'u',
+        size: 10,
+        lastModified: Date.now(),
+        downloadedAt: new Date().toISOString(),
+      } as never);
+      const stats = await glyphService.getGlyphStats();
+      expect(stats.count).toBeGreaterThanOrEqual(1);
+    });
+
+    it('falls back to the whole trimmed string when no delimiter is present', async () => {
+      const db = await dbPromise;
+      await db.put('glyphs', {
+        key: 'raw-key-no-delimiter',
+        data: new ArrayBuffer(10),
+        url: 'u',
+        size: 10,
+        lastModified: Date.now(),
+        downloadedAt: new Date().toISOString(),
+      } as never);
+      const stats = await glyphService.getGlyphStats();
+      expect(stats.count).toBeGreaterThanOrEqual(1);
+    });
+  });
+
   describe('exported functions', () => {
     it('should export getGlyphStats function', async () => {
       const stats = await getGlyphStats();

@@ -401,4 +401,136 @@ describe('RegionControl', () => {
       expect(mockPolygonControl.exit).toHaveBeenCalled();
     });
   });
+
+  describe('handleSaveClick', () => {
+    it('forwards the save click to polygonControl.triggerSave when selection is active', () => {
+      const { PolygonControl } = require('../../../src/ui/controls/polygonControl');
+      const triggerSave = jest.fn();
+      PolygonControl.mockImplementation(() => ({
+        enter: jest.fn(),
+        exit: jest.fn(),
+        getCurrentBounds: jest.fn(),
+        getCurrentArea: jest.fn(),
+        triggerSave,
+      }));
+      const control = new RegionControl(createOptions());
+      control.startSelection();
+      (control as unknown as { handleSaveClick: () => void }).handleSaveClick();
+      expect(triggerSave).toHaveBeenCalled();
+    });
+
+    it('no-ops when polygonControl is not active', () => {
+      const control = new RegionControl(createOptions());
+      expect(() =>
+        (control as unknown as { handleSaveClick: () => void }).handleSaveClick()
+      ).not.toThrow();
+    });
+  });
+
+  describe('polygon onCancel', () => {
+    it('cancelSelection is invoked when polygon control cancels', () => {
+      const { PolygonControl } = require('../../../src/ui/controls/polygonControl');
+      let savedOnCancel: (() => void) | undefined;
+      PolygonControl.mockImplementation((_map: unknown, opts: { onCancel: () => void }) => {
+        savedOnCancel = opts.onCancel;
+        return {
+          enter: jest.fn(),
+          exit: jest.fn(),
+          getCurrentBounds: jest.fn(),
+          getCurrentArea: jest.fn(),
+          triggerSave: jest.fn(),
+        };
+      });
+      const control = new RegionControl(createOptions());
+      control.startSelection();
+      expect(savedOnCancel).toBeDefined();
+      savedOnCancel?.();
+      expect(control.isSelectionActive()).toBe(false);
+    });
+  });
+
+  describe('extractExtraMapSources error path', () => {
+    it('returns an empty array when map.getStyle throws', async () => {
+      const failingMap = {
+        ...createMockMap(),
+        getStyle: jest.fn().mockImplementation(() => {
+          throw new Error('getStyle failed');
+        }),
+      };
+      const control = new RegionControl(
+        createOptions({ map: failingMap } as unknown as Partial<RegionControlOptions>)
+      );
+      // Call the private method to ensure the catch branch is exercised.
+      const sources = await (control as unknown as {
+        extractExtraMapSources: () => Promise<unknown[]>;
+      }).extractExtraMapSources();
+      expect(sources).toEqual([]);
+    });
+
+    it('returns an empty array when map has no style', async () => {
+      const noStyleMap = {
+        ...createMockMap(),
+        getStyle: jest.fn().mockReturnValue(null),
+      };
+      const control = new RegionControl(
+        createOptions({ map: noStyleMap } as unknown as Partial<RegionControlOptions>)
+      );
+      const sources = await (control as unknown as {
+        extractExtraMapSources: () => Promise<unknown[]>;
+      }).extractExtraMapSources();
+      expect(sources).toEqual([]);
+    });
+  });
+
+  describe('handleRegionSave', () => {
+    it('calls downloadManager.downloadRegion and fires onRegionSaved on success', async () => {
+      const downloadManager = createMockDownloadManager();
+      const onRegionSaved = jest.fn();
+      const control = new RegionControl(
+        createOptions({ downloadManager, onRegionSaved } as unknown as Partial<RegionControlOptions>)
+      );
+      await (control as unknown as {
+        handleRegionSave: (data: unknown) => Promise<void>;
+      }).handleRegionSave({
+        name: 'R',
+        bounds: [0, 0, 1, 1],
+        minZoom: 0,
+        maxZoom: 10,
+        styleUrl: 'https://example.com/s.json',
+      });
+      expect(downloadManager.downloadRegion).toHaveBeenCalled();
+      expect(onRegionSaved).toHaveBeenCalled();
+    });
+
+    it('surfaces downloadRegion errors via an alert', async () => {
+      const alertMock = jest.spyOn(window, 'alert').mockImplementation(() => {});
+      const downloadManager = createMockDownloadManager();
+      downloadManager.downloadRegion.mockRejectedValueOnce(new Error('download failed'));
+      const control = new RegionControl(
+        createOptions({ downloadManager } as unknown as Partial<RegionControlOptions>)
+      );
+      await (control as unknown as {
+        handleRegionSave: (data: unknown) => Promise<void>;
+      }).handleRegionSave({
+        name: 'R',
+        bounds: [0, 0, 1, 1],
+        minZoom: 0,
+        maxZoom: 10,
+        styleUrl: 'https://example.com/s.json',
+      });
+      expect(alertMock).toHaveBeenCalled();
+      alertMock.mockRestore();
+    });
+  });
+
+  describe('handleFormCancel', () => {
+    it('closes the modal without exiting polygon selection', () => {
+      const modalManager = createMockModalManager();
+      const control = new RegionControl(
+        createOptions({ modalManager } as unknown as Partial<RegionControlOptions>)
+      );
+      (control as unknown as { handleFormCancel: () => void }).handleFormCancel();
+      expect(modalManager.close).toHaveBeenCalled();
+    });
+  });
 });

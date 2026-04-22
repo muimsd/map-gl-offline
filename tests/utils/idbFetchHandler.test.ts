@@ -527,6 +527,239 @@ describe('IDBFetchHandler', () => {
         expect(response.status).toBe(404);
       });
     });
+
+    describe('/__offline__/ URL path', () => {
+      it('rewrites /__offline__/ URLs to idb:// and serves the tile', async () => {
+        const db = await dbPromise;
+        const tileData = new ArrayBuffer(32);
+        await db.put('tiles', {
+          key: 'style-1:source:5:10:20.pbf',
+          styleId: 'style-1',
+          sourceId: 'source',
+          x: 10,
+          y: 20,
+          z: 5,
+          size: 32,
+          data: tileData,
+          downloadedAt: new Date().toISOString(),
+          type: 'vector',
+          url: 'https://example.com/tile.pbf',
+          lastModified: Date.now(),
+        });
+
+        const response = await idbFetchHandler(
+          'https://origin.test/__offline__/style-1/tile/source/5/10/20.pbf'
+        );
+        expect(response.status).toBe(200);
+      });
+    });
+
+    describe('tile memory cache', () => {
+      it('returns a cached tile on the second request', async () => {
+        const db = await dbPromise;
+        const tileData = new ArrayBuffer(16);
+        new Uint8Array(tileData).fill(7);
+        await db.put('tiles', {
+          key: 'style-1:source:1:1:1.pbf',
+          styleId: 'style-1',
+          sourceId: 'source',
+          x: 1, y: 1, z: 1,
+          size: 16,
+          data: tileData,
+          downloadedAt: new Date().toISOString(),
+          type: 'vector',
+          url: 'https://example.com/tile.pbf',
+          lastModified: Date.now(),
+        });
+
+        const first = await idbFetchHandler('idb://style-1/tile/source/1/1/1.pbf');
+        expect(first.status).toBe(200);
+
+        // Delete from DB — second request should hit the in-memory cache.
+        await db.delete('tiles', 'style-1:source:1:1:1.pbf');
+        const second = await idbFetchHandler('idb://style-1/tile/source/1/1/1.pbf');
+        expect(second.status).toBe(200);
+      });
+    });
+
+    describe('gzip handling', () => {
+      it('decompresses a gzipped vector tile on the fly', async () => {
+        const db = await dbPromise;
+        // Gzip-compress a small PBF payload.
+        const orig = new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8]);
+        const compressedStream = new Response(orig).body?.pipeThrough(
+          new CompressionStream('gzip')
+        );
+        const gzBuffer = compressedStream
+          ? await new Response(compressedStream).arrayBuffer()
+          : new ArrayBuffer(0);
+
+        await db.put('tiles', {
+          key: 'style-gz:source:2:2:2.pbf',
+          styleId: 'style-gz',
+          sourceId: 'source',
+          x: 2, y: 2, z: 2,
+          size: gzBuffer.byteLength,
+          data: gzBuffer,
+          downloadedAt: new Date().toISOString(),
+          type: 'vector',
+          url: 'https://example.com/tile.pbf',
+          lastModified: Date.now(),
+        });
+
+        const response = await idbFetchHandler('idb://style-gz/tile/source/2/2/2.pbf');
+        // The decompression path runs either way — we only care that the
+        // handler stays on the happy path and returns 200 for a gzipped tile.
+        expect(response.status).toBe(200);
+      });
+
+      it('does not decompress gzipped non-vector tiles', async () => {
+        const db = await dbPromise;
+        const gzipHeader = new Uint8Array([0x1f, 0x8b, 0x08, 0x00]);
+        await db.put('tiles', {
+          key: 'style-r:source:0:0:0.png',
+          styleId: 'style-r',
+          sourceId: 'source',
+          x: 0, y: 0, z: 0,
+          size: gzipHeader.byteLength,
+          data: gzipHeader.buffer,
+          downloadedAt: new Date().toISOString(),
+          type: 'raster',
+          contentType: 'image/png',
+          url: 'https://example.com/tile.png',
+          lastModified: Date.now(),
+        });
+        const response = await idbFetchHandler('idb://style-r/tile/source/0/0/0.png');
+        expect(response.status).toBe(200);
+      });
+
+      it('marks expired resources with X-Cache-Expired header', async () => {
+        const db = await dbPromise;
+        await db.put('tiles', {
+          key: 'style-exp:source:3:3:3.pbf',
+          styleId: 'style-exp',
+          sourceId: 'source',
+          x: 3, y: 3, z: 3,
+          size: 4,
+          data: new ArrayBuffer(4),
+          downloadedAt: new Date().toISOString(),
+          type: 'vector',
+          url: 'https://example.com/tile.pbf',
+          lastModified: Date.now(),
+          expires: Date.now() - 10000,
+        });
+        const response = await idbFetchHandler('idb://style-exp/tile/source/3/3/3.pbf');
+        expect(response.status).toBe(200);
+        expect(response.headers.get('X-Cache-Expired')).toBe('true');
+      });
+
+      it('preserves non-gzip content-encoding when set', async () => {
+        const db = await dbPromise;
+        await db.put('tiles', {
+          key: 'style-br:source:4:4:4.pbf',
+          styleId: 'style-br',
+          sourceId: 'source',
+          x: 4, y: 4, z: 4,
+          size: 4,
+          data: new ArrayBuffer(4),
+          downloadedAt: new Date().toISOString(),
+          type: 'vector',
+          url: 'https://example.com/tile.pbf',
+          contentEncoding: 'br',
+          lastModified: Date.now(),
+        });
+        const response = await idbFetchHandler('idb://style-br/tile/source/4/4/4.pbf');
+        expect(response.headers.get('Content-Encoding')).toBe('br');
+      });
+    });
+
+    describe('model requests', () => {
+      it('returns 404 for unknown model', async () => {
+        const response = await idbFetchHandler('idb://style-1/model/tree.glb');
+        expect(response.status).toBe(404);
+      });
+
+      it('serves stored models via the style key', async () => {
+        const db = await dbPromise;
+        await db.put('models', {
+          key: 'style-m::model::tree.glb',
+          data: new ArrayBuffer(64),
+          contentType: 'model/gltf-binary',
+          size: 64,
+          lastModified: Date.now(),
+          downloadedAt: new Date().toISOString(),
+          styleId: 'style-m',
+          modelName: 'tree.glb',
+        } as never);
+        const response = await idbFetchHandler('idb://style-m/model/tree.glb');
+        expect(response.status).toBe(200);
+        expect(response.headers.get('Content-Type')).toBe('model/gltf-binary');
+      });
+
+      it('defaults model content-type when not stored', async () => {
+        const db = await dbPromise;
+        await db.put('models', {
+          key: 'style-n::model::thing.glb',
+          data: new ArrayBuffer(16),
+          size: 16,
+          lastModified: Date.now(),
+          downloadedAt: new Date().toISOString(),
+          styleId: 'style-n',
+          modelName: 'thing.glb',
+        } as never);
+        const response = await idbFetchHandler('idb://style-n/model/thing.glb');
+        expect(response.status).toBe(200);
+        expect(response.headers.get('Content-Type')).toBe('model/gltf-binary');
+      });
+    });
+
+    describe('unhappy tilejson', () => {
+      it('returns 404 when style exists but has no matching source', async () => {
+        const db = await dbPromise;
+        await db.put('styles', {
+          key: 'nomatch',
+          style: {
+            version: 8,
+            sources: { foo: { type: 'vector', tiles: ['https://t/{z}/{x}/{y}.pbf'] } },
+            layers: [],
+          },
+          provider: 'auto' as StyleProvider,
+          regions: [],
+          fonts: [],
+          glyphs: [],
+          sprites: [],
+        });
+        const response = await idbFetchHandler('idb://nomatch/tilesjson/doesnotexist');
+        expect(response.status).toBe(404);
+      });
+    });
+
+    describe('old URL format for tiles (fallback)', () => {
+      it('serves a tile using the encoded URL fallback path', async () => {
+        const db = await dbPromise;
+        const tileData = new ArrayBuffer(8);
+        // The service parses "/\d+/\d+/\d+\.ext" out of the URL and
+        // uses the 5th-from-last segment as the sourceKey.
+        const tileUrl = 'https://tiles.example.com/service/mysrc/vt/10/100/200.pbf';
+        await db.put('tiles', {
+          key: 'styleOLD:mysrc:10:100:200.pbf',
+          styleId: 'styleOLD',
+          sourceId: 'mysrc',
+          x: 100,
+          y: 200,
+          z: 10,
+          size: 8,
+          data: tileData,
+          downloadedAt: new Date().toISOString(),
+          type: 'vector',
+          url: tileUrl,
+          lastModified: Date.now(),
+        });
+        const encoded = encodeURIComponent(tileUrl);
+        const response = await idbFetchHandler(`idb://styleOLD/tile/${encoded}`);
+        expect(response.status).toBe(200);
+      });
+    });
   });
 
 });

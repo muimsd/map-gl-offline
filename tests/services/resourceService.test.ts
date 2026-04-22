@@ -304,4 +304,145 @@ describe('ResourceService', () => {
       });
     });
   });
+
+  describe('Download delegators', () => {
+    // These delegators just pass args through to the underlying service
+    // modules. Assert the shape and that calls complete without throwing.
+    it('downloadFontsWithOptions returns a result shape', async () => {
+      const res = await service.downloadFontsWithOptions([], 'style-x', {
+        storageQuotaCheck: false,
+        validateFonts: false,
+      });
+      expect(res).toHaveProperty('downloadedFonts');
+    });
+
+    it('downloadSpritesWithOptions returns a result shape', async () => {
+      const res = await service.downloadSpritesWithOptions([], 'style-x', {
+        storageQuotaCheck: false,
+        enableValidation: false,
+      });
+      expect(res).toHaveProperty('downloadedSprites');
+    });
+
+    it('downloadGlyphsWithOptions returns a result shape', async () => {
+      const res = await service.downloadGlyphsWithOptions(
+        'https://example.com/fonts/{fontstack}/{range}.pbf',
+        [],
+        'style-x',
+        [],
+        {}
+      );
+      expect(res).toHaveProperty('downloadedGlyphs');
+    });
+
+    it('downloadTilesWithOptions fails early with no sources', async () => {
+      await expect(
+        service.downloadTilesWithOptions(
+          {
+            id: 'r1',
+            name: 'r1',
+            bounds: [[-1, -1], [1, 1]] as [[number, number], [number, number]],
+            minZoom: 0,
+            maxZoom: 0,
+          },
+          { version: 8, sources: {}, layers: [] },
+          'style-x',
+          { storageQuotaCheck: false, probeSourcesBeforeDownload: false }
+        )
+      ).rejects.toThrow(/sources/i);
+    });
+  });
+
+  describe('Download delegators with default options', () => {
+    // These invocations exercise the default-parameter branches on every
+    // delegator signature (`options: X = {}`).
+    it('downloadFontsWithOptions without options', async () => {
+      await expect(
+        service.downloadFontsWithOptions([], undefined)
+      ).resolves.toBeDefined();
+    });
+
+    it('downloadSpritesWithOptions without options', async () => {
+      await expect(service.downloadSpritesWithOptions([], 'x')).resolves.toBeDefined();
+    });
+
+    it('downloadGlyphsWithOptions without options', async () => {
+      await expect(
+        service.downloadGlyphsWithOptions('https://x/{fontstack}/{range}.pbf', [], 'x')
+      ).resolves.toBeDefined();
+    });
+
+    it('cleanupOldFonts without arguments', async () => {
+      const n = await service.cleanupOldFonts();
+      expect(typeof n).toBe('number');
+    });
+
+    it('cleanupOldSprites without arguments', async () => {
+      const n = await service.cleanupOldSprites();
+      expect(typeof n).toBe('number');
+    });
+
+    it('cleanupOldGlyphs without arguments', async () => {
+      const n = await service.cleanupOldGlyphs();
+      expect(typeof n).toBe('number');
+    });
+
+    it('cleanupOldTiles without arguments', async () => {
+      const n = await service.cleanupOldTiles();
+      expect(typeof n).toBe('number');
+    });
+
+    it('cleanupOldModels without arguments', async () => {
+      const n = await service.cleanupOldModels();
+      expect(typeof n).toBe('number');
+    });
+
+    it('downloadModelsWithOptions without options', async () => {
+      await expect(service.downloadModelsWithOptions({}, 'x')).resolves.toBeDefined();
+    });
+
+    it('downloadTilesWithOptions without options', async () => {
+      // Will reject because the style has no sources, but the default-options
+      // branch is exercised before that throw.
+      await expect(
+        service.downloadTilesWithOptions(
+          {
+            id: 'r',
+            name: 'r',
+            bounds: [[-1, -1], [1, 1]] as [[number, number], [number, number]],
+            minZoom: 0,
+            maxZoom: 0,
+          },
+          { version: 8, sources: {}, layers: [] },
+          'x'
+          // no options — triggers the default branch
+        )
+      ).rejects.toThrow();
+    });
+  });
+
+  describe('Model management delegators', () => {
+    it('getModelStats returns an empty-state object', async () => {
+      const res = await service.getModelStats();
+      expect(res).toBeDefined();
+      expect(typeof res.count).toBe('number');
+    });
+
+    it('cleanupOldModels returns a number', async () => {
+      const n = await service.cleanupOldModels({ maxAge: 1 });
+      expect(typeof n).toBe('number');
+    });
+
+    it('verifyAndRepairModels returns the expected shape', async () => {
+      const res = await service.verifyAndRepairModels();
+      expect(res).toHaveProperty('verified');
+      expect(res).toHaveProperty('repaired');
+      expect(res).toHaveProperty('removed');
+    });
+
+    it('downloadModelsWithOptions returns a result shape', async () => {
+      const res = await service.downloadModelsWithOptions({}, 'style-x', {});
+      expect(res).toBeDefined();
+    });
+  });
 });

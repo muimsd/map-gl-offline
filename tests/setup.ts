@@ -1,5 +1,19 @@
 // Jest setup file for testing environment
 
+// Polyfill TextEncoder/TextDecoder (jsdom's util versions) — some source
+// paths (e.g. HTML-detection in tileService) use them and fail in plain
+// Node's jsdom environment.
+if (typeof TextEncoder === 'undefined' || typeof TextDecoder === 'undefined') {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const { TextEncoder: NodeEncoder, TextDecoder: NodeDecoder } = require('util');
+  if (typeof TextEncoder === 'undefined') {
+    (globalThis as Record<string, unknown>).TextEncoder = NodeEncoder;
+  }
+  if (typeof TextDecoder === 'undefined') {
+    (globalThis as Record<string, unknown>).TextDecoder = NodeDecoder;
+  }
+}
+
 // Polyfill structuredClone for Node.js versions that don't have it
 // Note: JSON.parse/JSON.stringify does NOT work for ArrayBuffer/TypedArray
 if (typeof structuredClone === 'undefined') {

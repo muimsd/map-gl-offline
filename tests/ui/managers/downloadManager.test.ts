@@ -407,6 +407,44 @@ describe('DownloadManager', () => {
       expect(optionsArg.accessToken).toBe('pk.test');
       expect(typeof optionsArg.onProgress).toBe('function');
     });
+
+    it('invokes onProgressUpdate when the inner onProgress fires', async () => {
+      const mockOfflineManager = createMockOfflineManager();
+      // Make offlineManager.downloadRegion fire onProgress with each phase.
+      const downloadRegion = jest.fn().mockImplementation(async (_r, opts) => {
+        opts.onProgress({
+          phase: 'tiles',
+          completed: 50,
+          total: 100,
+          percentage: 50,
+          message: 'Downloading tiles',
+        });
+        opts.onProgress({
+          phase: 'metadata',
+          completed: 100,
+          total: 100,
+          percentage: 100,
+          message: 'Metadata',
+        });
+        return {};
+      });
+      (mockOfflineManager as unknown as Record<string, unknown>).downloadRegion = downloadRegion;
+
+      const onProgressUpdate = jest.fn();
+      const options = createOptions({
+        offlineManager: mockOfflineManager as unknown as DownloadManagerOptions['offlineManager'],
+        onProgressUpdate,
+      });
+      const manager = new DownloadManager(options);
+      await manager.downloadRegion({
+        name: 'R',
+        bounds: [0, 0, 1, 1],
+        minZoom: 0,
+        maxZoom: 10,
+        styleUrl: 'https://example.com/s.json',
+      });
+      expect(onProgressUpdate).toHaveBeenCalled();
+    });
   });
 
   describe('UI callbacks', () => {

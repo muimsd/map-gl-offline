@@ -202,5 +202,41 @@ describe('PanelHeader', () => {
       expect(p).not.toBeNull();
       expect(p?.textContent).toContain('Header Subtitle');
     });
+
+    it('renders the dark theme icon + tooltip when preference is dark', () => {
+      const { themeManager } = require('../../../src/ui/ThemeManager');
+      const origGet = themeManager.getPreference;
+      themeManager.getPreference = () => 'dark';
+      try {
+        const header = createHeader({
+          title: 'T',
+          subtitle: 'S',
+          showThemeToggle: true,
+          onThemeToggle: jest.fn(),
+        });
+        const btn = header.querySelector('button');
+        expect(btn?.getAttribute('title')).toMatch(/Dark theme/i);
+      } finally {
+        themeManager.getPreference = origGet;
+      }
+    });
+
+    it('renders the system theme icon + tooltip when preference is system', () => {
+      const { themeManager } = require('../../../src/ui/ThemeManager');
+      const origGet = themeManager.getPreference;
+      themeManager.getPreference = () => 'system';
+      try {
+        const header = createHeader({
+          title: 'T',
+          subtitle: 'S',
+          showThemeToggle: true,
+          onThemeToggle: jest.fn(),
+        });
+        const btn = header.querySelector('button');
+        expect(btn?.getAttribute('title')).toMatch(/System theme/i);
+      } finally {
+        themeManager.getPreference = origGet;
+      }
+    });
   });
 });

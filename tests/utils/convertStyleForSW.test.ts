@@ -321,6 +321,74 @@ describe('convertStyleForServiceWorker', () => {
     });
   });
 
+  describe('models (Mapbox Standard 3D assets)', () => {
+    it('converts string-valued idb:// model entries', () => {
+      const style = makeStyle({
+        models: {
+          'maple1-lod1': 'idb://style-xyz/model/maple1-lod1',
+          'oak1-lod2': 'idb://style-xyz/model/oak1-lod2',
+        },
+      });
+      const result = convertStyleForServiceWorker(style);
+      const models = result.models as Record<string, string>;
+      expect(models['maple1-lod1']).toBe(`${ORIGIN}/__offline__/style-xyz/model/maple1-lod1`);
+      expect(models['oak1-lod2']).toBe(`${ORIGIN}/__offline__/style-xyz/model/oak1-lod2`);
+    });
+
+    it('converts object-valued ({uri}) idb:// model entries', () => {
+      const style = makeStyle({
+        models: {
+          'legacy-model': { uri: 'idb://style-xyz/model/legacy', someProp: 'kept' },
+        },
+      });
+      const result = convertStyleForServiceWorker(style);
+      const model = (result.models as Record<string, { uri: string; someProp: string }>)[
+        'legacy-model'
+      ];
+      expect(model.uri).toBe(`${ORIGIN}/__offline__/style-xyz/model/legacy`);
+      expect(model.someProp).toBe('kept');
+    });
+
+    it('leaves non-idb:// string-valued models unchanged', () => {
+      const style = makeStyle({
+        models: {
+          'external-model': 'https://external.example.com/model.glb',
+        },
+      });
+      const result = convertStyleForServiceWorker(style);
+      expect((result.models as Record<string, string>)['external-model']).toBe(
+        'https://external.example.com/model.glb'
+      );
+    });
+
+    it('leaves non-idb:// object-valued models unchanged', () => {
+      const style = makeStyle({
+        models: {
+          'external-model': { uri: 'https://external.example.com/model.glb' },
+        },
+      });
+      const result = convertStyleForServiceWorker(style);
+      expect(
+        (result.models as Record<string, { uri: string }>)['external-model'].uri
+      ).toBe('https://external.example.com/model.glb');
+    });
+
+    it('handles object values missing a uri field', () => {
+      const style = makeStyle({
+        // Malformed but must not throw.
+        models: { weird: { notUri: 'something' } as never },
+      });
+      const result = convertStyleForServiceWorker(style);
+      expect(result.models).toBeDefined();
+    });
+
+    it('does not add a models key when the style has none', () => {
+      const style = makeStyle();
+      const result = convertStyleForServiceWorker(style);
+      expect(result.models).toBeUndefined();
+    });
+  });
+
   describe('minimal and empty styles', () => {
     it('should handle a minimal style with only required fields', () => {
       const style: MapboxStyle = {

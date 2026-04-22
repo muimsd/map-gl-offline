@@ -8,8 +8,85 @@ import {
   processStyleSources,
   validateStyleForProvider,
   rewriteMapboxCdnTileUrl,
+  isMapboxProtocol,
+  resolveMapboxUrl,
 } from '../../src/utils/styleProviderUtils';
 import type { BaseStyle } from '../../src/types/style';
+
+describe('isMapboxProtocol', () => {
+  it('returns true for mapbox:// URLs', () => {
+    expect(isMapboxProtocol('mapbox://styles/mapbox/standard')).toBe(true);
+    expect(isMapboxProtocol('mapbox://mapbox.mapbox-streets-v8')).toBe(true);
+    expect(isMapboxProtocol('mapbox://sprites/mapbox/standard/abc')).toBe(true);
+    expect(isMapboxProtocol('mapbox://fonts/mapbox/DIN/0-255.pbf')).toBe(true);
+    expect(isMapboxProtocol('mapbox://models/mapbox/maple1.glb')).toBe(true);
+  });
+  it('returns false for non-mapbox URLs', () => {
+    expect(isMapboxProtocol('https://api.mapbox.com/styles/v1/mapbox/standard')).toBe(false);
+    expect(isMapboxProtocol('idb://styleId/tile/x/1/2/3.pbf')).toBe(false);
+    expect(isMapboxProtocol('https://example.com/style.json')).toBe(false);
+    expect(isMapboxProtocol('')).toBe(false);
+  });
+});
+
+describe('resolveMapboxUrl', () => {
+  const token = 'pk.test-token';
+
+  it('returns non-mapbox URLs unchanged', () => {
+    expect(resolveMapboxUrl('https://example.com/style.json', token)).toBe(
+      'https://example.com/style.json'
+    );
+  });
+
+  it('throws when the URL is mapbox:// but no access token is provided', () => {
+    expect(() => resolveMapboxUrl('mapbox://styles/mapbox/standard', '')).toThrow(
+      /access token/i
+    );
+  });
+
+  it('resolves mapbox://styles/{user}/{id} to /styles/v1/…', () => {
+    const url = resolveMapboxUrl('mapbox://styles/mapbox/standard', token);
+    expect(url).toBe(`https://api.mapbox.com/styles/v1/mapbox/standard?access_token=${token}`);
+  });
+
+  it('resolves mapbox://sprites/{user}/{id}[/hash] to /styles/v1/.../sprite', () => {
+    const url = resolveMapboxUrl('mapbox://sprites/mapbox/standard/00kxhqqddcml91u4n6ur3drf3', token);
+    expect(url).toBe(
+      `https://api.mapbox.com/styles/v1/mapbox/standard/00kxhqqddcml91u4n6ur3drf3/sprite?access_token=${token}`
+    );
+  });
+
+  it('resolves mapbox://fonts/{user}/{fontstack}/{range}.pbf to /fonts/v1/…', () => {
+    const url = resolveMapboxUrl('mapbox://fonts/mapbox/DIN%20Pro%20Bold/0-255.pbf', token);
+    expect(url).toBe(
+      `https://api.mapbox.com/fonts/v1/mapbox/DIN%20Pro%20Bold/0-255.pbf?access_token=${token}`
+    );
+  });
+
+  it('resolves mapbox://models/{path}.glb to /models/v1/…', () => {
+    const url = resolveMapboxUrl('mapbox://models/mapbox/maple1-v4-lod1.glb', token);
+    expect(url).toBe(
+      `https://api.mapbox.com/models/v1/mapbox/maple1-v4-lod1.glb?access_token=${token}`
+    );
+  });
+
+  it('resolves mapbox://{tileset} to /v4/{tileset}.json', () => {
+    const url = resolveMapboxUrl('mapbox://mapbox.mapbox-streets-v8', token);
+    expect(url).toBe(
+      `https://api.mapbox.com/v4/mapbox.mapbox-streets-v8.json?access_token=${token}`
+    );
+  });
+
+  it('resolves composite mapbox://{a,b,c} tileset URLs', () => {
+    const url = resolveMapboxUrl(
+      'mapbox://mapbox.mapbox-bathymetry-v2,mapbox.mapbox-streets-v8-lite',
+      token
+    );
+    expect(url).toBe(
+      `https://api.mapbox.com/v4/mapbox.mapbox-bathymetry-v2,mapbox.mapbox-streets-v8-lite.json?access_token=${token}`
+    );
+  });
+});
 
 describe('styleProviderUtils', () => {
   describe('detectStyleProvider', () => {
@@ -224,6 +301,50 @@ describe('styleProviderUtils', () => {
       const processed = processStyleSources(style, 'maplibre');
 
       expect(processed).toEqual(style);
+    });
+
+    it('resolves mapbox:// sprite URLs into HTTPS URLs with an access token', () => {
+      const style = {
+        version: 8,
+        sources: {},
+        layers: [],
+        sprite: 'mapbox://sprites/mapbox/standard/abc',
+      } as unknown as BaseStyle;
+      const processed = processStyleSources(style, 'mapbox', 'pk.test');
+      expect(typeof processed.sprite).toBe('string');
+      expect(processed.sprite as string).toContain('access_token=pk.test');
+    });
+
+    it('processes an array-shaped sprite config with mapbox:// entries', () => {
+      const style = {
+        version: 8,
+        sources: {},
+        layers: [],
+        sprite: [
+          { id: 'a', url: 'mapbox://sprites/mapbox/standard/abc' },
+          { id: 'b', url: 'https://api.mapbox.com/styles/v1/user/style/sprite' },
+          { id: 'c', url: 'https://other.example/sprite' },
+        ],
+      } as unknown as BaseStyle;
+      const processed = processStyleSources(style, 'mapbox', 'pk.test');
+      const arr = processed.sprite as unknown as Array<{ id: string; url: string }>;
+      // mapbox:// entry becomes an HTTPS URL with access_token.
+      expect(arr[0].url).toContain('access_token=pk.test');
+      // mapbox.com entry gets access_token appended.
+      expect(arr[1].url).toContain('access_token=pk.test');
+      // other URLs pass through unchanged.
+      expect(arr[2].url).toBe('https://other.example/sprite');
+    });
+
+    it('resolves mapbox:// glyphs URL into an HTTPS glyphs URL', () => {
+      const style = {
+        version: 8,
+        sources: {},
+        layers: [],
+        glyphs: 'mapbox://fonts/mapbox/{fontstack}/{range}.pbf',
+      } as unknown as BaseStyle;
+      const processed = processStyleSources(style, 'mapbox', 'pk.test');
+      expect(processed.glyphs).toContain('access_token=pk.test');
     });
   });
 

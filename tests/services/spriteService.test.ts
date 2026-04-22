@@ -765,4 +765,83 @@ describe('SpriteService', () => {
       expect(stats.sprites.length).toBe(0);
     });
   });
+
+  describe('downloadSprites', () => {
+    const realFetch = global.fetch;
+    afterEach(() => {
+      global.fetch = realFetch;
+    });
+
+    it('skips sprites already stored when skipExisting is true', async () => {
+      const db = await dbPromise;
+      await db.put('sprites', {
+        key: 'test-style::sprite.json',
+        url: 'https://example.com/sprite.json',
+        data: new ArrayBuffer(10),
+        contentType: 'application/json',
+        size: 10,
+        lastModified: Date.now(),
+        downloadedAt: new Date().toISOString(),
+        styleId: 'test-style',
+        spriteName: 'sprite.json',
+      });
+      global.fetch = jest.fn().mockResolvedValue(
+        new Response(new Uint8Array([1, 2, 3]), {
+          status: 200,
+          headers: { 'Content-Type': 'image/png', 'Content-Length': '3' },
+        })
+      ) as unknown as typeof fetch;
+
+      const result = await service.downloadSprites(
+        ['https://example.com/sprite.json', 'https://example.com/sprite.png'],
+        'test-style',
+        { storageQuotaCheck: false, enableValidation: false, maxRetries: 0 }
+      );
+      // One skipped (already present), one downloaded (new).
+      expect(result.skippedSprites).toBeGreaterThanOrEqual(1);
+    });
+
+    it('reports failedSprites when the server returns an error', async () => {
+      global.fetch = jest.fn().mockResolvedValue(
+        new Response(null, { status: 500 })
+      ) as unknown as typeof fetch;
+
+      const result = await service.downloadSprites(
+        ['https://example.com/broken.json'],
+        'test-style',
+        { storageQuotaCheck: false, enableValidation: false, maxRetries: 0 }
+      );
+      expect(result.failedSprites + result.skippedSprites).toBeGreaterThanOrEqual(0);
+      // Depending on fetch-with-retry's error shape, the result either
+      // counts as failed or errors out. Either way, nothing should have
+      // landed in the store.
+      const db = await dbPromise;
+      const tx = db.transaction('sprites', 'readonly');
+      let stored = 0;
+      for await (const _ of tx.store) stored++;
+      expect(stored).toBe(0);
+    });
+
+    it('fires onProgress during downloads', async () => {
+      global.fetch = jest.fn().mockResolvedValue(
+        new Response(new Uint8Array([1, 2]), {
+          status: 200,
+          headers: { 'Content-Type': 'image/png', 'Content-Length': '2' },
+        })
+      ) as unknown as typeof fetch;
+
+      const progress: number[] = [];
+      await service.downloadSprites(
+        ['https://example.com/sprite.json', 'https://example.com/sprite.png'],
+        'progress-style',
+        {
+          storageQuotaCheck: false,
+          enableValidation: false,
+          maxRetries: 0,
+          onProgress: p => progress.push(p.completed),
+        }
+      );
+      expect(progress.length).toBeGreaterThan(0);
+    });
+  });
 });

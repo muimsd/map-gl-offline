@@ -796,5 +796,25 @@ describe('styleUtils', () => {
         'idb://my-download/tile/raster-source/{z}/{x}/{y}.png'
       );
     });
+
+    it('patches an array-shaped sprite config (MapLibre GL JS v3+ format)', () => {
+      const style: MapboxStyle = {
+        version: 8,
+        sources: {},
+        layers: [],
+        // Array-shaped sprite with multiple entries.
+        sprite: [
+          { id: 'base', url: 'https://example.com/base' },
+          { id: 'overlay', url: 'https://example.com/overlay' },
+        ],
+      } as unknown as MapboxStyle;
+
+      const patched = patchStyleForOffline(style, 'my-download', undefined, undefined, 'my-style');
+      const arr = patched.sprite as unknown as Array<{ id: string; url: string }>;
+      // Each entry should be patched to idb:// with the styleId baseId.
+      expect(arr).toHaveLength(2);
+      expect(arr[0].url).toBe('idb://my-style/sprite/base');
+      expect(arr[1].url).toBe('idb://my-style/sprite/overlay');
+    });
   });
 });
