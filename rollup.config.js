@@ -10,6 +10,7 @@ const external = [
   '@mapbox/tilebelt',
   'idb',
   'i18next',
+  'sql.js',
   '@turf/area',
   '@turf/bbox-polygon',
   '@turf/difference',
@@ -26,12 +27,17 @@ export default defineConfig([
         file: 'dist/index.js',
         format: 'cjs',
         sourcemap: true,
-        exports: 'named'
+        exports: 'named',
+        // `sql.js` is loaded via dynamic import in sqlJsLoader.ts. Inline it
+        // (as an `await import('sql.js')` reference, since it's external)
+        // so we can keep shipping a single-file bundle.
+        inlineDynamicImports: true
       },
       {
         file: 'dist/index.esm.js',
         format: 'esm',
-        sourcemap: true
+        sourcemap: true,
+        inlineDynamicImports: true
       },
       {
         file: 'dist/index.umd.js',
@@ -39,12 +45,14 @@ export default defineConfig([
         name: 'mapgloffline',
         sourcemap: true,
         exports: 'named',
+        inlineDynamicImports: true,
         globals: {
           'mapbox-gl': 'mapboxgl',
           'maplibre-gl': 'maplibregl',
           '@mapbox/tilebelt': 'tilebelt',
           'idb': 'idb',
           'i18next': 'i18next',
+          'sql.js': 'initSqlJs',
           '@turf/area': 'turfArea',
           '@turf/bbox-polygon': 'turfBboxPolygon',
           '@turf/difference': 'turfDifference',
