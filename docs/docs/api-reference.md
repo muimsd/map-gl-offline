@@ -404,17 +404,25 @@ console.log(`Freed: ${(result.freedSpace / 1024 / 1024).toFixed(1)} MB`);
 result.recommendations.forEach(rec => console.log(`Tip: ${rec}`));
 ```
 
-#### `cleanupOldFonts(styleId?: string, options?: { maxAge?: number }): Promise<unknown>`
+#### `cleanupOldFonts(styleId?: string, options?: { maxAge?: number }): Promise<number>`
 
-Remove font data older than the specified age.
+Remove font entries older than `options.maxAge` days (default 30). When `styleId` is passed, only fonts belonging to that style (per the delimiter-aware `resourceKeyBelongsToStyle` match — so `style-a` does not match sibling `style-a_other`) are eligible. Returns the number of deleted entries.
 
-#### `cleanupOldSprites(styleId?: string, options?: { maxAge?: number }): Promise<unknown>`
+```typescript
+// Clean up every style's old fonts:
+await manager.cleanupOldFonts();
 
-Remove sprite data older than the specified age.
+// Clean up only one style's fonts older than 7 days:
+await manager.cleanupOldFonts('my-style-id', { maxAge: 7 });
+```
 
-#### `cleanupOldGlyphs(styleId?: string, options?: { maxAge?: number }): Promise<unknown>`
+#### `cleanupOldSprites(styleId?: string, options?: { maxAge?: number }): Promise<number>`
 
-Remove glyph data older than the specified age.
+Same contract as `cleanupOldFonts`, for the `sprites` store.
+
+#### `cleanupOldGlyphs(styleId?: string, options?: { maxAge?: number }): Promise<number>`
+
+Same contract as `cleanupOldFonts`, for the `glyphs` store.
 
 #### `setupAutoCleanup(options?: RegionCleanupOptions & { intervalHours?: number }): Promise<string>`
 
@@ -457,22 +465,28 @@ await manager.stopAllAutoCleanup();
 
 ### Verification Methods
 
-#### `verifyAndRepairFonts(styleId: string, options?: { removeCorrupted?: boolean }): Promise<{ verified: number; repaired: number; removed: number }>`
+These methods scan every stored entry in their respective store (across all styles), recompute each entry's integrity, remove unrecoverable ones, and fix the rest. They don't take a style filter — pass `manager.deleteStyle(styleId)` if you want to isolate a style.
 
-Verify font integrity for a style and optionally remove corrupted entries.
+#### `verifyAndRepairFonts(): Promise<{ verified: number; repaired: number; removed: number }>`
+
+Verify every stored font entry, repair recoverable metadata, and remove corrupted entries.
 
 ```typescript
-const result = await manager.verifyAndRepairFonts('style_123', { removeCorrupted: true });
+const result = await manager.verifyAndRepairFonts();
 console.log(`Verified: ${result.verified}, Repaired: ${result.repaired}, Removed: ${result.removed}`);
 ```
 
-#### `verifyAndRepairSprites(styleId: string, options?: { autoRepair?: boolean }): Promise<{ verified: number; repaired: number; removed: number }>`
+#### `verifyAndRepairSprites(): Promise<{ verified: number; repaired: number; removed: number }>`
 
-Verify sprite integrity for a style and optionally auto-repair.
+Same shape, for the `sprites` store.
 
-#### `verifyAndRepairGlyphs(styleId: string, options?: { removeCorrupted?: boolean }): Promise<{ verified: number; repaired: number; removed: number }>`
+#### `verifyAndRepairGlyphs(): Promise<{ verified: number; repaired: number; removed: number }>`
 
-Verify glyph integrity for a style and optionally remove corrupted entries.
+Same shape, for the `glyphs` store.
+
+#### `verifyAndRepairModels(): Promise<{ verified: number; repaired: number; removed: number }>`
+
+Same shape, for the `models` store (Mapbox Standard `.glb` assets). Added in DB v4.
 
 ### Maintenance Methods
 

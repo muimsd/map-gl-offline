@@ -41,6 +41,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `ExportResult.blob` content-type is `application/x-sqlite3` (was `application/vnd.mapbox-vector-tile`, which was wrong for a SQLite container).
 - MBTiles `type` metadata is `baselayer` for vector tiles (QGIS renders as a map) and `overlay` for raster — previously hardcoded to `overlay`.
 
+### Fixed
+
+- **`cleanupOldFonts` / `cleanupOldSprites` / `cleanupOldGlyphs` silently ignored their `styleId` argument.** Passing a styleId would wipe that resource type across *every* style rather than scoping the cleanup. Now the underlying services filter by `resourceKeyBelongsToStyle(key, styleId)` when a style is supplied — the public signature on `OfflineMapManager` is unchanged, only the behavior is corrected.
+- **Docs corrected**: the IDB structure section in `configuration.md` and `architecture.md` claimed `DB_VERSION: 3` with a `regions` store; the library has been on v4 (with the `models` store and no legacy `regions` store) since 0.7.0. The `idb://` URL shapes documented in `architecture.md` were inverted (`idb://tiles/{styleId}/…` instead of the actual `idb://{styleId}/tile/…`). The logger section in `configuration.md` called a non-existent `logger.setLogLevel()` with a non-existent `LogLevel.NONE`; the real API is `logger.setLevel()` / `configureLogger()` with `LogLevel.SILENT`. `verifyAndRepair{Fonts,Sprites,Glyphs}` signatures in `api-reference.md` claimed a `styleId` argument that the code never accepted.
+
 ### Dependencies
 
 - Runtime: added `sql.js ^1.14.1`. Lazy-loaded via dynamic `import()` — only joins bundles that actually call MBTiles code, so JSON-only consumers pre-0.8.0 don't pay the ~1 MB WASM tax. Vite code-splits it into its own chunk (~40 KB JS + ~1 MB WASM).

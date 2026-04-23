@@ -1,4 +1,5 @@
 import { dbPromise } from '@/storage/indexedDbManager';
+import { resourceKeyBelongsToStyle } from '@/services/regionService';
 import type {
   EnhancedSpriteStats,
   SpriteDownloadOptions,
@@ -414,13 +415,20 @@ export class SpriteService {
   }
 
   /**
-   * Removes sprites older than the specified age
+   * Remove sprites older than the specified age. When `options.styleId` is
+   * provided, only sprites belonging to that style (per
+   * `resourceKeyBelongsToStyle`) are eligible.
    * @param maxAge - Maximum age in days (default: 30)
+   * @param options.styleId - Optional style filter; omit to scan all styles
    * @returns Promise resolving to number of deleted sprites
    */
-  async cleanupOldSprites(maxAge: number = 30): Promise<number> {
+  async cleanupOldSprites(
+    maxAge: number = 30,
+    options: { styleId?: string } = {}
+  ): Promise<number> {
     const db = await this.db;
     const cutoffTime = Date.now() - maxAge * 24 * 60 * 60 * 1000;
+    const { styleId } = options;
 
     const tx = db.transaction(['sprites'], 'readwrite');
     let deletedCount = 0;
@@ -429,7 +437,8 @@ export class SpriteService {
 
     while (cursor) {
       const spriteEntry: SpriteEntry = cursor.value;
-      if (spriteEntry.lastModified < cutoffTime) {
+      const belongs = !styleId || resourceKeyBelongsToStyle(spriteEntry.key, styleId);
+      if (belongs && spriteEntry.lastModified < cutoffTime) {
         await cursor.delete();
         deletedCount++;
       }
@@ -596,5 +605,6 @@ export const downloadSprites = (
 
 export const getSpriteStats = () => spriteService.getSpriteStats();
 export const getSpriteAnalytics = () => spriteService.getSpriteAnalytics();
-export const cleanupOldSprites = (maxAge?: number) => spriteService.cleanupOldSprites(maxAge);
+export const cleanupOldSprites = (maxAge?: number, options?: { styleId?: string }) =>
+  spriteService.cleanupOldSprites(maxAge, options);
 export const verifyAndRepairSprites = () => spriteService.verifyAndRepairSprites();

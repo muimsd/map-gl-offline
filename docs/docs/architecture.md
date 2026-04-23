@@ -209,11 +209,11 @@ See the [API Reference](./api-reference#services) for usage examples of each ser
 Provides a clean API over IndexedDB using the `idb` library:
 
 ```typescript
-// Database structure (version 3)
+// Database structure (version 4)
 const db = await openDB('offline-map-db', DB_VERSION, {
   upgrade(db, oldVersion, _newVersion, transaction) {
     // Create stores for fresh installs
-    const stores = ['regions', 'tiles', 'styles', 'sprites', 'glyphs', 'fonts'];
+    const stores = ['tiles', 'styles', 'sprites', 'glyphs', 'fonts', 'models'];
     for (const store of stores) {
       if (!db.objectStoreNames.contains(store)) {
         db.createObjectStore(store, { keyPath: 'key' });
@@ -224,6 +224,7 @@ const db = await openDB('offline-map-db', DB_VERSION, {
     if (oldVersion > 0 && oldVersion < 3) {
       migrateRegionsToStyles(transaction);
     }
+    // v3 -> v4 adds the `models` store; no data movement needed.
   },
 });
 ```
@@ -237,6 +238,7 @@ Object stores:
 | `sprites` | Sprite images and JSON | |
 | `glyphs` | Font glyph data (PBF ranges) | |
 | `fonts` | Font files | |
+| `models` | 3D model assets (`.glb`) | Added in DB v4. Keyed by `{styleId}::model::{modelName}`. |
 | `regions` | **(deprecated)** Legacy region storage | Only kept for migration; regions live in `styles.regions[]` |
 
 Key features:
@@ -352,16 +354,19 @@ Map requests idb:// URL
 
 ## URL Protocol
 
-For offline resources, the library uses a custom `idb://` protocol:
+For offline resources, the library uses a custom `idb://` protocol. The authority segment is the `styleId`, followed by a resource-kind segment and resource-specific path:
 
 ```
-idb://tiles/{styleId}/{sourceId}/{z}/{x}/{y}
-idb://fonts/{styleId}/{fontStack}/{range}
-idb://sprites/{styleId}/{spriteName}[@2x]
-idb://styles/{styleId}
+idb://{styleId}/tile/{sourceId}/{z}/{x}/{y}.{ext}
+idb://{styleId}/glyph/{fontstack}/{range}.pbf
+idb://{styleId}/sprite/{spriteName}          # optionally @2x and .png / .json
+idb://{styleId}/model/{modelName}
+idb://{styleId}/tilesjson/{encodedUrl}       # stored TileJSON responses
 ```
 
-The fetch interceptor converts these to IndexedDB lookups.
+Styles themselves are loaded through `OfflineManagerControl.loadOfflineStyle(styleId)`, which reads the style from IndexedDB directly rather than via the protocol.
+
+The fetch interceptor (MapLibre `addProtocol` / Mapbox Service Worker) converts these to IndexedDB lookups. For Mapbox GL JS the Service Worker path uses `/__offline__/{styleId}/tile/…` etc. internally, which `convertStyleForServiceWorker` rewrites from `idb://` on style load.
 
 ## Import Path Alias
 
@@ -436,7 +441,7 @@ Centralized constants prevent magic numbers:
 ```typescript
 // src/utils/constants.ts
 export const DB_NAME = 'offline-map-db';
-export const DB_VERSION = 3;
+export const DB_VERSION = 4;
 
 export const DOWNLOAD_DEFAULTS = {
   BATCH_SIZE: 10,

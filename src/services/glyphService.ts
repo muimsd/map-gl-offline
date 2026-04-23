@@ -1,5 +1,6 @@
 import { dbPromise } from '@/storage/indexedDbManager';
 import { fetchWithRetry, parseCacheExpiry, logger } from '@/utils';
+import { resourceKeyBelongsToStyle } from '@/services/regionService';
 import type { GlyphDownloadOptions, GlyphDownloadResult, GlyphEntry, GlyphRange } from '@/types';
 
 const glyphLogger = logger.scope('GlyphService');
@@ -354,16 +355,23 @@ export class GlyphService {
     };
   }
 
-  async cleanupOldGlyphs(maxAge: number = 30): Promise<number> {
+  /**
+   * Remove glyphs older than the specified age. When `options.styleId` is
+   * provided, only glyphs belonging to that style (per
+   * `resourceKeyBelongsToStyle`) are eligible.
+   */
+  async cleanupOldGlyphs(maxAge: number = 30, options: { styleId?: string } = {}): Promise<number> {
     const db = await this.db;
     const cutoffTime = Date.now() - maxAge * 24 * 60 * 60 * 1000;
+    const { styleId } = options;
 
     let deletedCount = 0;
 
     const tx = db.transaction('glyphs', 'readwrite');
     for await (const cursor of tx.store) {
       const glyphEntry: GlyphEntry = cursor.value;
-      if (glyphEntry.lastModified < cutoffTime) {
+      const belongs = !styleId || resourceKeyBelongsToStyle(glyphEntry.key, styleId);
+      if (belongs && glyphEntry.lastModified < cutoffTime) {
         await cursor.delete();
         deletedCount++;
       }
@@ -493,5 +501,6 @@ export const loadGlyphs = (fontstack: string, ranges: string[], styleName?: stri
 
 export const getGlyphStats = () => glyphService.getGlyphStats();
 export const getGlyphAnalytics = () => glyphService.getGlyphAnalytics();
-export const cleanupOldGlyphs = (maxAge?: number) => glyphService.cleanupOldGlyphs(maxAge);
+export const cleanupOldGlyphs = (maxAge?: number, options?: { styleId?: string }) =>
+  glyphService.cleanupOldGlyphs(maxAge, options);
 export const verifyAndRepairGlyphs = () => glyphService.verifyAndRepairGlyphs();

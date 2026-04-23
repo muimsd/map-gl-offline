@@ -88,8 +88,7 @@ export class ResourceService {
   }
 
   async cleanupOldFonts(styleId?: string, options?: { maxAge?: number }): Promise<number> {
-    const maxAge = options?.maxAge;
-    return cleanupOldFonts(maxAge);
+    return cleanupOldFonts(options?.maxAge, { styleId });
   }
 
   async verifyAndRepairFonts(): Promise<{ verified: number; repaired: number; removed: number }> {
@@ -114,8 +113,7 @@ export class ResourceService {
   }
 
   async cleanupOldSprites(styleId?: string, options?: { maxAge?: number }): Promise<number> {
-    const maxAge = options?.maxAge;
-    return cleanupOldSprites(maxAge);
+    return cleanupOldSprites(options?.maxAge, { styleId });
   }
 
   async verifyAndRepairSprites(): Promise<{ verified: number; repaired: number; removed: number }> {
@@ -146,8 +144,7 @@ export class ResourceService {
   }
 
   async cleanupOldGlyphs(styleId?: string, options?: { maxAge?: number }): Promise<number> {
-    const maxAge = options?.maxAge;
-    return cleanupOldGlyphs(maxAge);
+    return cleanupOldGlyphs(options?.maxAge, { styleId });
   }
 
   async verifyAndRepairGlyphs(): Promise<{ verified: number; repaired: number; removed: number }> {

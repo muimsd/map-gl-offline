@@ -190,14 +190,18 @@ const TILE_CONFIG = {
 The library uses IndexedDB with the following structure:
 
 - **Database Name**: `offline-map-db`
-- **Database Version**: `3`
+- **Database Version**: `4`
 - **Stores**:
   - `tiles` - Map tiles (keyed as `{styleId}:{sourceId}:{z}:{x}:{y}.{extension}`)
   - `styles` - Style JSON documents with embedded `regions[]` array
   - `sprites` - Sprite images and JSON
   - `glyphs` - Font glyph data (PBF ranges)
   - `fonts` - Font files
-  - `regions` - **(deprecated)** Legacy region storage; regions now live in `styles.regions[]`
+  - `models` - 3D model assets (e.g. Mapbox Standard trees / wind turbines); added in DB v4
+
+The legacy `regions` store (present in DB v1–v2) was fully dropped in v4. Regions have lived inside `styles.regions[]` since v3.
+
+On upgrade, the DB migrates additively — no data is moved and existing offline content is preserved. If the on-disk schema is newer than the library supports (common in shared-origin dev environments), `dbPromise` throws `OfflineMapDBVersionError`; call `resetOfflineMapDB()` to recover (destructive — wipes all stored offline data).
 
 ### Storage Quota Management
 
@@ -557,21 +561,24 @@ These runtime settings do not affect offline storage -- the library stores the b
 ## Logging Configuration
 
 ```typescript
-import { logger, LogLevel } from 'map-gl-offline';
+import { logger, configureLogger, LogLevel } from 'map-gl-offline';
 
-// Set log level
-logger.setLogLevel(LogLevel.DEBUG); // Show all logs
-logger.setLogLevel(LogLevel.INFO); // Info and above
-logger.setLogLevel(LogLevel.WARN); // Warnings and errors only
-logger.setLogLevel(LogLevel.ERROR); // Errors only
-logger.setLogLevel(LogLevel.NONE); // Disable logging
+// Set via the helper (recommended — future-proof if the config shape grows):
+configureLogger({ level: LogLevel.DEBUG }); // all logs
+configureLogger({ level: LogLevel.INFO });  // info + warn + error
+configureLogger({ level: LogLevel.WARN });  // warnings + errors
+configureLogger({ level: LogLevel.ERROR }); // errors only
+configureLogger({ level: LogLevel.SILENT }); // disable logging entirely
 
-// Create scoped logger
+// Or call the underlying method directly:
+logger.setLevel(LogLevel.DEBUG);
+
+// Create a scoped logger:
 const myLogger = logger.scope('MyComponent');
 myLogger.debug('This is a debug message');
 ```
 
-In production, the log level automatically defaults to `INFO`.
+`LogLevel` values: `SILENT` (-1), `ERROR` (0), `WARN` (1), `INFO` (2), `DEBUG` (3). Production defaults to `ERROR`; development defaults to `DEBUG`.
 
 ## Environment Variables
 
