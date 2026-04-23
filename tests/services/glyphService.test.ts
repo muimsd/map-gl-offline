@@ -351,6 +351,38 @@ describe('GlyphService', () => {
 
       expect(deletedCount).toBe(1);
     });
+
+    it('filters by styleId when provided', async () => {
+      const db = await dbPromise;
+      const oldTime = Date.now() - 40 * 24 * 60 * 60 * 1000;
+
+      await db.put('glyphs', {
+        key: 'style-a:Arial/0-255.pbf',
+        data: new ArrayBuffer(10),
+        url: '',
+        size: 10,
+        lastModified: oldTime,
+        downloadedAt: new Date(oldTime).toISOString(),
+        fontstack: 'Arial',
+        range: '0-255',
+      });
+      await db.put('glyphs', {
+        key: 'style-b:Arial/0-255.pbf',
+        data: new ArrayBuffer(10),
+        url: '',
+        size: 10,
+        lastModified: oldTime,
+        downloadedAt: new Date(oldTime).toISOString(),
+        fontstack: 'Arial',
+        range: '0-255',
+      });
+
+      const deleted = await service.cleanupOldGlyphs(30, { styleId: 'style-a' });
+
+      expect(deleted).toBe(1);
+      expect(await db.get('glyphs', 'style-a:Arial/0-255.pbf')).toBeUndefined();
+      expect(await db.get('glyphs', 'style-b:Arial/0-255.pbf')).toBeDefined();
+    });
   });
 
   describe('verifyAndRepairGlyphs', () => {

@@ -5,6 +5,52 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.0] - 2026-04-22
+
+> **Breaking release focused on import/export.** The JSON and PMTiles export paths shipped in 0.7.0 and earlier were never standards-compliant — JSON produced a bespoke format nothing else reads, and the PMTiles implementation just wrapped that JSON in a `.pmtiles` extension. Both are removed. MBTiles is the only supported format now, and it's finally the real thing: v1.3-compliant SQLite that opens directly in QGIS, tippecanoe, and maplibre-native without conversion.
+
+### Migrating from 0.7.x
+
+1. Replace `manager.exportRegionAsJSON(id)` / `manager.exportRegionAsPMTiles(id)` with `manager.exportRegionAsMBTiles(id)`. The returned `ExportResult.blob` is now a binary SQLite file (`application/x-sqlite3`), and `ExportResult.filename` ends in `.mbtiles`.
+2. Update file inputs from `accept=".json,.pmtiles,.mbtiles"` to `accept=".mbtiles"` (or equivalent MIME types).
+3. In calls to `manager.importRegion({...})`, remove `format: 'json' | 'pmtiles'` (only `'mbtiles'` is valid now) and drop any `includeStyle` / `includeTiles` / `includeSprites` / `includeFonts` / `compression` options on the export side (gone from `ImportExportOptions`).
+4. If you self-host, call `configureSqlJs({ wasmUrl })` once on startup to point at your `sql-wasm.wasm`. Otherwise the library fetches it from jsDelivr at first use.
+5. If you depended on sprite or font counts in `ImportResult.statistics` / `ExportResult.statistics`, they're always `0` now — the fields are kept for source-compatibility but MBTiles is tiles-only.
+
+### Added
+
+- **Real binary MBTiles import/export** via `sql.js`. `exportRegionAsMBTiles` produces a v1.3-compliant SQLite archive with `metadata` + `tiles` tables, `tile_row` flipped to TMS, vector tiles gzipped, and a `json` metadata row containing `vector_layers` derived from the offline style's sources. Exports from this library now **open directly in QGIS, tippecanoe, and maplibre-native** — the previous `.mbtiles` files rendered as empty layers because vector tiles weren't gzipped and `json.vector_layers` was missing.
+- `importRegion({ format: 'mbtiles' })` parses the same binary format back, un-gzipping vector tiles so the offline fetch handler keeps serving them raw.
+- `configureSqlJs({ wasmUrl?, wasmBinary? })` to override how `sql.js` loads its WebAssembly. Default is `https://cdn.jsdelivr.net/npm/sql.js@<ver>/dist/`; set `wasmUrl` to self-host or `wasmBinary` (Node / pre-fetched setups).
+- Validation on import: non-SQLite files and SQLite files missing the required `metadata`/`tiles` tables are rejected up front with a clear error (e.g. `"Not a valid MBTiles file: missing SQLite header"`) instead of a cryptic one from `sql.js`.
+- `onProgress` callback on `RegionImportData` with `preparing → importing → complete` stages, matching the existing export progress API.
+- **MBTiles Import/Export modal** — focused, same size/density as the region-form modal. Reachable from the Import/Export action button on every region row. Shows a file picker (`accept=".mbtiles"`), optional new-region-name override, overwrite toggle, and progress bar.
+- End-to-end integration test at the public `OfflineMapManager` surface (`exportRegionAsMBTiles → importRegion → listStoredRegions` round-trip verified against real binary SQLite bytes).
+
+### Removed (breaking)
+
+- **`OfflineMapManager.exportRegionAsJSON`** and **`exportRegionAsPMTiles`** — use `exportRegionAsMBTiles` instead.
+- **Types**: `PMTilesExportOptions`, `SpriteExportData`, `FontExportData` deleted. `ImportExportOptions.format` / `.compression` / `.includeStyle` / `.includeTiles` / `.includeSprites` / `.includeFonts` fields removed (they only applied to the deleted JSON path); the interface is now `{ onProgress? }`.
+- **Literal narrowing**: `RegionImportData.format`, `ExportResult.format`, `RegionExportData.metadata.format` all narrowed from `'json' | 'pmtiles' | 'mbtiles'` to `'mbtiles'`.
+- **UI translations**: `importExport.*` string keys replaced with the new `mbtiles.*` namespace. If you shipped custom translations, rename keys accordingly.
+- **Package keyword `pmtiles`** dropped; `mbtiles` kept.
+
+### Changed
+
+- `PanelManager`'s region-row action button for import/export is now un-commented and visible by default.
+- `ExportResult.blob` content-type is `application/x-sqlite3` (was `application/vnd.mapbox-vector-tile`, which was wrong for a SQLite container).
+- MBTiles `type` metadata is `baselayer` for vector tiles (QGIS renders as a map) and `overlay` for raster — previously hardcoded to `overlay`.
+
+### Fixed
+
+- **`cleanupOldFonts` / `cleanupOldSprites` / `cleanupOldGlyphs` silently ignored their `styleId` argument.** Passing a styleId would wipe that resource type across *every* style rather than scoping the cleanup. Now the underlying services filter by `resourceKeyBelongsToStyle(key, styleId)` when a style is supplied — the public signature on `OfflineMapManager` is unchanged, only the behavior is corrected.
+- **Docs corrected**: the IDB structure section in `configuration.md` and `architecture.md` claimed `DB_VERSION: 3` with a `regions` store; the library has been on v4 (with the `models` store and no legacy `regions` store) since 0.7.0. The `idb://` URL shapes documented in `architecture.md` were inverted (`idb://tiles/{styleId}/…` instead of the actual `idb://{styleId}/tile/…`). The logger section in `configuration.md` called a non-existent `logger.setLogLevel()` with a non-existent `LogLevel.NONE`; the real API is `logger.setLevel()` / `configureLogger()` with `LogLevel.SILENT`. `verifyAndRepair{Fonts,Sprites,Glyphs}` signatures in `api-reference.md` claimed a `styleId` argument that the code never accepted.
+
+### Dependencies
+
+- Runtime: added `sql.js ^1.14.1`. Lazy-loaded via dynamic `import()` — only joins bundles that actually call MBTiles code, so JSON-only consumers pre-0.8.0 don't pay the ~1 MB WASM tax. Vite code-splits it into its own chunk (~40 KB JS + ~1 MB WASM).
+- Dev: `@types/sql.js ^1.4.11`.
+
 ## [0.7.0] - 2026-04-21
 
 > Completes offline support for the **Mapbox Standard** style. The gaps at 0.6.0 (3D models, `raster-array` sources, `iconset.pbf`) are all closed.

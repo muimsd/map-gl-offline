@@ -58,6 +58,17 @@ if (typeof structuredClone === 'undefined') {
 
 import 'fake-indexeddb/auto';
 
+// CompressionStream / DecompressionStream exist in Node 18+ but jsdom's
+// window doesn't re-export them — MBTiles export/import uses gzip, so
+// lift them into globalThis when missing.
+if (typeof (globalThis as Record<string, unknown>).CompressionStream === 'undefined') {
+  const { CompressionStream: NodeCompressionStream, DecompressionStream: NodeDecompressionStream } =
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    require('node:stream/web');
+  (globalThis as Record<string, unknown>).CompressionStream = NodeCompressionStream;
+  (globalThis as Record<string, unknown>).DecompressionStream = NodeDecompressionStream;
+}
+
 // Ensure Response and Headers are available globally
 // jsdom should provide these, but they might not be available in all contexts
 if (typeof Response === 'undefined') {

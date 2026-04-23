@@ -75,63 +75,45 @@ See the [API Reference](./api-reference#offlineregionoptions) for the full `Offl
 
 ## Export Configuration
 
-### JSON Export
+Regions are exported as binary **MBTiles** (SQLite) — v1.3-compliant, with vector tiles gzipped, `tile_row` flipped to TMS, and `json.vector_layers` derived from the offline style so the file opens cleanly in QGIS, tippecanoe, maplibre-native, etc.
 
 ```typescript
-await manager.exportRegionAsJSON('region-id', {
-  includeStyle: true,
-  includeTiles: true,
-  includeSprites: true,
-  includeFonts: true,
+await manager.exportRegionAsMBTiles('region-id', {
+  format: 'pbf', // 'pbf' | 'png' | 'jpg' — goes into metadata.format
+  metadata: {
+    attribution: 'Your Attribution',
+    description: 'Custom metadata', // merged into the metadata table
+  },
   onProgress: (progress) => console.log(progress),
 });
 ```
 
-### PMTiles Export
+### Configuring the sql.js WASM loader
+
+`sql.js` is loaded lazily on the first export/import call. By default the library fetches `sql-wasm.wasm` from jsDelivr — override if you self-host:
 
 ```typescript
-await manager.exportRegionAsPMTiles('region-id', {
-  compression: 'gzip', // 'gzip' | 'brotli' | 'none'
-  clustered: false,
-  metadata: {
-    attribution: 'Your Attribution',
-    version: '1.0.0',
-    description: 'Custom metadata',
-  },
-  includeStyle: true,
-  includeTiles: true,
-  includeSprites: true,
-  includeFonts: true,
-});
-```
+import { configureSqlJs } from 'map-gl-offline';
 
-### MBTiles Export
-
-```typescript
-await manager.exportRegionAsMBTiles('region-id', {
-  format: 'pbf', // 'pbf' | 'png' | 'jpg'
-  compression: 'gzip', // 'gzip' | 'none'
-  metadata: {
-    name: 'My Map',
-    description: 'Offline map data',
-    version: '1.0',
-    type: 'baselayer', // 'baselayer' | 'overlay'
-    format: 'pbf',
-  },
-});
+configureSqlJs({ wasmUrl: '/static/sql-wasm/' });
+// or pre-fetched binary:
+configureSqlJs({ wasmBinary: myArrayBuffer });
 ```
 
 ## Import Configuration
 
 ```typescript
 await manager.importRegion({
-  file: selectedFile,
-  format: 'json', // 'json' | 'pmtiles' | 'mbtiles'
-  overwrite: false, // Replace existing region with same ID
-  newRegionId: 'custom-id', // Override the region ID
-  newRegionName: 'Custom Name', // Override the region name
+  file: selectedFile,          // <input type="file" accept=".mbtiles">
+  format: 'mbtiles',           // only supported format
+  overwrite: false,            // replace existing region with same id
+  newRegionId: 'custom-id',    // override the region id from the file
+  newRegionName: 'Custom Name',
+  onProgress: (p) => console.log(p.message),
 });
 ```
+
+Non-SQLite files (e.g. a JSON renamed to `.mbtiles`) and SQLite files missing the required `metadata`/`tiles` tables are rejected up front with a descriptive error.
 
 ## Cleanup Configuration
 
@@ -208,14 +190,18 @@ const TILE_CONFIG = {
 The library uses IndexedDB with the following structure:
 
 - **Database Name**: `offline-map-db`
-- **Database Version**: `3`
+- **Database Version**: `4`
 - **Stores**:
   - `tiles` - Map tiles (keyed as `{styleId}:{sourceId}:{z}:{x}:{y}.{extension}`)
   - `styles` - Style JSON documents with embedded `regions[]` array
   - `sprites` - Sprite images and JSON
   - `glyphs` - Font glyph data (PBF ranges)
   - `fonts` - Font files
-  - `regions` - **(deprecated)** Legacy region storage; regions now live in `styles.regions[]`
+  - `models` - 3D model assets (e.g. Mapbox Standard trees / wind turbines); added in DB v4
+
+The legacy `regions` store (present in DB v1–v2) was fully dropped in v4. Regions have lived inside `styles.regions[]` since v3.
+
+On upgrade, the DB migrates additively — no data is moved and existing offline content is preserved. If the on-disk schema is newer than the library supports (common in shared-origin dev environments), `dbPromise` throws `OfflineMapDBVersionError`; call `resetOfflineMapDB()` to recover (destructive — wipes all stored offline data).
 
 ### Storage Quota Management
 
@@ -575,21 +561,24 @@ These runtime settings do not affect offline storage -- the library stores the b
 ## Logging Configuration
 
 ```typescript
-import { logger, LogLevel } from 'map-gl-offline';
+import { logger, configureLogger, LogLevel } from 'map-gl-offline';
 
-// Set log level
-logger.setLogLevel(LogLevel.DEBUG); // Show all logs
-logger.setLogLevel(LogLevel.INFO); // Info and above
-logger.setLogLevel(LogLevel.WARN); // Warnings and errors only
-logger.setLogLevel(LogLevel.ERROR); // Errors only
-logger.setLogLevel(LogLevel.NONE); // Disable logging
+// Set via the helper (recommended — future-proof if the config shape grows):
+configureLogger({ level: LogLevel.DEBUG }); // all logs
+configureLogger({ level: LogLevel.INFO });  // info + warn + error
+configureLogger({ level: LogLevel.WARN });  // warnings + errors
+configureLogger({ level: LogLevel.ERROR }); // errors only
+configureLogger({ level: LogLevel.SILENT }); // disable logging entirely
 
-// Create scoped logger
+// Or call the underlying method directly:
+logger.setLevel(LogLevel.DEBUG);
+
+// Create a scoped logger:
 const myLogger = logger.scope('MyComponent');
 myLogger.debug('This is a debug message');
 ```
 
-In production, the log level automatically defaults to `INFO`.
+`LogLevel` values: `SILENT` (-1), `ERROR` (0), `WARN` (1), `INFO` (2), `DEBUG` (3). Production defaults to `ERROR`; development defaults to `DEBUG`.
 
 ## Environment Variables
 

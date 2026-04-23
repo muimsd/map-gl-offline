@@ -1,4 +1,10 @@
-// Import/Export types for regions and map data
+// Import/Export types for regions.
+//
+// The library's import/export API is MBTiles-only. The RegionExportData /
+// RegionImportData shapes are the internal representation the service
+// pipes between `parseMBTiles` and `importRegionData`; callers of the
+// public API only ever see `RegionImportData` (with a File) and
+// `ExportResult` (with a Blob).
 
 export interface RegionExportData {
   metadata: {
@@ -12,12 +18,10 @@ export interface RegionExportData {
     createdAt: number;
     exportedAt: number;
     version: string;
-    format: 'json' | 'pmtiles' | 'mbtiles';
+    format: 'mbtiles';
   };
   style: unknown; // MapLibre style JSON
   tiles: TileExportData[];
-  sprites: SpriteExportData[];
-  fonts: FontExportData[];
 }
 
 export interface TileExportData {
@@ -29,38 +33,14 @@ export interface TileExportData {
   sourceId: string;
 }
 
-export interface SpriteExportData {
-  url: string;
-  data: ArrayBuffer;
-  type: 'json' | 'png';
-  resolution: '1x' | '2x';
-}
-
-export interface FontExportData {
-  fontStack: string;
-  range: string;
-  data: ArrayBuffer;
-}
-
-export interface PMTilesExportOptions {
-  compression?: 'gzip' | 'brotli' | 'none';
-  clustered?: boolean;
-  metadata?: Record<string, unknown>;
-}
-
 export interface MBTilesExportOptions {
+  /** Tile format written into the MBTiles metadata table. */
   format?: 'pbf' | 'png' | 'jpg';
-  compression?: 'gzip' | 'none';
+  /** Additional metadata rows. Values are JSON-stringified if non-string. */
   metadata?: Record<string, unknown>;
 }
 
 export interface ImportExportOptions {
-  includeStyle?: boolean;
-  includeTiles?: boolean;
-  includeSprites?: boolean;
-  includeFonts?: boolean;
-  format?: 'json' | 'pmtiles' | 'mbtiles';
-  compression?: boolean;
   onProgress?: (progress: ImportExportProgress) => void;
 }
 
@@ -75,10 +55,12 @@ export interface ImportExportProgress {
 
 export interface RegionImportData {
   file: File;
-  format: 'json' | 'pmtiles' | 'mbtiles';
+  /** Format is fixed to mbtiles; kept as a literal field for forward-compat. */
+  format: 'mbtiles';
   overwrite?: boolean;
   newRegionId?: string;
   newRegionName?: string;
+  onProgress?: (progress: ImportExportProgress) => void;
 }
 
 export interface ImportResult {
@@ -96,7 +78,7 @@ export interface ImportResult {
 
 export interface ExportResult {
   success: boolean;
-  format: 'json' | 'pmtiles' | 'mbtiles';
+  format: 'mbtiles';
   filename: string;
   blob: Blob;
   size: number;

@@ -1,6 +1,7 @@
 import { dbPromise } from '@/storage/indexedDbManager';
 import { logger } from '@/utils/logger';
 import { createTileKey } from '@/utils/tileKey';
+import { getSqlJs } from '@/utils/sqlJsLoader';
 import type {
   RegionExportData,
   RegionImportData,
@@ -9,13 +10,98 @@ import type {
   ImportResult,
   ExportResult,
   TileExportData,
-  SpriteExportData,
   BaseStyle,
-  FontExportData,
-  PMTilesExportOptions,
   MBTilesExportOptions,
   StoredRegion,
 } from '@/types';
+
+/**
+ * MBTiles uses TMS tile_row ordering; our storage uses XYZ y. Flip across
+ * either direction with the same formula.
+ */
+function flipY(y: number, z: number): number {
+  return (1 << z) - 1 - y;
+}
+
+/** Vector tile formats that downstream consumers (QGIS, maplibre-native) expect gzipped. */
+const VECTOR_FORMATS = new Set(['pbf', 'mvt']);
+
+function hasGzipMagic(bytes: Uint8Array): boolean {
+  return bytes.length >= 2 && bytes[0] === 0x1f && bytes[1] === 0x8b;
+}
+
+async function drainReadable(readable: ReadableStream<Uint8Array>): Promise<Uint8Array> {
+  const reader = readable.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    if (value) {
+      chunks.push(value);
+      total += value.byteLength;
+    }
+  }
+  const out = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    out.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return out;
+}
+
+async function transformBytes(
+  bytes: Uint8Array,
+  transform: CompressionStream | DecompressionStream
+): Promise<Uint8Array> {
+  const writer = transform.writable.getWriter();
+  // Don't await — the read loop below drives the pipe and we only want
+  // the final bytes, not back-pressure handling for a single chunk.
+  void writer.write(bytes as BufferSource);
+  void writer.close();
+  return drainReadable(transform.readable);
+}
+
+async function gzipBytes(bytes: Uint8Array): Promise<Uint8Array> {
+  return transformBytes(bytes, new CompressionStream('gzip'));
+}
+
+async function gunzipBytes(bytes: Uint8Array): Promise<Uint8Array> {
+  return transformBytes(bytes, new DecompressionStream('gzip'));
+}
+
+/**
+ * Build the MBTiles `json` metadata payload. For vector tiles this is
+ * mandatory for tippecanoe/QGIS/maplibre-native to render — they read
+ * `vector_layers` from here.
+ *
+ * `vector_layers` is inferred from the offline style's vector sources
+ * (populated by the TileJSON expansion step in styleService). Multiple
+ * vector sources are merged; duplicates de-duped by id, first wins.
+ */
+function buildVectorJsonMetadata(style: unknown, sourceIds: Set<string>): string | null {
+  if (!style || typeof style !== 'object') return null;
+  const sources = (style as { sources?: Record<string, unknown> }).sources;
+  if (!sources) return null;
+
+  const merged: Array<Record<string, unknown>> = [];
+  const seen = new Set<string>();
+  for (const [id, src] of Object.entries(sources)) {
+    if (sourceIds.size > 0 && !sourceIds.has(id)) continue;
+    const layers = (src as { vector_layers?: Array<Record<string, unknown>> })?.vector_layers;
+    if (!Array.isArray(layers)) continue;
+    for (const layer of layers) {
+      const layerId = typeof layer?.id === 'string' ? layer.id : null;
+      if (!layerId || seen.has(layerId)) continue;
+      seen.add(layerId);
+      merged.push(layer);
+    }
+  }
+
+  if (merged.length === 0) return null;
+  return JSON.stringify({ vector_layers: merged });
+}
 
 const serviceLogger = logger.scope('ImportExportService');
 
@@ -27,203 +113,11 @@ export class ImportExportService {
   }
 
   /**
-   * Export a region to JSON format
-   */
-  async exportRegionAsJSON(
-    regionId: string,
-    options: ImportExportOptions = {}
-  ): Promise<ExportResult> {
-    const onProgress = options.onProgress || (() => {});
-
-    try {
-      onProgress({
-        stage: 'preparing',
-        percentage: 0,
-        message: 'Preparing export...',
-      });
-
-      // Get region metadata
-      const region = await this.getRegionMetadata(regionId);
-      if (!region) {
-        throw new Error(`Region ${regionId} not found`);
-      }
-
-      onProgress({
-        stage: 'exporting',
-        percentage: 10,
-        message: 'Collecting region data...',
-      });
-
-      const exportData: RegionExportData = {
-        metadata: {
-          id: region.id,
-          name: region.name || region.id,
-          description: region.name || region.id, // StoredRegion doesn't have description, use name instead
-          bounds: region.bounds,
-          minZoom: region.minZoom,
-          maxZoom: region.maxZoom,
-          styleUrl: region.styleUrl || '',
-          createdAt: region.created, // StoredRegion uses 'created' not 'createdAt'
-          exportedAt: Date.now(),
-          version: '1.0.0',
-          format: 'json',
-        },
-        style: {},
-        tiles: [],
-        sprites: [],
-        fonts: [],
-      };
-
-      // Export style if requested
-      if (options.includeStyle !== false) {
-        onProgress({
-          stage: 'exporting',
-          percentage: 20,
-          message: 'Exporting style data...',
-        });
-        exportData.style = await this.exportStyle(regionId);
-      }
-
-      // Export tiles if requested
-      if (options.includeTiles !== false) {
-        onProgress({
-          stage: 'exporting',
-          percentage: 30,
-          message: 'Exporting tiles...',
-        });
-        exportData.tiles = await this.exportTiles(regionId, onProgress);
-      }
-
-      // Export sprites if requested
-      if (options.includeSprites !== false) {
-        onProgress({
-          stage: 'exporting',
-          percentage: 70,
-          message: 'Exporting sprites...',
-        });
-        exportData.sprites = await this.exportSprites(regionId);
-      }
-
-      // Export fonts if requested
-      if (options.includeFonts !== false) {
-        onProgress({
-          stage: 'exporting',
-          percentage: 85,
-          message: 'Exporting fonts...',
-        });
-        exportData.fonts = await this.exportFonts(regionId);
-      }
-
-      onProgress({
-        stage: 'processing',
-        percentage: 95,
-        message: 'Creating export file...',
-      });
-
-      // Create JSON blob
-      const jsonString = JSON.stringify(exportData, null, 2);
-      const blob = new Blob([jsonString], { type: 'application/json' });
-
-      onProgress({
-        stage: 'complete',
-        percentage: 100,
-        message: 'Export complete!',
-      });
-
-      return {
-        success: true,
-        format: 'json',
-        filename: `${region.name || region.id}_export.json`,
-        blob,
-        size: blob.size,
-        statistics: {
-          tilesExported: exportData.tiles.length,
-          spritesExported: exportData.sprites.length,
-          fontsExported: exportData.fonts.length,
-        },
-      };
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-      throw new Error(`Export failed: ${errorMessage}`);
-    }
-  }
-
-  /**
-   * Export region as PMTiles format
-   */
-  async exportRegionAsPMTiles(
-    regionId: string,
-    options: ImportExportOptions & PMTilesExportOptions = {}
-  ): Promise<ExportResult> {
-    const onProgress = options.onProgress || (() => {});
-
-    try {
-      onProgress({
-        stage: 'preparing',
-        percentage: 0,
-        message: 'Preparing PMTiles export...',
-      });
-
-      // Note: This is a simplified implementation
-      // In a real implementation, you would use the PMTiles library
-      // to create a proper PMTiles file format
-
-      const region = await this.getRegionMetadata(regionId);
-      if (!region) {
-        throw new Error(`Region ${regionId} not found`);
-      }
-
-      // Get tiles data
-      const tiles = await this.exportTiles(regionId, onProgress);
-
-      // Create PMTiles header and data structure
-      const pmtilesData = {
-        header: {
-          version: 3,
-          type: 'mvt',
-          compression: options.compression || 'gzip',
-          bounds: region.bounds,
-          minZoom: region.minZoom,
-          maxZoom: region.maxZoom,
-          metadata: {
-            name: region.name,
-            description: region.name || region.id, // StoredRegion doesn't have description, use name instead
-            ...options.metadata,
-          },
-        },
-        tiles: tiles,
-      };
-
-      // Convert to binary format (simplified)
-      const jsonString = JSON.stringify(pmtilesData);
-      const blob = new Blob([jsonString], { type: 'application/octet-stream' });
-
-      onProgress({
-        stage: 'complete',
-        percentage: 100,
-        message: 'PMTiles export complete!',
-      });
-
-      return {
-        success: true,
-        format: 'pmtiles',
-        filename: `${region.name || region.id}.pmtiles`,
-        blob,
-        size: blob.size,
-        statistics: {
-          tilesExported: tiles.length,
-          spritesExported: 0,
-          fontsExported: 0,
-        },
-      };
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-      throw new Error(`PMTiles export failed: ${errorMessage}`);
-    }
-  }
-
-  /**
-   * Export region as MBTiles format
+   * Export region as a real binary MBTiles SQLite file.
+   *
+   * Produces a v1.3-compliant MBTiles archive: `metadata` + `tiles` tables,
+   * with `tile_row` flipped to TMS ordering. The resulting blob can be read
+   * by tippecanoe, QGIS, maplibre-native, etc.
    */
   async exportRegionAsMBTiles(
     regionId: string,
@@ -238,61 +132,145 @@ export class ImportExportService {
         message: 'Preparing MBTiles export...',
       });
 
-      // Note: This is a simplified implementation
-      // In a real implementation, you would use SQLite/SQL.js
-      // to create a proper MBTiles SQLite database
-
       const region = await this.getRegionMetadata(regionId);
       if (!region) {
         throw new Error(`Region ${regionId} not found`);
       }
 
-      // Get tiles data
       const tiles = await this.exportTiles(regionId, onProgress);
 
-      // Create MBTiles structure (simplified as JSON for now)
-      const mbtilesData = {
-        metadata: {
-          name: region.name,
-          type: 'overlay',
-          version: '1.0',
-          description: region.name || region.id, // StoredRegion doesn't have description, use name instead
-          format: options.format || 'pbf',
-          bounds: region.bounds.flat().join(','),
-          minzoom: region.minZoom,
-          maxzoom: region.maxZoom,
-          ...options.metadata,
-        },
-        tiles: tiles.map(tile => ({
-          zoom_level: tile.z,
-          tile_column: tile.x,
-          tile_row: tile.y,
-          tile_data: tile.data,
-        })),
-      };
-
-      // Convert to binary format (simplified)
-      const jsonString = JSON.stringify(mbtilesData);
-      const blob = new Blob([jsonString], { type: 'application/octet-stream' });
+      // Pick format: caller override → region.tileExtension → default pbf.
+      // Drives both the metadata row and whether tile bytes get gzipped.
+      const format = String(options.format || region.tileExtension || 'pbf').toLowerCase();
+      const isVector = VECTOR_FORMATS.has(format);
 
       onProgress({
-        stage: 'complete',
-        percentage: 100,
-        message: 'MBTiles export complete!',
+        stage: 'processing',
+        percentage: 75,
+        message: isVector ? 'Compressing vector tiles...' : 'Packing SQLite database...',
       });
 
-      return {
-        success: true,
-        format: 'mbtiles',
-        filename: `${region.name || region.id}.mbtiles`,
-        blob,
-        size: blob.size,
-        statistics: {
-          tilesExported: tiles.length,
-          spritesExported: 0,
-          fontsExported: 0,
-        },
-      };
+      // Gzip vector tiles. Idempotent: skip tiles already gzipped (downloaded
+      // with their original gzip wrapper intact).
+      const packedTiles: Array<{ z: number; x: number; y: number; data: Uint8Array }> = [];
+      for (const tile of tiles) {
+        const raw =
+          tile.data instanceof ArrayBuffer
+            ? new Uint8Array(tile.data)
+            : new Uint8Array(tile.data as ArrayBufferLike);
+        const data = isVector && !hasGzipMagic(raw) ? await gzipBytes(raw) : raw;
+        packedTiles.push({ z: tile.z, x: tile.x, y: tile.y, data });
+      }
+
+      onProgress({
+        stage: 'processing',
+        percentage: 85,
+        message: 'Packing SQLite database...',
+      });
+
+      const SQL = await getSqlJs();
+      const db = new SQL.Database();
+      try {
+        db.run(`
+          CREATE TABLE metadata (name TEXT, value TEXT);
+          CREATE TABLE tiles (
+            zoom_level  INTEGER NOT NULL,
+            tile_column INTEGER NOT NULL,
+            tile_row    INTEGER NOT NULL,
+            tile_data   BLOB
+          );
+          CREATE UNIQUE INDEX tile_index ON tiles (zoom_level, tile_column, tile_row);
+          CREATE UNIQUE INDEX name ON metadata (name);
+        `);
+
+        const [[west, south], [east, north]] = region.bounds;
+        const centerLon = (west + east) / 2;
+        const centerLat = (south + north) / 2;
+        const centerZoom = Math.max(
+          region.minZoom,
+          Math.min(region.maxZoom, Math.round((region.minZoom + region.maxZoom) / 2))
+        );
+
+        const metadataRows: Record<string, string> = {
+          name: region.name || region.id,
+          // MBTiles 1.3 type: 'overlay' or 'baselayer'. Baselayer matches how
+          // QGIS treats the dataset (full-coverage map rather than overlay).
+          type: isVector ? 'baselayer' : 'overlay',
+          version: '1.0',
+          description: region.name || region.id,
+          format,
+          bounds: `${west},${south},${east},${north}`,
+          center: `${centerLon},${centerLat},${centerZoom}`,
+          minzoom: String(region.minZoom),
+          maxzoom: String(region.maxZoom),
+        };
+
+        // For vector tiles, the `json` field with `vector_layers` is required
+        // by the MBTiles 1.3 spec and by every vector tile consumer worth
+        // opening the file in. Derive it from the offline style.
+        if (isVector) {
+          const style = await this.exportStyle(regionId);
+          const sourceIds = new Set(tiles.map(t => t.sourceId).filter(Boolean) as string[]);
+          const json = buildVectorJsonMetadata(
+            (style as { style?: unknown }).style ?? style,
+            sourceIds
+          );
+          if (json) metadataRows.json = json;
+        }
+
+        for (const [k, v] of Object.entries(options.metadata || {})) {
+          metadataRows[k] = typeof v === 'string' ? v : JSON.stringify(v);
+        }
+
+        const insertMeta = db.prepare(`INSERT INTO metadata (name, value) VALUES (?, ?)`);
+        try {
+          for (const [name, value] of Object.entries(metadataRows)) {
+            insertMeta.run([name, value]);
+          }
+        } finally {
+          insertMeta.free();
+        }
+
+        const insertTile = db.prepare(
+          `INSERT OR REPLACE INTO tiles (zoom_level, tile_column, tile_row, tile_data)
+           VALUES (?, ?, ?, ?)`
+        );
+        try {
+          db.run('BEGIN');
+          for (const tile of packedTiles) {
+            insertTile.run([tile.z, tile.x, flipY(tile.y, tile.z), tile.data]);
+          }
+          db.run('COMMIT');
+        } finally {
+          insertTile.free();
+        }
+
+        const binary = db.export();
+        const blob = new Blob([binary.buffer as ArrayBuffer], {
+          type: 'application/x-sqlite3',
+        });
+
+        onProgress({
+          stage: 'complete',
+          percentage: 100,
+          message: 'MBTiles export complete!',
+        });
+
+        return {
+          success: true,
+          format: 'mbtiles',
+          filename: `${region.name || region.id}.mbtiles`,
+          blob,
+          size: blob.size,
+          statistics: {
+            tilesExported: tiles.length,
+            spritesExported: 0,
+            fontsExported: 0,
+          },
+        };
+      } finally {
+        db.close();
+      }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
       throw new Error(`MBTiles export failed: ${errorMessage}`);
@@ -300,36 +278,38 @@ export class ImportExportService {
   }
 
   /**
-   * Import region from file
+   * Import region from a binary MBTiles (SQLite) file.
    */
   async importRegion(importData: RegionImportData): Promise<ImportResult> {
+    const onProgress = importData.onProgress || (() => {});
     try {
-      let regionData: RegionExportData;
+      onProgress({
+        stage: 'preparing',
+        percentage: 0,
+        message: 'Reading file...',
+      });
 
-      switch (importData.format) {
-        case 'json': {
-          const textContent = await this.readFileAsText(importData.file);
-          regionData = JSON.parse(textContent);
-          break;
-        }
-        case 'pmtiles': {
-          // PMTiles is a binary format; currently parsed as JSON (simplified impl)
-          const textContent = await this.readFileAsText(importData.file);
-          regionData = await this.parsePMTiles(textContent);
-          break;
-        }
-        case 'mbtiles': {
-          // MBTiles is a binary format; currently parsed as JSON (simplified impl)
-          const textContent = await this.readFileAsText(importData.file);
-          regionData = await this.parseMBTiles(textContent);
-          break;
-        }
-        default:
-          throw new Error(`Unsupported format: ${importData.format}`);
+      if (importData.format !== 'mbtiles') {
+        throw new Error(`Unsupported format: ${importData.format}`);
       }
 
-      // Import the region data
+      const buffer = await this.readFileAsArrayBuffer(importData.file);
+      onProgress({ stage: 'importing', percentage: 40, message: 'Parsing MBTiles...' });
+      const regionData = await this.parseMBTiles(buffer);
+
+      onProgress({
+        stage: 'importing',
+        percentage: 70,
+        message: `Importing ${regionData.tiles?.length ?? 0} tiles...`,
+      });
+
       const result = await this.importRegionData(regionData, importData);
+
+      onProgress({
+        stage: 'complete',
+        percentage: 100,
+        message: result.success ? 'Import complete!' : result.message,
+      });
 
       return result;
     } catch (error) {
@@ -467,172 +447,123 @@ export class ImportExportService {
   }
 
   /**
-   * Export sprites data
+   * Read file content as ArrayBuffer (for the binary MBTiles file).
    */
-  private async exportSprites(_regionId: string): Promise<SpriteExportData[]> {
-    const db = await this.db;
-    const transaction = db.transaction(['sprites'], 'readonly');
-    const store = transaction.objectStore('sprites');
-
-    const sprites: SpriteExportData[] = [];
-
-    try {
-      let cursor = await store.openCursor();
-
-      while (cursor) {
-        const sprite = cursor.value;
-        // Include sprites that match the styleId, or all sprites if keys don't contain styleId
-        // (sprite keys may or may not be prefixed with styleId depending on how they were stored)
-        sprites.push({
-          url: sprite.url,
-          data: sprite.data,
-          type: sprite.url.endsWith('.json') ? 'json' : 'png',
-          resolution: sprite.url.includes('@2x') ? '2x' : '1x',
-        });
-        cursor = await cursor.continue();
-      }
-
-      return sprites;
-    } catch (error) {
-      serviceLogger.error('Error exporting sprites:', error);
-      return [];
-    }
-  }
-
-  /**
-   * Export fonts data
-   */
-  private async exportFonts(_regionId: string): Promise<FontExportData[]> {
-    const db = await this.db;
-    const transaction = db.transaction(['fonts'], 'readonly');
-    const store = transaction.objectStore('fonts');
-
-    const fonts: FontExportData[] = [];
-
-    try {
-      let cursor = await store.openCursor();
-
-      while (cursor) {
-        const font = cursor.value;
-        // Include fonts that match the styleId, or all fonts if keys don't contain styleId
-        // (font keys may or may not be prefixed with styleId depending on how they were stored)
-        fonts.push({
-          fontStack: font.key, // Use key as fontstack identifier
-          range: '0-255', // Default range since FontEntry doesn't store this
-          data: font.data,
-        });
-        cursor = await cursor.continue();
-      }
-
-      return fonts;
-    } catch (error) {
-      serviceLogger.error('Error exporting fonts:', error);
-      return [];
-    }
-  }
-
-  /**
-   * Read file content as text (for JSON files)
-   */
-  private async readFileAsText(file: File): Promise<string> {
+  private async readFileAsArrayBuffer(file: File): Promise<ArrayBuffer> {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
-      reader.onload = () => resolve(reader.result as string);
+      reader.onload = () => resolve(reader.result as ArrayBuffer);
       reader.onerror = () => reject(new Error('Failed to read file'));
-      reader.readAsText(file);
+      reader.readAsArrayBuffer(file);
     });
   }
 
   /**
-   * Parse PMTiles file (simplified)
+   * Parse a real binary MBTiles (SQLite) file into our import-data shape.
+   * Un-flips the TMS tile_row back to XYZ y.
    */
-  private async parsePMTiles(content: string): Promise<RegionExportData> {
-    // This is a simplified implementation
-    // In reality, you would use the PMTiles library to parse the binary format
-    const data = JSON.parse(content);
-    const header = data?.header || {};
-    const metadata = header?.metadata || {};
+  private async parseMBTiles(buffer: ArrayBuffer): Promise<RegionExportData> {
+    const bytes = new Uint8Array(buffer);
+    // SQLite header: "SQLite format 3\0" (16 bytes). Validate up front so
+    // non-MBTiles files (e.g. a JSON renamed to .mbtiles) surface a clear
+    // error instead of the opaque "file is not a database" from sql.js.
+    if (bytes.byteLength < 16) {
+      throw new Error('Not a valid MBTiles file: file is too small');
+    }
+    const magic = String.fromCharCode(...bytes.slice(0, 15));
+    if (magic !== 'SQLite format 3') {
+      throw new Error('Not a valid MBTiles file: missing SQLite header');
+    }
 
-    return {
-      metadata: {
-        id: metadata.name || 'imported-region',
-        name: metadata.name || 'Imported Region',
-        description: metadata.description || '',
-        bounds: header.bounds || [
-          [0, 0],
-          [0, 0],
-        ],
-        minZoom: header.minZoom || 0,
-        maxZoom: header.maxZoom || 14,
-        styleUrl: '',
-        createdAt: Date.now(),
-        exportedAt: Date.now(),
-        version: '1.0.0',
-        format: 'pmtiles',
-      },
-      style: {},
-      tiles: data.tiles || [],
-      sprites: [],
-      fonts: [],
-    };
-  }
+    const SQL = await getSqlJs();
+    const db = new SQL.Database(bytes);
 
-  /**
-   * Parse MBTiles file (simplified)
-   */
-  private async parseMBTiles(content: string): Promise<RegionExportData> {
-    // This is a simplified implementation
-    // In reality, you would use SQL.js to parse the SQLite database
-    const data = JSON.parse(content);
+    try {
+      const tablesResult = db.exec(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name IN ('metadata', 'tiles')"
+      );
+      const tableNames = (tablesResult[0]?.values || []).map(r => r[0] as string);
+      if (!tableNames.includes('metadata') || !tableNames.includes('tiles')) {
+        throw new Error('Not a valid MBTiles file: missing required metadata/tiles tables');
+      }
 
-    const rawBounds = data.metadata?.bounds
-      ? data.metadata.bounds.split(',').map(Number)
-      : [0, 0, 0, 0];
-    // Ensure we have exactly 4 valid numbers
-    const bounds = [
-      isFinite(rawBounds[0]) ? rawBounds[0] : 0,
-      isFinite(rawBounds[1]) ? rawBounds[1] : 0,
-      isFinite(rawBounds[2]) ? rawBounds[2] : 0,
-      isFinite(rawBounds[3]) ? rawBounds[3] : 0,
-    ];
+      const metadata: Record<string, string> = {};
+      const metaStmt = db.prepare('SELECT name, value FROM metadata');
+      try {
+        while (metaStmt.step()) {
+          const row = metaStmt.get() as [string, string];
+          metadata[row[0]] = row[1];
+        }
+      } finally {
+        metaStmt.free();
+      }
 
-    return {
-      metadata: {
-        id: data.metadata.name || 'imported-region',
-        name: data.metadata.name || 'Imported Region',
-        description: data.metadata.description,
-        bounds: [
-          [bounds[0], bounds[1]],
-          [bounds[2], bounds[3]],
-        ],
-        minZoom: data.metadata.minzoom || 0,
-        maxZoom: data.metadata.maxzoom || 14,
-        styleUrl: '',
-        createdAt: Date.now(),
-        exportedAt: Date.now(),
-        version: '1.0.0',
-        format: 'mbtiles',
-      },
-      style: {},
-      tiles:
-        data.tiles.map(
-          (tile: {
-            zoom_level: number;
-            tile_column: number;
-            tile_row: number;
-            tile_data: ArrayBuffer;
-          }) => ({
-            z: tile.zoom_level,
-            x: tile.tile_column,
-            y: tile.tile_row,
-            data: tile.tile_data,
-            format: 'pbf',
+      const rawBounds = metadata.bounds ? metadata.bounds.split(',').map(Number) : [0, 0, 0, 0];
+      const bounds: [number, number, number, number] = [
+        isFinite(rawBounds[0]) ? rawBounds[0] : 0,
+        isFinite(rawBounds[1]) ? rawBounds[1] : 0,
+        isFinite(rawBounds[2]) ? rawBounds[2] : 0,
+        isFinite(rawBounds[3]) ? rawBounds[3] : 0,
+      ];
+
+      const format = (metadata.format || 'pbf') as TileExportData['format'];
+      const isVector = VECTOR_FORMATS.has(format);
+      const tiles: TileExportData[] = [];
+
+      const tilesStmt = db.prepare(
+        'SELECT zoom_level, tile_column, tile_row, tile_data FROM tiles'
+      );
+      try {
+        while (tilesStmt.step()) {
+          const row = tilesStmt.get() as [number, number, number, Uint8Array];
+          const [z, x, tmsRow, data] = row;
+          // Sliced copy so the buffer is detached from sql.js's heap.
+          const copy = new Uint8Array(data.byteLength);
+          copy.set(data);
+          // Our IndexedDB stores vector tiles decompressed (tileService
+          // inflates on download). MBTiles vector tiles are gzipped by
+          // convention — un-gzip on the way in so the stored tile matches
+          // what the fetch handler expects to serve.
+          const storedBytes = isVector && hasGzipMagic(copy) ? await gunzipBytes(copy) : copy;
+          tiles.push({
+            z,
+            x,
+            y: flipY(tmsRow, z),
+            data: storedBytes.buffer as ArrayBuffer,
+            format,
             sourceId: 'imported',
-          })
-        ) || [],
-      sprites: [],
-      fonts: [],
-    };
+          });
+        }
+      } finally {
+        tilesStmt.free();
+      }
+
+      const minZoom = metadata.minzoom !== undefined ? Number(metadata.minzoom) : 0;
+      const maxZoom = metadata.maxzoom !== undefined ? Number(metadata.maxzoom) : 14;
+
+      return {
+        metadata: {
+          id: metadata.name || 'imported-region',
+          name: metadata.name || 'Imported Region',
+          description: metadata.description,
+          bounds: [
+            [bounds[0], bounds[1]],
+            [bounds[2], bounds[3]],
+          ],
+          minZoom,
+          maxZoom,
+          styleUrl: '',
+          createdAt: Date.now(),
+          exportedAt: Date.now(),
+          version: '1.0.0',
+          format: 'mbtiles',
+        },
+        style: {},
+        tiles,
+      };
+    } finally {
+      db.close();
+    }
   }
 
   /**
@@ -709,17 +640,15 @@ export class ImportExportService {
         }
       }
 
-      // Import sprites and fonts similarly...
-
       return {
         success: true,
         regionId,
         message: 'Region imported successfully',
         statistics: {
           tilesImported: regionData.tiles?.length || 0,
-          spritesImported: regionData.sprites?.length || 0,
-          fontsImported: regionData.fonts?.length || 0,
-          totalSize: 0, // Calculate if needed
+          spritesImported: 0,
+          fontsImported: 0,
+          totalSize: 0,
         },
       };
     } catch (error) {

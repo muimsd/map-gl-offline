@@ -28,11 +28,12 @@ const FeatureList: FeatureItem[] = [
     ),
   },
   {
-    title: 'Import/Export Formats',
+    title: 'MBTiles Import/Export',
     description: (
       <>
-        Export regions to JSON, PMTiles, or MBTiles formats. Import maps from
-        files for easy sharing and cross-device usage.
+        Round-trip regions as real binary v1.3 SQLite MBTiles files. Vector
+        tiles are gzipped and <code>vector_layers</code> is emitted, so the
+        output opens directly in QGIS, tippecanoe, and maplibre-native.
       </>
     ),
   },

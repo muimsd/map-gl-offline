@@ -11,7 +11,6 @@ import { RegionDetailsModal } from '@/ui/modals/regionDetailsModal';
 import { StoredRegion } from '@/types/region';
 import { StorageAnalyticsReport } from '@/types/maintenance';
 import { ConfirmationModal } from '@/ui/modals/confirmationModal';
-// import { ImportExportModal } from '@/ui/modals/ImportExportModal.js';
 import { createHeader } from '@/ui/components/PanelHeader';
 import { createActionButtons } from '@/ui/components/PanelActions';
 import { createRegionsList } from '@/ui/components/RegionList';
@@ -130,7 +129,6 @@ export class PanelContentRenderer extends BaseComponent {
       onFocusRegion: this.contentConfig.onFocusRegion,
       onDeleteRegion: (regionId: string) => this.deleteRegion(regionId),
       onShowRegionDetails: (regionId: string) => this.findAndShowRegionDetails(regionId),
-      onImportExport: (_regionId: string) => this.showImportExportModal(),
     });
     mainContent.appendChild(regionsList);
 
@@ -230,13 +228,6 @@ export class PanelContentRenderer extends BaseComponent {
     // In a real implementation, this would trigger a new download
     contentLogger.debug('Download region requested:', regionId);
     alert('Download feature not implemented in this refactored version');
-  }
-
-  private showImportExportModal(): void {
-    // For this refactored version, we'll show a simple alert
-    // In a real implementation, you would create and show the import/export modal
-    contentLogger.debug('Import/Export modal requested');
-    alert('Import/Export feature not fully implemented in this refactored version');
   }
 
   /**

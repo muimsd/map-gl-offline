@@ -230,6 +230,54 @@ describe('FontService', () => {
 
       expect(deletedCount).toBe(0);
     });
+
+    it('filters by styleId when provided (no collateral damage to sibling styles)', async () => {
+      const db = await dbPromise;
+      const oldTime = Date.now() - 40 * 24 * 60 * 60 * 1000;
+
+      // Two old fonts belonging to different styles.
+      await db.put('fonts', {
+        key: 'style-a:Arial/0-255.pbf',
+        url: '',
+        originalUrl: '',
+        data: new ArrayBuffer(10),
+        contentType: 'application/x-protobuf',
+        type: 'pbf',
+        size: 10,
+        lastModified: oldTime,
+        downloadedAt: new Date(oldTime).toISOString(),
+      });
+      await db.put('fonts', {
+        key: 'style-b:Arial/0-255.pbf',
+        url: '',
+        originalUrl: '',
+        data: new ArrayBuffer(10),
+        contentType: 'application/x-protobuf',
+        type: 'pbf',
+        size: 10,
+        lastModified: oldTime,
+        downloadedAt: new Date(oldTime).toISOString(),
+      });
+      // And a delimiter-prefix lookalike that must NOT match 'style-a'.
+      await db.put('fonts', {
+        key: 'style-a_other:Arial/0-255.pbf',
+        url: '',
+        originalUrl: '',
+        data: new ArrayBuffer(10),
+        contentType: 'application/x-protobuf',
+        type: 'pbf',
+        size: 10,
+        lastModified: oldTime,
+        downloadedAt: new Date(oldTime).toISOString(),
+      });
+
+      const deleted = await service.cleanupOldFonts(30, { styleId: 'style-a' });
+
+      expect(deleted).toBe(1);
+      expect(await db.get('fonts', 'style-a:Arial/0-255.pbf')).toBeUndefined();
+      expect(await db.get('fonts', 'style-b:Arial/0-255.pbf')).toBeDefined();
+      expect(await db.get('fonts', 'style-a_other:Arial/0-255.pbf')).toBeDefined();
+    });
   });
 
   describe('verifyAndRepairFonts', () => {

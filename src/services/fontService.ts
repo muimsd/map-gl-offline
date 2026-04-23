@@ -1,5 +1,6 @@
 import { dbPromise } from '@/storage/indexedDbManager';
 import { fetchResourceWithRetry, processBatch, createProgressTracker, logger } from '@/utils';
+import { resourceKeyBelongsToStyle } from '@/services/regionService';
 import type {
   EnhancedFontStats,
   FontDownloadOptions,
@@ -243,9 +244,16 @@ export class FontService {
     };
   }
 
-  async cleanupOldFonts(maxAge: number = 30): Promise<number> {
+  /**
+   * Delete fonts older than `maxAge` days. When `options.styleId` is
+   * provided, only fonts belonging to that style (per the delimiter-aware
+   * `resourceKeyBelongsToStyle` match) are eligible — callers relying on
+   * a styleId filter previously got a silent full-store wipe.
+   */
+  async cleanupOldFonts(maxAge: number = 30, options: { styleId?: string } = {}): Promise<number> {
     const db = await this.db;
     const cutoffTime = Date.now() - maxAge * 24 * 60 * 60 * 1000;
+    const { styleId } = options;
 
     const tx = db.transaction(['fonts'], 'readwrite');
     let deletedCount = 0;
@@ -253,7 +261,8 @@ export class FontService {
     let cursor = await tx.objectStore('fonts').openCursor();
     while (cursor) {
       const fontEntry: FontEntry = cursor.value;
-      if (fontEntry.lastModified < cutoffTime) {
+      const belongs = !styleId || resourceKeyBelongsToStyle(fontEntry.key, styleId);
+      if (belongs && fontEntry.lastModified < cutoffTime) {
         await cursor.delete();
         deletedCount++;
       }
@@ -442,5 +451,6 @@ export const downloadFonts = (
 
 export const getFontStats = () => fontService.getFontStats();
 export const getFontAnalytics = () => fontService.getFontAnalytics();
-export const cleanupOldFonts = (maxAge?: number) => fontService.cleanupOldFonts(maxAge);
+export const cleanupOldFonts = (maxAge?: number, options?: { styleId?: string }) =>
+  fontService.cleanupOldFonts(maxAge, options);
 export const verifyAndRepairFonts = () => fontService.verifyAndRepairFonts();

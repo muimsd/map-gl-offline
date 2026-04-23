@@ -1,11 +1,45 @@
 /**
  * Tests for Import/Export Service
  */
+import * as fs from 'fs';
+import * as path from 'path';
 import { ImportExportService } from '../../src/services/importExportService';
 import { dbPromise } from '../../src/storage/indexedDbManager';
+import { configureSqlJs, getSqlJs } from '../../src/utils/sqlJsLoader';
 import type { StyleProvider } from '../../src/types/style';
 
-// Helper function to store a region inside a style entry
+// sql.js in jest/jsdom can't fetch its .wasm file over HTTP — point the loader
+// at the copy shipped in node_modules. Done once per test process.
+const wasmPath = path.resolve(
+  __dirname,
+  '../../node_modules/sql.js/dist/sql-wasm.wasm'
+);
+const wasmBinary = fs.readFileSync(wasmPath);
+configureSqlJs({ wasmBinary: wasmBinary.buffer.slice(wasmBinary.byteOffset, wasmBinary.byteOffset + wasmBinary.byteLength) });
+
+// Minimal File polyfill — jsdom's File doesn't implement arrayBuffer() reliably
+// enough for FileReader, and we now need to read binary files.
+class TestFile extends Blob {
+  readonly name: string;
+  readonly lastModified: number;
+
+  constructor(parts: BlobPart[], name: string, options: BlobPropertyBag = {}) {
+    super(parts, options);
+    this.name = name;
+    this.lastModified = Date.now();
+  }
+}
+
+// jsdom's Blob doesn't implement arrayBuffer(); read via FileReader instead.
+function blobToArrayBuffer(blob: Blob): Promise<ArrayBuffer> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as ArrayBuffer);
+    reader.onerror = () => reject(new Error('Failed to read blob'));
+    reader.readAsArrayBuffer(blob as unknown as Blob);
+  });
+}
+
 async function storeRegionInStyle(
   db: Awaited<typeof dbPromise>,
   styleId: string,
@@ -50,315 +84,15 @@ describe('ImportExportService', () => {
     await db.clear('fonts');
   });
 
-  describe('exportRegionAsJSON', () => {
-    it('should throw error when region does not exist', async () => {
-      await expect(service.exportRegionAsJSON('non-existent-region')).rejects.toThrow(
-        'Export failed: Region non-existent-region not found'
-      );
-    });
-
-    it('should export region with metadata', async () => {
-      const db = await dbPromise;
-
-      // Create a test region inside a style
-      await storeRegionInStyle(db, 'test-style', {
-        id: 'test-region',
-        name: 'Test Region',
-        bounds: [[-122.5, 37.5], [-122.0, 38.0]],
-        styleUrl: 'https://example.com/style.json',
-        minZoom: 0,
-        maxZoom: 14,
-        created: Date.now(),
-        expiry: Date.now() + 30 * 24 * 60 * 60 * 1000,
-      });
-
-      const result = await service.exportRegionAsJSON('test-region');
-
-      expect(result.success).toBe(true);
-      expect(result.format).toBe('json');
-      expect(result.filename).toContain('Test Region');
-      expect(result.blob).toBeInstanceOf(Blob);
-      expect(result.size).toBeGreaterThan(0);
-    });
-
-    it('should call onProgress callback during export', async () => {
-      const db = await dbPromise;
-      const progressCalls: Array<{ stage: string; percentage: number }> = [];
-
-      await storeRegionInStyle(db, 'test-style', {
-        id: 'test-region',
-        name: 'Test Region',
-        bounds: [[-122.5, 37.5], [-122.0, 38.0]],
-        styleUrl: 'https://example.com/style.json',
-        minZoom: 0,
-        maxZoom: 14,
-        created: Date.now(),
-        expiry: Date.now() + 30 * 24 * 60 * 60 * 1000,
-      });
-
-      await service.exportRegionAsJSON('test-region', {
-        onProgress: (progress) => {
-          progressCalls.push({
-            stage: progress.stage,
-            percentage: progress.percentage,
-          });
-        },
-      });
-
-      expect(progressCalls.length).toBeGreaterThan(0);
-      expect(progressCalls[0].stage).toBe('preparing');
-      expect(progressCalls[progressCalls.length - 1].stage).toBe('complete');
-      expect(progressCalls[progressCalls.length - 1].percentage).toBe(100);
-    });
-
-    it('should export tiles when includeTiles is true', async () => {
-      const db = await dbPromise;
-
-      await storeRegionInStyle(db, 'test-region', {
-        id: 'test-region',
-        name: 'Test Region',
-        bounds: [[-122.5, 37.5], [-122.0, 38.0]],
-        styleUrl: 'https://example.com/style.json',
-        minZoom: 0,
-        maxZoom: 14,
-        created: Date.now(),
-        expiry: Date.now() + 30 * 24 * 60 * 60 * 1000,
-      });
-
-      await db.put('tiles', {
-        key: 'test-region:source:10:100:200.pbf',
-        styleId: 'test-region',
-        sourceId: 'source',
-        x: 100,
-        y: 200,
-        z: 10,
-        size: 1000,
-        data: new ArrayBuffer(1000),
-        downloadedAt: new Date().toISOString(),
-        type: 'vector',
-        url: 'https://example.com/tile.pbf',
-        lastModified: Date.now(),
-      });
-
-      const result = await service.exportRegionAsJSON('test-region', {
-        includeTiles: true,
-      });
-
-      expect(result.success).toBe(true);
-      expect(result.statistics.tilesExported).toBe(1);
-    });
-
-    it('should skip tiles when includeTiles is false', async () => {
-      const db = await dbPromise;
-
-      await storeRegionInStyle(db, 'test-region', {
-        id: 'test-region',
-        name: 'Test Region',
-        bounds: [[-122.5, 37.5], [-122.0, 38.0]],
-        styleUrl: 'https://example.com/style.json',
-        minZoom: 0,
-        maxZoom: 14,
-        created: Date.now(),
-        expiry: Date.now() + 30 * 24 * 60 * 60 * 1000,
-      });
-
-      await db.put('tiles', {
-        key: 'test-region:source:10:100:200.pbf',
-        styleId: 'test-region',
-        sourceId: 'source',
-        x: 100,
-        y: 200,
-        z: 10,
-        size: 1000,
-        data: new ArrayBuffer(1000),
-        downloadedAt: new Date().toISOString(),
-        type: 'vector',
-        url: 'https://example.com/tile.pbf',
-        lastModified: Date.now(),
-      });
-
-      const result = await service.exportRegionAsJSON('test-region', {
-        includeTiles: false,
-      });
-
-      expect(result.success).toBe(true);
-      expect(result.statistics.tilesExported).toBe(0);
-    });
-
-    it('should export style when includeStyle is true', async () => {
-      const db = await dbPromise;
-
-      // Style already exists with region inside
-      await storeRegionInStyle(db, 'test-region', {
-        id: 'test-region',
-        name: 'Test Region',
-        bounds: [[-122.5, 37.5], [-122.0, 38.0]],
-        styleUrl: 'https://example.com/style.json',
-        minZoom: 0,
-        maxZoom: 14,
-        created: Date.now(),
-        expiry: Date.now() + 30 * 24 * 60 * 60 * 1000,
-      });
-
-      const result = await service.exportRegionAsJSON('test-region', {
-        includeStyle: true,
-      });
-
-      expect(result.success).toBe(true);
-    });
-
-    it('should export sprites when includeSprites is true', async () => {
-      const db = await dbPromise;
-
-      await storeRegionInStyle(db, 'test-region', {
-        id: 'test-region',
-        name: 'Test Region',
-        bounds: [[-122.5, 37.5], [-122.0, 38.0]],
-        styleUrl: 'https://example.com/style.json',
-        minZoom: 0,
-        maxZoom: 14,
-        created: Date.now(),
-        expiry: Date.now() + 30 * 24 * 60 * 60 * 1000,
-      });
-
-      await db.put('sprites', {
-        key: 'sprite-1',
-        url: 'https://example.com/sprite.png',
-        data: new ArrayBuffer(500),
-        size: 500,
-        lastModified: Date.now(),
-        downloadedAt: new Date().toISOString(),
-      });
-
-      const result = await service.exportRegionAsJSON('test-region', {
-        includeSprites: true,
-      });
-
-      expect(result.success).toBe(true);
-      expect(result.statistics.spritesExported).toBe(1);
-    });
-
-    it('should export fonts when includeFonts is true', async () => {
-      const db = await dbPromise;
-
-      await storeRegionInStyle(db, 'test-region', {
-        id: 'test-region',
-        name: 'Test Region',
-        bounds: [[-122.5, 37.5], [-122.0, 38.0]],
-        styleUrl: 'https://example.com/style.json',
-        minZoom: 0,
-        maxZoom: 14,
-        created: Date.now(),
-        expiry: Date.now() + 30 * 24 * 60 * 60 * 1000,
-      });
-
-      await db.put('fonts', {
-        key: 'Arial/0-255.pbf',
-        url: 'https://example.com/fonts/Arial/0-255.pbf',
-        originalUrl: 'https://example.com/fonts/Arial/0-255.pbf',
-        data: new ArrayBuffer(1000),
-        size: 1000,
-        type: 'pbf',
-        contentType: 'application/x-protobuf',
-        lastModified: Date.now(),
-        downloadedAt: new Date().toISOString(),
-      });
-
-      const result = await service.exportRegionAsJSON('test-region', {
-        includeFonts: true,
-      });
-
-      expect(result.success).toBe(true);
-      expect(result.statistics.fontsExported).toBe(1);
-    });
-  });
-
-  describe('exportRegionAsPMTiles', () => {
-    it('should throw error when region does not exist', async () => {
-      await expect(service.exportRegionAsPMTiles('non-existent-region')).rejects.toThrow(
-        'PMTiles export failed: Region non-existent-region not found'
-      );
-    });
-
-    it('should export region as PMTiles format', async () => {
-      const db = await dbPromise;
-
-      await storeRegionInStyle(db, 'test-style', {
-        id: 'test-region',
-        name: 'Test Region',
-        bounds: [[-122.5, 37.5], [-122.0, 38.0]],
-        styleUrl: 'https://example.com/style.json',
-        minZoom: 0,
-        maxZoom: 14,
-        created: Date.now(),
-        expiry: Date.now() + 30 * 24 * 60 * 60 * 1000,
-      });
-
-      const result = await service.exportRegionAsPMTiles('test-region');
-
-      expect(result.success).toBe(true);
-      expect(result.format).toBe('pmtiles');
-      expect(result.filename).toContain('.pmtiles');
-      expect(result.blob).toBeInstanceOf(Blob);
-    });
-
-    it('should call onProgress callback', async () => {
-      const db = await dbPromise;
-      const progressCalls: string[] = [];
-
-      await storeRegionInStyle(db, 'test-style', {
-        id: 'test-region',
-        name: 'Test Region',
-        bounds: [[-122.5, 37.5], [-122.0, 38.0]],
-        styleUrl: 'https://example.com/style.json',
-        minZoom: 0,
-        maxZoom: 14,
-        created: Date.now(),
-        expiry: Date.now() + 30 * 24 * 60 * 60 * 1000,
-      });
-
-      await service.exportRegionAsPMTiles('test-region', {
-        onProgress: (progress) => {
-          progressCalls.push(progress.stage);
-        },
-      });
-
-      expect(progressCalls).toContain('preparing');
-      expect(progressCalls).toContain('complete');
-    });
-
-    it('should include custom metadata in PMTiles export', async () => {
-      const db = await dbPromise;
-
-      await storeRegionInStyle(db, 'test-style', {
-        id: 'test-region',
-        name: 'Test Region',
-        bounds: [[-122.5, 37.5], [-122.0, 38.0]],
-        styleUrl: 'https://example.com/style.json',
-        minZoom: 0,
-        maxZoom: 14,
-        created: Date.now(),
-        expiry: Date.now() + 30 * 24 * 60 * 60 * 1000,
-      });
-
-      const result = await service.exportRegionAsPMTiles('test-region', {
-        metadata: { author: 'Test Author' },
-      });
-
-      expect(result.success).toBe(true);
-    });
-  });
-
   describe('exportRegionAsMBTiles', () => {
-    it('should throw error when region does not exist', async () => {
+    it('throws when region does not exist', async () => {
       await expect(service.exportRegionAsMBTiles('non-existent-region')).rejects.toThrow(
         'MBTiles export failed: Region non-existent-region not found'
       );
     });
 
-    it('should export region as MBTiles format', async () => {
+    it('produces a binary SQLite file with the expected schema', async () => {
       const db = await dbPromise;
-
       await storeRegionInStyle(db, 'test-style', {
         id: 'test-region',
         name: 'Test Region',
@@ -374,13 +108,37 @@ describe('ImportExportService', () => {
 
       expect(result.success).toBe(true);
       expect(result.format).toBe('mbtiles');
-      expect(result.filename).toContain('.mbtiles');
+      expect(result.filename).toMatch(/\.mbtiles$/);
       expect(result.blob).toBeInstanceOf(Blob);
+
+      const buffer = await blobToArrayBuffer(result.blob);
+      const view = new Uint8Array(buffer);
+      // SQLite magic header: "SQLite format 3\0"
+      const header = String.fromCharCode(...view.slice(0, 15));
+      expect(header).toBe('SQLite format 3');
+
+      // Verify schema by opening the file with sql.js
+      const SQL = await getSqlJs();
+      const sqliteDb = new SQL.Database(view);
+      try {
+        const tables = sqliteDb.exec("SELECT name FROM sqlite_master WHERE type='table'");
+        const tableNames = (tables[0]?.values || []).map(r => r[0]);
+        expect(tableNames).toEqual(expect.arrayContaining(['metadata', 'tiles']));
+
+        const metaRows = sqliteDb.exec('SELECT name, value FROM metadata');
+        const meta = Object.fromEntries((metaRows[0]?.values || []) as [string, string][]);
+        expect(meta.name).toBe('Test Region');
+        expect(meta.minzoom).toBe('0');
+        expect(meta.maxzoom).toBe('14');
+        expect(meta.bounds).toBe('-122.5,37.5,-122,38');
+        expect(meta.format).toBe('pbf');
+      } finally {
+        sqliteDb.close();
+      }
     });
 
-    it('should export tiles with MBTiles structure', async () => {
+    it('writes tiles with TMS-flipped tile_row', async () => {
       const db = await dbPromise;
-
       await storeRegionInStyle(db, 'test-region', {
         id: 'test-region',
         name: 'Test Region',
@@ -392,6 +150,7 @@ describe('ImportExportService', () => {
         expiry: Date.now() + 30 * 24 * 60 * 60 * 1000,
       });
 
+      const tileBytes = new Uint8Array([0x1f, 0x8b, 0x08, 0x00, 0xde, 0xad, 0xbe, 0xef]);
       await db.put('tiles', {
         key: 'test-region:source:10:100:200.pbf',
         styleId: 'test-region',
@@ -399,8 +158,8 @@ describe('ImportExportService', () => {
         x: 100,
         y: 200,
         z: 10,
-        size: 1000,
-        data: new ArrayBuffer(1000),
+        size: tileBytes.byteLength,
+        data: tileBytes.buffer,
         downloadedAt: new Date().toISOString(),
         type: 'vector',
         url: 'https://example.com/tile.pbf',
@@ -408,102 +167,218 @@ describe('ImportExportService', () => {
       });
 
       const result = await service.exportRegionAsMBTiles('test-region');
-
-      expect(result.success).toBe(true);
       expect(result.statistics.tilesExported).toBe(1);
-    });
-  });
 
-  describe('importRegion', () => {
-    it('should return failure for unsupported format', async () => {
-      const mockFile = new File(['{}'], 'test.unknown', { type: 'application/octet-stream' });
-
-      const result = await service.importRegion({
-        file: mockFile,
-        format: 'unknown' as 'json' | 'pmtiles' | 'mbtiles',
-      });
-
-      expect(result.success).toBe(false);
-      expect(result.message).toContain('Unsupported format');
-    });
-
-    it('should import valid JSON format', async () => {
-      const exportData = {
-        metadata: {
-          id: 'imported-region',
-          name: 'Imported Region',
-          description: 'Test import',
-          bounds: [[-122.5, 37.5], [-122.0, 38.0]],
-          minZoom: 0,
-          maxZoom: 14,
-          styleUrl: 'https://example.com/style.json',
-          createdAt: Date.now(),
-          exportedAt: Date.now(),
-          version: '1.0.0',
-          format: 'json',
-        },
-        style: {},
-        tiles: [],
-        sprites: [],
-        fonts: [],
-      };
-
-      const mockFile = new File([JSON.stringify(exportData)], 'test.json', {
-        type: 'application/json',
-      });
-
-      const result = await service.importRegion({
-        file: mockFile,
-        format: 'json',
-      });
-
-      expect(result.success).toBe(true);
-      expect(result.regionId).toBe('imported-region');
+      const buffer = await blobToArrayBuffer(result.blob);
+      const SQL = await getSqlJs();
+      const sqliteDb = new SQL.Database(new Uint8Array(buffer));
+      try {
+        const rows = sqliteDb.exec(
+          'SELECT zoom_level, tile_column, tile_row, tile_data FROM tiles'
+        );
+        expect(rows[0].values).toHaveLength(1);
+        const [z, x, tmsRow, data] = rows[0].values[0];
+        expect(z).toBe(10);
+        expect(x).toBe(100);
+        // TMS flip: (2^10 - 1) - 200 = 823
+        expect(tmsRow).toBe(823);
+        expect((data as Uint8Array)[0]).toBe(0x1f);
+        expect((data as Uint8Array)[7]).toBe(0xef);
+      } finally {
+        sqliteDb.close();
+      }
     });
 
-    it('should use newRegionId when provided', async () => {
-      const exportData = {
-        metadata: {
-          id: 'original-id',
-          name: 'Original Name',
-          description: 'Test import',
-          bounds: [[-122.5, 37.5], [-122.0, 38.0]],
-          minZoom: 0,
-          maxZoom: 14,
-          styleUrl: 'https://example.com/style.json',
-          createdAt: Date.now(),
-          exportedAt: Date.now(),
-          version: '1.0.0',
-          format: 'json',
-        },
-        style: {},
-        tiles: [],
-        sprites: [],
-        fonts: [],
-      };
-
-      const mockFile = new File([JSON.stringify(exportData)], 'test.json', {
-        type: 'application/json',
-      });
-
-      const result = await service.importRegion({
-        file: mockFile,
-        format: 'json',
-        newRegionId: 'custom-region-id',
-        newRegionName: 'Custom Region Name',
-      });
-
-      expect(result.success).toBe(true);
-      expect(result.regionId).toBe('custom-region-id');
-    });
-
-    it('should fail when region exists and overwrite is false', async () => {
+    it('round-trips export → import preserving tiles', async () => {
       const db = await dbPromise;
+      await storeRegionInStyle(db, 'source-region', {
+        id: 'source-region',
+        name: 'Source Region',
+        bounds: [[-122.5, 37.5], [-122.0, 38.0]],
+        styleUrl: 'https://example.com/style.json',
+        minZoom: 5,
+        maxZoom: 7,
+        created: Date.now(),
+        expiry: Date.now() + 30 * 24 * 60 * 60 * 1000,
+      });
 
-      // Create existing region inside a style
+      const tileBytes = new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+      await db.put('tiles', {
+        key: 'source-region:source:5:10:20.pbf',
+        styleId: 'source-region',
+        sourceId: 'source',
+        x: 10,
+        y: 20,
+        z: 5,
+        size: tileBytes.byteLength,
+        data: tileBytes.buffer,
+        downloadedAt: new Date().toISOString(),
+        type: 'vector',
+        url: 'https://example.com/tile.pbf',
+        lastModified: Date.now(),
+      });
+
+      const exportResult = await service.exportRegionAsMBTiles('source-region');
+      const buffer = await blobToArrayBuffer(exportResult.blob);
+
+      const importFile = new TestFile([buffer], 'exported.mbtiles', {
+        type: 'application/octet-stream',
+      }) as unknown as File;
+
+      const importResult = await service.importRegion({
+        file: importFile,
+        format: 'mbtiles',
+        newRegionId: 'imported-region',
+        newRegionName: 'Imported Region',
+      });
+
+      expect(importResult.success).toBe(true);
+      expect(importResult.regionId).toBe('imported-region');
+      expect(importResult.statistics.tilesImported).toBe(1);
+
+      // Verify the tile was re-stored with the original (XYZ) coordinates
+      const storedTiles = await db.getAll('tiles');
+      const imported = storedTiles.filter(t => t.styleId === 'imported-region');
+      expect(imported).toHaveLength(1);
+      expect(imported[0].z).toBe(5);
+      expect(imported[0].x).toBe(10);
+      expect(imported[0].y).toBe(20);
+
+      const restored = new Uint8Array(imported[0].data as ArrayBuffer);
+      expect(Array.from(restored)).toEqual(Array.from(tileBytes));
+    });
+
+    it('gzips vector tiles on export (QGIS/tippecanoe convention)', async () => {
+      const db = await dbPromise;
+      await storeRegionInStyle(db, 'vec-region', {
+        id: 'vec-region',
+        name: 'Vector Region',
+        bounds: [[-1, -1], [1, 1]],
+        styleUrl: '',
+        minZoom: 0,
+        maxZoom: 2,
+        created: Date.now(),
+        expiry: Date.now() + 30 * 24 * 60 * 60 * 1000,
+      });
+
+      // Raw PBF bytes (no gzip magic). tileService stores tiles decompressed,
+      // so the exporter is responsible for re-wrapping.
+      const rawPbf = new Uint8Array([0x1a, 0x0f, 0x0a, 0x03, 0x66, 0x6f, 0x6f]);
+      await db.put('tiles', {
+        key: 'vec-region:source:1:0:0.pbf',
+        styleId: 'vec-region',
+        sourceId: 'source',
+        x: 0,
+        y: 0,
+        z: 1,
+        size: rawPbf.byteLength,
+        data: rawPbf.buffer,
+        downloadedAt: new Date().toISOString(),
+        type: 'vector',
+        url: '',
+        lastModified: Date.now(),
+      });
+
+      const result = await service.exportRegionAsMBTiles('vec-region');
+      const buffer = await blobToArrayBuffer(result.blob);
+      const SQL = await getSqlJs();
+      const sqliteDb = new SQL.Database(new Uint8Array(buffer));
+      try {
+        const rows = sqliteDb.exec('SELECT tile_data FROM tiles');
+        const data = rows[0].values[0][0] as Uint8Array;
+        expect(data[0]).toBe(0x1f);
+        expect(data[1]).toBe(0x8b); // gzip magic
+      } finally {
+        sqliteDb.close();
+      }
+    });
+
+    it('writes vector_layers into the json metadata when the style has them', async () => {
+      const db = await dbPromise;
+      const styleId = 'vl-style';
+
+      await db.put('styles', {
+        key: styleId,
+        style: {
+          version: 8,
+          sources: {
+            main: {
+              type: 'vector',
+              tiles: ['https://example.com/{z}/{x}/{y}.pbf'],
+              vector_layers: [
+                {
+                  id: 'water',
+                  fields: { class: 'String' },
+                  minzoom: 0,
+                  maxzoom: 14,
+                },
+                {
+                  id: 'roads',
+                  fields: { class: 'String', subclass: 'String' },
+                  minzoom: 6,
+                  maxzoom: 14,
+                },
+              ],
+            },
+          },
+          layers: [],
+        },
+        provider: 'auto' as StyleProvider,
+        regions: [
+          {
+            id: 'vl-region',
+            name: 'VL Region',
+            bounds: [[0, 0], [1, 1]],
+            styleUrl: '',
+            minZoom: 0,
+            maxZoom: 2,
+            created: Date.now(),
+            expiry: Date.now() + 30 * 24 * 60 * 60 * 1000,
+          },
+        ],
+        fonts: [],
+        glyphs: [],
+        sprites: [],
+      });
+
+      await db.put('tiles', {
+        key: `${styleId}:main:1:0:0.pbf`,
+        styleId,
+        sourceId: 'main',
+        x: 0,
+        y: 0,
+        z: 1,
+        size: 4,
+        data: new Uint8Array([1, 2, 3, 4]).buffer,
+        downloadedAt: new Date().toISOString(),
+        type: 'vector',
+        url: '',
+        lastModified: Date.now(),
+      });
+
+      const result = await service.exportRegionAsMBTiles('vl-region');
+      const buffer = await blobToArrayBuffer(result.blob);
+      const SQL = await getSqlJs();
+      const sqliteDb = new SQL.Database(new Uint8Array(buffer));
+      try {
+        const rows = sqliteDb.exec("SELECT value FROM metadata WHERE name = 'json'");
+        expect(rows[0].values[0][0]).toBeTruthy();
+        const parsed = JSON.parse(rows[0].values[0][0] as string);
+        expect(parsed.vector_layers).toHaveLength(2);
+        expect(parsed.vector_layers.map((v: { id: string }) => v.id)).toEqual([
+          'water',
+          'roads',
+        ]);
+      } finally {
+        sqliteDb.close();
+      }
+    });
+
+    it('accepts custom metadata entries', async () => {
+      const db = await dbPromise;
       await storeRegionInStyle(db, 'test-style', {
-        id: 'existing-region',
-        name: 'Existing Region',
+        id: 'test-region',
+        name: 'Test Region',
         bounds: [[-122.5, 37.5], [-122.0, 38.0]],
         styleUrl: 'https://example.com/style.json',
         minZoom: 0,
@@ -512,33 +387,70 @@ describe('ImportExportService', () => {
         expiry: Date.now() + 30 * 24 * 60 * 60 * 1000,
       });
 
-      const exportData = {
-        metadata: {
-          id: 'existing-region',
-          name: 'Imported Region',
-          description: 'Test import',
-          bounds: [[-122.5, 37.5], [-122.0, 38.0]],
-          minZoom: 0,
-          maxZoom: 14,
-          styleUrl: 'https://example.com/style.json',
-          createdAt: Date.now(),
-          exportedAt: Date.now(),
-          version: '1.0.0',
-          format: 'json',
-        },
-        style: {},
-        tiles: [],
-        sprites: [],
-        fonts: [],
-      };
-
-      const mockFile = new File([JSON.stringify(exportData)], 'test.json', {
-        type: 'application/json',
+      const result = await service.exportRegionAsMBTiles('test-region', {
+        metadata: { attribution: 'Test Author' },
       });
+
+      const buffer = await blobToArrayBuffer(result.blob);
+      const SQL = await getSqlJs();
+      const sqliteDb = new SQL.Database(new Uint8Array(buffer));
+      try {
+        const rows = sqliteDb.exec(
+          "SELECT value FROM metadata WHERE name = 'attribution'"
+        );
+        expect(rows[0].values[0][0]).toBe('Test Author');
+      } finally {
+        sqliteDb.close();
+      }
+    });
+  });
+
+  describe('importRegion', () => {
+    // Helper: produce a minimal real MBTiles blob for a region id so the
+    // overwrite tests can drive the full import pipeline.
+    async function makeMbtilesBlobFor(regionId: string): Promise<ArrayBuffer> {
+      const db = await dbPromise;
+      await storeRegionInStyle(db, 'src-style-' + regionId, {
+        id: regionId,
+        name: regionId,
+        bounds: [[-1, -1], [1, 1]],
+        styleUrl: '',
+        minZoom: 0,
+        maxZoom: 1,
+        created: Date.now(),
+        expiry: Date.now() + 30 * 24 * 60 * 60 * 1000,
+      });
+      const res = await service.exportRegionAsMBTiles(regionId);
+      return blobToArrayBuffer(res.blob);
+    }
+
+    it('returns failure for unsupported format', async () => {
+      const mockFile = new TestFile(['{}'], 'test.unknown', {
+        type: 'application/octet-stream',
+      }) as unknown as File;
 
       const result = await service.importRegion({
         file: mockFile,
-        format: 'json',
+        format: 'unknown' as 'mbtiles',
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.message).toContain('Unsupported format');
+    });
+
+    it('refuses to overwrite an existing region when overwrite is false', async () => {
+      const buffer = await makeMbtilesBlobFor('existing-region');
+      // Import once to materialise 'existing-region' in the DB.
+      await service.importRegion({
+        file: new TestFile([buffer.slice(0)], 'r.mbtiles') as unknown as File,
+        format: 'mbtiles',
+        newRegionId: 'existing-region',
+      });
+
+      const result = await service.importRegion({
+        file: new TestFile([buffer.slice(0)], 'r.mbtiles') as unknown as File,
+        format: 'mbtiles',
+        newRegionId: 'existing-region',
         overwrite: false,
       });
 
@@ -546,200 +458,85 @@ describe('ImportExportService', () => {
       expect(result.message).toContain('Region already exists');
     });
 
-    it('should succeed when region exists and overwrite is true', async () => {
-      const db = await dbPromise;
-
-      // Create existing region inside a style
-      await storeRegionInStyle(db, 'test-style', {
-        id: 'existing-region',
-        name: 'Existing Region',
-        bounds: [[-122.5, 37.5], [-122.0, 38.0]],
-        styleUrl: 'https://example.com/style.json',
-        minZoom: 0,
-        maxZoom: 14,
-        created: Date.now(),
-        expiry: Date.now() + 30 * 24 * 60 * 60 * 1000,
-      });
-
-      const exportData = {
-        metadata: {
-          id: 'existing-region',
-          name: 'Updated Region',
-          description: 'Test import',
-          bounds: [[-122.5, 37.5], [-122.0, 38.0]],
-          minZoom: 0,
-          maxZoom: 14,
-          styleUrl: 'https://example.com/style.json',
-          createdAt: Date.now(),
-          exportedAt: Date.now(),
-          version: '1.0.0',
-          format: 'json',
-        },
-        style: {},
-        tiles: [],
-        sprites: [],
-        fonts: [],
-      };
-
-      const mockFile = new File([JSON.stringify(exportData)], 'test.json', {
-        type: 'application/json',
+    it('overwrites when overwrite is true', async () => {
+      const buffer = await makeMbtilesBlobFor('over-region');
+      await service.importRegion({
+        file: new TestFile([buffer.slice(0)], 'r.mbtiles') as unknown as File,
+        format: 'mbtiles',
+        newRegionId: 'over-region',
       });
 
       const result = await service.importRegion({
-        file: mockFile,
-        format: 'json',
+        file: new TestFile([buffer.slice(0)], 'r.mbtiles') as unknown as File,
+        format: 'mbtiles',
+        newRegionId: 'over-region',
         overwrite: true,
       });
 
       expect(result.success).toBe(true);
     });
 
-    it('should import tiles along with region', async () => {
-      const exportData = {
-        metadata: {
-          id: 'region-with-tiles',
-          name: 'Region With Tiles',
-          description: 'Test import',
-          bounds: [[-122.5, 37.5], [-122.0, 38.0]],
-          minZoom: 0,
-          maxZoom: 14,
-          styleUrl: 'https://example.com/style.json',
-          createdAt: Date.now(),
-          exportedAt: Date.now(),
-          version: '1.0.0',
-          format: 'json',
-        },
-        style: {},
-        tiles: [
-          { z: 10, x: 100, y: 200, data: new ArrayBuffer(100), format: 'pbf', sourceId: 'source' },
-          { z: 10, x: 101, y: 200, data: new ArrayBuffer(100), format: 'pbf', sourceId: 'source' },
-        ],
-        sprites: [],
-        fonts: [],
-      };
+    it('rejects a non-SQLite file masquerading as .mbtiles', async () => {
+      const mockFile = new TestFile(
+        [JSON.stringify({ not: 'an mbtiles file' })],
+        'fake.mbtiles',
+        { type: 'application/octet-stream' }
+      ) as unknown as File;
 
-      const mockFile = new File([JSON.stringify(exportData)], 'test.json', {
-        type: 'application/json',
-      });
-
-      const result = await service.importRegion({
-        file: mockFile,
-        format: 'json',
-      });
-
-      expect(result.success).toBe(true);
-      expect(result.statistics.tilesImported).toBe(2);
-    });
-
-    it('should import style along with region', async () => {
-      const exportData = {
-        metadata: {
-          id: 'region-with-style',
-          name: 'Region With Style',
-          description: 'Test import',
-          bounds: [[-122.5, 37.5], [-122.0, 38.0]],
-          minZoom: 0,
-          maxZoom: 14,
-          styleUrl: 'https://example.com/style.json',
-          createdAt: Date.now(),
-          exportedAt: Date.now(),
-          version: '1.0.0',
-          format: 'json',
-        },
-        style: { version: 8, sources: {}, layers: [] },
-        tiles: [],
-        sprites: [],
-        fonts: [],
-      };
-
-      const mockFile = new File([JSON.stringify(exportData)], 'test.json', {
-        type: 'application/json',
-      });
-
-      const result = await service.importRegion({
-        file: mockFile,
-        format: 'json',
-      });
-
-      expect(result.success).toBe(true);
-
-      // Verify style was imported
-      const db = await dbPromise;
-      const style = await db.get('styles', 'region-with-style');
-      expect(style).toBeDefined();
-    });
-
-    it('should handle PMTiles format import', async () => {
-      const pmtilesData = {
-        header: {
-          version: 3,
-          type: 'mvt',
-          compression: 'gzip',
-          bounds: [[-122.5, 37.5], [-122.0, 38.0]],
-          minZoom: 0,
-          maxZoom: 14,
-          metadata: {
-            name: 'PMTiles Region',
-            description: 'Test PMTiles import',
-          },
-        },
-        tiles: [],
-      };
-
-      const mockFile = new File([JSON.stringify(pmtilesData)], 'test.pmtiles', {
-        type: 'application/octet-stream',
-      });
-
-      const result = await service.importRegion({
-        file: mockFile,
-        format: 'pmtiles',
-      });
-
-      expect(result.success).toBe(true);
-      expect(result.regionId).toBe('PMTiles Region');
-    });
-
-    it('should handle MBTiles format import', async () => {
-      const mbtilesData = {
-        metadata: {
-          name: 'MBTiles Region',
-          type: 'overlay',
-          version: '1.0',
-          description: 'Test MBTiles import',
-          format: 'pbf',
-          bounds: '-122.5,37.5,-122.0,38.0',
-          minzoom: 0,
-          maxzoom: 14,
-        },
-        tiles: [],
-      };
-
-      const mockFile = new File([JSON.stringify(mbtilesData)], 'test.mbtiles', {
-        type: 'application/octet-stream',
-      });
-
-      const result = await service.importRegion({
-        file: mockFile,
-        format: 'mbtiles',
-      });
-
-      expect(result.success).toBe(true);
-      expect(result.regionId).toBe('MBTiles Region');
-    });
-
-    it('should handle file read errors', async () => {
-      // Create a file that will fail to parse
-      const mockFile = new File(['invalid json {{{'], 'test.json', {
-        type: 'application/json',
-      });
-
-      const result = await service.importRegion({
-        file: mockFile,
-        format: 'json',
-      });
+      const result = await service.importRegion({ file: mockFile, format: 'mbtiles' });
 
       expect(result.success).toBe(false);
-      expect(result.message).toContain('Import failed');
+      expect(result.message).toMatch(/Not a valid MBTiles file/);
+    });
+
+    it('rejects a SQLite file missing metadata/tiles tables', async () => {
+      const SQL = await getSqlJs();
+      const db = new SQL.Database();
+      db.run('CREATE TABLE some_other_table (foo TEXT)');
+      const bytes = db.export();
+      db.close();
+
+      const mockFile = new TestFile([bytes.buffer as ArrayBuffer], 'bad.mbtiles', {
+        type: 'application/octet-stream',
+      }) as unknown as File;
+
+      const result = await service.importRegion({ file: mockFile, format: 'mbtiles' });
+
+      expect(result.success).toBe(false);
+      expect(result.message).toMatch(/missing required metadata\/tiles tables/);
+    });
+
+    it('emits progress callbacks during mbtiles import', async () => {
+      // Produce a real mbtiles blob first
+      const db = await dbPromise;
+      await storeRegionInStyle(db, 'source-region', {
+        id: 'source-region',
+        name: 'Source Region',
+        bounds: [[-1, -1], [1, 1]],
+        styleUrl: '',
+        minZoom: 0,
+        maxZoom: 2,
+        created: Date.now(),
+        expiry: Date.now() + 30 * 24 * 60 * 60 * 1000,
+      });
+      const exportResult = await service.exportRegionAsMBTiles('source-region');
+      const buffer = await blobToArrayBuffer(exportResult.blob);
+      const file = new TestFile([buffer], 'r.mbtiles', {
+        type: 'application/octet-stream',
+      }) as unknown as File;
+
+      const stages: string[] = [];
+      const result = await service.importRegion({
+        file,
+        format: 'mbtiles',
+        newRegionId: 'imported',
+        onProgress: p => stages.push(p.stage),
+      });
+
+      expect(result.success).toBe(true);
+      expect(stages[0]).toBe('preparing');
+      expect(stages).toContain('importing');
+      expect(stages[stages.length - 1]).toBe('complete');
     });
   });
 });

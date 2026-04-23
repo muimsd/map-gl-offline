@@ -334,108 +334,68 @@ async function deleteRegionWithConfirm(regionId: string) {
 
 ---
 
-## Import/Export
+## Import/Export (MBTiles)
 
-### Export to JSON for Backup
+Regions are exchanged as binary **MBTiles** (SQLite). The produced files are v1.3-compliant — vector tiles gzipped, `tile_row` flipped to TMS, `json.vector_layers` emitted from the offline style — so they open in QGIS, tippecanoe, and maplibre-native without conversion.
+
+### Export for sharing or GIS use
 
 ```typescript
-async function backupRegion(regionId: string) {
-  const result = await manager.exportRegionAsJSON(regionId, {
-    includeStyle: true,
-    includeTiles: true,
-    includeSprites: true,
-    includeFonts: true,
-    onProgress: (p) => {
-      console.log(`Exporting: ${p.percentage}% - ${p.stage}`);
-    },
+async function exportRegion(regionId: string) {
+  const result = await manager.exportRegionAsMBTiles(regionId, {
+    metadata: { attribution: '© OpenStreetMap contributors' },
+    onProgress: (p) => console.log(`${p.stage}: ${p.percentage}%`),
   });
 
-  // Trigger browser download
+  // Trigger a browser download
   manager.downloadExportedRegion(result);
 
   console.log(`Exported ${result.statistics.tilesExported} tiles (${result.size} bytes)`);
 }
 ```
 
-### Export to PMTiles for Web Deployment
+### Import from file
 
-```typescript
-async function exportForCDN(regionId: string) {
-  const result = await manager.exportRegionAsPMTiles(regionId, {
-    compression: 'gzip',
-    metadata: {
-      attribution: '© OpenStreetMap contributors',
-      version: '1.0.0',
-      description: 'Offline map tiles',
-    },
-  });
-
-  // Upload to CDN or save
-  await uploadToS3(result.blob, `maps/${result.filename}`);
-}
-```
-
-### Import from File
-
-```typescript
-// HTML: <input type="file" id="import-file" accept=".json,.pmtiles,.mbtiles">
+```tsx
+// HTML: <input type="file" id="import-file" accept=".mbtiles">
 
 document.getElementById('import-file').addEventListener('change', async (e) => {
-  const file = e.target.files?.[0];
+  const file = (e.target as HTMLInputElement).files?.[0];
   if (!file) return;
 
-  // Determine format from extension
-  const ext = file.name.split('.').pop().toLowerCase();
-  const format = ext === 'json' ? 'json' :
-                 ext === 'pmtiles' ? 'pmtiles' : 'mbtiles';
+  const result = await manager.importRegion({
+    file,
+    format: 'mbtiles',
+    overwrite: false,
+    onProgress: (p) => console.log(p.message),
+  });
 
-  try {
-    const result = await manager.importRegion({
-      file,
-      format,
-      overwrite: false,
-    });
-
-    if (result.success) {
-      alert(`Imported "${result.regionId}" with ${result.statistics.tilesImported} tiles`);
-    } else {
-      alert(`Import failed: ${result.message}`);
-    }
-  } catch (error) {
-    alert(`Import error: ${error.message}`);
+  if (result.success) {
+    alert(`Imported "${result.regionId}" with ${result.statistics.tilesImported} tiles`);
+  } else {
+    alert(`Import failed: ${result.message}`);
   }
 });
 ```
 
-### Transfer Between Devices
+### Transfer between devices
 
 ```typescript
-// Device A: Export
-async function exportForTransfer() {
+// Device A: export every region
+async function exportAll() {
   const regions = await manager.listStoredRegions();
-  const exports = [];
-
-  for (const region of regions) {
-    const result = await manager.exportRegionAsJSON(region.id);
-    exports.push({
-      regionId: region.id,
-      blob: result.blob,
-      filename: result.filename,
-    });
-  }
-
-  // Create zip or transfer individually
-  return exports;
+  return Promise.all(
+    regions.map(async (r) => {
+      const { blob, filename } = await manager.exportRegionAsMBTiles(r.id);
+      return { regionId: r.id, blob, filename };
+    })
+  );
 }
 
-// Device B: Import
+// Device B: import
 async function importFromTransfer(files: File[]) {
   for (const file of files) {
-    await manager.importRegion({
-      file,
-      format: 'json',
-      overwrite: true,
-    });
+    await manager.importRegion({ file, format: 'mbtiles', overwrite: true });
   }
 }
 ```
@@ -887,12 +847,12 @@ class RegionSync {
     const localRegions = await this.manager.listStoredRegions();
 
     for (const region of localRegions) {
-      const result = await this.manager.exportRegionAsJSON(region.id);
+      const result = await this.manager.exportRegionAsMBTiles(region.id);
 
       await fetch(`${this.apiUrl}/regions/${region.id}`, {
         method: 'PUT',
         body: result.blob,
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/x-sqlite3' },
       });
     }
   }

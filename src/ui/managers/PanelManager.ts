@@ -10,7 +10,7 @@ import { ModalManager } from '@/ui/modals/modalManager';
 import { RegionDetailsModal } from '@/ui/modals/regionDetailsModal';
 import { StoredRegion, StorageAnalyticsReport } from '@/types';
 import { ConfirmationModal } from '@/ui/modals/confirmationModal';
-import { ImportExportModal } from '@/ui/modals/importExportModal';
+import { MBTilesModal } from '@/ui/modals/mbtilesModal';
 import { formatBytes, escapeHtml } from '@/utils/formatting';
 import { themeManager } from '@/ui/ThemeManager';
 import { logger } from '@/utils/logger';
@@ -527,9 +527,9 @@ export class PanelRenderer extends BaseComponent {
             <button class="region-action-btn p-1.5 rounded-md cursor-pointer hover:bg-blue-100 dark:hover:bg-blue-900/50 text-blue-600 dark:text-blue-400 transition-colors duration-150" data-action="redownload-region" data-region-id="${escapeHtml(region.id)}" title="${t('actions.redownload')}">
               ${icons.download({ size: 14, color: 'currentColor' })}
             </button>
-            <!-- <button class="region-action-btn p-1.5 rounded-md cursor-pointer hover:bg-purple-100 dark:hover:bg-purple-900/50 text-purple-600 dark:text-purple-400 transition-colors duration-150" data-action="import-export" data-region-id="${escapeHtml(region.id)}" title="${t('actions.importExport')}">
+            <button class="region-action-btn p-1.5 rounded-md cursor-pointer hover:bg-purple-100 dark:hover:bg-purple-900/50 text-purple-600 dark:text-purple-400 transition-colors duration-150" data-action="import-export" data-region-id="${escapeHtml(region.id)}" title="${t('actions.importExport')}">
               ${icons.deviceFloppy({ size: 14, color: 'currentColor' })}
-            </button> -->
+            </button>
             <button class="region-action-btn p-1.5 rounded-md cursor-pointer hover:bg-red-100 dark:hover:bg-red-900/50 text-red-600 dark:text-red-400 transition-colors duration-150" data-action="delete-region" data-region-id="${escapeHtml(region.id)}" title="${t('app.delete')}">
               ${icons.trash({ size: 14, color: 'currentColor' })}
             </button>
@@ -819,63 +819,33 @@ export class PanelRenderer extends BaseComponent {
   }
 
   /**
-   * Handle import/export functionality
+   * Show the MBTiles import/export modal for a region.
    */
   private async handleImportExport(regionId: string, _regionData: unknown): Promise<void> {
     try {
       const regions = await this.offlineManager.listStoredRegions();
       const region = regions.find((r: StoredRegion) => r.id === regionId);
-
       if (!region) return;
 
-      const importExportModal = new ImportExportModal({
+      const mbtilesModal = new MBTilesModal({
         region,
-        onClose: () => {
-          this.modalManager.close();
-        },
+        onClose: () => this.modalManager.close(),
         onExport: result => {
-          panelLogger.debug('Export completed:', result);
-          // Handle export result - could show success message
+          panelLogger.debug('MBTiles export completed:', result);
           this.offlineManager.downloadExportedRegion(result);
         },
         onImport: result => {
-          panelLogger.debug('Import completed:', result);
-          // Refresh the panel to show updated regions
-          this.refresh();
+          panelLogger.debug('MBTiles import completed:', result);
+          if (result.success) this.refresh();
         },
-        exportRegion: async (
-          regionId: string,
-          format: 'json' | 'pmtiles' | 'mbtiles',
-          options?
-        ) => {
-          // Delegate to offline manager's export functionality
-          switch (format) {
-            case 'json':
-              return await this.offlineManager.exportRegionAsJSON(regionId, options);
-            case 'pmtiles':
-              return await this.offlineManager.exportRegionAsPMTiles(
-                regionId,
-                options as Record<string, unknown>
-              );
-            case 'mbtiles':
-              return await this.offlineManager.exportRegionAsMBTiles(
-                regionId,
-                options as Record<string, unknown>
-              );
-            default:
-              throw new Error(`Unsupported export format: ${format}`);
-          }
-        },
-        importRegion: async data => {
-          // Delegate to offline manager's import functionality
-          return await this.offlineManager.importRegion(data);
-        },
+        exportRegion: (id, options) => this.offlineManager.exportRegionAsMBTiles(id, options),
+        importRegion: data => this.offlineManager.importRegion(data),
       });
 
-      const modal = importExportModal.show();
+      const modal = mbtilesModal.show();
       this.modalManager.show(modal);
     } catch (error) {
-      panelLogger.error('Error showing import/export modal:', error);
+      panelLogger.error('Error showing MBTiles modal:', error);
     }
   }
 

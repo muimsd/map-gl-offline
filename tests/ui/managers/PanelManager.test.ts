@@ -19,8 +19,8 @@ jest.mock('../../../src/ui/modals/confirmationModal', () => ({
 }));
 
 const capturedImportExportModals: Array<Record<string, unknown>> = [];
-jest.mock('../../../src/ui/modals/importExportModal', () => ({
-  ImportExportModal: class {
+jest.mock('../../../src/ui/modals/mbtilesModal', () => ({
+  MBTilesModal: class {
     opts: Record<string, unknown>;
     constructor(opts: Record<string, unknown>) {
       this.opts = opts;
@@ -59,8 +59,6 @@ const createMockOfflineManager = () => ({
   deleteRegion: jest.fn().mockResolvedValue(undefined),
   getRegionSize: jest.fn().mockResolvedValue(512000),
   downloadStyle: jest.fn().mockResolvedValue({ success: true }),
-  exportRegionAsJSON: jest.fn().mockResolvedValue({}),
-  exportRegionAsPMTiles: jest.fn().mockResolvedValue({}),
   exportRegionAsMBTiles: jest.fn().mockResolvedValue({}),
   importRegion: jest.fn().mockResolvedValue({}),
   downloadExportedRegion: jest.fn(),
@@ -1363,11 +1361,11 @@ describe('PanelRenderer', () => {
         handleRegionAction: (a: string, id: string, r: unknown) => Promise<void>;
       }).handleRegionAction('import-export', region.id, region);
       const opts = capturedImportExportModals[0];
-      (opts!.onExport as (r: unknown) => void)({ blob: new Blob(), filename: 'x.json' });
+      (opts!.onExport as (r: unknown) => void)({ blob: new Blob(), filename: 'x.mbtiles' });
       expect(mockOfflineManager.downloadExportedRegion).toHaveBeenCalled();
     });
 
-    it('handleImportExport exportRegion routes by format', async () => {
+    it('handleImportExport exportRegion delegates to exportRegionAsMBTiles', async () => {
       const mockOfflineManager = createMockOfflineManager();
       mockOfflineManager.listStoredRegions.mockResolvedValue([region]);
       const options = createOptions({
@@ -1378,35 +1376,8 @@ describe('PanelRenderer', () => {
         handleRegionAction: (a: string, id: string, r: unknown) => Promise<void>;
       }).handleRegionAction('import-export', region.id, region);
       const opts = capturedImportExportModals[0];
-      await (opts!.exportRegion as (id: string, f: string) => Promise<unknown>)('json', 'json');
-      await (opts!.exportRegion as (id: string, f: string) => Promise<unknown>)(
-        'pmtiles',
-        'pmtiles'
-      );
-      await (opts!.exportRegion as (id: string, f: string) => Promise<unknown>)(
-        'mbtiles',
-        'mbtiles'
-      );
-      expect(mockOfflineManager.exportRegionAsJSON).toHaveBeenCalled();
-      expect(mockOfflineManager.exportRegionAsPMTiles).toHaveBeenCalled();
-      expect(mockOfflineManager.exportRegionAsMBTiles).toHaveBeenCalled();
-    });
-
-    it('handleImportExport exportRegion throws on unknown format', async () => {
-      capturedImportExportModals.length = 0;
-      const mockOfflineManager = createMockOfflineManager();
-      mockOfflineManager.listStoredRegions.mockResolvedValue([region]);
-      const options = createOptions({
-        offlineManager: mockOfflineManager as unknown as PanelRendererOptions['offlineManager'],
-      });
-      const renderer = new PanelRenderer(options);
-      await (renderer as unknown as {
-        handleRegionAction: (a: string, id: string, r: unknown) => Promise<void>;
-      }).handleRegionAction('import-export', region.id, region);
-      const opts = capturedImportExportModals[0];
-      await expect(
-        (opts!.exportRegion as (id: string, f: string) => Promise<unknown>)('x', 'xml' as any)
-      ).rejects.toThrow(/Unsupported export format/);
+      await (opts!.exportRegion as (id: string, o?: unknown) => Promise<unknown>)(region.id);
+      expect(mockOfflineManager.exportRegionAsMBTiles).toHaveBeenCalledWith(region.id, undefined);
     });
 
     it('handleImportExport importRegion delegates to offlineManager.importRegion', async () => {

@@ -268,6 +268,40 @@ describe('SpriteService', () => {
 
       expect(deletedCount).toBe(1);
     });
+
+    it('filters by styleId when provided', async () => {
+      const db = await dbPromise;
+      const oldTime = Date.now() - 40 * 24 * 60 * 60 * 1000;
+
+      await db.put('sprites', {
+        key: 'style-a:sprite.png',
+        url: '',
+        data: new ArrayBuffer(10),
+        contentType: 'image/png',
+        size: 10,
+        lastModified: oldTime,
+        downloadedAt: new Date(oldTime).toISOString(),
+        styleId: 'style-a',
+        spriteName: 'sprite.png',
+      });
+      await db.put('sprites', {
+        key: 'style-b:sprite.png',
+        url: '',
+        data: new ArrayBuffer(10),
+        contentType: 'image/png',
+        size: 10,
+        lastModified: oldTime,
+        downloadedAt: new Date(oldTime).toISOString(),
+        styleId: 'style-b',
+        spriteName: 'sprite.png',
+      });
+
+      const deleted = await service.cleanupOldSprites(30, { styleId: 'style-a' });
+
+      expect(deleted).toBe(1);
+      expect(await db.get('sprites', 'style-a:sprite.png')).toBeUndefined();
+      expect(await db.get('sprites', 'style-b:sprite.png')).toBeDefined();
+    });
   });
 
   describe('verifyAndRepairSprites', () => {
