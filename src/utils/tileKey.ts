@@ -55,16 +55,30 @@ export function parseTileKey(key: string): {
 }
 
 /**
+ * Extract the extension (the last dotted segment before `?`, `#`, or end) from
+ * a tile URL or tile URL template. Defaults to `"pbf"` when no extension can
+ * be parsed. For multi-extension URLs like Mapbox v4's `{y}.vector.pbf` this
+ * returns `"pbf"`, matching the key used when the tile is stored.
+ *
+ * Keeping extraction logic in one place ensures patchStyleForOffline (which
+ * rewrites tile URLs to `idb://` at load time) derives the same extension
+ * that tileService.extractExtension used at store time — otherwise the
+ * first-try lookup in idbFetchHandler misses and has to fall through its
+ * pbf/mvt/png/jpg/webp fallback loop.
+ */
+export function extractTileExtensionFromUrl(url: string): string {
+  const match = url.match(/\.([\w]+)(?:[?#]|$)/i);
+  return match ? match[1] : 'pbf';
+}
+
+/**
  * Derive tile extension from tile URL templates
  */
 export function deriveTileExtension(tiles?: unknown): string {
   if (Array.isArray(tiles) && tiles.length > 0) {
     const firstTile = tiles[0];
     if (typeof firstTile === 'string') {
-      const match = firstTile.match(/\.([\w]+)(?:\?|$)/i);
-      if (match) {
-        return match[1];
-      }
+      return extractTileExtensionFromUrl(firstTile);
     }
   }
   return 'pbf';

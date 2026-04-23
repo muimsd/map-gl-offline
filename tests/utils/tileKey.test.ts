@@ -1,7 +1,12 @@
 /**
  * Tests for tile key utilities
  */
-import { createTileKey, parseTileKey, deriveTileExtension } from '../../src/utils/tileKey';
+import {
+  createTileKey,
+  parseTileKey,
+  deriveTileExtension,
+  extractTileExtensionFromUrl,
+} from '../../src/utils/tileKey';
 
 describe('createTileKey', () => {
   it('should create a tile key in the correct format', () => {
@@ -131,5 +136,41 @@ describe('deriveTileExtension', () => {
   it('should handle case-insensitive extensions', () => {
     expect(deriveTileExtension(['https://example.com/tiles/{z}/{x}/{y}.PNG'])).toBe('PNG');
     expect(deriveTileExtension(['https://example.com/tiles/{z}/{x}/{y}.Pbf'])).toBe('Pbf');
+  });
+});
+
+describe('extractTileExtensionFromUrl', () => {
+  it('extracts single-segment extensions', () => {
+    expect(extractTileExtensionFromUrl('https://x/{z}/{x}/{y}.pbf')).toBe('pbf');
+    expect(extractTileExtensionFromUrl('https://x/{z}/{x}/{y}.png')).toBe('png');
+  });
+
+  it('extracts the last segment from multi-dot Mapbox v4 URLs', () => {
+    // Mapbox returns vector tiles under `.vector.pbf`. tileService stores the key
+    // using the last segment, so patchStyleForOffline must agree or every tile
+    // fetch falls through idbFetchHandler's fallback-extension loop.
+    expect(
+      extractTileExtensionFromUrl(
+        'https://api.mapbox.com/v4/mapbox.streets-v8/{z}/{x}/{y}.vector.pbf'
+      )
+    ).toBe('pbf');
+  });
+
+  it('ignores query strings', () => {
+    expect(
+      extractTileExtensionFromUrl(
+        'https://api.mapbox.com/v4/.../{z}/{x}/{y}.vector.pbf?access_token=sk.abc'
+      )
+    ).toBe('pbf');
+    expect(extractTileExtensionFromUrl('https://x/{z}/{x}/{y}.pbf?token=x')).toBe('pbf');
+  });
+
+  it('ignores URL fragments', () => {
+    expect(extractTileExtensionFromUrl('https://x/{z}/{x}/{y}.pbf#frag')).toBe('pbf');
+  });
+
+  it('defaults to "pbf" when no extension is present', () => {
+    expect(extractTileExtensionFromUrl('https://x/{z}/{x}/{y}')).toBe('pbf');
+    expect(extractTileExtensionFromUrl('')).toBe('pbf');
   });
 });

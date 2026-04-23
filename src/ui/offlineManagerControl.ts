@@ -47,6 +47,7 @@ import {
   unregisterOfflineServiceWorker,
 } from '@/utils/swRegistration';
 import { convertStyleForServiceWorker } from '@/utils/convertStyleForSW';
+import { sanitizeIndoorExpressions } from '@/utils/importResolver';
 import type { MapboxStyle } from '@/types/style';
 
 // Import refactored modular components
@@ -767,6 +768,10 @@ export class OfflineManagerControl implements IControl {
       if ((patchedStyle as Record<string, unknown>).imports) {
         delete (patchedStyle as Record<string, unknown>).imports;
       }
+
+      // Scrub indoor-only expressions for pre-0.8.1 stored styles that were
+      // downloaded before resolveImports learned to rewrite them.
+      sanitizeIndoorExpressions(patchedStyle);
 
       // If using Service Worker (Mapbox GL JS), convert idb:// to /__offline__/ URLs
       if (this.useServiceWorker) {

@@ -56,10 +56,18 @@ function wouldIntercept(url: string): boolean {
 /** Open the same DB the SW uses so we can seed data */
 function openTestDB(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
-    const req = indexedDB.open('offline-map-db', 3);
+    const req = indexedDB.open('offline-map-db', 4);
     req.onupgradeneeded = () => {
       const db = req.result;
-      for (const name of ['regions', 'tiles', 'styles', 'sprites', 'glyphs', 'fonts']) {
+      for (const name of [
+        'regions',
+        'tiles',
+        'styles',
+        'sprites',
+        'glyphs',
+        'fonts',
+        'models',
+      ]) {
         if (!db.objectStoreNames.contains(name)) {
           db.createObjectStore(name, { keyPath: 'key' });
         }
@@ -198,6 +206,7 @@ describe('idb-offline-sw.js', () => {
     await clearStore(db, 'sprites');
     await clearStore(db, 'glyphs');
     await clearStore(db, 'fonts');
+    await clearStore(db, 'models');
   });
 
   afterAll(() => {
@@ -622,6 +631,68 @@ describe('idb-offline-sw.js', () => {
       expect(resp.status).toBe(200);
       // No Content-Type header when resource has none
       expect(resp.headers.get('Content-Type')).toBeNull();
+    });
+  });
+
+  // -----------------------------------------------------------
+  // Model handling (Mapbox Standard 3D trees / wind turbines)
+  // -----------------------------------------------------------
+
+  describe('model handling', () => {
+    it('should return 404 for non-existent model', async () => {
+      const resp = await swFetch(
+        'https://localhost/__offline__/mapbox-standard/model/maple1-lod1'
+      );
+      expect(resp.status).toBe(404);
+    });
+
+    it('should serve a stored .glb with default content-type', async () => {
+      const glb = new ArrayBuffer(1024);
+      await idbPut(db, 'models', {
+        key: 'mapbox-standard::model::maple1-lod1',
+        data: glb,
+      });
+
+      const resp = await swFetch(
+        'https://localhost/__offline__/mapbox-standard/model/maple1-lod1'
+      );
+      expect(resp.status).toBe(200);
+      expect(resp.headers.get('Content-Type')).toBe('model/gltf-binary');
+    });
+
+    it('should respect a stored contentType override', async () => {
+      const glb = new ArrayBuffer(512);
+      await idbPut(db, 'models', {
+        key: 'mapbox-standard::model::wind-turbine-blade',
+        data: glb,
+        contentType: 'application/octet-stream',
+      });
+
+      const resp = await swFetch(
+        'https://localhost/__offline__/mapbox-standard/model/wind-turbine-blade'
+      );
+      expect(resp.status).toBe(200);
+      expect(resp.headers.get('Content-Type')).toBe('application/octet-stream');
+    });
+
+    it('should resolve a model via region ID', async () => {
+      // Style stored under `mapbox-standard`; region `region-m` belongs to it.
+      await idbPut(db, 'styles', {
+        key: 'mapbox-standard',
+        style: { version: 8, sources: {}, layers: [] },
+        regions: [{ id: 'region-m', name: 'Test' }],
+      });
+      const glb = new ArrayBuffer(256);
+      await idbPut(db, 'models', {
+        key: 'mapbox-standard::model::palm2-lod2',
+        data: glb,
+      });
+
+      const resp = await swFetch(
+        'https://localhost/__offline__/region-m/model/palm2-lod2'
+      );
+      expect(resp.status).toBe(200);
+      expect(resp.headers.get('Content-Type')).toBe('model/gltf-binary');
     });
   });
 

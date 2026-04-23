@@ -21,6 +21,7 @@ const panelLogger = logger.scope('PanelManager');
 import { icons } from '@/utils/icons';
 import type { MapboxStyle, StyleStorageItem } from '@/types/style';
 import { convertStyleForServiceWorker } from '@/utils/convertStyleForSW';
+import { sanitizeIndoorExpressions } from '@/utils/importResolver';
 
 // Import modular components
 import { List, ListItemConfig } from '@/ui/components/shared/List';
@@ -1299,6 +1300,10 @@ export class PanelRenderer extends BaseComponent {
         delete (patchedStyle as Record<string, unknown>).imports;
         panelLogger.debug('Stripped imports from offline style (already flattened)');
       }
+
+      // Scrub indoor-only expressions for pre-0.8.1 stored styles that were
+      // downloaded before resolveImports learned to rewrite them.
+      sanitizeIndoorExpressions(patchedStyle);
 
       // Enforce maxzoom for all tile sources to prevent requesting non-existent tiles
       // Find the maximum zoom level from all regions using this style

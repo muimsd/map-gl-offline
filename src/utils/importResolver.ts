@@ -172,10 +172,8 @@ async function resolveImportsRecursive(
           prefixedLayer.source = `${importId}/${prefixedLayer.source}`;
         }
 
-        // Resolve ["config", "key"] expressions using schema defaults and import overrides
-        if (Object.keys(configValues).length > 0) {
-          resolveConfigExpressions(prefixedLayer, configValues);
-        }
+        // Resolve ["config", "key"] expressions using schema defaults and import overrides.
+        resolveConfigExpressions(prefixedLayer, configValues);
 
         flattenedLayers.push(prefixedLayer);
       }
@@ -222,7 +220,48 @@ async function resolveImportsRecursive(
     style.models = importedModels;
   }
 
+  // Rewrite indoor-only expressions so the flattened style validates without
+  // the `imports` wrapper at render time — see sanitizeIndoorExpressions.
+  sanitizeIndoorExpressions(style);
+
   return style;
+}
+
+/**
+ * Rewrite indoor-only expressions in a style's layers to their outdoor no-op
+ * constants. See the in-line comment in `resolveValue` for why this is needed
+ * for Mapbox Standard when the `imports` wrapper is stripped.
+ *
+ * Safe to call multiple times and on already-downloaded stored styles — the
+ * rewrites are idempotent (after the first pass there are no more
+ * `is-active-floor` / `floor-level` expressions to rewrite).
+ */
+export function sanitizeIndoorExpressions(style: BaseStyle): void {
+  const layers = (style as Record<string, unknown>).layers;
+  if (!Array.isArray(layers)) return;
+  for (const layer of layers) {
+    if (layer && typeof layer === 'object') {
+      rewriteIndoor(layer as Record<string, unknown>);
+    }
+  }
+}
+
+function rewriteIndoor(obj: Record<string, unknown>): void {
+  for (const key of Object.keys(obj)) {
+    obj[key] = rewriteIndoorValue(obj[key]);
+  }
+}
+
+function rewriteIndoorValue(value: unknown): unknown {
+  if (!Array.isArray(value)) {
+    if (value && typeof value === 'object' && !ArrayBuffer.isView(value)) {
+      rewriteIndoor(value as Record<string, unknown>);
+    }
+    return value;
+  }
+  if (value[0] === 'is-active-floor') return false;
+  if (value[0] === 'floor-level' && value.length === 1) return 0;
+  return value.map(rewriteIndoorValue);
 }
 
 /**

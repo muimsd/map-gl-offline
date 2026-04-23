@@ -1,5 +1,6 @@
 import type { MapboxStyle } from '@/types/style';
 import { logger } from './logger';
+import { extractTileExtensionFromUrl } from './tileKey';
 
 const styleLogger = logger.scope('StyleUtils');
 
@@ -36,14 +37,15 @@ export function patchStyleForOffline(
 
     if (source.tiles) {
       const originalTiles = [...source.tiles];
-      // Patch to idb://{downloadId}/tile/{sourceKey}/{z}/{x}/{y}.ext
+      // Patch to idb://{downloadId}/tile/{sourceKey}/{z}/{x}/{y}.ext.
+      // Extension extraction goes through the shared extractTileExtensionFromUrl
+      // helper so the patched URL's extension matches what tileService used when
+      // storing — otherwise Mapbox v4 tile URLs (`{y}.vector.pbf`) produced a
+      // stored key under `.pbf` but a patched URL with `.vector`, forcing
+      // idbFetchHandler to fall through its pbf/mvt/png/jpg/webp fallback loop
+      // on every tile.
       source.tiles = source.tiles.map((url: string) => {
-        // Use stored tileExtension if available, otherwise try to extract from URL
-        let ext = tileExtension;
-        if (!ext) {
-          const extMatch = url.match(/\{z\}\/\{x\}\/\{y\}\.(\w+)/);
-          ext = extMatch ? extMatch[1] : 'pbf';
-        }
+        const ext = tileExtension ?? extractTileExtensionFromUrl(url);
         return `idb://${downloadId}/tile/${sourceKey}/{z}/{x}/{y}.${ext}`;
       });
       styleLogger.debug(
