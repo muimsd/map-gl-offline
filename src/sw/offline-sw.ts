@@ -16,7 +16,6 @@
  */
 
 /// <reference lib="webworker" />
-/* eslint-disable @typescript-eslint/no-explicit-any */
 
 import {
   OFFLINE_PREFIX,
@@ -106,7 +105,6 @@ async function findStyleByRegionId(
     }
     return hit;
   } catch (err) {
-    // eslint-disable-next-line no-console
     console.warn('[SW] findStyleByRegionId failed for', regionId, err);
     return null;
   }
@@ -122,7 +120,6 @@ async function decompressGzip(data: ArrayBuffer): Promise<ArrayBuffer> {
     if (!stream) return data;
     return await new Response(stream).arrayBuffer();
   } catch (err) {
-    // eslint-disable-next-line no-console
     console.warn('[SW] Gzip decompression failed:', err);
     return data;
   }
@@ -318,7 +315,6 @@ async function handleOfflineRequest(url: string, prefixIndex: number): Promise<R
         return new Response(`Unknown resource type: ${type}`, { status: 400 });
     }
   } catch (err) {
-    // eslint-disable-next-line no-console
     console.error('[SW] Error handling offline request:', err);
     return new Response('Service Worker error', { status: 500 });
   }
