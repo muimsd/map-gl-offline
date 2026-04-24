@@ -5,6 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.2] - 2026-04-24
+
+> **Refactor: build offline Service Worker from TypeScript source.** The SW (`public/idb-offline-sw.js`) and the main-thread fetch handler (`src/utils/idbFetchHandler.ts`) previously implemented the same routing logic twice — tile/glyph/sprite/model/tilejson resolution, region-by-style lookup, candidate-key building. Every fix had to land in both files, and the SW quietly missed its `model` handler for two releases because of it. Now both sides import pure helpers from `src/sw/shared.ts`, and the SW itself is compiled by esbuild from `src/sw/offline-sw.ts` into a single self-contained `public/idb-offline-sw.js`. No runtime behavior change.
+
+### Added
+
+- `src/sw/shared.ts` — pure helpers used by both the SW and the main-thread handler: `makeTileKey`, `tileFallbackExtensions`, `parseTileYExt`, `findStyleByRegionIdIn`, `parseGlyphPath`, `glyphCandidateKeys`, `spriteCandidateKeys`, `modelCandidateKeys`, `matchTileJsonSource`, `buildOfflineTileJson`, `deriveTileExtensionFromTiles`, `isGzipped`.
+- `src/sw/offline-sw.ts` — Service Worker entrypoint in TypeScript. Imports from `shared.ts`, uses the raw IndexedDB API (no `idb` library available in the SW global).
+- `scripts/build-sw.mjs` — esbuild-based build step that bundles `offline-sw.ts` → `public/idb-offline-sw.js` as a single-file IIFE with all shared helpers inlined.
+- `npm run build:sw-src` — runs the new build step. Wired into `npm run build` before `build:lib`. **Re-run this whenever `src/sw/*.ts` changes** (so the checked-in `public/idb-offline-sw.js` stays current).
+- `tests/sw/shared.test.ts` — 37 unit tests for every helper in `shared.ts`.
+
+### Changed
+
+- `src/utils/idbFetchHandler.ts` now imports candidate-key builders, the tilejson source matcher, and `buildOfflineTileJson` from `@/sw/shared`. The glyph/sprite/model/tilesjson switch arms dropped ~100 lines of duplicated logic.
+- `TILE_FALLBACK_EXTENSIONS` now includes `glb` (previously only in the main-thread handler). Harmless on the SW side — it falls through the same store lookup and returns 404 when no match, same as before.
+- `public/idb-offline-sw.js` is now a **build artefact**. Still checked in so the dev server (vite) and npm consumers see a current copy without running our build, but hand edits will be overwritten. A banner at the top of the output calls this out.
+
+### Internal
+
+- Shipping `public/idb-offline-sw.js` from source means it grew from 13.0 KB to 12.7 KB hand-written to 13.2 KB bundled — roughly identical, with the helpers inlined.
+
 ## [0.8.1] - 2026-04-23
 
 > **Bug-fix release: Mapbox Standard offline rendering.** `setStyle()` of a downloaded Standard region used to hang forever with `"Style is not done loading"` because two indoor-only expressions (`is-active-floor`, `floor-level`) that Mapbox GL v3 evaluates against `map.indoor.activeFloors` at filter-compile time were left intact when the `imports` wrapper was stripped. Two smaller correctness issues were fixed in the same pass.
