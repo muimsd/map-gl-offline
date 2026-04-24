@@ -121,6 +121,9 @@ src/
 │   │   └── confirmationModal.ts
 │   └── utils/
 │       └── keyboardNav.ts      # Keyboard navigation helpers
+├── sw/
+│   ├── offline-sw.ts           # Service Worker entry (compiled to public/idb-offline-sw.js)
+│   └── shared.ts               # Pure helpers shared with idbFetchHandler
 └── utils/
     ├── index.ts                # Utility exports
     ├── logger.ts               # Logging utility
@@ -130,10 +133,10 @@ src/
     ├── validation.ts           # Validation helpers
     ├── styleUtils.ts           # Style manipulation
     ├── styleProviderUtils.ts   # Mapbox/MapLibre provider detection & URL resolution
-    ├── importResolver.ts       # Mapbox Standard style import resolution
-    ├── tileKey.ts              # Tile key generation
+    ├── importResolver.ts       # Import resolution + sanitizeIndoorExpressions
+    ├── tileKey.ts              # Tile key generation + extractTileExtensionFromUrl
     ├── download.ts             # Download utilities
-    ├── idbFetchHandler.ts      # idb:// protocol fetch handler
+    ├── idbFetchHandler.ts      # idb:// protocol fetch handler (main thread)
     ├── convertStyleForSW.ts    # Style conversion for Service Worker mode
     ├── swRegistration.ts       # Service Worker registration
     ├── cleanupCompressedTiles.ts # Compressed tile cleanup
@@ -161,16 +164,16 @@ class OfflineMapManager implements OfflineMapManagerModules {
 
 Each module provides specific functionality:
 
-| Module | Responsibility |
-|-------|----------------|
-| `BaseManager` | Core initialization, database access |
-| `RegionManagement` | CRUD operations for regions |
-| `StyleManagement` | Style loading, patching, caching |
-| `AnalyticsManagement` | Storage statistics and insights |
-| `CleanupManagement` | Cleanup expired data |
+| Module                   | Responsibility                                |
+| ------------------------ | --------------------------------------------- |
+| `BaseManager`            | Core initialization, database access          |
+| `RegionManagement`       | CRUD operations for regions                   |
+| `StyleManagement`        | Style loading, patching, caching              |
+| `AnalyticsManagement`    | Storage statistics and insights               |
+| `CleanupManagement`      | Cleanup expired data                          |
 | `ImportExportManagement` | Round-trip regions as binary MBTiles (SQLite) |
-| `MaintenanceManagement` | Verification, repair tasks |
-| `ResourceManagement` | Tile, font, sprite management |
+| `MaintenanceManagement`  | Verification, repair tasks                    |
+| `ResourceManagement`     | Tile, font, sprite management                 |
 
 ### OfflineManagerControl
 
@@ -231,17 +234,18 @@ const db = await openDB('offline-map-db', DB_VERSION, {
 
 Object stores:
 
-| Store | Purpose | Notes |
-|-------|---------|-------|
-| `styles` | Map styles with embedded `regions[]` array | Primary region storage |
-| `tiles` | Vector/raster tile data | Keyed by `{styleId}:{sourceId}:{z}:{x}:{y}.{extension}` |
-| `sprites` | Sprite images and JSON | |
-| `glyphs` | Font glyph data (PBF ranges) | |
-| `fonts` | Font files | |
-| `models` | 3D model assets (`.glb`) | Added in DB v4. Keyed by `{styleId}::model::{modelName}`. |
-| `regions` | **(deprecated)** Legacy region storage | Only kept for migration; regions live in `styles.regions[]` |
+| Store     | Purpose                                    | Notes                                                       |
+| --------- | ------------------------------------------ | ----------------------------------------------------------- |
+| `styles`  | Map styles with embedded `regions[]` array | Primary region storage                                      |
+| `tiles`   | Vector/raster tile data                    | Keyed by `{styleId}:{sourceId}:{z}:{x}:{y}.{extension}`     |
+| `sprites` | Sprite images and JSON                     |                                                             |
+| `glyphs`  | Font glyph data (PBF ranges)               |                                                             |
+| `fonts`   | Font files                                 |                                                             |
+| `models`  | 3D model assets (`.glb`)                   | Added in DB v4. Keyed by `{styleId}::model::{modelName}`.   |
+| `regions` | **(deprecated)** Legacy region storage     | Only kept for migration; regions live in `styles.regions[]` |
 
 Key features:
+
 - Transaction management
 - Cursor iteration for large datasets
 - Schema migrations (v1 -> v2 -> v3)
@@ -390,8 +394,8 @@ import { createTileKey, parseTileKey } from '@/utils/tileKey';
 const key = createTileKey(styleId, sourceId, z, x, y, extension);
 
 // Examples
-const key = "mapbox-streets-v12:mapbox.mapbox-streets-v8:14:4824:6159.pbf";
-const rasterKey = "satellite:mapbox.satellite:12:1204:1540.jpg";
+const key = 'mapbox-streets-v12:mapbox.mapbox-streets-v8:14:4824:6159.pbf';
+const rasterKey = 'satellite:mapbox.satellite:12:1204:1540.jpg';
 ```
 
 Supported tile extensions: `pbf`, `mvt`, `png`, `jpg`, `jpeg`, `webp`, `glb`.
@@ -401,11 +405,24 @@ Supported tile extensions: `pbf`, `mvt`, `png`, `jpg`, `jpeg`, `webp`, `glb`.
 The library supports Mapbox GL v3+ styles that use the `imports` array (e.g., Mapbox Standard). The `importResolver` recursively fetches imported styles and flattens their sources, layers, sprites, and glyphs into the outer style so the existing download pipeline works unchanged.
 
 Key capabilities:
+
 - **Import resolution**: Resolves nested `imports[]` up to 5 levels deep (per Mapbox spec)
 - **Config merging**: Applies `config` overrides from imports (e.g., `lightPreset`, font settings)
+- **Indoor-expression sanitization**: Rewrites `["is-active-floor"]` → `false` and `["floor-level"]` → `0` in layer filters. These expressions read `map.indoor.activeFloors` at filter-compile time; stripping the `imports` wrapper for offline rendering would otherwise crash `setStyle()` with `"Cannot read properties of null (reading 'activeFloors')"`. The sanitizer runs automatically from `resolveImports` (download) and at style load time (for regions downloaded on 0.8.0 before the fix landed).
 - **Mapbox CDN URL rewriting**: Rewrites Mapbox CDN raster tile URLs to use the correct API format with access tokens
-- **3D model sources**: Handles `model` source types and `glb` tile extensions used by Mapbox Standard
+- **3D model sources**: Handles `model` source types and `glb` tile extensions used by Mapbox Standard. Models are stored keyed `{styleId}::model::{name}` and served from IDB at runtime as `idb://{styleId}/model/{name}` (or `/__offline__/{styleId}/model/{name}` via the Service Worker).
 - **raster-dem sources**: Supports terrain DEM sources for 3D terrain rendering
+
+**Known limitation**: the Mapbox API returns Standard with the `imports` wrapper already expanded, so the stored offline style is flat. Runtime config APIs like `map.setConfigProperty('basemap', 'lightPreset', 'night')` have no visible effect offline — the style is baked to the schema default (`"day"`) at download time. Re-downloading after toggling the preset is the current workaround.
+
+## Service Worker
+
+For Mapbox GL v3 (which lacks `addProtocol`), worker-scoped resource fetches can't be intercepted by a `window.fetch` override. The library ships an offline Service Worker that catches `/__offline__/{downloadId}/{type}/{path}` requests and serves them from IndexedDB.
+
+- **Source**: `src/sw/offline-sw.ts` (TypeScript, 0.8.2+). Compiled by `scripts/build-sw.mjs` (esbuild) into a single self-contained `public/idb-offline-sw.js` with all helpers inlined — no import statements in the output since SW globals can't load ESM modules. The output is checked in so vite serves a current copy and npm consumers don't need to run our build.
+- **Shared helpers**: `src/sw/shared.ts` holds pure key-computation functions (`makeTileKey`, `tileFallbackExtensions`, `findStyleByRegionIdIn`, `glyphCandidateKeys`, `spriteCandidateKeys`, `modelCandidateKeys`, `matchTileJsonSource`, `buildOfflineTileJson`, …). Both the SW and `src/utils/idbFetchHandler.ts` (main-thread) import them so a fix to the fallback order or candidate keys lands in one place.
+- **Rebuilding**: `npm run build:sw-src` when `src/sw/*.ts` changes. `npm run build` runs it automatically.
+- **Resource types handled**: `tile`, `glyph`, `sprite`, `model`, `tilesjson`. (0.8.1 added `model` — before that, worker-scoped `.glb` fetches for Mapbox Standard 3D trees / wind turbines 400'd.)
 
 ## Error Handling
 
@@ -413,11 +430,11 @@ Errors are categorized for appropriate handling:
 
 ```typescript
 enum ErrorType {
-  NETWORK = 'network',      // Network failures
-  QUOTA = 'quota',          // Storage quota exceeded
+  NETWORK = 'network', // Network failures
+  QUOTA = 'quota', // Storage quota exceeded
   VALIDATION = 'validation', // Invalid input
-  DATABASE = 'database',     // IndexedDB errors
-  UNKNOWN = 'unknown',       // Unexpected errors
+  DATABASE = 'database', // IndexedDB errors
+  UNKNOWN = 'unknown', // Unexpected errors
 }
 ```
 
@@ -428,10 +445,10 @@ Scoped logging with configurable levels:
 ```typescript
 const logger = createLogger('ComponentName');
 
-logger.debug('Detailed info');  // Dev only
-logger.info('General info');     // Always
-logger.warn('Warning');          // Always
-logger.error('Error', error);    // Always
+logger.debug('Detailed info'); // Dev only
+logger.info('General info'); // Always
+logger.warn('Warning'); // Always
+logger.error('Error', error); // Always
 ```
 
 ## Configuration
@@ -503,6 +520,7 @@ tests/
 ```
 
 Key testing patterns:
+
 - Mock IndexedDB with `fake-indexeddb`
 - Mock fetch for network tests
 - Jest for unit/integration tests

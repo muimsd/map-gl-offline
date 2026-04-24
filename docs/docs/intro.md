@@ -147,7 +147,10 @@ await offlineManager.downloadRegion(
   {
     id: 'sf',
     name: 'San Francisco',
-    bounds: [[-122.5, 37.7], [-122.3, 37.9]],
+    bounds: [
+      [-122.5, 37.7],
+      [-122.3, 37.9],
+    ],
     minZoom: 10,
     maxZoom: 14,
     styleUrl: 'https://api.maptiler.com/maps/streets/style.json?key=YOUR_KEY',
@@ -156,7 +159,7 @@ await offlineManager.downloadRegion(
     onProgress: ({ phase, percentage }) => {
       console.log(`[${phase}] ${percentage.toFixed(1)}%`);
     },
-  },
+  }
 );
 ```
 
@@ -173,12 +176,12 @@ See [Getting Started](/docs/getting-started) for more, or the [API reference](/d
 ## Browser Compatibility
 
 | Browser | Version | Support |
-|---------|---------|---------|
-| Chrome  | 51+     | ✅ |
-| Firefox | 45+     | ✅ |
-| Safari  | 10+     | ✅ |
-| Edge    | 79+     | ✅ |
-| Mobile  | Modern  | ✅ |
+| ------- | ------- | ------- |
+| Chrome  | 51+     | ✅      |
+| Firefox | 45+     | ✅      |
+| Safari  | 10+     | ✅      |
+| Edge    | 79+     | ✅      |
+| Mobile  | Modern  | ✅      |
 
 ## Support
 

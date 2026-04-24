@@ -7,6 +7,7 @@ sidebar_position: 3
 Complete API documentation for `map-gl-offline`.
 
 The library is available as:
+
 - **ES modules**: `import { OfflineMapManager } from 'map-gl-offline'`
 - **CommonJS**: `const { OfflineMapManager } = require('map-gl-offline')`
 - **UMD global**: `mapgloffline.OfflineMapManager` (via `<script>` tag)
@@ -34,7 +35,10 @@ await manager.downloadRegion(
   {
     id: 'my-region',
     name: 'My Region',
-    bounds: [[-74.05, 40.71], [-74.00, 40.76]],
+    bounds: [
+      [-74.05, 40.71],
+      [-74.0, 40.76],
+    ],
     minZoom: 10,
     maxZoom: 16,
     styleUrl: 'https://example.com/style.json',
@@ -44,21 +48,21 @@ await manager.downloadRegion(
       // phase: 'style' | 'sprites' | 'glyphs' | 'tiles' | 'metadata'
       console.log(`[${phase}] ${completed}/${total} (${percentage.toFixed(1)}%)`);
     },
-  },
+  }
 );
 ```
 
 **`DownloadRegionOptions`:**
 
-| Option | Type | Description |
-|---|---|---|
-| `onProgress` | `(p: DownloadRegionProgress) => void` | Called with `{ phase, completed, total, percentage, message? }` during each phase. |
-| `provider` | `'auto' \| 'mapbox' \| 'maplibre'` | Style provider hint when fetching the style. Defaults to `'auto'`. |
-| `accessToken` | `string` | Mapbox access token; required for `mapbox://` URLs. |
-| `skipSprites` | `boolean` | Skip the sprite-download phase. Default `false`. |
-| `skipGlyphs` | `boolean` | Skip the glyph-download phase. Default `false`. |
-| `glyphRanges` | `string[]` | Override Unicode glyph ranges. Defaults to `GLYPH_CONFIG.COMPREHENSIVE_RANGES`. |
-| `tileOptions` | `TileDownloadOptions` | Forwarded to the tile download step (e.g. `probeSourcesBeforeDownload`, `batchSize`). |
+| Option        | Type                                  | Description                                                                           |
+| ------------- | ------------------------------------- | ------------------------------------------------------------------------------------- |
+| `onProgress`  | `(p: DownloadRegionProgress) => void` | Called with `{ phase, completed, total, percentage, message? }` during each phase.    |
+| `provider`    | `'auto' \| 'mapbox' \| 'maplibre'`    | Style provider hint when fetching the style. Defaults to `'auto'`.                    |
+| `accessToken` | `string`                              | Mapbox access token; required for `mapbox://` URLs.                                   |
+| `skipSprites` | `boolean`                             | Skip the sprite-download phase. Default `false`.                                      |
+| `skipGlyphs`  | `boolean`                             | Skip the glyph-download phase. Default `false`.                                       |
+| `glyphRanges` | `string[]`                            | Override Unicode glyph ranges. Defaults to `GLYPH_CONFIG.COMPREHENSIVE_RANGES`.       |
+| `tileOptions` | `TileDownloadOptions`                 | Forwarded to the tile download step (e.g. `probeSourcesBeforeDownload`, `batchSize`). |
 
 **`DownloadRegionResult`** includes `regionId`, `styleId`, `styleResult?`, `spriteResults`, `glyphResult?`, and `tileResult`.
 
@@ -75,7 +79,10 @@ Store region metadata inside its style entry and patch the style's URLs to `idb:
 await manager.addRegion({
   id: 'my-region',
   name: 'My Region',
-  bounds: [[-74.05, 40.71], [-74.00, 40.76]],
+  bounds: [
+    [-74.05, 40.71],
+    [-74.0, 40.76],
+  ],
   minZoom: 10,
   maxZoom: 16,
   styleUrl: 'https://example.com/style.json',
@@ -88,7 +95,10 @@ Both `addRegion` and `downloadRegion` accept `extraSources` for additional tile 
 await manager.downloadRegion({
   id: 'my-region',
   name: 'My Region',
-  bounds: [[-74.05, 40.71], [-74.00, 40.76]],
+  bounds: [
+    [-74.05, 40.71],
+    [-74.0, 40.76],
+  ],
   minZoom: 10,
   maxZoom: 16,
   styleUrl: 'https://example.com/style.json',
@@ -189,14 +199,17 @@ console.log(`Average size: ${analytics.averageSize} bytes`);
 
 // Age tracking
 if (analytics.oldestRegion) {
-  console.log(`Oldest: ${analytics.oldestRegion.id}, created ${new Date(analytics.oldestRegion.created)}`);
+  console.log(
+    `Oldest: ${analytics.oldestRegion.id}, created ${new Date(analytics.oldestRegion.created)}`
+  );
 }
 if (analytics.largestRegion) {
   console.log(`Largest: ${analytics.largestRegion.id}, ${analytics.largestRegion.size} bytes`);
 }
 
 // Expiry distribution
-const { expired, expiringWithin24h, expiringWithin7d, neverExpiring } = analytics.expiryDistribution;
+const { expired, expiringWithin24h, expiringWithin7d, neverExpiring } =
+  analytics.expiryDistribution;
 console.log(`Expired: ${expired}, expiring soon: ${expiringWithin24h + expiringWithin7d}`);
 
 // Breakdown by style
@@ -233,19 +246,19 @@ Get glyph statistics aggregated across all styles.
 
 Options that `downloadRegion` forwards to the tile downloader (or that you can pass directly to `downloadTiles` / `ResourceService.downloadTilesWithOptions`).
 
-| Option | Type | Default | Description |
-|---|---|---|---|
-| `probeSourcesBeforeDownload` | `boolean` | `true` | Fetch 3 representative tiles (start, middle, end) per source before committing its full plan. Majority-404 sources are dropped entirely. Keeps the console clean for composite styles (e.g. Mapbox Standard) that reference sparse tilesets like `indoor-v3` or `landmark-pois-v1` that only have data at specific locations. |
-| `skipExisting` | `boolean` | `true` | Skip tiles already present in IndexedDB. |
-| `batchSize` | `number` | `10` | Concurrent tiles per batch. |
-| `maxRetries` | `number` | `3` | Per-tile retry count before giving up. |
-| `timeout` | `number` | `10000` | Per-tile fetch timeout in ms. |
-| `retryDelay` | `number` | `1000` | Base delay between retries. |
-| `bandwidthLimit` | `number` | — | KB/s ceiling to throttle downloads. |
-| `validateTiles` | `boolean` | `false` | Validate tile payloads after download. |
-| `compressTiles` | `boolean` | `false` | Compress tiles before storage. |
-| `priorityZoomLevels` | `number[]` | `[]` | Download these zoom levels first. |
-| `storageQuotaCheck` | `boolean` | `true` | Refuse to start if available storage is below the safety floor. |
+| Option                       | Type       | Default | Description                                                                                                                                                                                                                                                                                                                   |
+| ---------------------------- | ---------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `probeSourcesBeforeDownload` | `boolean`  | `true`  | Fetch 3 representative tiles (start, middle, end) per source before committing its full plan. Majority-404 sources are dropped entirely. Keeps the console clean for composite styles (e.g. Mapbox Standard) that reference sparse tilesets like `indoor-v3` or `landmark-pois-v1` that only have data at specific locations. |
+| `skipExisting`               | `boolean`  | `true`  | Skip tiles already present in IndexedDB.                                                                                                                                                                                                                                                                                      |
+| `batchSize`                  | `number`   | `10`    | Concurrent tiles per batch.                                                                                                                                                                                                                                                                                                   |
+| `maxRetries`                 | `number`   | `3`     | Per-tile retry count before giving up.                                                                                                                                                                                                                                                                                        |
+| `timeout`                    | `number`   | `10000` | Per-tile fetch timeout in ms.                                                                                                                                                                                                                                                                                                 |
+| `retryDelay`                 | `number`   | `1000`  | Base delay between retries.                                                                                                                                                                                                                                                                                                   |
+| `bandwidthLimit`             | `number`   | —       | KB/s ceiling to throttle downloads.                                                                                                                                                                                                                                                                                           |
+| `validateTiles`              | `boolean`  | `false` | Validate tile payloads after download.                                                                                                                                                                                                                                                                                        |
+| `compressTiles`              | `boolean`  | `false` | Compress tiles before storage.                                                                                                                                                                                                                                                                                                |
+| `priorityZoomLevels`         | `number[]` | `[]`    | Download these zoom levels first.                                                                                                                                                                                                                                                                                             |
+| `storageQuotaCheck`          | `boolean`  | `true`  | Refuse to start if available storage is below the safety floor.                                                                                                                                                                                                                                                               |
 
 ### Storage Resilience
 
@@ -294,9 +307,9 @@ Export a region to a binary MBTiles file. Vector tiles are gzipped automatically
 
 ```typescript
 const result = await manager.exportRegionAsMBTiles('my-region', {
-  format: 'pbf',                          // 'pbf' | 'png' | 'jpg' — written to metadata.format
-  metadata: { attribution: 'My Data' },   // extra rows for the metadata table
-  onProgress: (p) => console.log(`[${p.stage}] ${p.percentage}% — ${p.message}`),
+  format: 'pbf', // 'pbf' | 'png' | 'jpg' — written to metadata.format
+  metadata: { attribution: 'My Data' }, // extra rows for the metadata table
+  onProgress: p => console.log(`[${p.stage}] ${p.percentage}% — ${p.message}`),
 });
 
 console.log(`Exported ${result.statistics.tilesExported} tiles (${result.size} bytes)`);
@@ -323,12 +336,12 @@ Import a region from an MBTiles file. The file's SQLite header is validated up f
 
 ```typescript
 const result = await manager.importRegion({
-  file: selectedFile,                   // File from <input type="file" accept=".mbtiles">
-  format: 'mbtiles',                    // only supported format
-  overwrite: true,                      // replace existing region with same id
-  newRegionId: 'imported-region',       // optional: override the stored region id
-  newRegionName: 'Imported Region',     // optional: override the stored name
-  onProgress: (p) => console.log(p.message),
+  file: selectedFile, // File from <input type="file" accept=".mbtiles">
+  format: 'mbtiles', // only supported format
+  overwrite: true, // replace existing region with same id
+  newRegionId: 'imported-region', // optional: override the stored region id
+  newRegionName: 'Imported Region', // optional: override the stored name
+  onProgress: p => console.log(p.message),
 });
 
 if (result.success) {
@@ -384,12 +397,14 @@ Priority patterns protect important regions from deletion. Non-priority expired 
 
 ```typescript
 const result = await manager.performSmartCleanup({
-  maxAge: 14,                    // Delete regions older than 14 days
+  maxAge: 14, // Delete regions older than 14 days
   maxStorageSize: 500 * 1024 * 1024, // Keep total storage under 500MB
-  maxRegions: 10,                // Keep at most 10 regions
+  maxRegions: 10, // Keep at most 10 regions
   priorityPatterns: ['downtown', 'home'], // Protect regions matching these patterns
-  onProgress: (progress) => {
-    console.log(`[${progress.phase}] ${progress.completed}/${progress.total} - ${progress.message}`);
+  onProgress: progress => {
+    console.log(
+      `[${progress.phase}] ${progress.completed}/${progress.total} - ${progress.message}`
+    );
     // [scanning] 0/100 - Scanning offline regions...
     // [analyzing] 30/100 - Analyzing region data...
     // [cleaning] 75/100 - Deleted region: Old Region
@@ -430,8 +445,8 @@ Set up automatic periodic cleanup. Returns a cleanup ID that can be used to stop
 
 ```typescript
 const cleanupId = await manager.setupAutoCleanup({
-  intervalHours: 24,             // Run every 24 hours (default)
-  maxAge: 30,                    // Delete regions older than 30 days
+  intervalHours: 24, // Run every 24 hours (default)
+  maxAge: 30, // Delete regions older than 30 days
   maxStorageSize: 1024 * 1024 * 1024, // 1GB limit
   priorityPatterns: ['important'],
 });
@@ -445,7 +460,8 @@ await manager.stopAutoCleanup(cleanupId);
 Alternative auto-cleanup setup with separate interval and options parameters. Returns a cleanup ID.
 
 ```typescript
-const cleanupId = await manager.startEnhancedAutoCleanup(12, { // Every 12 hours
+const cleanupId = await manager.startEnhancedAutoCleanup(12, {
+  // Every 12 hours
   maxAge: 7,
   maxRegions: 5,
 });
@@ -473,7 +489,9 @@ Verify every stored font entry, repair recoverable metadata, and remove corrupte
 
 ```typescript
 const result = await manager.verifyAndRepairFonts();
-console.log(`Verified: ${result.verified}, Repaired: ${result.repaired}, Removed: ${result.removed}`);
+console.log(
+  `Verified: ${result.verified}, Repaired: ${result.repaired}, Removed: ${result.removed}`
+);
 ```
 
 #### `verifyAndRepairSprites(): Promise<{ verified: number; repaired: number; removed: number }>`
@@ -496,10 +514,10 @@ Run a comprehensive maintenance operation that can include cleanup, integrity ve
 
 ```typescript
 const results = await manager.performCompleteMaintenance({
-  cleanupExpired: true,     // Stage 1: Clean up expired regions
-  verifyIntegrity: true,    // Stage 2: Verify fonts, sprites, and glyphs
-  optimizeStorage: true,    // Stage 3: Remove old resources (30+ days)
-  generateReport: true,     // Stage 4: Generate comprehensive analytics report
+  cleanupExpired: true, // Stage 1: Clean up expired regions
+  verifyIntegrity: true, // Stage 2: Verify fonts, sprites, and glyphs
+  optimizeStorage: true, // Stage 3: Remove old resources (30+ days)
+  generateReport: true, // Stage 4: Generate comprehensive analytics report
   onProgress: (stage, progress) => {
     console.log(`${stage}: ${(progress * 100).toFixed(0)}%`);
     // "Cleaning up expired regions: 0%"
@@ -558,13 +576,13 @@ const control = new OfflineManagerControl(
 
 **Options:**
 
-| Property | Type | Default | Description |
-|----------|------|---------|-------------|
-| `styleUrl` | `string` | `'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json'` | URL of the map style used for new region downloads |
-| `theme` | `'light' \| 'dark'` | `'dark'` | UI theme. The user's choice is persisted in `localStorage` and takes precedence over this default on subsequent loads |
-| `showBbox` | `boolean` | `false` | Show a blue bounding box polygon on the map when focusing on a region |
-| `accessToken` | `string` | `undefined` | Mapbox access token (required for `mapbox://` URLs) |
-| `mapLib` | `MapLibProtocol` | `undefined` | Map library module (e.g., `maplibregl`) for registering the `idb://` protocol in web workers |
+| Property      | Type                | Default                                                          | Description                                                                                                           |
+| ------------- | ------------------- | ---------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `styleUrl`    | `string`            | `'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json'` | URL of the map style used for new region downloads                                                                    |
+| `theme`       | `'light' \| 'dark'` | `'dark'`                                                         | UI theme. The user's choice is persisted in `localStorage` and takes precedence over this default on subsequent loads |
+| `showBbox`    | `boolean`           | `false`                                                          | Show a blue bounding box polygon on the map when focusing on a region                                                 |
+| `accessToken` | `string`            | `undefined`                                                      | Mapbox access token (required for `mapbox://` URLs)                                                                   |
+| `mapLib`      | `MapLibProtocol`    | `undefined`                                                      | Map library module (e.g., `maplibregl`) for registering the `idb://` protocol in web workers                          |
 
 ```typescript
 import { OfflineMapManager, OfflineManagerControl } from 'map-gl-offline';
@@ -766,7 +784,7 @@ interface ExportResult {
   statistics: {
     tilesExported: number;
     spritesExported: number; // always 0, kept for compatibility
-    fontsExported: number;   // always 0, kept for compatibility
+    fontsExported: number; // always 0, kept for compatibility
   };
 }
 ```
@@ -786,7 +804,7 @@ interface ImportResult {
   statistics: {
     tilesImported: number;
     spritesImported: number; // always 0
-    fontsImported: number;   // always 0
+    fontsImported: number; // always 0
     totalSize: number;
   };
 }
@@ -973,7 +991,7 @@ import { tileService, downloadTiles } from 'map-gl-offline';
 
 // Using the convenience function
 await downloadTiles(region, style, styleId, {
-  onProgress: (p) => console.log(p),
+  onProgress: p => console.log(p),
 });
 
 // Or using the service instance directly
@@ -987,7 +1005,7 @@ import { fontService } from 'map-gl-offline';
 
 // Download fonts/glyphs for a style
 await fontService.downloadFonts(glyphUrl, fontStacks, styleId, {
-  onProgress: (p) => console.log(p),
+  onProgress: p => console.log(p),
 });
 ```
 
@@ -998,7 +1016,7 @@ import { spriteService } from 'map-gl-offline';
 
 // Download sprites for a style
 await spriteService.downloadSprites(spriteUrl, styleId, {
-  onProgress: (p) => console.log(p),
+  onProgress: p => console.log(p),
 });
 ```
 
@@ -1033,12 +1051,7 @@ myLogger.error('Error', error);
 ### Constants
 
 ```typescript
-import {
-  DB_NAME,
-  DOWNLOAD_DEFAULTS,
-  TILE_CONFIG,
-  ERROR_MESSAGES
-} from 'map-gl-offline';
+import { DB_NAME, DOWNLOAD_DEFAULTS, TILE_CONFIG, ERROR_MESSAGES } from 'map-gl-offline';
 
 const batchSize = DOWNLOAD_DEFAULTS.BATCH_SIZE; // 10
 const maxZoom = TILE_CONFIG.MAX_ZOOM; // 24
@@ -1047,12 +1060,7 @@ const maxZoom = TILE_CONFIG.MAX_ZOOM; // 24
 ### Error Handling
 
 ```typescript
-import {
-  categorizeError,
-  getUserErrorMessage,
-  safeExecute,
-  ErrorType
-} from 'map-gl-offline';
+import { categorizeError, getUserErrorMessage, safeExecute, ErrorType } from 'map-gl-offline';
 
 const type = categorizeError(error);
 const message = getUserErrorMessage(error);
@@ -1070,3 +1078,54 @@ import { patchStyleForOffline } from 'map-gl-offline';
 // Convert a style for offline use
 const offlineStyle = patchStyleForOffline(styleJson, styleId);
 ```
+
+### Import Resolution
+
+```typescript
+import { hasImports, resolveImports, sanitizeIndoorExpressions } from 'map-gl-offline';
+```
+
+#### `hasImports(style: unknown): boolean`
+
+True when `style.imports` is a non-empty array. Use it to decide whether to call `resolveImports`.
+
+#### `resolveImports(style: BaseStyle, accessToken: string, options?): Promise<BaseStyle>`
+
+Recursively fetches every import listed in `style.imports[]`, flattens sources / layers / sprite / glyphs / models into the outer style, resolves `["config", <key>]` expressions using each import's schema defaults + the caller's config overrides, and runs `sanitizeIndoorExpressions` at the end. Mutates and returns the passed style.
+
+Options: `{ maxRetries?: number; timeoutMs?: number }`. Defaults: 3 retries, 30 s timeout. Imports nest up to 5 deep per Mapbox spec.
+
+In practice the Mapbox API returns Standard already-expanded, so `hasImports()` is false for that URL and `resolveImports` is a no-op. The function stays useful for manually-assembled styles and for other providers that ship the unexpanded form.
+
+#### `sanitizeIndoorExpressions(style: BaseStyle): void`
+
+Walks `style.layers[]` and rewrites `["is-active-floor"]` / `["is-active-floor", id]` → `false` and `["floor-level"]` → `0` everywhere they appear (inside filter / paint / layout sub-expressions too). In Mapbox GL v3 these expressions read `map.indoor.activeFloors` at filter-compile time; without the runtime `imports` wrapper the read throws and `setStyle()` hangs with `"Style is not done loading"`. The library calls this automatically — both at the end of `resolveImports` (download path) and at style load time in `PanelManager.handleLoadStyle` / `OfflineManagerControl.loadOfflineStyle` (heals regions downloaded on 0.8.0 without re-downloading).
+
+Idempotent.
+
+### Tile Key Utilities
+
+```typescript
+import {
+  createTileKey,
+  parseTileKey,
+  deriveTileExtension,
+  extractTileExtensionFromUrl,
+} from 'map-gl-offline';
+```
+
+#### `createTileKey(x, y, z, styleId, sourceId, ext): string`
+
+Returns `{styleId}:{sourceId}:{z}:{x}:{y}.{ext}` — the canonical tile-store key.
+
+#### `parseTileKey(key: string): { styleId, sourceId, z, x, y, ext } | null`
+
+Inverse of `createTileKey`. Returns null for malformed keys.
+
+#### `deriveTileExtension(tiles: unknown): string`
+
+Takes a source's `tiles` array, returns the extension of the first URL (or `"pbf"`). Used when generating per-source tile URL templates.
+
+#### `extractTileExtensionFromUrl(url: string): string`
+
+Returns the last dotted segment of the URL path before `?` / `#` / end. For Mapbox v4 `.vector.pbf` URLs this gives `"pbf"` — which matches what `tileService.extractExtension` stores the tile key under. Added in 0.8.1 to dedupe an extract-regex that used to live (incompatibly) in two places; `deriveTileExtension` now delegates to it.

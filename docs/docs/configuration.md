@@ -28,13 +28,13 @@ const control = new OfflineManagerControl(offlineManager, {
 });
 ```
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `styleUrl` | `string` | Carto Voyager | Map style URL for new region downloads |
-| `theme` | `'light' \| 'dark'` | `'dark'` | UI theme for the control panel |
-| `showBbox` | `boolean` | `false` | Show bounding box overlay when focusing on regions |
-| `accessToken` | `string` | `undefined` | Mapbox access token (required for `mapbox://` URLs) |
-| `mapLib` | `MapLibProtocol` | `undefined` | Map library module (e.g., `maplibregl`) for `idb://` protocol in web workers |
+| Option        | Type                | Default       | Description                                                                  |
+| ------------- | ------------------- | ------------- | ---------------------------------------------------------------------------- |
+| `styleUrl`    | `string`            | Carto Voyager | Map style URL for new region downloads                                       |
+| `theme`       | `'light' \| 'dark'` | `'dark'`      | UI theme for the control panel                                               |
+| `showBbox`    | `boolean`           | `false`       | Show bounding box overlay when focusing on regions                           |
+| `accessToken` | `string`            | `undefined`   | Mapbox access token (required for `mapbox://` URLs)                          |
+| `mapLib`      | `MapLibProtocol`    | `undefined`   | Map library module (e.g., `maplibregl`) for `idb://` protocol in web workers |
 
 ## Region Configuration
 
@@ -48,7 +48,10 @@ await manager.downloadRegion(
     // Required
     id: 'unique-region-id',
     name: 'Human Readable Name',
-    bounds: [[-74.05, 40.71], [-74.00, 40.76]], // [[west, south], [east, north]]
+    bounds: [
+      [-74.05, 40.71],
+      [-74.0, 40.76],
+    ], // [[west, south], [east, north]]
     minZoom: 10,
     maxZoom: 16,
 
@@ -65,7 +68,7 @@ await manager.downloadRegion(
     onProgress: ({ phase, percentage, message }) => {
       console.log(`[${phase}] ${percentage.toFixed(1)}% - ${message ?? ''}`);
     },
-  },
+  }
 );
 ```
 
@@ -84,7 +87,7 @@ await manager.exportRegionAsMBTiles('region-id', {
     attribution: 'Your Attribution',
     description: 'Custom metadata', // merged into the metadata table
   },
-  onProgress: (progress) => console.log(progress),
+  onProgress: progress => console.log(progress),
 });
 ```
 
@@ -104,12 +107,12 @@ configureSqlJs({ wasmBinary: myArrayBuffer });
 
 ```typescript
 await manager.importRegion({
-  file: selectedFile,          // <input type="file" accept=".mbtiles">
-  format: 'mbtiles',           // only supported format
-  overwrite: false,            // replace existing region with same id
-  newRegionId: 'custom-id',    // override the region id from the file
+  file: selectedFile, // <input type="file" accept=".mbtiles">
+  format: 'mbtiles', // only supported format
+  overwrite: false, // replace existing region with same id
+  newRegionId: 'custom-id', // override the region id from the file
   newRegionName: 'Custom Name',
-  onProgress: (p) => console.log(p.message),
+  onProgress: p => console.log(p.message),
 });
 ```
 
@@ -136,7 +139,7 @@ await manager.performSmartCleanup({ maxAge: 30 }); // days
 // Setup auto cleanup with interval
 const cleanupId = await manager.setupAutoCleanup({
   intervalHours: 24, // Run every 24 hours
-  maxAge: 30,        // Remove data older than 30 days
+  maxAge: 30, // Remove data older than 30 days
 });
 
 // Stop a specific auto cleanup
@@ -164,11 +167,11 @@ The library uses these defaults for downloads:
 
 ```typescript
 const DOWNLOAD_DEFAULTS = {
-  BATCH_SIZE: 10,       // Tiles per batch
-  MAX_CONCURRENCY: 5,   // Concurrent downloads
-  MAX_RETRIES: 3,       // Retry attempts per item
-  TIMEOUT: 10000,       // Request timeout (ms)
-  RETRY_DELAY: 1000,    // Delay between retries (ms)
+  BATCH_SIZE: 10, // Tiles per batch
+  MAX_CONCURRENCY: 5, // Concurrent downloads
+  MAX_RETRIES: 3, // Retry attempts per item
+  TIMEOUT: 10000, // Request timeout (ms)
+  RETRY_DELAY: 1000, // Delay between retries (ms)
 };
 ```
 
@@ -276,9 +279,9 @@ The UI control includes a built-in internationalization system powered by [i18ne
 ### Supported Languages
 
 | Code | Language | Native Name | Direction |
-|------|----------|-------------|-----------|
-| `en` | English | English | LTR |
-| `ar` | Arabic | العربية | RTL |
+| ---- | -------- | ----------- | --------- |
+| `en` | English  | English     | LTR       |
+| `ar` | Arabic   | العربية     | RTL       |
 
 ### Programmatic Language Control
 
@@ -319,6 +322,7 @@ unsubscribe();
 ### RTL Support
 
 When an RTL language (Arabic) is active, the control automatically:
+
 - Sets `dir="rtl"` on all `.offline-manager-control` elements
 - Adds the `rtl` CSS class for layout adjustments
 - Mirrors the LanguageSelector dropdown positioning (opens from the left instead of right)
@@ -331,7 +335,7 @@ The built-in `LanguageSelector` component renders a dropdown in the control pane
 import { LanguageSelector } from 'map-gl-offline';
 
 const selector = new LanguageSelector({
-  onChange: (language) => {
+  onChange: language => {
     console.log(`User switched to: ${language}`);
   },
 });
@@ -396,21 +400,21 @@ getAvailableLanguages() {
 
 Translation keys are organized by category using dot notation:
 
-| Prefix | Purpose | Example |
-|--------|---------|---------|
-| `app.*` | General UI strings | `app.title`, `app.cancel` |
-| `theme.*` | Theme switcher | `theme.light`, `theme.dark` |
-| `language.*` | Language switcher | `language.select` |
-| `header.*` | Panel header | `header.subtitle` |
-| `actions.*` | Action buttons | `actions.addRegion` |
-| `regionForm.*` | Download form | `regionForm.name`, `regionForm.minZoom` |
-| `regionList.*` | Region list display | `regionList.empty`, `regionList.zoom` |
-| `delete.*` | Delete confirmations | `delete.regionTitle` |
-| `importExport.*` | Import/export modal | `importExport.exportFormat` |
-| `download.*` | Download progress | `download.phase.tiles` |
-| `error.*` | Error messages | `error.downloadFailed` |
-| `warning.*` | Warning messages | `warning.compressedTiles` |
-| `validation.*` | Form validation | `validation.required` |
+| Prefix           | Purpose              | Example                                 |
+| ---------------- | -------------------- | --------------------------------------- |
+| `app.*`          | General UI strings   | `app.title`, `app.cancel`               |
+| `theme.*`        | Theme switcher       | `theme.light`, `theme.dark`             |
+| `language.*`     | Language switcher    | `language.select`                       |
+| `header.*`       | Panel header         | `header.subtitle`                       |
+| `actions.*`      | Action buttons       | `actions.addRegion`                     |
+| `regionForm.*`   | Download form        | `regionForm.name`, `regionForm.minZoom` |
+| `regionList.*`   | Region list display  | `regionList.empty`, `regionList.zoom`   |
+| `delete.*`       | Delete confirmations | `delete.regionTitle`                    |
+| `importExport.*` | Import/export modal  | `importExport.exportFormat`             |
+| `download.*`     | Download progress    | `download.phase.tiles`                  |
+| `error.*`        | Error messages       | `error.downloadFailed`                  |
+| `warning.*`      | Warning messages     | `warning.compressedTiles`               |
+| `validation.*`   | Form validation      | `validation.required`                   |
 
 Interpolation uses double curly braces: `{{variableName}}`. For example, `'header.subtitle': '{{count}} regions - {{size}} total'`.
 
@@ -422,11 +426,11 @@ The library automatically detects the map style provider (Mapbox, MapLibre/MapTi
 
 ### Supported Providers
 
-| Provider | Detection Criteria | Authentication |
-|----------|-------------------|----------------|
-| `mapbox` | URL contains `mapbox://`, `mapbox.com`, or `api.mapbox.com`; or style JSON has Mapbox-specific properties (`owner`, `draft`, `visibility`) | Requires access token |
-| `maplibre` | URL contains `maplibre`, `maptiler`, or `carto` | API key via query parameter |
-| `auto` | Default when no provider can be determined | Varies |
+| Provider   | Detection Criteria                                                                                                                         | Authentication              |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------- |
+| `mapbox`   | URL contains `mapbox://`, `mapbox.com`, or `api.mapbox.com`; or style JSON has Mapbox-specific properties (`owner`, `draft`, `visibility`) | Requires access token       |
+| `maplibre` | URL contains `maplibre`, `maptiler`, or `carto`                                                                                            | API key via query parameter |
+| `auto`     | Default when no provider can be determined                                                                                                 | Varies                      |
 
 ```typescript
 type StyleProvider = 'mapbox' | 'maplibre' | 'auto';
@@ -455,11 +459,11 @@ detectStyleProvider(styleUrl, style); // checks style.sources for mapbox.com URL
 
 The library resolves `mapbox://` protocol URLs to their HTTPS API equivalents:
 
-| Mapbox URL Pattern | Resolved URL |
-|-------------------|--------------|
-| `mapbox://styles/{user}/{id}` | `https://api.mapbox.com/styles/v1/{user}/{id}?access_token={token}` |
-| `mapbox://{tileset}` | `https://api.mapbox.com/v4/{tileset}.json?access_token={token}` |
-| `mapbox://sprites/{user}/{id}` | `https://api.mapbox.com/styles/v1/{user}/{id}/sprite?access_token={token}` |
+| Mapbox URL Pattern                              | Resolved URL                                                                          |
+| ----------------------------------------------- | ------------------------------------------------------------------------------------- |
+| `mapbox://styles/{user}/{id}`                   | `https://api.mapbox.com/styles/v1/{user}/{id}?access_token={token}`                   |
+| `mapbox://{tileset}`                            | `https://api.mapbox.com/v4/{tileset}.json?access_token={token}`                       |
+| `mapbox://sprites/{user}/{id}`                  | `https://api.mapbox.com/styles/v1/{user}/{id}/sprite?access_token={token}`            |
 | `mapbox://fonts/{user}/{fontstack}/{range}.pbf` | `https://api.mapbox.com/fonts/v1/{user}/{fontstack}/{range}.pbf?access_token={token}` |
 
 ```typescript
@@ -495,6 +499,7 @@ const processedStyle = processStyleSources(style, 'mapbox', 'pk.your_token');
 ```
 
 This handles:
+
 - `mapbox://` source URLs in `sources[*].url`
 - `mapbox://` tile URLs in `sources[*].tiles[]`
 - `mapbox://` sprite URLs in `style.sprite`
@@ -538,6 +543,14 @@ map.setConfigProperty('basemap', 'lightPreset', 'day');
 
 Available presets: `day`, `night`, `dawn`, `dusk`
 
+:::caution Offline limitation
+
+`setConfigProperty` has **no visible effect for offline-loaded Mapbox Standard regions**. The Mapbox API returns Standard with its `imports` wrapper already expanded, so the library stores a flat style where `["config", "lightPreset"]` expressions have been statically resolved to the schema default (`"day"`) at download time. To change the preset, re-download the region with the desired config applied, or toggle online before going offline.
+
+This also applies to other Standard config knobs (`theme`, `show3dObjects`, `showPlaceLabels`, etc.) once offline.
+
+:::
+
 ### Rain and Snow Controls
 
 Mapbox GL JS v3+ supports weather effects that can be applied at runtime:
@@ -554,7 +567,34 @@ map.setRain(null);
 map.setSnow(null);
 ```
 
-These runtime settings do not affect offline storage -- the library stores the base style and tiles; weather effects are applied client-side.
+These runtime settings do not affect offline storage — the library stores the base style and tiles; weather effects are applied client-side. They work whether the map is online or serving from IndexedDB.
+
+### Utility Exports (0.8.1+)
+
+Two utilities are exported for advanced integrations where you're manipulating offline styles directly:
+
+#### `sanitizeIndoorExpressions(style)`
+
+```typescript
+import { sanitizeIndoorExpressions } from 'map-gl-offline';
+
+sanitizeIndoorExpressions(myOfflineStyle);
+```
+
+Rewrites `["is-active-floor"]` / `["is-active-floor", <id>]` → `false` and `["floor-level"]` → `0` in every layer's filter / paint / layout. These indoor-only expressions read `map.indoor.activeFloors` at filter-compile time in Mapbox GL v3; when the `imports` wrapper is stripped for offline rendering they crash `setStyle()`. The library calls this automatically from `resolveImports` (download) and at style load time (for regions downloaded on 0.8.0 before the fix), so you only need it when you're loading a style outside the library's load paths. Idempotent — safe to call multiple times.
+
+#### `extractTileExtensionFromUrl(url)`
+
+```typescript
+import { extractTileExtensionFromUrl } from 'map-gl-offline';
+
+extractTileExtensionFromUrl('https://.../{z}/{x}/{y}.vector.pbf?access_token=...');
+// => 'pbf'
+extractTileExtensionFromUrl('https://.../{z}/{x}/{y}.glb');
+// => 'glb'
+```
+
+Returns the last dotted segment before `?` / `#` / end, defaulting to `"pbf"`. This is the shared helper that both `patchStyleForOffline` (URL rewriter) and `tileService.extractExtension` (key generator) call so they can't disagree. Before 0.8.1 they used different regexes, and the mismatch made every Mapbox v4 tile fetch take the fallback-extension loop before resolving.
 
 ---
 
@@ -565,8 +605,8 @@ import { logger, configureLogger, LogLevel } from 'map-gl-offline';
 
 // Set via the helper (recommended — future-proof if the config shape grows):
 configureLogger({ level: LogLevel.DEBUG }); // all logs
-configureLogger({ level: LogLevel.INFO });  // info + warn + error
-configureLogger({ level: LogLevel.WARN });  // warnings + errors
+configureLogger({ level: LogLevel.INFO }); // info + warn + error
+configureLogger({ level: LogLevel.WARN }); // warnings + errors
 configureLogger({ level: LogLevel.ERROR }); // errors only
 configureLogger({ level: LogLevel.SILENT }); // disable logging entirely
 

@@ -12,7 +12,7 @@ Practical examples for common use cases with `map-gl-offline`.
 - [Mapbox GL JS](#mapbox-gl-js)
 - [Extra Tile Sources](#extra-tile-sources)
 - [Region Management](#region-management)
-- [Import/Export](#importexport)
+- [Import/Export](#importexport-mbtiles)
 - [Offline Detection](#offline-detection)
 - [Storage Management](#storage-management)
 - [Error Handling](#error-handling)
@@ -57,7 +57,10 @@ await manager.downloadRegion(
   {
     id: 'nyc',
     name: 'New York City',
-    bounds: [[-74.259, 40.477], [-73.700, 40.917]],
+    bounds: [
+      [-74.259, 40.477],
+      [-73.7, 40.917],
+    ],
     minZoom: 10,
     maxZoom: 15,
     styleUrl: 'https://api.maptiler.com/maps/streets/style.json?key=YOUR_KEY',
@@ -67,7 +70,7 @@ await manager.downloadRegion(
       updateProgressBar(percentage);
       updateStatusText(`[${phase}] ${message ?? ''}`);
     },
-  },
+  }
 );
 ```
 
@@ -134,7 +137,10 @@ await manager.downloadRegion(
   {
     id: 'manhattan-3d',
     name: 'Manhattan 3D',
-    bounds: [[-74.02, 40.70], [-73.95, 40.78]],
+    bounds: [
+      [-74.02, 40.7],
+      [-73.95, 40.78],
+    ],
     minZoom: 12,
     maxZoom: 16,
     styleUrl: 'mapbox://styles/mapbox/standard',
@@ -143,7 +149,7 @@ await manager.downloadRegion(
     accessToken: mapboxgl.accessToken,
     provider: 'mapbox',
     onProgress: ({ phase, percentage }) => console.log(`[${phase}] ${percentage.toFixed(0)}%`),
-  },
+  }
 );
 ```
 
@@ -164,9 +170,15 @@ function setLightPreset(preset: 'day' | 'dawn' | 'dusk' | 'night') {
 }
 ```
 
+:::caution Works online only
+
+`setConfigProperty` has no visible effect against an **offline-loaded** Mapbox Standard region. The Mapbox API returns Standard with its `imports` wrapper already expanded, so the library stores a flat style where `["config", "lightPreset"]` expressions were statically resolved to the schema default (`"day"`) at download time. If you need night-mode tiles offline, download the region while the desired preset is active, or download multiple regions under separate IDs — one per preset. See `configuration.md` for the full limitation.
+
+:::
+
 ### Rain and Snow Weather Controls
 
-Mapbox GL JS v3+ supports weather effects with the Standard style. These work with offline maps once the style is loaded from IndexedDB.
+Mapbox GL JS v3+ supports weather effects with the Standard style. These are client-side rendering effects — they work whether the map is online or serving from IndexedDB.
 
 ```typescript
 // Enable rain
@@ -204,7 +216,10 @@ Save additional vector or raster tile layers alongside the style's own sources. 
 await manager.downloadRegion({
   id: 'downtown-with-layers',
   name: 'Downtown + Custom Layers',
-  bounds: [[-74.05, 40.71], [-74.00, 40.76]],
+  bounds: [
+    [-74.05, 40.71],
+    [-74.0, 40.76],
+  ],
   minZoom: 10,
   maxZoom: 16,
   styleUrl: 'https://example.com/style.json',
@@ -249,7 +264,10 @@ const extraSources = Object.entries(style.sources)
 await manager.downloadRegion({
   id: 'full-offline',
   name: 'Full Offline Region',
-  bounds: [[-74.05, 40.71], [-74.00, 40.76]],
+  bounds: [
+    [-74.05, 40.71],
+    [-74.0, 40.76],
+  ],
   minZoom: 10,
   maxZoom: 16,
   styleUrl: 'https://example.com/style.json',
@@ -281,9 +299,30 @@ map.addControl(control, 'top-right');
 
 ```typescript
 const regions = [
-  { id: 'downtown', name: 'Downtown', bounds: [[-74.02, 40.70], [-73.97, 40.75]] },
-  { id: 'brooklyn', name: 'Brooklyn', bounds: [[-74.04, 40.57], [-73.85, 40.74]] },
-  { id: 'queens', name: 'Queens', bounds: [[-73.96, 40.68], [-73.70, 40.81]] },
+  {
+    id: 'downtown',
+    name: 'Downtown',
+    bounds: [
+      [-74.02, 40.7],
+      [-73.97, 40.75],
+    ],
+  },
+  {
+    id: 'brooklyn',
+    name: 'Brooklyn',
+    bounds: [
+      [-74.04, 40.57],
+      [-73.85, 40.74],
+    ],
+  },
+  {
+    id: 'queens',
+    name: 'Queens',
+    bounds: [
+      [-73.96, 40.68],
+      [-73.7, 40.81],
+    ],
+  },
 ];
 
 for (const region of regions) {
@@ -296,7 +335,7 @@ for (const region of regions) {
     },
     {
       onProgress: ({ percentage }) => console.log(`${region.name}: ${percentage.toFixed(0)}%`),
-    },
+    }
   );
 }
 ```
@@ -344,7 +383,7 @@ Regions are exchanged as binary **MBTiles** (SQLite). The produced files are v1.
 async function exportRegion(regionId: string) {
   const result = await manager.exportRegionAsMBTiles(regionId, {
     metadata: { attribution: '© OpenStreetMap contributors' },
-    onProgress: (p) => console.log(`${p.stage}: ${p.percentage}%`),
+    onProgress: p => console.log(`${p.stage}: ${p.percentage}%`),
   });
 
   // Trigger a browser download
@@ -359,7 +398,7 @@ async function exportRegion(regionId: string) {
 ```tsx
 // HTML: <input type="file" id="import-file" accept=".mbtiles">
 
-document.getElementById('import-file').addEventListener('change', async (e) => {
+document.getElementById('import-file').addEventListener('change', async e => {
   const file = (e.target as HTMLInputElement).files?.[0];
   if (!file) return;
 
@@ -367,7 +406,7 @@ document.getElementById('import-file').addEventListener('change', async (e) => {
     file,
     format: 'mbtiles',
     overwrite: false,
-    onProgress: (p) => console.log(p.message),
+    onProgress: p => console.log(p.message),
   });
 
   if (result.success) {
@@ -385,7 +424,7 @@ document.getElementById('import-file').addEventListener('change', async (e) => {
 async function exportAll() {
   const regions = await manager.listStoredRegions();
   return Promise.all(
-    regions.map(async (r) => {
+    regions.map(async r => {
       const { blob, filename } = await manager.exportRegionAsMBTiles(r.id);
       return { regionId: r.id, blob, filename };
     })
@@ -428,7 +467,7 @@ window.addEventListener('online', () => {
 
 ```typescript
 // In your service worker
-self.addEventListener('fetch', (event) => {
+self.addEventListener('fetch', event => {
   const url = new URL(event.request.url);
 
   // Let map-gl-offline handle tile requests
@@ -734,7 +773,7 @@ class DownloadProgressUI {
 
     try {
       await manager.downloadRegion(options, {
-        onProgress: (progress) => {
+        onProgress: progress => {
           this.updateProgress(progress.percentage);
           this.updatePhase(progress.message || `Downloading ${progress.phase}...`);
           this.updateDetails(`${progress.completed}/${progress.total}`);
@@ -783,19 +822,28 @@ class DownloadProgressUI {
 const REGION_PRESETS = {
   'new-york': {
     name: 'New York City',
-    bounds: [[-74.259, 40.477], [-73.700, 40.917]] as [[number, number], [number, number]],
+    bounds: [
+      [-74.259, 40.477],
+      [-73.7, 40.917],
+    ] as [[number, number], [number, number]],
     minZoom: 10,
     maxZoom: 15,
   },
   'los-angeles': {
     name: 'Los Angeles',
-    bounds: [[-118.668, 33.704], [-117.785, 34.337]] as [[number, number], [number, number]],
+    bounds: [
+      [-118.668, 33.704],
+      [-117.785, 34.337],
+    ] as [[number, number], [number, number]],
     minZoom: 10,
     maxZoom: 15,
   },
-  'london': {
+  london: {
     name: 'London',
-    bounds: [[-0.510, 51.286], [0.334, 51.692]] as [[number, number], [number, number]],
+    bounds: [
+      [-0.51, 51.286],
+      [0.334, 51.692],
+    ] as [[number, number], [number, number]],
     minZoom: 10,
     maxZoom: 15,
   },

@@ -178,6 +178,7 @@ The control automatically registers the Service Worker when `mapLib` is not prov
 ## UI Control Features
 
 The built-in UI control provides:
+
 - Interactive polygon drawing for region selection
 - Real-time download progress tracking
 - Region management (view, delete, import/export)
@@ -209,7 +210,7 @@ await offlineManager.downloadRegion(
     onProgress: ({ phase, percentage }) => {
       console.log(`[${phase}] ${percentage.toFixed(1)}%`);
     },
-  },
+  }
 );
 
 // List stored regions
@@ -247,19 +248,25 @@ Ensure your HTML has a container for the map:
 ```html
 <!DOCTYPE html>
 <html>
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Offline Map Demo</title>
-  <style>
-    body { margin: 0; padding: 0; }
-    #map { width: 100%; height: 100vh; }
-  </style>
-</head>
-<body>
-  <div id="map"></div>
-  <script type="module" src="./main.ts"></script>
-</body>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Offline Map Demo</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+      }
+      #map {
+        width: 100%;
+        height: 100vh;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="map"></div>
+    <script type="module" src="./main.ts"></script>
+  </body>
 </html>
 ```
 

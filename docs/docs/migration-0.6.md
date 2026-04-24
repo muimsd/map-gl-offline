@@ -19,7 +19,10 @@ await offlineManager.downloadRegion(
   {
     id: 'downtown',
     name: 'Downtown',
-    bounds: [[-74.05, 40.71], [-74.00, 40.76]],
+    bounds: [
+      [-74.05, 40.71],
+      [-74.0, 40.76],
+    ],
     minZoom: 10,
     maxZoom: 16,
     styleUrl: 'https://api.maptiler.com/maps/streets/style.json?key=YOUR_KEY',
@@ -28,7 +31,7 @@ await offlineManager.downloadRegion(
     onProgress: ({ phase, percentage, message }) => {
       console.log(`[${phase}] ${percentage.toFixed(1)}% ${message ?? ''}`);
     },
-  },
+  }
 );
 ```
 
@@ -54,7 +57,7 @@ try {
 } catch (err) {
   if (err instanceof OfflineMapDBVersionError) {
     if (confirm('Offline storage is incompatible with this version. Clear it?')) {
-      await resetOfflineMapDB();   // destructive
+      await resetOfflineMapDB(); // destructive
       location.reload();
     }
   }
