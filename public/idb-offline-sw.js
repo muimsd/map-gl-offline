@@ -243,6 +243,35 @@ async function handleGlyph(db, downloadId, rest) {
   return new Response('Glyph not found', { status: 404 });
 }
 
+async function handleModel(db, downloadId, rest) {
+  // Model URLs are rewritten by patchStyleForOffline to
+  //   idb://{styleId}/model/{modelName}  (served as /__offline__/{styleId}/model/{modelName})
+  // and stored under the key  {styleId}::model::{modelName}.  Mirror the
+  // sprite fallback: try the style ID first, then the download/region ID.
+  const styleEntry = await findStyleByRegionId(db, downloadId);
+  const actualStyleId = styleEntry ? styleEntry.key : downloadId;
+  const resourcePath = decodeURIComponent(rest.join('/'));
+
+  const candidates = Array.from(
+    new Set([
+      `${actualStyleId}::model::${resourcePath}`,
+      `${downloadId}::model::${resourcePath}`,
+    ])
+  );
+
+  for (const key of candidates) {
+    const resource = await idbGet(db, 'models', key);
+    if (resource && resource.data) {
+      return new Response(resource.data, {
+        status: 200,
+        headers: { 'Content-Type': resource.contentType || 'model/gltf-binary' },
+      });
+    }
+  }
+
+  return new Response('Model not found', { status: 404 });
+}
+
 async function handleSprite(db, downloadId, rest) {
   const styleEntry = await findStyleByRegionId(db, downloadId);
   const actualStyleId = styleEntry ? styleEntry.key : downloadId;
@@ -384,6 +413,8 @@ async function handleOfflineRequest(url, prefixIndex) {
         return await handleGlyph(db, downloadId, rest);
       case 'sprite':
         return await handleSprite(db, downloadId, rest);
+      case 'model':
+        return await handleModel(db, downloadId, rest);
       case 'tilesjson':
         return await handleTileJSON(db, downloadId, rest);
       default:

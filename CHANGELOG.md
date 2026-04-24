@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.1] - 2026-04-23
+
+> **Bug-fix release: Mapbox Standard offline rendering.** `setStyle()` of a downloaded Standard region used to hang forever with `"Style is not done loading"` because two indoor-only expressions (`is-active-floor`, `floor-level`) that Mapbox GL v3 evaluates against `map.indoor.activeFloors` at filter-compile time were left intact when the `imports` wrapper was stripped. Two smaller correctness issues were fixed in the same pass.
+
+### Fixed
+
+- **Mapbox Standard style failed to load offline.** `resolveImports` now rewrites `["is-active-floor"]` and `["is-active-floor", <id>]` → `false` and `["floor-level"]` → `0` before the flattened style is stored, so the filters validate without the `imports` parent context. Existing regions downloaded with 0.8.0 are also healed — `sanitizeIndoorExpressions()` runs at load time in both `PanelManager.handleLoadStyle` and `OfflineManagerControl.loadOfflineStyle`, so **re-downloading is not required**.
+- **Offline Service Worker was missing its `model` handler.** `public/idb-offline-sw.js` only handled `tile / glyph / sprite / tilesjson`, so any worker-scoped request for a Mapbox Standard 3D-model `.glb` (trees, wind turbines) 400'd. Main-thread fetches worked because `window.fetch` is intercepted by `idbFetchHandler`, but `new Worker(...).fetch(...)` paths and the native v3 model-loader path didn't. Added `handleModel` mirroring the sprite resolver — tries `{styleId}::model::{name}` first, then `{downloadId}::model::{name}`, returns `Content-Type: model/gltf-binary` (or the stored content-type).
+- **Tile-extension regex only captured the first dotted segment.** For Mapbox v4 URLs like `.../{z}/{x}/{y}.vector.pbf`, `patchStyleForOffline` produced `idb://.../{y}.vector` but `tileService.extractExtension` stored the key under `.pbf`. Every tile fetch missed the primary key and went through `idbFetchHandler`'s pbf/mvt/png/jpg/webp fallback loop before resolving. Both sites now share a single `extractTileExtensionFromUrl(url)` helper in `src/utils/tileKey.ts` that captures the last extension before `?`, `#`, or end. (Regions downloaded on 0.8.0 still work — they just keep taking the fallback-loop path until re-downloaded.)
+
+### Added
+
+- Exported `sanitizeIndoorExpressions(style)` from `@/utils/importResolver` — idempotent, safe to call on any style object.
+- Exported `extractTileExtensionFromUrl(url)` from `@/utils/tileKey` — single source of truth; `deriveTileExtension(tiles)` now delegates to it.
+
+### Tests
+
+- +15 tests: 6 for `sanitizeIndoorExpressions`, 4 for the SW `model` handler (missing / default content-type / stored content-type override / region-id resolution), 5 for `extractTileExtensionFromUrl` (single-segment, multi-dot, query, fragment, empty). Total: 1717 passing.
+
 ## [0.8.0] - 2026-04-22
 
 > **Breaking release focused on import/export.** The JSON and PMTiles export paths shipped in 0.7.0 and earlier were never standards-compliant — JSON produced a bespoke format nothing else reads, and the PMTiles implementation just wrapped that JSON in a `.pmtiles` extension. Both are removed. MBTiles is the only supported format now, and it's finally the real thing: v1.3-compliant SQLite that opens directly in QGIS, tippecanoe, and maplibre-native without conversion.

@@ -1,7 +1,11 @@
 /**
  * Tests for Import Resolution (Mapbox Standard style support)
  */
-import { hasImports, resolveImports } from '../../src/utils/importResolver';
+import {
+  hasImports,
+  resolveImports,
+  sanitizeIndoorExpressions,
+} from '../../src/utils/importResolver';
 import type { BaseStyle } from '../../src/types/style';
 
 // Mock global fetch
@@ -572,6 +576,119 @@ describe('importResolver', () => {
       const textFont = layout['text-font'] as unknown[];
       expect(textFont[0]).toBe('literal');
       expect((textFont[1] as unknown[])[0]).toBe('DIN Pro');
+    });
+  });
+
+  describe('sanitizeIndoorExpressions', () => {
+    it('rewrites ["is-active-floor"] to false inside filters', () => {
+      const style = makeStyle({
+        layers: [
+          {
+            id: 'indoor-clip',
+            type: 'clip',
+            filter: ['all', ['is-active-floor'], ['==', ['get', 'shape_type'], 'building']],
+          },
+        ],
+      } as Partial<BaseStyle>);
+
+      sanitizeIndoorExpressions(style);
+
+      expect((style.layers[0] as { filter: unknown[] }).filter).toEqual([
+        'all',
+        false,
+        ['==', ['get', 'shape_type'], 'building'],
+      ]);
+    });
+
+    it('rewrites ["is-active-floor", <id>] to false (the arg form)', () => {
+      const style = makeStyle({
+        layers: [
+          { id: 'indoor-floor', type: 'fill', filter: ['is-active-floor', ['get', 'id']] },
+        ],
+      } as Partial<BaseStyle>);
+
+      sanitizeIndoorExpressions(style);
+
+      expect((style.layers[0] as { filter: unknown }).filter).toBe(false);
+    });
+
+    it('rewrites ["floor-level"] to 0', () => {
+      const style = makeStyle({
+        layers: [{ id: 'x', type: 'fill', paint: { 'fill-opacity': ['floor-level'] } }],
+      } as Partial<BaseStyle>);
+
+      sanitizeIndoorExpressions(style);
+
+      const paint = (style.layers[0] as { paint: Record<string, unknown> }).paint;
+      expect(paint['fill-opacity']).toBe(0);
+    });
+
+    it('leaves unrelated expressions alone', () => {
+      const style = makeStyle({
+        layers: [
+          {
+            id: 'road',
+            type: 'line',
+            source: 'composite',
+            filter: ['all', ['==', ['get', 'class'], 'motorway'], ['!', ['has', 'tunnel']]],
+          },
+        ],
+      } as Partial<BaseStyle>);
+      const before = JSON.stringify(style);
+
+      sanitizeIndoorExpressions(style);
+
+      expect(JSON.stringify(style)).toBe(before);
+    });
+
+    it('is idempotent — running twice yields the same result', () => {
+      const style = makeStyle({
+        layers: [
+          {
+            id: 'label',
+            type: 'symbol',
+            filter: ['any', ['!', ['is-active-floor']], ['==', ['get', 'class'], 'gate']],
+          },
+        ],
+      } as Partial<BaseStyle>);
+
+      sanitizeIndoorExpressions(style);
+      const once = JSON.stringify(style);
+      sanitizeIndoorExpressions(style);
+      expect(JSON.stringify(style)).toBe(once);
+    });
+
+    it('runs automatically at the end of resolveImports', async () => {
+      mockFetch.mockResolvedValueOnce(
+        mockFetchResponse({
+          version: 8,
+          sources: { composite: { type: 'vector' } },
+          layers: [
+            {
+              id: 'indoor-floor',
+              type: 'fill',
+              source: 'composite',
+              filter: ['is-active-floor', ['get', 'floor_id']],
+            },
+          ],
+        })
+      );
+
+      const style: BaseStyle = {
+        version: 8,
+        imports: [{ id: 'basemap', url: 'https://example.com/basemap.json' }],
+        sources: {},
+        layers: [],
+      };
+
+      const result = await resolveImports(style, 'test-token');
+
+      // The imported indoor-floor layer should have its filter rewritten.
+      const indoor = (result.layers as Array<Record<string, unknown>>).find(
+        l => l.id === 'basemap/indoor-floor'
+      );
+      expect(indoor).toBeDefined();
+      expect(indoor!.filter).toBe(false);
     });
   });
 });

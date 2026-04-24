@@ -7,6 +7,7 @@ import {
   validateResource,
   logger,
   createTileKey,
+  extractTileExtensionFromUrl,
 } from '@/utils';
 import {
   isMapboxProtocol,
@@ -1033,8 +1034,7 @@ export class TileService {
   }
 
   private extractExtension(template: string): string {
-    const extMatch = template.match(/\.([\w]+)(?:\?|$)/i);
-    return extMatch ? extMatch[1] : 'pbf';
+    return extractTileExtensionFromUrl(template);
   }
 
   private selectTileTemplate(
