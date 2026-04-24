@@ -6,6 +6,16 @@ import type { OfflineMapDB } from '@/types/database';
 import type { StyleStorageItem } from '@/types/style';
 import { logger } from './logger';
 import { createTileKey, deriveTileExtension } from './tileKey';
+import {
+  buildOfflineTileJson,
+  findStyleByRegionIdIn,
+  glyphCandidateKeys,
+  matchTileJsonSource,
+  modelCandidateKeys,
+  parseGlyphPath,
+  spriteCandidateKeys,
+  tileFallbackExtensions,
+} from '@/sw/shared';
 
 const idbLogger = logger.scope('IDBFetch');
 
@@ -75,18 +85,11 @@ async function findStyleByRegionId(
 
   try {
     const allStyles = await db.getAll('styles');
-    for (const styleEntry of allStyles) {
-      if (styleEntry.regions && Array.isArray(styleEntry.regions)) {
-        const hasRegion = styleEntry.regions.some(
-          (r: { regionId?: string; id?: string }) => r.regionId === regionId || r.id === regionId
-        );
-        if (hasRegion) {
-          idbLogger.debug(`Found style "${styleEntry.key}" containing region: ${regionId}`);
-          // Cache the result
-          regionToStyleCache.set(regionId, { styleEntry, timestamp: Date.now() });
-          return styleEntry;
-        }
-      }
+    const hit = findStyleByRegionIdIn(allStyles, regionId) as StyleStorageItem | null;
+    if (hit) {
+      idbLogger.debug(`Found style "${hit.key}" containing region: ${regionId}`);
+      regionToStyleCache.set(regionId, { styleEntry: hit, timestamp: Date.now() });
+      return hit;
     }
     idbLogger.debug(`No style found containing region: ${regionId}`);
     // Don't cache negative results — the region may be stored moments later
@@ -96,45 +99,6 @@ async function findStyleByRegionId(
     idbLogger.error(`Error searching for style by region ID: ${regionId}`, error);
     return null;
   }
-}
-
-function buildOfflineTileJson(
-  sourceConfig: Record<string, unknown>,
-  downloadId: string,
-  sourceId: string
-): Record<string, unknown> {
-  const extension = deriveTileExtension(sourceConfig.tiles);
-  const offlineTiles = [`idb://${downloadId}/tile/${sourceId}/{z}/{x}/{y}.${extension}`];
-
-  const tileJson: Record<string, unknown> = {
-    tilejson: typeof sourceConfig.tilejson === 'string' ? sourceConfig.tilejson : '2.2.0',
-    name: (sourceConfig.name as string) ?? sourceId,
-    tiles: offlineTiles,
-    minzoom: typeof sourceConfig.minzoom === 'number' ? sourceConfig.minzoom : 0,
-    maxzoom: typeof sourceConfig.maxzoom === 'number' ? sourceConfig.maxzoom : 22,
-  };
-
-  const fieldsToCopy = [
-    'bounds',
-    'center',
-    'vector_layers',
-    'scheme',
-    'attribution',
-    'encoding',
-    'format',
-    'grids',
-    'data',
-    'template',
-    'version',
-  ] as const;
-
-  for (const field of fieldsToCopy) {
-    if (field in sourceConfig && sourceConfig[field] !== undefined) {
-      tileJson[field] = sourceConfig[field];
-    }
-  }
-
-  return tileJson;
 }
 
 async function createTileResponse(resource: {
@@ -278,9 +242,7 @@ export async function idbFetchHandler(url: string, init?: RequestInit): Promise<
             idbLogger.debug(`Tile not found: ${tileKey}`);
 
             // Fallback: try common alternative extensions
-            const fallbackExtensions = ['pbf', 'mvt', 'png', 'jpg', 'webp', 'glb'].filter(
-              ext => ext !== requestedExt
-            );
+            const fallbackExtensions = tileFallbackExtensions(requestedExt);
 
             for (const fallbackExt of fallbackExtensions) {
               const fallbackKey = createTileKey(x, y, z, actualStyleId, sourceKey, fallbackExt);
@@ -332,7 +294,7 @@ export async function idbFetchHandler(url: string, init?: RequestInit): Promise<
               }
 
               // Try alternative extensions
-              const fallbackExts = ['pbf', 'mvt', 'png', 'jpg', 'webp'].filter(e => e !== ext);
+              const fallbackExts = tileFallbackExtensions(ext);
               for (const fallbackExt of fallbackExts) {
                 const fallbackKey = createTileKey(
                   parseInt(x),
@@ -359,58 +321,22 @@ export async function idbFetchHandler(url: string, init?: RequestInit): Promise<
       }
       case 'glyph': {
         idbLogger.debug(`Looking for glyph with key: ${key}`);
-
-        // Find which style this region belongs to
         const styleEntry = await findStyleByRegionId(db, downloadId);
         const actualStyleId = styleEntry?.key || downloadId;
-
-        if (styleEntry && downloadId !== actualStyleId) {
-          idbLogger.debug(
-            `Region "${downloadId}" belongs to style "${actualStyleId}", searching with style key`
-          );
-        }
-
-        // Parse the resource path: "FontA,FontB,FontC/0-255.pbf"
-        // MapLibre requests glyphs with comma-separated fallback fonts
-        // but glyphs are stored individually per font
-        const pathParts = decodedResourcePath.split('/');
-        const fontstackPart = pathParts[0]; // "FontA,FontB,FontC"
-        const rangePart = pathParts[1] || '0-255.pbf'; // "0-255.pbf"
-
-        // Split comma-separated fonts
-        const fontstacks = fontstackPart.split(',').map(f => f.trim());
+        const { fontstacks, rangePart } = parseGlyphPath(decodedResourcePath);
         idbLogger.debug(
           `Trying ${fontstacks.length} fonts in fallback order: ${fontstacks.join(', ')}`
         );
 
-        // Try each font in order (this is how font fallbacks work)
         for (const fontstack of fontstacks) {
-          const glyphPath = `${fontstack}/${rangePart}`;
-          const normalizedPath = glyphPath.endsWith('.pbf') ? glyphPath : `${glyphPath}.pbf`;
-
-          const glyphCandidateKeys = [
-            // Try with actual style ID first
-            `${actualStyleId}::${normalizedPath}`,
-            `${actualStyleId}::${glyphPath}`,
-            // Then try with download ID
-            `${downloadId}::${normalizedPath}`,
-            `${downloadId}::${glyphPath}`,
-            // Just paths
-            normalizedPath,
-            glyphPath,
-          ];
-
-          idbLogger.debug(`Trying keys for font "${fontstack}":`, glyphCandidateKeys);
-
-          for (const candidateKey of glyphCandidateKeys) {
+          const candidateKeys = glyphCandidateKeys(actualStyleId, downloadId, fontstack, rangePart);
+          for (const candidateKey of candidateKeys) {
             const resource = await db.get('glyphs', candidateKey);
             if (resource?.data) {
               idbLogger.debug(`Found glyph using key: ${candidateKey} (font: ${fontstack})`);
               return new Response(resource.data, {
                 status: 200,
-                headers: {
-                  'Content-Type': 'application/x-protobuf',
-                },
+                headers: { 'Content-Type': 'application/x-protobuf' },
               });
             }
           }
@@ -421,46 +347,12 @@ export async function idbFetchHandler(url: string, init?: RequestInit): Promise<
       }
       case 'sprite': {
         idbLogger.debug(`Looking for sprite with key: ${key}`);
-
-        // Find which style this region belongs to
         const styleEntry = await findStyleByRegionId(db, downloadId);
         const actualStyleId = styleEntry?.key || downloadId;
+        const candidates = spriteCandidateKeys(actualStyleId, downloadId, decodedResourcePath);
+        idbLogger.debug(`Sprite candidates for "${decodedResourcePath}":`, candidates);
 
-        if (styleEntry && downloadId !== actualStyleId) {
-          idbLogger.debug(
-            `Region "${downloadId}" belongs to style "${actualStyleId}", searching with style key`
-          );
-        }
-
-        // The sprite service stores sprites with keys like: "voyager::sprite.json", "voyager::sprite@2x.json"
-        // MapLibre requests sprites as: "idb://region_XXX/sprite/sprite@2x.json"
-        // So we need to map the region ID to the style ID
-
-        const spriteCandidateKeys = Array.from(
-          new Set([
-            // Try with actual style ID first (most likely to work)
-            `${actualStyleId}::${decodedResourcePath}`,
-            `${actualStyleId}:${decodedResourcePath}`,
-            `${actualStyleId}::${decodedResourcePath.replace(/\.(json|png)$/i, '')}`,
-            `${actualStyleId}:${decodedResourcePath.replace(/\.(json|png)$/i, '')}`,
-
-            // Then try with download ID (in case it's a direct style download)
-            `${downloadId}::${decodedResourcePath}`,
-            `${downloadId}:${decodedResourcePath}`,
-            `${downloadId}::${decodedResourcePath.replace(/\.(json|png)$/i, '')}`,
-            `${downloadId}:${decodedResourcePath.replace(/\.(json|png)$/i, '')}`,
-
-            // Just the path itself
-            decodedResourcePath,
-
-            // Original key format
-            key,
-          ])
-        );
-
-        idbLogger.debug(`Sprite candidates for "${decodedResourcePath}":`, spriteCandidateKeys);
-
-        for (const candidateKey of spriteCandidateKeys) {
+        for (const candidateKey of candidates) {
           const resource = await db.get('sprites', candidateKey);
           if (resource?.data) {
             idbLogger.debug(`Found sprite using key: ${candidateKey}`);
@@ -471,7 +363,7 @@ export async function idbFetchHandler(url: string, init?: RequestInit): Promise<
           }
         }
 
-        idbLogger.warn(`Sprite not found, tried keys: ${spriteCandidateKeys.join(', ')}`);
+        idbLogger.warn(`Sprite not found, tried keys: ${candidates.join(', ')}`);
         break;
       }
       case 'font': {
@@ -486,20 +378,12 @@ export async function idbFetchHandler(url: string, init?: RequestInit): Promise<
         break;
       }
       case 'model': {
-        // Model URLs are rewritten by patchStyleForOffline to:
+        // Model URLs are rewritten by patchStyleForOffline to
         //   idb://{styleId}/model/{modelName}
         // Models are keyed by {styleId}::model::{modelName} in the store.
-        // Mirror the sprite resolution fallback: try the style ID first,
-        // then the download/region ID (in case the request came through a
-        // region-scoped URL).
         const styleEntry = await findStyleByRegionId(db, downloadId);
         const actualStyleId = styleEntry?.key || downloadId;
-        const candidates = Array.from(
-          new Set([
-            `${actualStyleId}::model::${decodedResourcePath}`,
-            `${downloadId}::model::${decodedResourcePath}`,
-          ])
-        );
+        const candidates = modelCandidateKeys(actualStyleId, downloadId, decodedResourcePath);
         idbLogger.debug(`Model candidates for "${decodedResourcePath}":`, candidates);
         for (const candidateKey of candidates) {
           const resource = await db.get('models', candidateKey);
@@ -519,10 +403,9 @@ export async function idbFetchHandler(url: string, init?: RequestInit): Promise<
           `Looking for tilejson with downloadId: ${downloadId}, resourcePath: ${decodedResourcePath}`
         );
 
-        // First try direct lookup (for style-level downloads)
+        // First try direct lookup (for style-level downloads), then fall back
+        // to searching by region ID (for region-level downloads).
         let styleEntry = await db.get('styles', downloadId);
-
-        // If not found, search by region ID (for region-level downloads)
         if (!styleEntry || !styleEntry.style?.sources) {
           idbLogger.debug(`Style not found with key "${downloadId}", searching by region ID...`);
           const foundStyle = await findStyleByRegionId(db, downloadId);
@@ -531,43 +414,31 @@ export async function idbFetchHandler(url: string, init?: RequestInit): Promise<
           }
         }
 
-        if (styleEntry?.style?.sources) {
-          const sources = styleEntry.style.sources as Record<string, Record<string, unknown>>;
-          let matchedSourceId: string | undefined;
-          let matchedSourceConfig: Record<string, unknown> | undefined;
-
-          if (decodedResourcePath in sources) {
-            matchedSourceId = decodedResourcePath;
-            matchedSourceConfig = sources[decodedResourcePath];
-          } else {
-            for (const [sourceId, sourceValue] of Object.entries(sources)) {
-              const sourceUrl = typeof sourceValue.url === 'string' ? sourceValue.url : undefined;
-              const originalUrl =
-                typeof sourceValue.__originalTilesetUrl === 'string'
-                  ? sourceValue.__originalTilesetUrl
-                  : undefined;
-              if (sourceUrl === decodedResourcePath || originalUrl === decodedResourcePath) {
-                matchedSourceId = sourceId;
-                matchedSourceConfig = sourceValue;
-                break;
-              }
-            }
-          }
-
-          if (matchedSourceId && matchedSourceConfig) {
-            const tileJson = buildOfflineTileJson(matchedSourceConfig, downloadId, matchedSourceId);
-            idbLogger.debug(`Serving offline tilejson for source: ${matchedSourceId}`);
-            return new Response(JSON.stringify(tileJson), {
-              status: 200,
-              headers: { 'Content-Type': 'application/json' },
-            });
-          }
-
-          idbLogger.warn(`No matching source found for tilejson: ${decodedResourcePath}`);
-        } else {
+        if (!styleEntry?.style?.sources) {
           idbLogger.warn(`Style not found or missing sources for downloadId: ${downloadId}`);
+          break;
         }
-        break;
+
+        const sources = styleEntry.style.sources as Record<string, Record<string, unknown>>;
+        const matched = matchTileJsonSource(sources, decodedResourcePath);
+        if (!matched) {
+          idbLogger.warn(`No matching source found for tilejson: ${decodedResourcePath}`);
+          break;
+        }
+
+        const extension = deriveTileExtension(matched.config.tiles);
+        const tileJson = buildOfflineTileJson(
+          matched.config,
+          downloadId,
+          matched.sourceId,
+          extension,
+          'idb'
+        );
+        idbLogger.debug(`Serving offline tilejson for source: ${matched.sourceId}`);
+        return new Response(JSON.stringify(tileJson), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        });
       }
       default:
         idbLogger.warn(`Unknown resource type: ${type}`);
