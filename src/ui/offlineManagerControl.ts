@@ -61,6 +61,25 @@ import { detectCssPrefix, CssPrefix } from '@/utils/cssPrefix';
 const controlLogger = logger.scope('OfflineControl');
 
 /**
+ * Request shape MapLibre passes to a protocol handler. `type` indicates how
+ * the response will be consumed — `"json"` for sprite atlases / TileJSON,
+ * everything else binary (`"arrayBuffer"`, `"image"`, …).
+ */
+export interface MapLibProtocolRequest {
+  url: string;
+  type?: string;
+}
+
+/**
+ * Response shape MapLibre expects from a promise-based protocol handler.
+ * `data` is binary (`ArrayBuffer`) for tiles/glyphs/sprites and a parsed
+ * JSON object for sprite atlas / TileJSON requests.
+ */
+export interface MapLibProtocolResponse {
+  data: ArrayBuffer | Record<string, unknown>;
+}
+
+/**
  * Interface for map libraries that support custom protocol handlers.
  * MapLibre GL JS provides `addProtocol`/`removeProtocol`; Mapbox GL JS v3 does not.
  * Pass the map library module as `mapLib` in the control options to register the
@@ -69,7 +88,7 @@ const controlLogger = logger.scope('OfflineControl');
 export interface MapLibProtocol {
   addProtocol: (
     protocol: string,
-    handler: (...args: any[]) => Promise<{ data: ArrayBuffer }>
+    handler: (params: MapLibProtocolRequest) => Promise<MapLibProtocolResponse>
   ) => void;
   removeProtocol: (protocol: string) => void;
 }

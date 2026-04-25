@@ -62,6 +62,12 @@ test-results/
 # MCP configuration (tool-specific)
 .mcp.json
 
+# Claude Code harness artefacts (per-user settings, scheduled-task locks, etc.)
+# `.claude/CLAUDE.md` is intentionally tracked (project instructions); the
+# negation keeps it included while everything else under .claude/ is ignored.
+.claude/*
+!.claude/CLAUDE.md
+
 # Build directories inside examples
 examples/*/dist/
 examples/*/build/
