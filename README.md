@@ -77,6 +77,8 @@ Then:
 ```typescript
 import mapboxgl from 'mapbox-gl';
 import { OfflineMapManager, OfflineManagerControl } from 'map-gl-offline';
+import 'mapbox-gl/dist/mapbox-gl.css';
+import 'map-gl-offline/style.css';
 
 mapboxgl.accessToken = 'YOUR_MAPBOX_TOKEN';
 

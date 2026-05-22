@@ -1014,8 +1014,8 @@ await fontService.downloadFonts(fontUrls, styleId, {
 ```typescript
 import { spriteService } from 'map-gl-offline';
 
-// Download sprites for a style
-await spriteService.downloadSprites(spriteUrl, styleId, {
+// Download sprites for a style — spriteUrls is an array of sprite base URLs
+await spriteService.downloadSprites(spriteUrls, styleId, {
   onProgress: p => console.log(p),
 });
 ```

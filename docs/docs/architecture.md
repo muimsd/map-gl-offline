@@ -399,9 +399,9 @@ Tiles are stored with composite keys for efficient lookup. Use the `createTileKe
 
 ```typescript
 // Key format: {styleId}:{sourceId}:{z}:{x}:{y}.{extension}
-import { createTileKey, parseTileKey } from '@/utils/tileKey';
+import { createTileKey, parseTileKey } from 'map-gl-offline';
 
-const key = createTileKey(styleId, sourceId, z, x, y, extension);
+const key = createTileKey(x, y, z, styleId, sourceId, extension);
 
 // Examples
 const key = 'mapbox-streets-v12:mapbox.mapbox-streets-v8:14:4824:6159.pbf';
@@ -455,12 +455,15 @@ enum ErrorType {
 Scoped logging with configurable levels:
 
 ```typescript
-const logger = createLogger('ComponentName');
+import { logger } from 'map-gl-offline';
 
-logger.debug('Detailed info'); // Dev only
-logger.info('General info'); // Always
-logger.warn('Warning'); // Always
-logger.error('Error', error); // Always
+// Create a scoped logger for a component
+const log = logger.scope('ComponentName');
+
+log.debug('Detailed info'); // Dev only
+log.info('General info'); // Always
+log.warn('Warning'); // Always
+log.error('Error', error); // Always
 ```
 
 ## Configuration

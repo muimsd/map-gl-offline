@@ -256,7 +256,12 @@ const extraSources = Object.entries(style.sources)
     return ['vector', 'raster', 'raster-dem'].includes(s.type) && s.tiles?.length;
   })
   .map(([id, source]) => {
-    const s = source as { type: string; tiles: string[]; minzoom?: number; maxzoom?: number };
+    const s = source as {
+      type: 'vector' | 'raster' | 'raster-dem';
+      tiles: string[];
+      minzoom?: number;
+      maxzoom?: number;
+    };
     return { id, type: s.type, tiles: s.tiles, minzoom: s.minzoom, maxzoom: s.maxzoom };
   });
 
@@ -298,7 +303,7 @@ map.addControl(control, 'top-right');
 ### Download Multiple Regions
 
 ```typescript
-const regions = [
+const regions: { id: string; name: string; bounds: [[number, number], [number, number]] }[] = [
   {
     id: 'downtown',
     name: 'Downtown',
@@ -705,7 +710,7 @@ console.log(i18n.getLanguage()); // 'en'
 i18n.setLanguage('ar');
 
 // Get a translated string
-const label = t('downloadRegion'); // Translated text for the current language
+const label = t('regionForm.downloadRegion'); // Translated text for the current language
 
 // List available languages
 const languages = i18n.getAvailableLanguages();
