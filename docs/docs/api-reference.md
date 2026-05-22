@@ -599,9 +599,9 @@ map.addControl(control, 'top-right');
 
 ### Methods
 
-#### `onAdd(map: MaplibreMap): HTMLElement`
+#### `onAdd(map: ControlMap): HTMLElement`
 
-Called when the control is added to a map (IControl interface). Sets up the fetch interceptor, creates the control button, and initializes all internal component managers.
+Called when the control is added to a map (IControl interface). Sets up the fetch interceptor, creates the control button, and initializes all internal component managers. `ControlMap` is a renderer-agnostic structural type, so the control can be added to either a MapLibre GL or a Mapbox GL map.
 
 ```typescript
 map.addControl(control, 'top-right');
