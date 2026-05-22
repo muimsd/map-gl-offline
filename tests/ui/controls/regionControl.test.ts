@@ -482,6 +482,49 @@ describe('RegionControl', () => {
     });
   });
 
+  describe('getStyleSourceIds with mapbox:// style URLs', () => {
+    it('resolves mapbox:// style URLs before fetching (never fetches the mapbox: scheme)', async () => {
+      const mockFetch = jest.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ version: 8, sources: { composite: { type: 'vector' } } }),
+      });
+      global.fetch = mockFetch;
+
+      const control = new RegionControl(
+        createOptions({
+          styleUrl: 'mapbox://styles/mapbox/standard',
+          accessToken: 'pk.test-token',
+        })
+      );
+      const ids = await (
+        control as unknown as { getStyleSourceIds: () => Promise<Set<string>> }
+      ).getStyleSourceIds();
+
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+      const fetchedUrl = mockFetch.mock.calls[0][0] as string;
+      expect(fetchedUrl).not.toMatch(/^mapbox:\/\//);
+      expect(fetchedUrl).toBe(
+        'https://api.mapbox.com/styles/v1/mapbox/standard?access_token=pk.test-token'
+      );
+      expect(ids.has('composite')).toBe(true);
+    });
+
+    it('skips the fetch and returns an empty set for mapbox:// URLs with no access token', async () => {
+      const mockFetch = jest.fn();
+      global.fetch = mockFetch;
+
+      const control = new RegionControl(
+        createOptions({ styleUrl: 'mapbox://styles/mapbox/standard' })
+      );
+      const ids = await (
+        control as unknown as { getStyleSourceIds: () => Promise<Set<string>> }
+      ).getStyleSourceIds();
+
+      expect(mockFetch).not.toHaveBeenCalled();
+      expect(ids.size).toBe(0);
+    });
+  });
+
   describe('handleRegionSave', () => {
     it('calls downloadManager.downloadRegion and fires onRegionSaved on success', async () => {
       const downloadManager = createMockDownloadManager();

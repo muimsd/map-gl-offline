@@ -15,6 +15,7 @@ import { DownloadManager } from '@/ui/managers/downloadManager';
 import { ModalManager } from '@/ui/modals/modalManager';
 import { icons } from '@/utils/icons';
 import { logger } from '@/utils/logger';
+import { isMapboxProtocol, resolveMapboxUrl } from '@/utils/styleProviderUtils';
 import type { CssPrefix } from '@/utils/cssPrefix';
 
 const regionLogger = logger.scope('RegionControl');
@@ -142,7 +143,20 @@ export class RegionControl {
       const styleUrl = this.options.styleUrl;
       if (!styleUrl) return new Set();
 
-      const response = await fetch(styleUrl);
+      // Resolve mapbox:// style URLs — fetch() cannot load the mapbox: scheme
+      // and throws "URL scheme \"mapbox\" is not supported" otherwise.
+      let fetchUrl = styleUrl;
+      if (isMapboxProtocol(styleUrl)) {
+        if (!this.options.accessToken) {
+          regionLogger.warn(
+            'Cannot resolve mapbox:// style URL for source filtering without an access token'
+          );
+          return new Set();
+        }
+        fetchUrl = resolveMapboxUrl(styleUrl, this.options.accessToken);
+      }
+
+      const response = await fetch(fetchUrl);
       if (!response.ok) return new Set();
 
       const styleJson = (await response.json()) as { sources?: Record<string, unknown> };
