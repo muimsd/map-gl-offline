@@ -167,3 +167,4 @@ npm run dev           # Start Vite dev server
 9. Referencing `exportRegionAsJSON` or `exportRegionAsPMTiles` — both were removed in 0.8.0. MBTiles is the only supported format; use `exportRegionAsMBTiles` / `importRegion({ format: 'mbtiles' })`.
 10. Skipping the gzip step for vector tiles in MBTiles output — QGIS/tippecanoe will reject the file. `gzipBytes` in `importExportService.ts` is idempotent, so it's safe to always call.
 11. Exporting vector tiles without populating `metadata.json` — QGIS can't resolve `vector_layers` without it. `buildVectorJsonMetadata` derives the value from the offline style.
+12. Hand-writing raw `"start-end"` glyph ranges — `GLYPH_CONFIG.COMPREHENSIVE_RANGES` is generated from `GLYPH_COVERAGE_SPANS` in `constants.ts`. Glyph servers only accept 256-aligned blocks (`k*256`–`k*256+255`); strict ones (MapTiler) reject anything else with HTTP 400. To extend coverage, add a Unicode span — never an output range.
