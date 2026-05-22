@@ -51,14 +51,16 @@ function App() {
       })
     );
 
-    // Add the offline manager control with dark theme
+    // Add the offline manager control with dark theme.
+    // OfflineManagerControl satisfies both MapLibre's and Mapbox's IControl
+    // (since 0.8.5) — no cast needed.
     map.current.addControl(
       new OfflineManagerControl(offlineManager.current, {
         styleUrl,
         theme: 'dark',
         mapLib: mapboxgl,
         accessToken: token,
-      }) as unknown as mapboxgl.IControl,
+      }),
       'top-right'
     );
   }, [token]);
