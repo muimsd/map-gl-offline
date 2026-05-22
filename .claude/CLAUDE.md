@@ -89,6 +89,8 @@ import { loadStyles } from '@/services/styleService';
 import { loadStyles } from '../services/styleService';
 ```
 
+`tsc` does not rewrite path aliases in emitted declarations, so `build:types` runs `tsc-alias` after `tsc` to rewrite `@/` to relative paths in the published `.d.ts`. Do **not** drop `tsc-alias` from `build:types` — without it every shipped declaration imports from an unresolvable `@/...` path and consumer types silently degrade to `any`.
+
 ### OfflineMapManager class shape
 The class uses class/interface declaration merging — every method from the `*Management` module interfaces is attached at runtime via `Object.assign(this, this.modules)` in the constructor. Adding a new method to a `*Management` interface makes it automatically available on `OfflineMapManager` with no edits to `src/managers/offlineMapManager/index.ts`.
 
