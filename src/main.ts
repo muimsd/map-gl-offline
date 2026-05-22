@@ -353,7 +353,7 @@ async function initMapbox() {
     theme: 'light',
     showBbox: true,
   });
-  map.addControl(offlineManagerControl as unknown as mapboxgl.IControl, 'top-right');
+  map.addControl(offlineManagerControl, 'top-right');
 
   // Style switcher for Mapbox
   const switcherContainer = document.createElement('div');

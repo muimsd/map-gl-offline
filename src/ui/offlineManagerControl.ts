@@ -94,6 +94,18 @@ export interface MapLibProtocol {
 }
 
 /**
+ * Minimal structural type for the host map `OfflineManagerControl` is added to.
+ *
+ * The control works with both MapLibre GL JS and Mapbox GL JS. Typing the
+ * `onAdd` parameter structurally — rather than as a specific renderer's `Map`
+ * — lets the control satisfy *either* library's `IControl`, so it can be added
+ * via `map.addControl()` on either renderer without a cast. See issue #39.
+ */
+export interface ControlMap {
+  getContainer(): HTMLElement;
+}
+
+/**
  * Configuration options for the OfflineManagerControl.
  *
  * @example
@@ -125,7 +137,7 @@ export interface OfflineManagerControlOptions {
 /**
  * MapLibre GL JS control for managing offline map regions.
  *
- * Implements the IControl interface to integrate with MapLibre GL maps.
+ * Implements the IControl interface to integrate with MapLibre GL and Mapbox GL maps.
  * Provides a complete UI for downloading, managing, and loading offline map data.
  *
  * The control automatically intercepts fetch requests to serve offline resources
@@ -312,11 +324,14 @@ export class OfflineManagerControl implements IControl {
    * Called when the control is added to a map.
    * Implements the IControl.onAdd interface method.
    *
-   * @param map - The MapLibre GL map instance
+   * @param map - The MapLibre GL or Mapbox GL map instance
    * @returns The control's container element
    */
-  onAdd(map: MaplibreMap): HTMLElement {
-    this.map = map;
+  onAdd(map: ControlMap): HTMLElement {
+    // Internally the control works against the MapLibre `Map` typings; the
+    // structural `ControlMap` parameter is what lets it satisfy both
+    // libraries' `IControl` so callers need no cast (see issue #39).
+    this.map = map as MaplibreMap;
 
     // Detect the correct CSS prefix for the map library in use
     const cssPrefix: CssPrefix = detectCssPrefix(map.getContainer());
