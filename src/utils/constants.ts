@@ -35,45 +35,65 @@ export const TILE_CONFIG = {
 } as const;
 
 // Glyph Configuration
+//
+// Glyph servers (MapTiler, Mapbox, OpenFreeMap, ...) serve glyphs in fixed
+// 256-codepoint blocks aligned to a multiple of 256: every request must be
+// `${k * 256}-${k * 256 + 255}`. Strict servers (e.g. MapTiler) reject any
+// other range with HTTP 400 "Invalid glyph range"; lenient ones silently
+// accept them, which is how malformed ranges went unnoticed. See issue #37.
+export const GLYPH_BLOCK_SIZE = 256;
+export const MAX_GLYPH_CODEPOINT = 65535;
+
+/**
+ * Expand an inclusive Unicode codepoint span into the aligned 256-codepoint
+ * glyph blocks that cover it, formatted as `"start-end"` request ranges.
+ * The span need not be block-aligned — it is snapped out to whole blocks.
+ */
+function glyphBlocksForSpan(start: number, end: number): string[] {
+  const firstBlock = Math.floor(start / GLYPH_BLOCK_SIZE);
+  const lastBlock = Math.floor(Math.min(end, MAX_GLYPH_CODEPOINT) / GLYPH_BLOCK_SIZE);
+  const blocks: string[] = [];
+  for (let block = firstBlock; block <= lastBlock; block++) {
+    const blockStart = block * GLYPH_BLOCK_SIZE;
+    blocks.push(`${blockStart}-${blockStart + GLYPH_BLOCK_SIZE - 1}`);
+  }
+  return blocks;
+}
+
+/**
+ * Unicode codepoint spans the comprehensive glyph download aims to cover.
+ * Each span is snapped to whole 256-codepoint glyph blocks below, so the
+ * resulting request ranges are always server-valid regardless of where the
+ * underlying Unicode blocks happen to start or end. To extend coverage, add
+ * a span here — never hand-write raw `"start-end"` ranges.
+ */
+const GLYPH_COVERAGE_SPANS: ReadonlyArray<readonly [number, number]> = [
+  [0x0000, 0x12ff], // Latin, Greek, Cyrillic, Hebrew, Arabic, Indic, SE Asian, Georgian, Ethiopic, Cherokee
+  [0x1e00, 0x21ff], // Latin Extended Additional, punctuation, symbols, arrows
+  [0x2e00, 0x31ff], // CJK radicals, Hiragana, Katakana, Bopomofo, Hangul Compatibility Jamo
+  [0x4e00, 0x4fff], // CJK Unified Ideographs (common subset)
+  [0xa000, 0xa4ff], // Yi Syllables and Radicals
+  [0xac00, 0xd7ff], // Hangul Syllables (Korean)
+  [0xf900, 0xfbff], // CJK Compatibility Ideographs, Alphabetic Presentation Forms
+  [0xfe00, 0xfeff], // Variation Selectors
+  [0xff00, 0xffff], // Halfwidth and Fullwidth Forms
+];
+
+/** Build the deduped, codepoint-ascending list of comprehensive glyph ranges. */
+function buildComprehensiveRanges(): string[] {
+  const ranges = new Set<string>();
+  for (const [start, end] of GLYPH_COVERAGE_SPANS) {
+    for (const range of glyphBlocksForSpan(start, end)) {
+      ranges.add(range);
+    }
+  }
+  return Array.from(ranges).sort((a, b) => Number(a.split('-')[0]) - Number(b.split('-')[0]));
+}
+
 export const GLYPH_CONFIG = {
   DEFAULT_URL: 'https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf',
   DEFAULT_RANGES: ['0-255'] as const,
-  COMPREHENSIVE_RANGES: [
-    '0-255', // Basic Latin + Latin-1 Supplement
-    '256-511', // Latin Extended-A + Latin Extended-B
-    '512-767', // IPA Extensions + Spacing Modifier Letters
-    '768-1023', // Combining Diacritical Marks + Greek and Coptic
-    '1024-1279', // Cyrillic + Cyrillic Supplement
-    '1280-1535', // Armenian + Hebrew
-    '1536-1791', // Arabic
-    '1792-2047', // Syriac + Arabic Supplement + Thaana
-    '2048-2303', // NKo + Samaritan + Mandaic
-    '2304-2559', // Devanagari + Bengali
-    '2560-2815', // Gurmukhi + Gujarati
-    '2816-3071', // Oriya + Tamil
-    '3072-3327', // Telugu + Kannada
-    '3328-3583', // Malayalam + Sinhala
-    '3584-3839', // Thai + Lao
-    '3840-4095', // Tibetan + Myanmar
-    '4096-4351', // Georgian + Hangul Jamo
-    '4352-4607', // Ethiopic
-    '4608-4863', // Cherokee + Canadian Aboriginal
-    '7680-7935', // Latin Extended Additional
-    '8192-8447', // General Punctuation, Superscripts/Subscripts, Currency Symbols
-    '8448-8703', // Letterlike Symbols, Number Forms, Arrows
-    '11904-12031', // CJK Radicals Supplement
-    '12032-12255', // Kangxi Radicals + CJK Symbols
-    '12288-12543', // Hiragana + Katakana
-    '12544-12799', // Bopomofo + Hangul Compatibility Jamo
-    '19968-20223', // CJK Unified Ideographs (first block)
-    '20224-20479', // CJK Unified Ideographs
-    '40960-42127', // Yi Syllables + Yi Radicals
-    '44032-55203', // Hangul Syllables (Korean)
-    '63744-64255', // CJK Compatibility Ideographs
-    '64256-64511', // Alphabetic Presentation Forms
-    '65024-65279', // Variation Selectors
-    '65280-65535', // Halfwidth and Fullwidth Forms
-  ] as const,
+  COMPREHENSIVE_RANGES: buildComprehensiveRanges(),
 } as const;
 
 // Style Configuration

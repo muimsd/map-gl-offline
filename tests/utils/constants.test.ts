@@ -143,6 +143,42 @@ describe('constants', () => {
     it('should include Arabic range in comprehensive ranges', () => {
       expect(GLYPH_CONFIG.COMPREHENSIVE_RANGES).toContain('1536-1791');
     });
+
+    it('should only contain server-valid 256-aligned glyph blocks', () => {
+      // Glyph servers require every request to be a 256-codepoint block
+      // aligned to a multiple of 256: `${k * 256}-${k * 256 + 255}`.
+      // A non-aligned or sub-/multi-block range is rejected with HTTP 400.
+      for (const range of GLYPH_CONFIG.COMPREHENSIVE_RANGES) {
+        expect(range).toMatch(/^\d+-\d+$/);
+        const [start, end] = range.split('-').map(Number);
+        expect(start % 256).toBe(0);
+        expect(end).toBe(start + 255);
+        expect(end).toBeLessThanOrEqual(65535);
+      }
+    });
+
+    it('should not contain the malformed ranges from issue #37', () => {
+      // These were Unicode block boundaries mistaken for glyph blocks:
+      // non-aligned starts, sub-256 widths, or multi-block spans. MapTiler
+      // rejected them with "Invalid glyph range" / HTTP 400.
+      const malformed = [
+        '11904-12031',
+        '12032-12255',
+        '40960-42127',
+        '44032-55203',
+        '63744-64255',
+      ];
+      for (const bad of malformed) {
+        expect(GLYPH_CONFIG.COMPREHENSIVE_RANGES).not.toContain(bad);
+      }
+    });
+
+    it('should have no duplicate ranges and be sorted ascending', () => {
+      const ranges = GLYPH_CONFIG.COMPREHENSIVE_RANGES;
+      expect(new Set(ranges).size).toBe(ranges.length);
+      const starts = ranges.map(r => Number(r.split('-')[0]));
+      expect(starts).toEqual([...starts].sort((a, b) => a - b));
+    });
   });
 
   describe('STYLE_CONFIG', () => {
