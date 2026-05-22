@@ -52,13 +52,11 @@ const map = new maplibregl.Map({
 const offlineManager = new OfflineMapManager();
 
 map.on('load', () => {
-  map.addControl(
-    new OfflineManagerControl(offlineManager, {
-      styleUrl: map.getStyle().sprite,
-      mapLib: maplibregl, // enables idb:// protocol
-    }),
-    'top-right',
-  );
+  const control = new OfflineManagerControl(offlineManager, {
+    styleUrl: 'https://api.maptiler.com/maps/streets/style.json?key=YOUR_KEY',
+    mapLib: maplibregl, // enables idb:// protocol in web workers
+  });
+  map.addControl(control, 'top-right');
 });
 ```
 
