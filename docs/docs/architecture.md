@@ -63,6 +63,7 @@ src/
 │   ├── spriteService.ts        # Sprite download
 │   ├── styleService.ts         # Style management
 │   ├── regionService.ts        # Region CRUD
+│   ├── modelService.ts         # 3D model (.glb) download/storage
 │   ├── analyticsService.ts     # Storage analytics
 │   ├── cleanupService.ts       # Data cleanup
 │   ├── maintenanceService.ts   # Maintenance tasks
@@ -78,6 +79,7 @@ src/
 │   ├── font.ts                 # Font types
 │   ├── glyph.ts                # Glyph types
 │   ├── sprite.ts               # Sprite types
+│   ├── model.ts                # 3D model types
 │   ├── style.ts                # Style types
 │   ├── progress.ts             # Progress types
 │   ├── cleanup.ts              # Cleanup types
@@ -140,6 +142,7 @@ src/
     ├── convertStyleForSW.ts    # Style conversion for Service Worker mode
     ├── swRegistration.ts       # Service Worker registration
     ├── cleanupCompressedTiles.ts # Compressed tile cleanup
+    ├── sqlJsLoader.ts          # Lazy sql.js loader for MBTiles
     ├── proxyConfig.ts          # CORS proxy configuration
     ├── cssPrefix.ts            # CSS class prefixing
     └── icons.ts                # Icon definitions
@@ -215,8 +218,8 @@ Provides a clean API over IndexedDB using the `idb` library:
 // Database structure (version 4)
 const db = await openDB('offline-map-db', DB_VERSION, {
   upgrade(db, oldVersion, _newVersion, transaction) {
-    // Create stores for fresh installs
-    const stores = ['tiles', 'styles', 'sprites', 'glyphs', 'fonts', 'models'];
+    // Create stores for fresh installs (`regions` is deprecated but still created)
+    const stores = ['regions', 'tiles', 'styles', 'sprites', 'glyphs', 'fonts', 'models'];
     for (const store of stores) {
       if (!db.objectStoreNames.contains(store)) {
         db.createObjectStore(store, { keyPath: 'key' });
@@ -248,7 +251,7 @@ Key features:
 
 - Transaction management
 - Cursor iteration for large datasets
-- Schema migrations (v1 -> v2 -> v3)
+- Schema migrations (v2 -> v3 -> v4)
 - Quota checking
 
 ## Data Flow
@@ -265,11 +268,11 @@ User initiates download
 └────────────┬───────────┘       (emits per-phase onProgress events)
              │
              ▼
-┌────────────────────────┐     ┌────────────────┐
-│    StyleService        │────▶│ Fetch style    │
-│    .downloadStyle()    │     │ (if missing)   │
-│     (phase: 'style')   │     └────────────────┘
-└────────────┬───────────┘
+┌──────────────────────────────┐     ┌────────────────┐
+│    StyleService              │────▶│ Fetch style    │
+│  .downloadStyleWithProvider()│     │ (if missing)   │
+│     (phase: 'style')         │     └────────────────┘
+└────────────┬─────────────────┘
              │
              ▼
 ┌────────────────────────┐     ┌────────────────┐
@@ -430,11 +433,13 @@ Errors are categorized for appropriate handling:
 
 ```typescript
 enum ErrorType {
-  NETWORK = 'network', // Network failures
-  QUOTA = 'quota', // Storage quota exceeded
-  VALIDATION = 'validation', // Invalid input
-  DATABASE = 'database', // IndexedDB errors
-  UNKNOWN = 'unknown', // Unexpected errors
+  NETWORK = 'NETWORK', // Transient network failures (retryable)
+  CORS = 'CORS', // CORS policy errors (not retryable)
+  STORAGE = 'STORAGE', // IndexedDB or storage-related errors
+  VALIDATION = 'VALIDATION', // Invalid input/configuration
+  PARSE = 'PARSE', // JSON parsing or data format errors
+  QUOTA = 'QUOTA', // Storage quota exceeded
+  UNKNOWN = 'UNKNOWN', // Uncategorized errors
 }
 ```
 

@@ -2,19 +2,13 @@
 
 A demo app showing `map-gl-offline` with MapLibre GL JS.
 
+It uses the free [OpenFreeMap](https://openfreemap.org/) `bright` style, so no API key is required.
+
 ## Setup
 
 ```bash
 npm install
 ```
-
-Create a `.env` file with your MapTiler API key:
-
-```env
-VITE_MAPTILER_API_KEY=your_api_key_here
-```
-
-Get a free key from [MapTiler](https://www.maptiler.com/).
 
 ## Run
 

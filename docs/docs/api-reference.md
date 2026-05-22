@@ -1003,8 +1003,8 @@ const stats = await tileService.getTileStats('style_123');
 ```typescript
 import { fontService } from 'map-gl-offline';
 
-// Download fonts/glyphs for a style
-await fontService.downloadFonts(glyphUrl, fontStacks, styleId, {
+// Download fonts for a style — fontUrls is an array of font file URLs
+await fontService.downloadFonts(fontUrls, styleId, {
   onProgress: p => console.log(p),
 });
 ```

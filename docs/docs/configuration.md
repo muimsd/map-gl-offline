@@ -202,7 +202,7 @@ The library uses IndexedDB with the following structure:
   - `fonts` - Font files
   - `models` - 3D model assets (e.g. Mapbox Standard trees / wind turbines); added in DB v4
 
-The legacy `regions` store (present in DB v1–v2) was fully dropped in v4. Regions have lived inside `styles.regions[]` since v3.
+The legacy `regions` store is still created for backward compatibility and migration, but it is deprecated and no longer written to. Regions have lived inside `styles.regions[]` since v3.
 
 On upgrade, the DB migrates additively — no data is moved and existing offline content is preserved. If the on-disk schema is newer than the library supports (common in shared-origin dev environments), `dbPromise` throws `OfflineMapDBVersionError`; call `resetOfflineMapDB()` to recover (destructive — wipes all stored offline data).
 
@@ -331,9 +331,10 @@ When an RTL language (Arabic) is active, the control automatically:
 
 The built-in `LanguageSelector` component renders a dropdown in the control panel header. It displays the current language code (e.g., "EN") and a globe icon. Clicking opens a dropdown listing all available languages with both their native name and English name.
 
-```typescript
-import { LanguageSelector } from 'map-gl-offline';
+`LanguageSelector` is an internal component used by `OfflineManagerControl`; it is not exported from the package's public API. The snippet below illustrates its shape for reference.
 
+```typescript
+// Internal component — not exported from 'map-gl-offline'.
 const selector = new LanguageSelector({
   onChange: language => {
     console.log(`User switched to: ${language}`);
@@ -416,7 +417,7 @@ Translation keys are organized by category using dot notation:
 | `warning.*`      | Warning messages     | `warning.compressedTiles`               |
 | `validation.*`   | Form validation      | `validation.required`                   |
 
-Interpolation uses double curly braces: `{{variableName}}`. For example, `'header.subtitle': '{{count}} regions - {{size}} total'`.
+Interpolation uses double curly braces: `{{variableName}}`. For example, `'header.subtitle': '{{count}} regions • {{size}} total'`.
 
 ---
 
