@@ -290,6 +290,13 @@ User initiates download
              │
              ▼
 ┌────────────────────────┐     ┌────────────────┐
+│    ModelService        │────▶│ Fetch 3D model │
+│    .downloadModels()   │     │ assets (.glb)  │
+│    (phase: 'models')   │     └────────────────┘
+└────────────┬───────────┘
+             │
+             ▼
+┌────────────────────────┐     ┌────────────────┐
 │  Source probe (3 tiles │────▶│ Skip sparse    │
 │  per source, majority  │     │ sources whose  │
 │  rule)                 │     │ probes 404     │

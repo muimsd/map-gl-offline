@@ -48,7 +48,7 @@ map.addControl(control, 'top-right');
 
 ### Programmatic Download
 
-Call `downloadRegion` to run the full pipeline (style → sprites → glyphs → tiles → metadata) with per-phase progress. `addRegion` on its own only stores metadata.
+Call `downloadRegion` to run the full pipeline (style → sprites → glyphs → models → tiles → metadata) with per-phase progress. `addRegion` on its own only stores metadata.
 
 ```typescript
 const manager = new OfflineMapManager();

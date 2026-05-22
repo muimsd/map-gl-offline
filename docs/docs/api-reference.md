@@ -28,7 +28,7 @@ The constructor accepts optional service overrides for dependency injection (adv
 
 #### `downloadRegion(region: OfflineRegionOptions, options?: DownloadRegionOptions): Promise<DownloadRegionResult>`
 
-Run the full offline-region pipeline: downloads the style (if not already stored), sprites, glyphs, tiles, then persists region metadata. Progress is reported per phase via `options.onProgress`.
+Run the full offline-region pipeline: downloads the style (if not already stored), sprites, glyphs, 3D models, tiles, then persists region metadata. Progress is reported per phase via `options.onProgress`.
 
 ```typescript
 await manager.downloadRegion(
@@ -45,7 +45,7 @@ await manager.downloadRegion(
   },
   {
     onProgress: ({ phase, completed, total, percentage, message }) => {
-      // phase: 'style' | 'sprites' | 'glyphs' | 'tiles' | 'metadata'
+      // phase: 'style' | 'sprites' | 'glyphs' | 'models' | 'tiles' | 'metadata'
       console.log(`[${phase}] ${completed}/${total} (${percentage.toFixed(1)}%)`);
     },
   }

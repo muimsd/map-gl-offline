@@ -12,7 +12,7 @@
  * - Integrates seamlessly as a MapLibre GL control
  * - Intercepts fetch requests to serve offline resources from IndexedDB
  * - Supports light and dark themes
- * - Shows download progress across all phases (style, sprites, glyphs, tiles)
+ * - Shows download progress across all phases (style, sprites, glyphs, models, tiles)
  * - Optional bounding box visualization for regions
  *
  * @example

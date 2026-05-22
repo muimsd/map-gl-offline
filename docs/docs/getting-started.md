@@ -188,7 +188,7 @@ The built-in UI control provides:
 
 ## Programmatic Usage (No UI)
 
-For more control, use the `OfflineMapManager` directly. Call `downloadRegion` to run the full pipeline (style → sprites → glyphs → tiles → metadata):
+For more control, use the `OfflineMapManager` directly. Call `downloadRegion` to run the full pipeline (style → sprites → glyphs → models → tiles → metadata):
 
 ```typescript
 const offlineManager = new OfflineMapManager();

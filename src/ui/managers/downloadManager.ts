@@ -2,14 +2,15 @@
  * Download Manager for offline map regions.
  *
  * This module handles the complete download workflow for offline map regions,
- * including styles, sprites, glyphs (fonts), and map tiles. It provides
+ * including styles, sprites, glyphs (fonts), 3D models, and map tiles. It provides
  * progress tracking across all download phases.
  *
  * **Download Phases:**
  * 1. `style` - Downloads the map style JSON and processes sources
  * 2. `sprites` - Downloads sprite images and JSON for map icons
  * 3. `glyphs` - Downloads font glyphs for text rendering
- * 4. `tiles` - Downloads map tiles for the specified region bounds
+ * 4. `models` - Downloads 3D model assets (Mapbox Standard trees / turbines)
+ * 5. `tiles` - Downloads map tiles for the specified region bounds
  *
  * **Usage:**
  * The DownloadManager is typically instantiated by the OfflineManagerControl

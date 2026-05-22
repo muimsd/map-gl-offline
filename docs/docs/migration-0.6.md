@@ -12,7 +12,7 @@ These are additive and do not break anything.
 
 ### `OfflineMapManager.downloadRegion(region, options?)`
 
-Runs the full offline pipeline (style → sprites → glyphs → tiles → metadata) and returns a `DownloadRegionResult`. This is the new primary entry point for programmatic downloads.
+Runs the full offline pipeline (style → sprites → glyphs → models → tiles → metadata) and returns a `DownloadRegionResult`. This is the new primary entry point for programmatic downloads.
 
 ```typescript
 await offlineManager.downloadRegion(

@@ -34,7 +34,7 @@
  * ```typescript
  * const offlineManager = new OfflineMapManager();
  *
- * // downloadRegion runs the full pipeline: style (if missing) → sprites → glyphs → tiles → metadata.
+ * // downloadRegion runs the full pipeline: style (if missing) → sprites → glyphs → models → tiles → metadata.
  * // addRegion on its own only stores metadata; use downloadRegion to actually fetch assets.
  * await offlineManager.downloadRegion(
  *   {

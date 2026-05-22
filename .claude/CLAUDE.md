@@ -63,7 +63,7 @@ Tiles are keyed as: `{styleId}:{sourceId}:{z}:{x}:{y}.{extension}`
 Use `createTileKey()` from `src/utils/tileKey.ts` for consistent key generation.
 
 ### Region Download Pipeline
-`OfflineMapManager.downloadRegion(region, options?)` is the primary programmatic entry point. It runs the full pipeline (style → sprites → glyphs → tiles → metadata) with per-phase `onProgress`. `loadRegion` is an alias.
+`OfflineMapManager.downloadRegion(region, options?)` is the primary programmatic entry point. It runs the full pipeline (style → sprites → glyphs → models → tiles → metadata) with per-phase `onProgress`. `loadRegion` is an alias.
 
 `addRegion` only stores region metadata and patches the style's URLs to `idb://`. It does **not** fetch tiles, sprites, or glyphs. Most callers want `downloadRegion`.
 

@@ -101,7 +101,7 @@ map.on('load', () =>
 
 ## Programmatic Usage
 
-`downloadRegion` runs the full pipeline (**style → sprites → glyphs → tiles → metadata**) with per-phase progress. `addRegion` alone only stores metadata — use `downloadRegion` to actually fetch assets.
+`downloadRegion` runs the full pipeline (**style → sprites → glyphs → models → tiles → metadata**) with per-phase progress. `addRegion` alone only stores metadata — use `downloadRegion` to actually fetch assets.
 
 ```typescript
 import { OfflineMapManager } from 'map-gl-offline';

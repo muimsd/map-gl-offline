@@ -25,7 +25,7 @@ export interface DownloadRegionProgress {
  * Options for the programmatic `downloadRegion` pipeline.
  */
 export interface DownloadRegionOptions {
-  /** Called with per-phase progress during style → sprites → glyphs → tiles → metadata. */
+  /** Called with per-phase progress during style → sprites → glyphs → models → tiles → metadata. */
   onProgress?: (progress: DownloadRegionProgress) => void;
   /** Style provider hint when the style needs to be fetched. Defaults to 'auto'. */
   provider?: StyleProvider;

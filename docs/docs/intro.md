@@ -136,7 +136,7 @@ When using MapLibre, pass `mapLib: maplibregl` in the control options to registe
 
 ### Programmatic download (no UI)
 
-Skip the UI control and drive the pipeline directly. `downloadRegion` runs the full flow (**style → sprites → glyphs → tiles → metadata**) with per-phase progress.
+Skip the UI control and drive the pipeline directly. `downloadRegion` runs the full flow (**style → sprites → glyphs → models → tiles → metadata**) with per-phase progress.
 
 ```typescript
 import { OfflineMapManager } from 'map-gl-offline';
