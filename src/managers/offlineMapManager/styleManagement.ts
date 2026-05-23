@@ -28,7 +28,7 @@ export interface StyleManagement {
     styleUrl: string,
     options?: StyleDownloadOptions & {
       provider?: StyleProvider;
-      accessToken?: string;
+      accessToken?: string | null;
       forceProvider?: boolean;
     }
   ): Promise<StyleDownloadResult>;
@@ -38,7 +38,7 @@ export interface StyleManagement {
   getStyleStats(styleId: string): Promise<EnhancedStyleStats>;
   downloadMapboxStyle(
     styleUrl: string,
-    accessToken?: string,
+    accessToken?: string | null,
     options?: StyleDownloadOptions
   ): Promise<StyleDownloadResult>;
   downloadMapLibreStyle(
@@ -57,7 +57,7 @@ export const createStyleManagement = (): StyleManagement => {
     styleUrl: string,
     options: StyleDownloadOptions & {
       provider?: StyleProvider;
-      accessToken?: string;
+      accessToken?: string | null;
       forceProvider?: boolean;
     } = {}
   ) => {
@@ -87,7 +87,7 @@ export const createStyleManagement = (): StyleManagement => {
 
   const downloadMapboxStyle = async (
     styleUrl: string,
-    accessToken?: string,
+    accessToken?: string | null,
     options: StyleDownloadOptions = {}
   ) =>
     downloadStyle(styleUrl, {

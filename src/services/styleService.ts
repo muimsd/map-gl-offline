@@ -47,7 +47,7 @@ function createStyleEntry(
     size?: number;
     sourceCount?: number;
     layerCount?: number;
-    accessToken?: string;
+    accessToken?: string | null;
   } = {}
 ): StyleEntry {
   return {
@@ -943,7 +943,7 @@ export async function downloadStyleWithProvider(
   styleUrl: string,
   options: StyleDownloadOptions & {
     provider?: StyleProvider;
-    accessToken?: string;
+    accessToken?: string | null;
     forceProvider?: boolean;
   } = {}
 ): Promise<StyleDownloadResult> {

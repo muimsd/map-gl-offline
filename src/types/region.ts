@@ -29,8 +29,12 @@ export interface DownloadRegionOptions {
   onProgress?: (progress: DownloadRegionProgress) => void;
   /** Style provider hint when the style needs to be fetched. Defaults to 'auto'. */
   provider?: StyleProvider;
-  /** Mapbox access token; required when the style or sources use mapbox:// URLs. */
-  accessToken?: string;
+  /**
+   * Mapbox access token; required when the style or sources use mapbox:// URLs.
+   * Accepts `null` to match Mapbox GL's `accessToken` type so callers can pass
+   * `mapboxgl.accessToken` directly without a cast; treated the same as omitted.
+   */
+  accessToken?: string | null;
   /** Skip glyph download entirely. Default: false. */
   skipGlyphs?: boolean;
   /** Skip sprite download entirely. Default: false. */
@@ -106,6 +110,21 @@ export interface ExtraSource {
 }
 
 /**
+ * Geographic bounding box as `[[west, south], [east, north]]`.
+ *
+ * Exposed as a public tuple alias so callers can annotate `bounds` literals
+ * (or arrays of them) without TypeScript widening them to `number[][]`. Use
+ * this in your own types for cities/regions lists, e.g.
+ *
+ * ```ts
+ * const cities: Array<{ id: string; bounds: BoundingBox }> = [
+ *   { id: 'nyc', bounds: [[-74.05, 40.68], [-73.90, 40.82]] },
+ * ];
+ * ```
+ */
+export type BoundingBox = [[number, number], [number, number]];
+
+/**
  * Configuration options for an offline region
  */
 export interface OfflineRegionOptions {
@@ -116,7 +135,7 @@ export interface OfflineRegionOptions {
   /** Human-readable region name */
   name: string;
   /** Geographic bounds: [[west, south], [east, north]] */
-  bounds: [[number, number], [number, number]];
+  bounds: BoundingBox;
   /** Whether this region is part of a multi-region download */
   multipleRegions?: boolean;
   /** URL to the map style JSON */

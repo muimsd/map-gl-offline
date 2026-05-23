@@ -124,8 +124,11 @@ export interface OfflineManagerControlOptions {
   theme?: 'light' | 'dark';
   /** Whether to show bounding boxes when focusing on regions */
   showBbox?: boolean;
-  /** Mapbox access token, pre-filled in the region download form for mapbox:// style URLs */
-  accessToken?: string;
+  /**
+   * Mapbox access token, pre-filled in the region download form for mapbox:// style URLs.
+   * Accepts `null` so callers can pass `mapboxgl.accessToken` directly; treated as omitted.
+   */
+  accessToken?: string | null;
   /**
    * Map library module that supports `addProtocol`/`removeProtocol`.
    * Pass `maplibregl` here so the `idb://` protocol is registered in web workers.

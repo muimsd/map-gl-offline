@@ -24,7 +24,7 @@ export interface RegionFormData {
   bounds: [number, number, number, number];
   // Enhanced Mapbox GL support
   provider?: 'mapbox' | 'maplibre' | 'auto';
-  accessToken?: string;
+  accessToken?: string | null;
   /** Additional tile sources to download alongside the style's own sources */
   extraSources?: import('@/types/region').ExtraSource[];
 }
@@ -54,7 +54,7 @@ export interface RegionFormOptions {
   onCancel: () => void;
   onThemeToggle?: () => void;
   styleUrl: string;
-  accessToken?: string;
+  accessToken?: string | null;
   /** Tile sources discovered from the live map for user selection */
   mapSources?: MapTileSource[];
 }

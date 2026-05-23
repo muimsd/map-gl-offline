@@ -137,6 +137,65 @@ await offlineManager.cleanupExpiredRegions();
 await offlineManager.setupAutoCleanup({ intervalHours: 24, maxAge: 30 });
 ```
 
+### Multi-region downloads (global overview + city detail)
+
+For app shipping use cases — a low-zoom basemap of the world, plus high-zoom detail in the cities your users actually visit — set `multipleRegions: true` on each region so the manager reuses the shared style/sprites/glyphs across downloads. The exported `BoundingBox` type keeps city lists from being widened to `number[][]`, so you can write the bounds inline without `as` casts.
+
+```typescript
+import mapboxgl from 'mapbox-gl';
+import {
+  OfflineMapManager,
+  type BoundingBox,
+  type DownloadRegionProgress,
+} from 'map-gl-offline';
+
+const offlineManager = new OfflineMapManager();
+const STYLE_URL = 'mapbox://styles/mapbox/standard';
+
+const opts = {
+  accessToken: mapboxgl.accessToken, // `string | null` is accepted — no cast needed
+  onProgress: ({ phase, percentage, message }: DownloadRegionProgress) =>
+    console.log(`[${phase}] ${percentage.toFixed(1)}% ${message ?? ''}`),
+};
+
+// 1) Whole planet, low zoom only (~5,500 tiles/source) — countries, major cities
+await offlineManager.downloadRegion(
+  {
+    id: 'global-overview',
+    name: 'Global overview',
+    bounds: [[-180, -85.0511], [180, 85.0511]], // ±85.0511° = Web Mercator cutoff
+    minZoom: 0,
+    maxZoom: 6,
+    styleUrl: STYLE_URL,
+    multipleRegions: true,
+  },
+  opts,
+);
+
+// 2) High-detail per city — tight bbox per place your users actually go
+const cities: Array<{ id: string; name: string; bounds: BoundingBox }> = [
+  { id: 'nyc',    name: 'New York', bounds: [[-74.05, 40.68], [-73.90, 40.82]] },
+  { id: 'london', name: 'London',   bounds: [[-0.25, 51.43],  [0.02, 51.57]]  },
+];
+
+for (const city of cities) {
+  await offlineManager.downloadRegion(
+    {
+      id: city.id,
+      name: city.name,
+      bounds: city.bounds,
+      minZoom: 6,   // overlaps the overview's maxZoom — clean handoff, no seam
+      maxZoom: 14,  // street-level detail
+      styleUrl: STYLE_URL,
+      multipleRegions: true,
+    },
+    opts,
+  );
+}
+```
+
+> **Don't download the whole globe at high zoom.** The tile count quadruples per zoom level — `minZoom: 0, maxZoom: 15` for the whole planet is ~1.4 billion tiles per source, which will blow past IndexedDB quota and may violate provider TOS. The two-tier setup above gives countries-everywhere plus streets-where-it-matters for a few thousand tiles total.
+
 ### Sparse-source detection
 
 For composite styles (e.g. Mapbox Standard) that reference sparse tilesets like `indoor-v3` or `landmark-pois-v1`, the tile downloader probes start/middle/end tiles per source and drops any that return majority-404. Disable with `tileOptions: { probeSourcesBeforeDownload: false }`.

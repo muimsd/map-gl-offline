@@ -60,7 +60,7 @@ export type StyleEntry = {
   glyphs: string[];
   sprites: string[];
   // Additional metadata for Mapbox GL
-  accessToken?: string;
+  accessToken?: string | null;
   originalUrl?: string;
   // Original resource URLs before patching (for re-downloads)
   originalSpriteUrl?: BaseStyle['sprite'];
@@ -80,7 +80,11 @@ export interface StyleDownloadOptions {
   enableSourceEmbedding?: boolean;
   storageQuotaCheck?: boolean;
   includeMetadata?: boolean;
-  accessToken?: string;
+  /**
+   * Mapbox access token. Accepts `null` to match `mapboxgl.accessToken`'s
+   * type so callers can pass it through without a cast; treated as omitted.
+   */
+  accessToken?: string | null;
 }
 
 export interface StyleDownloadResult {

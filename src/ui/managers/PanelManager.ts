@@ -763,7 +763,7 @@ export class PanelRenderer extends BaseComponent {
             try {
               const { loadStyleById } = await import('@/services/styleService');
               const styleEntry = await loadStyleById(region.styleId);
-              accessToken = styleEntry?.accessToken;
+              accessToken = styleEntry?.accessToken ?? undefined;
             } catch {
               panelLogger.warn('Could not retrieve access token from stored style');
             }

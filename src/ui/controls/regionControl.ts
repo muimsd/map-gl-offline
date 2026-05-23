@@ -27,7 +27,7 @@ export interface RegionControlOptions {
   container: HTMLDivElement;
   onRegionSaved?: () => void;
   styleUrl: string;
-  accessToken?: string;
+  accessToken?: string | null;
   cssPrefix?: CssPrefix;
 }
 
