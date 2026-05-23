@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.8] - 2026-05-23
+
+> **Pre-skip Mapbox Standard sparse sub-tilesets.** Mapbox Standard composites in three sources that are sparse-by-design across the planet — `mapbox.indoor-v3`, `mapbox.landmark-pois-v1`, `mapbox.procedural-buildings-v1` — which only have tiles where indoor venues / landmark POIs / 3D buildings actually exist. The downstream probe pass already detected and skipped them for most regions, but the probe HTTP requests themselves logged 404s in devtools (browsers log all non-2xx network responses at the protocol layer; nothing JS can suppress that). 0.8.8 hard-skips these sources *before* issuing any network request.
+
+### Added
+
+- **`MAPBOX_STANDARD_SPARSE_TILESETS`** constant in `src/utils/constants.ts` listing the three sparse tilesets.
+- **`urlReferencesKnownSparseTileset(template)`** helper exported from `@/services/tileService` — matches `mapbox://<tileset>`, resolved `/v4/<tileset>.json` (TileJSON), and resolved `/v4/<tileset>/{z}/{x}/{y}...` (tile template) forms.
+- **`TileDownloadOptions.skipKnownSparseSources?: boolean`** (default: `true`). Set `false` to attempt these sources anyway — the existing probe pass will still skip them for sparse-for-this-region cases, but the probe 404s will reappear in devtools.
+
+### Changed
+
+- Tile-download planning in `tileService.ts` now checks each source's tile templates against the sparse allowlist before the probe step. Sources matching one of the allowed tileset IDs are dropped entirely with an `info`-level log; no probe or download request is issued.
+
+### Tests
+
+- `+2` tests in `tileService.download.test.ts`: one verifies the default pre-skip (no fetch hits for any sparse tileset); the other verifies `skipKnownSparseSources: false` opts back into the probe path. Total: 1756 passing.
+
 ## [0.8.7] - 2026-05-23
 
 > **TypeScript ergonomics for Mapbox callers.** Two small but annoying friction points reported by a Mapbox + TypeScript user: `mapboxgl.accessToken` couldn't be passed directly because its type is `string | null | undefined`, and inline `bounds` literals on a separate `cities` array widened to `number[][]` instead of the required tuple. Both fixed.
