@@ -302,31 +302,26 @@ map.addControl(control, 'top-right');
 
 ### Download Multiple Regions
 
+Use the exported `BoundingBox` type (added in 0.8.7) so TypeScript doesn't widen the inline coordinate literals to `number[][]`.
+
 ```typescript
-const regions: { id: string; name: string; bounds: [[number, number], [number, number]] }[] = [
+import type { BoundingBox } from 'map-gl-offline';
+
+const regions: Array<{ id: string; name: string; bounds: BoundingBox }> = [
   {
     id: 'downtown',
     name: 'Downtown',
-    bounds: [
-      [-74.02, 40.7],
-      [-73.97, 40.75],
-    ],
+    bounds: [[-74.02, 40.70], [-73.97, 40.75]],
   },
   {
     id: 'brooklyn',
     name: 'Brooklyn',
-    bounds: [
-      [-74.04, 40.57],
-      [-73.85, 40.74],
-    ],
+    bounds: [[-74.04, 40.57], [-73.85, 40.74]],
   },
   {
     id: 'queens',
     name: 'Queens',
-    bounds: [
-      [-73.96, 40.68],
-      [-73.7, 40.81],
-    ],
+    bounds: [[-73.96, 40.68], [-73.70, 40.81]],
   },
 ];
 
@@ -337,6 +332,7 @@ for (const region of regions) {
       minZoom: 10,
       maxZoom: 14,
       styleUrl: STYLE_URL,
+      multipleRegions: true, // reuse shared style/sprites/glyphs across downloads
     },
     {
       onProgress: ({ percentage }) => console.log(`${region.name}: ${percentage.toFixed(0)}%`),
@@ -344,6 +340,58 @@ for (const region of regions) {
   );
 }
 ```
+
+### Two-Tier Setup (global overview + per-city detail)
+
+For app shipping use cases — a low-zoom basemap of the world plus high-zoom detail in cities your users actually visit — download a single low-zoom planet region followed by tight per-city regions. The overview's `maxZoom` should overlap each city's `minZoom` so there's no seam as the user zooms in.
+
+```typescript
+import type { BoundingBox, DownloadRegionProgress } from 'map-gl-offline';
+
+const STYLE_URL = 'mapbox://styles/mapbox/standard';
+const opts = {
+  accessToken: mapboxgl.accessToken, // accepts `string | null` — no cast needed
+  onProgress: ({ phase, percentage }: DownloadRegionProgress) =>
+    console.log(`[${phase}] ${percentage.toFixed(1)}%`),
+};
+
+// 1) Whole planet, low zoom only (~5,500 tiles/source) — countries, major cities
+await manager.downloadRegion(
+  {
+    id: 'global-overview',
+    name: 'Global overview',
+    bounds: [[-180, -85.0511], [180, 85.0511]], // ±85.0511° = Web Mercator cutoff
+    minZoom: 0,
+    maxZoom: 6,
+    styleUrl: STYLE_URL,
+    multipleRegions: true,
+  },
+  opts,
+);
+
+// 2) High-detail per city — tight bbox per place your users actually go
+const cities: Array<{ id: string; name: string; bounds: BoundingBox }> = [
+  { id: 'nyc',    name: 'New York', bounds: [[-74.05, 40.68], [-73.90, 40.82]] },
+  { id: 'london', name: 'London',   bounds: [[-0.25, 51.43],  [0.02, 51.57]]  },
+];
+
+for (const city of cities) {
+  await manager.downloadRegion(
+    {
+      ...city,
+      minZoom: 6,   // overlaps the overview's maxZoom — clean handoff, no seam
+      maxZoom: 14,  // street-level detail
+      styleUrl: STYLE_URL,
+      multipleRegions: true,
+    },
+    opts,
+  );
+}
+```
+
+:::warning Don't download the whole globe at high zoom
+The tile count quadruples per zoom level. `minZoom: 0, maxZoom: 15` for the whole planet is ~1.4 billion tiles per source, which will blow past IndexedDB quota and may violate provider TOS. The two-tier setup above gives countries-everywhere plus streets-where-it-matters for a few thousand tiles total.
+:::
 
 ### List and Display Regions
 

@@ -58,7 +58,7 @@ await manager.downloadRegion(
 | ------------- | ------------------------------------- | ------------------------------------------------------------------------------------- |
 | `onProgress`  | `(p: DownloadRegionProgress) => void` | Called with `{ phase, completed, total, percentage, message? }` during each phase.    |
 | `provider`    | `'auto' \| 'mapbox' \| 'maplibre'`    | Style provider hint when fetching the style. Defaults to `'auto'`.                    |
-| `accessToken` | `string`                              | Mapbox access token; required for `mapbox://` URLs.                                   |
+| `accessToken` | `string \| null`                      | Mapbox access token; required for `mapbox://` URLs. Accepts `null` (since 0.8.7) so `mapboxgl.accessToken` can be passed directly — `null` is treated as omitted. |
 | `skipSprites` | `boolean`                             | Skip the sprite-download phase. Default `false`.                                      |
 | `skipGlyphs`  | `boolean`                             | Skip the glyph-download phase. Default `false`.                                       |
 | `glyphRanges` | `string[]`                            | Override Unicode glyph ranges. Defaults to `GLYPH_CONFIG.COMPREHENSIVE_RANGES`.       |
@@ -248,7 +248,8 @@ Options that `downloadRegion` forwards to the tile downloader (or that you can p
 
 | Option                       | Type       | Default | Description                                                                                                                                                                                                                                                                                                                   |
 | ---------------------------- | ---------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `probeSourcesBeforeDownload` | `boolean`  | `true`  | Fetch 3 representative tiles (start, middle, end) per source before committing its full plan. Majority-404 sources are dropped entirely. Keeps the console clean for composite styles (e.g. Mapbox Standard) that reference sparse tilesets like `indoor-v3` or `landmark-pois-v1` that only have data at specific locations. |
+| `skipKnownSparseSources`     | `boolean`  | `true`  | **Added in 0.8.8.** Hard-skip Mapbox Standard sub-tilesets that are sparse-by-design across the whole planet — `mapbox.indoor-v3`, `mapbox.landmark-pois-v1`, `mapbox.procedural-buildings-v1` — *before* any network request is issued. Eliminates the 404s these would otherwise log in devtools (browsers log all non-2xx network responses at the protocol layer; JS can't suppress them). Set `false` to fall through to the probe-only path. |
+| `probeSourcesBeforeDownload` | `boolean`  | `true`  | Fetch 3 representative tiles (start, middle, end) per source before committing its full plan. Majority-404 sources are dropped entirely. Keeps the console clean for composite styles that reference sparse tilesets which only have data at specific locations. The three known Mapbox Standard sparse tilesets are pre-skipped by `skipKnownSparseSources` first; this probe step catches any other sparse sources at runtime. |
 | `skipExisting`               | `boolean`  | `true`  | Skip tiles already present in IndexedDB.                                                                                                                                                                                                                                                                                      |
 | `batchSize`                  | `number`   | `10`    | Concurrent tiles per batch.                                                                                                                                                                                                                                                                                                   |
 | `maxRetries`                 | `number`   | `3`     | Per-tile retry count before giving up.                                                                                                                                                                                                                                                                                        |
@@ -581,8 +582,8 @@ const control = new OfflineManagerControl(
 | `styleUrl`    | `string`            | `'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json'` | URL of the map style used for new region downloads                                                                    |
 | `theme`       | `'light' \| 'dark'` | `'dark'`                                                         | UI theme. The user's choice is persisted in `localStorage` and takes precedence over this default on subsequent loads |
 | `showBbox`    | `boolean`           | `false`                                                          | Show a blue bounding box polygon on the map when focusing on a region                                                 |
-| `accessToken` | `string`            | `undefined`                                                      | Mapbox access token (required for `mapbox://` URLs)                                                                   |
-| `mapLib`      | `MapLibProtocol`    | `undefined`                                                      | Map library module (e.g., `maplibregl`) for registering the `idb://` protocol in web workers                          |
+| `accessToken` | `string \| null`    | `undefined`                                                      | Mapbox access token (required for `mapbox://` URLs). Accepts `null` (since 0.8.7) so `mapboxgl.accessToken` works directly. |
+| `mapLib`      | `MapLibProtocol`    | `undefined`                                                      | Map library module that exposes `addProtocol`/`removeProtocol` (i.e. MapLibre GL — pass `maplibregl`) for registering the `idb://` protocol in web workers. **Do not pass `mapboxgl`** — Mapbox GL JS v3 has no `addProtocol`, so it doesn't satisfy the type. Omit `mapLib` for Mapbox and the control falls back to a Service Worker. |
 
 ```typescript
 import { OfflineMapManager, OfflineManagerControl } from 'map-gl-offline';
@@ -651,6 +652,22 @@ const url = control.getCurrentStyleUrl();
 
 ## Types
 
+### BoundingBox
+
+Exported tuple alias for the `bounds` shape used by `OfflineRegionOptions`. Use it to annotate region lists in your own code so TypeScript doesn't widen inline coordinate literals to `number[][]`.
+
+```typescript
+type BoundingBox = [[number, number], [number, number]]; // [[west, south], [east, north]]
+
+// Example: a list of cities for a multi-region download
+const cities: Array<{ id: string; name: string; bounds: BoundingBox }> = [
+  { id: 'nyc',    name: 'New York', bounds: [[-74.05, 40.68], [-73.90, 40.82]] },
+  { id: 'london', name: 'London',   bounds: [[-0.25, 51.43],  [0.02, 51.57]]  },
+];
+```
+
+Added in 0.8.7.
+
 ### OfflineRegionOptions
 
 ```typescript
@@ -660,7 +677,7 @@ interface OfflineRegionOptions {
   /** Human-readable region name */
   name: string;
   /** Geographic bounds: [[west, south], [east, north]] */
-  bounds: [[number, number], [number, number]];
+  bounds: BoundingBox;
   /** Minimum zoom level to download */
   minZoom: number;
   /** Maximum zoom level to download */

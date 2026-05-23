@@ -33,8 +33,8 @@ const control = new OfflineManagerControl(offlineManager, {
 | `styleUrl`    | `string`            | Carto Voyager | Map style URL for new region downloads                                       |
 | `theme`       | `'light' \| 'dark'` | `'dark'`      | UI theme for the control panel                                               |
 | `showBbox`    | `boolean`           | `false`       | Show bounding box overlay when focusing on regions                           |
-| `accessToken` | `string`            | `undefined`   | Mapbox access token (required for `mapbox://` URLs)                          |
-| `mapLib`      | `MapLibProtocol`    | `undefined`   | Map library module (e.g., `maplibregl`) for `idb://` protocol in web workers |
+| `accessToken` | `string \| null`    | `undefined`   | Mapbox access token (required for `mapbox://` URLs). Accepts `null` (since 0.8.7) so `mapboxgl.accessToken` works directly. |
+| `mapLib`      | `MapLibProtocol`    | `undefined`   | Map library module that exposes `addProtocol`/`removeProtocol` — pass `maplibregl` to enable `idb://` resolution inside MapLibre's web workers. Omit for Mapbox GL JS v3 (it has no `addProtocol`); the control falls back to a Service Worker. |
 
 ## Region Configuration
 
