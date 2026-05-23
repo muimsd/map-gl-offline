@@ -54,15 +54,52 @@ function App() {
     // Add the offline manager control with dark theme.
     // OfflineManagerControl satisfies both MapLibre's and Mapbox's IControl
     // (since 0.8.5) — no cast needed.
+    // accessToken accepts `string | null` (since 0.8.7), so `mapboxgl.accessToken`
+    // — typed `string | null | undefined` by Mapbox GL — can be passed directly.
+    // Note: `mapLib` is omitted because Mapbox GL v3 has no `addProtocol`; the
+    // library falls back to a Service Worker for offline tile serving. See the
+    // README "Mapbox GL JS" section for the one-time setup (`npx map-gl-offline init`).
     map.current.addControl(
       new OfflineManagerControl(offlineManager.current, {
         styleUrl,
         theme: 'dark',
-        mapLib: mapboxgl,
-        accessToken: token,
+        accessToken: mapboxgl.accessToken,
       }),
       'top-right'
     );
+
+    // Programmatic two-tier download (uncomment to try): a low-zoom global
+    // overview plus high-zoom detail per city. `BoundingBox` keeps inline
+    // coordinate literals from widening to `number[][]`.
+    //
+    // import type { BoundingBox, DownloadRegionProgress } from 'map-gl-offline';
+    //
+    // const opts = {
+    //   accessToken: mapboxgl.accessToken,
+    //   onProgress: ({ phase, percentage }: DownloadRegionProgress) =>
+    //     console.log(`[${phase}] ${percentage.toFixed(1)}%`),
+    // };
+    // await offlineManager.current.downloadRegion(
+    //   {
+    //     id: 'global-overview',
+    //     name: 'Global overview',
+    //     bounds: [[-180, -85.0511], [180, 85.0511]],
+    //     minZoom: 0,
+    //     maxZoom: 6,
+    //     styleUrl,
+    //     multipleRegions: true,
+    //   },
+    //   opts,
+    // );
+    // const cities: Array<{ id: string; name: string; bounds: BoundingBox }> = [
+    //   { id: 'baghdad', name: 'Baghdad', bounds: [[44.30, 33.24], [44.45, 33.36]] },
+    // ];
+    // for (const city of cities) {
+    //   await offlineManager.current.downloadRegion(
+    //     { ...city, minZoom: 6, maxZoom: 14, styleUrl, multipleRegions: true },
+    //     opts,
+    //   );
+    // }
   }, [token]);
 
   if (!token) {

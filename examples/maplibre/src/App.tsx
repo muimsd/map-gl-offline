@@ -61,6 +61,38 @@ function App() {
       }),
       'top-right'
     );
+
+    // Programmatic two-tier download (uncomment to try): a low-zoom global
+    // overview plus high-zoom detail per city. `BoundingBox` (exported since
+    // 0.8.7) keeps inline coordinate literals from widening to `number[][]`.
+    //
+    // import type { BoundingBox, DownloadRegionProgress } from 'map-gl-offline';
+    //
+    // const opts = {
+    //   onProgress: ({ phase, percentage }: DownloadRegionProgress) =>
+    //     console.log(`[${phase}] ${percentage.toFixed(1)}%`),
+    // };
+    // await offlineManager.current.downloadRegion(
+    //   {
+    //     id: 'global-overview',
+    //     name: 'Global overview',
+    //     bounds: [[-180, -85.0511], [180, 85.0511]],
+    //     minZoom: 0,
+    //     maxZoom: 6,
+    //     styleUrl,
+    //     multipleRegions: true,
+    //   },
+    //   opts,
+    // );
+    // const cities: Array<{ id: string; name: string; bounds: BoundingBox }> = [
+    //   { id: 'baghdad', name: 'Baghdad', bounds: [[44.30, 33.24], [44.45, 33.36]] },
+    // ];
+    // for (const city of cities) {
+    //   await offlineManager.current.downloadRegion(
+    //     { ...city, minZoom: 6, maxZoom: 14, styleUrl, multipleRegions: true },
+    //     opts,
+    //   );
+    // }
   }, []);
   return <div style={{ width: '100vw', height: '100vh' }} ref={mapContainer}></div>;
 }
