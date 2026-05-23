@@ -172,6 +172,24 @@ export const MAPBOX_API = {
   PROTOCOL: 'mapbox://',
 } as const;
 
+/**
+ * Mapbox Standard sub-tilesets that are sparse-by-design across the planet.
+ * These only have tiles where the underlying feature (indoor venues, landmark
+ * POIs, 3D procedural buildings) actually exists, and return 404 for nearly
+ * every other coordinate. The tile downloader pre-skips any source whose tile
+ * URL templates reference one of these tileset IDs, so we never issue probe
+ * or download requests for them — eliminating the 404 noise in devtools.
+ *
+ * Matching is done against the tileset segment of the tile URL template
+ * (e.g. `https://api.mapbox.com/v4/mapbox.indoor-v3/{z}/{x}/{y}.vector.pbf`
+ * or `mapbox://mapbox.indoor-v3`).
+ */
+export const MAPBOX_STANDARD_SPARSE_TILESETS = [
+  'mapbox.indoor-v3',
+  'mapbox.landmark-pois-v1',
+  'mapbox.procedural-buildings-v1',
+] as const;
+
 // Map Providers
 export const MAP_PROVIDERS = {
   AUTO: 'auto',

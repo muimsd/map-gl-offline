@@ -82,6 +82,20 @@ export interface TileDownloadOptions {
    * (old behavior — noisier, but guaranteed-complete).
    */
   probeSourcesBeforeDownload?: boolean;
+  /**
+   * Pre-skip a small allowlist of Mapbox Standard sub-tilesets that are
+   * sparse-by-design across the whole planet — `mapbox.indoor-v3`,
+   * `mapbox.landmark-pois-v1`, `mapbox.procedural-buildings-v1`. These
+   * have tiles only where indoor venues / landmark POIs / 3D buildings
+   * actually exist; for typical regions they return 404 for nearly every
+   * coordinate. Pre-skipping means we never issue probe or download
+   * requests for them, eliminating the 404 noise in devtools.
+   *
+   * Default: `true`. Set `false` to attempt these sources anyway — the
+   * downstream `probeSourcesBeforeDownload` pass will still skip them
+   * for most regions, but you'll see the probe 404s in the network log.
+   */
+  skipKnownSparseSources?: boolean;
 }
 
 /**

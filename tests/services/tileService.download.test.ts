@@ -1005,4 +1005,104 @@ describe('TileService.downloadTiles (mocked fetch)', () => {
     // Should have at least attempted at least one tile at z5.
     expect(result.totalTiles).toBeGreaterThanOrEqual(0);
   });
+
+  it('pre-skips Mapbox Standard sparse sub-tilesets (skipKnownSparseSources default)', async () => {
+    // No probe should be issued; no tile downloads attempted for the sparse
+    // source. The clean source alongside it should still download normally.
+    const fetchSpy = jest
+      .fn()
+      .mockResolvedValue(new Response(null, { status: 200 })) as unknown as typeof fetch;
+    global.fetch = fetchSpy;
+    mockFetchResource.mockResolvedValue(makePbf(48));
+
+    const region = {
+      id: 'region-sparse',
+      name: 'Region Sparse',
+      bounds: [[-1, -1], [1, 1]] as [[number, number], [number, number]],
+      minZoom: 0,
+      maxZoom: 0,
+    };
+    const style = {
+      version: 8 as const,
+      sources: {
+        indoor: {
+          type: 'vector',
+          tiles: [
+            'https://api.mapbox.com/v4/mapbox.indoor-v3/{z}/{x}/{y}.vector.pbf?access_token=pk.test',
+          ],
+        },
+        landmarks: {
+          type: 'vector',
+          tiles: ['mapbox://mapbox.landmark-pois-v1'],
+        },
+        buildings: {
+          type: 'vector',
+          tiles: ['https://api.mapbox.com/v4/mapbox.procedural-buildings-v1/{z}/{x}/{y}.vector.pbf'],
+        },
+        base: {
+          type: 'vector',
+          tiles: ['https://tiles.example.com/{z}/{x}/{y}.pbf'],
+        },
+      },
+      layers: [],
+    };
+
+    const result = await service.downloadTiles(region, style, 'style-sparse', {
+      storageQuotaCheck: false,
+      maxRetries: 0,
+      probeSourcesBeforeDownload: true, // probe ON, but sparse should pre-skip
+    });
+
+    // Only `base` should have made it into the plan.
+    expect(result.totalTiles).toBeGreaterThan(0);
+    // The only probe URL that should appear is for `base` (no mapbox.indoor-v3,
+    // mapbox.landmark-pois-v1, or mapbox.procedural-buildings-v1).
+    const fetchedUrls = (fetchSpy as unknown as jest.Mock).mock.calls.map(c => c[0] as string);
+    expect(
+      fetchedUrls.some(
+        u => u.includes('mapbox.indoor-v3') ||
+             u.includes('mapbox.landmark-pois-v1') ||
+             u.includes('mapbox.procedural-buildings-v1')
+      )
+    ).toBe(false);
+  });
+
+  it('processes sparse sources when skipKnownSparseSources: false', async () => {
+    // Probe returns 404 — downstream probe-skip should still drop the source,
+    // but the *probe URL* should now hit api.mapbox.com/v4/mapbox.indoor-v3.
+    const fetchSpy = jest
+      .fn()
+      .mockResolvedValue(new Response(null, { status: 404 })) as unknown as typeof fetch;
+    global.fetch = fetchSpy;
+
+    const region = {
+      id: 'region-sparse-opt-out',
+      name: 'Region Sparse Opt-out',
+      bounds: [[-1, -1], [1, 1]] as [[number, number], [number, number]],
+      minZoom: 0,
+      maxZoom: 0,
+    };
+    const style = {
+      version: 8 as const,
+      sources: {
+        indoor: {
+          type: 'vector',
+          tiles: [
+            'https://api.mapbox.com/v4/mapbox.indoor-v3/{z}/{x}/{y}.vector.pbf?access_token=pk.test',
+          ],
+        },
+      },
+      layers: [],
+    };
+
+    await service.downloadTiles(region, style, 'style-sparse-opt-out', {
+      storageQuotaCheck: false,
+      maxRetries: 0,
+      probeSourcesBeforeDownload: true,
+      skipKnownSparseSources: false,
+    });
+
+    const fetchedUrls = (fetchSpy as unknown as jest.Mock).mock.calls.map(c => c[0] as string);
+    expect(fetchedUrls.some(u => u.includes('mapbox.indoor-v3'))).toBe(true);
+  });
 });

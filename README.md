@@ -200,6 +200,8 @@ for (const city of cities) {
 
 For composite styles (e.g. Mapbox Standard) that reference sparse tilesets like `indoor-v3` or `landmark-pois-v1`, the tile downloader probes start/middle/end tiles per source and drops any that return majority-404. Disable with `tileOptions: { probeSourcesBeforeDownload: false }`.
 
+Three Mapbox Standard sub-tilesets are sparse-by-design across the planet — `mapbox.indoor-v3`, `mapbox.landmark-pois-v1`, `mapbox.procedural-buildings-v1`. Since 0.8.8 these are hard-skipped **before** the probe step so no network request is issued (and no 404s land in devtools). Opt out with `tileOptions: { skipKnownSparseSources: false }` to run them through the probe path instead.
+
 ### Recovering from an incompatible DB
 
 If another app on the same origin has created `offline-map-db` at a newer version, `dbPromise` throws a typed error. Offer a reset UX:

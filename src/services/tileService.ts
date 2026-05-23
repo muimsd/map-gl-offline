@@ -14,6 +14,7 @@ import {
   resolveMapboxUrl,
   rewriteMapboxCdnTileUrl,
 } from '@/utils/styleProviderUtils';
+import { MAPBOX_STANDARD_SPARSE_TILESETS } from '@/utils/constants';
 import type { FetchResourceResult } from '@/utils';
 import type {
   TileDownloadOptions,
@@ -25,6 +26,25 @@ import type {
 } from '@/types';
 
 const tileLogger = logger.scope('TileService');
+
+/**
+ * Match a tile-URL template against the known-sparse Mapbox Standard
+ * sub-tilesets. Catches:
+ *   - `mapbox://<tileset>` — original style source URL.
+ *   - `.../v4/<tileset>.json...` — resolved TileJSON URL produced when the
+ *     library resolves a `mapbox://` source URL into an HTTPS one.
+ *   - `.../v4/<tileset>/{z}/{x}/{y}...` — resolved tile-template URL.
+ */
+export function urlReferencesKnownSparseTileset(template: string): boolean {
+  return MAPBOX_STANDARD_SPARSE_TILESETS.some(tileset => {
+    if (template.includes(`mapbox://${tileset}`)) return true;
+    // `/v4/<tileset>` followed by `/` (tile template) or `.` (e.g. `.json`)
+    const idx = template.indexOf(`/${tileset}`);
+    if (idx === -1) return false;
+    const next = template[idx + tileset.length + 1];
+    return next === '/' || next === '.';
+  });
+}
 
 /**
  * Service for managing offline map tiles
@@ -62,6 +82,7 @@ export class TileService {
       compressTiles = false,
       bandwidthLimit,
       probeSourcesBeforeDownload = true,
+      skipKnownSparseSources = true,
     } = options;
 
     const startTime = Date.now();
@@ -190,6 +211,21 @@ export class TileService {
 
       if (!tiles || tiles.length === 0) {
         tileLogger.debug(`Skipping source ${sourceId}: no tiles array`);
+        continue;
+      }
+
+      // Pre-skip Mapbox Standard sparse sub-tilesets (indoor-v3 etc.) before
+      // issuing any network request. They 404 for nearly every coord in a
+      // typical region; the downstream probe step would catch them, but the
+      // probe itself logs 404s in devtools. Matching here keeps the console
+      // clean.
+      if (
+        skipKnownSparseSources &&
+        tiles.some(template => urlReferencesKnownSparseTileset(template))
+      ) {
+        tileLogger.info(
+          `Skipping source "${sourceId}" — references a known sparse Mapbox Standard sub-tileset (no probe/download issued)`
+        );
         continue;
       }
 
