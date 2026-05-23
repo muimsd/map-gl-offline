@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.7] - 2026-05-23
+
+> **TypeScript ergonomics for Mapbox callers.** Two small but annoying friction points reported by a Mapbox + TypeScript user: `mapboxgl.accessToken` couldn't be passed directly because its type is `string | null | undefined`, and inline `bounds` literals on a separate `cities` array widened to `number[][]` instead of the required tuple. Both fixed.
+
+### Changed
+
+- **`accessToken` accepts `string | null`** wherever it appears on the public surface — `OfflineRegionOptions` / `DownloadRegionOptions`, `StyleDownloadOptions`, `OfflineManagerControlOptions`, and the `downloadStyle` / `downloadMapboxStyle` manager methods. `null` is treated the same as omitted (every consumer already used `||` to coerce). This matches Mapbox GL's own `accessToken: string | null` typing so `accessToken: mapboxgl.accessToken` works without a cast.
+
+### Added
+
+- **`BoundingBox` type alias** exported from the public API: `type BoundingBox = [[number, number], [number, number]]`. Use it when you build region lists in a separate array — `Array<{ id: string; bounds: BoundingBox }>` keeps TypeScript from widening the inline coordinate literals to `number[][]`.
+- README section **"Multi-region downloads (global overview + city detail)"** with a full TypeScript example covering `BoundingBox`, the `multipleRegions` flag, and the two-tier (low-zoom planet + high-zoom cities) pattern. Includes a warning against attempting to download the whole globe at high zoom.
+
+### Internal
+
+- Widened a handful of internal pass-through accessToken positions (`downloadStyleWithProvider`, `RegionControl`, `RegionFormModal`, `createStyleEntry` metadata) so the new public types compose cleanly without casts at boundaries. One `?? undefined` coercion added in `PanelManager` where a stored token feeds back into form data typed `string | undefined`.
+
 ## [0.8.2] - 2026-04-24
 
 > **Refactor: build offline Service Worker from TypeScript source.** The SW (`public/idb-offline-sw.js`) and the main-thread fetch handler (`src/utils/idbFetchHandler.ts`) previously implemented the same routing logic twice — tile/glyph/sprite/model/tilejson resolution, region-by-style lookup, candidate-key building. Every fix had to land in both files, and the SW quietly missed its `model` handler for two releases because of it. Now both sides import pure helpers from `src/sw/shared.ts`, and the SW itself is compiled by esbuild from `src/sw/offline-sw.ts` into a single self-contained `public/idb-offline-sw.js`. No runtime behavior change.
