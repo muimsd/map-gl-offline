@@ -1,7 +1,14 @@
 /**
  * Tests for Tile Service
  */
-import { TileService, tileService, getTileStats, getTileAnalytics, cleanupOldTiles } from '../../src/services/tileService';
+import {
+  TileService,
+  tileService,
+  getTileStats,
+  getTileAnalytics,
+  cleanupOldTiles,
+  urlReferencesKnownSparseTileset,
+} from '../../src/services/tileService';
 import { dbPromise } from '../../src/storage/indexedDbManager';
 
 describe('TileService', () => {
@@ -562,7 +569,10 @@ describe('TileService', () => {
           landmarks: {
             type: 'vector',
             tiles: [
-              'https://a.tiles.mapbox.com/v4/mapbox.mapbox-landmark-pois-v1/{z}/{x}/{y}.vector.pbf',
+              // Deliberately NOT a Mapbox Standard tileset: those are pre-skipped
+              // by `skipKnownSparseSources` before the probe step, which would
+              // short-circuit the behaviour under test here.
+              'https://tiles.example.com/sparse/{z}/{x}/{y}.pbf',
             ],
           },
         },
@@ -608,7 +618,10 @@ describe('TileService', () => {
           mixed: {
             type: 'vector',
             tiles: [
-              'https://a.tiles.mapbox.com/v4/mapbox.mapbox-landmark-pois-v1/{z}/{x}/{y}.vector.pbf',
+              // Deliberately NOT a Mapbox Standard tileset: those are pre-skipped
+              // by `skipKnownSparseSources` before the probe step, which would
+              // short-circuit the behaviour under test here.
+              'https://tiles.example.com/sparse/{z}/{x}/{y}.pbf',
             ],
           },
         },
@@ -647,7 +660,10 @@ describe('TileService', () => {
           landmarks: {
             type: 'vector',
             tiles: [
-              'https://a.tiles.mapbox.com/v4/mapbox.mapbox-landmark-pois-v1/{z}/{x}/{y}.vector.pbf',
+              // Deliberately NOT a Mapbox Standard tileset: those are pre-skipped
+              // by `skipKnownSparseSources` before the probe step, which would
+              // short-circuit the behaviour under test here.
+              'https://tiles.example.com/sparse/{z}/{x}/{y}.pbf',
             ],
           },
         },
@@ -1163,5 +1179,54 @@ describe('TileService', () => {
       const distribution = analytics.distribution as { tilesByZoom: Record<string, number> };
       expect(Object.keys(distribution.tilesByZoom).length).toBe(0);
     });
+  });
+});
+
+describe('urlReferencesKnownSparseTileset', () => {
+  // These are the exact source URLs the live Mapbox Standard style declares
+  // for its three sparse-by-design sub-tilesets. The matcher is
+  // delimiter-anchored, so an approximate tileset id silently never matches —
+  // pin the real ones here.
+  const STANDARD_SPARSE_SOURCE_URLS = [
+    'mapbox://mapbox.indoor-v3',
+    'mapbox://mapbox.mapbox-landmark-pois-v1',
+    'mapbox://mapbox.procedural-buildings-v1',
+  ];
+
+  it.each(STANDARD_SPARSE_SOURCE_URLS)('matches the mapbox:// form of %s', url => {
+    expect(urlReferencesKnownSparseTileset(url)).toBe(true);
+  });
+
+  it.each(STANDARD_SPARSE_SOURCE_URLS)('matches the resolved TileJSON form of %s', url => {
+    const tileset = url.replace('mapbox://', '');
+    expect(
+      urlReferencesKnownSparseTileset(
+        `https://api.mapbox.com/v4/${tileset}.json?access_token=pk.test`
+      )
+    ).toBe(true);
+  });
+
+  it.each(STANDARD_SPARSE_SOURCE_URLS)('matches the resolved tile-template form of %s', url => {
+    const tileset = url.replace('mapbox://', '');
+    expect(
+      urlReferencesKnownSparseTileset(
+        `https://api.mapbox.com/v4/${tileset}/{z}/{x}/{y}.vector.pbf?access_token=pk.test`
+      )
+    ).toBe(true);
+  });
+
+  it('does not match dense Mapbox Standard sources', () => {
+    // `mapbox-landmark-icons-v1` is a different (raster-array) tileset that
+    // must not be caught by the landmark-POI entry.
+    const dense = [
+      'mapbox://mapbox.mapbox-streets-v8',
+      'mapbox://mapbox.mapbox-terrain-dem-v1',
+      'mapbox://mapbox.mapbox-landmark-icons-v1',
+      'https://api.mapbox.com/v4/mapbox.mapbox-streets-v8/{z}/{x}/{y}.vector.pbf',
+      'https://tiles.example.com/{z}/{x}/{y}.pbf',
+    ];
+    for (const url of dense) {
+      expect(urlReferencesKnownSparseTileset(url)).toBe(false);
+    }
   });
 });

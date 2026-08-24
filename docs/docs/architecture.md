@@ -71,6 +71,8 @@ src/
 │   └── resourceService.ts      # Resource management
 ├── storage/
 │   └── indexedDbManager.ts     # IndexedDB wrapper
+├── styles/
+│   └── style.css               # Tailwind source, built to dist/style.css
 ├── types/
 │   ├── index.ts                # Type exports
 │   ├── database.ts             # IndexedDB schema types
@@ -95,6 +97,7 @@ src/
 │   │   └── ar.ts               # Arabic translations (RTL)
 │   ├── components/             # UI components
 │   │   ├── shared/             # Reusable components
+│   │   │   ├── index.ts        # Barrel export
 │   │   │   ├── BaseComponent.ts
 │   │   │   ├── Button.ts
 │   │   │   ├── LanguageSelector.ts
@@ -119,7 +122,7 @@ src/
 │   │   ├── modalManager.ts
 │   │   ├── regionFormModal.ts
 │   │   ├── regionDetailsModal.ts
-│   │   ├── importExportModal.ts
+│   │   ├── mbtilesModal.ts     # MBTiles import/export dialog
 │   │   └── confirmationModal.ts
 │   └── utils/
 │       └── keyboardNav.ts      # Keyboard navigation helpers
@@ -169,22 +172,23 @@ Each module provides specific functionality:
 
 | Module                   | Responsibility                                |
 | ------------------------ | --------------------------------------------- |
-| `BaseManager`            | Core initialization, database access          |
 | `RegionManagement`       | CRUD operations for regions                   |
 | `StyleManagement`        | Style loading, patching, caching              |
 | `AnalyticsManagement`    | Storage statistics and insights               |
 | `CleanupManagement`      | Cleanup expired data                          |
 | `ImportExportManagement` | Round-trip regions as binary MBTiles (SQLite) |
 | `MaintenanceManagement`  | Verification, repair tasks                    |
-| `ResourceManagement`     | Tile, font, sprite management                 |
+| `ResourceManagement`     | Tile, font, sprite, glyph and model management |
+
+`base.ts` isn't a module — it builds the shared service instances (`RegionService`, `CleanupService`, `ResourceService`, `AnalyticsService`, `ImportExportService`) that every module is constructed with, and accepts overrides for dependency injection.
 
 ### OfflineManagerControl
 
-The MapLibre GL JS control that provides the UI. Implements the `IControl` interface:
+The control that provides the UI, usable with both MapLibre GL JS and Mapbox GL JS. It implements the `IControl` interface against a renderer-agnostic structural map type, so it stays assignable to both libraries' `IControl` without a cast:
 
 ```typescript
 interface IControl {
-  onAdd(map: Map): HTMLElement;
+  onAdd(map: ControlMap): HTMLElement;
   onRemove(): void;
 }
 ```
@@ -506,18 +510,30 @@ export const MAPBOX_API = {
 tests/
 ├── services/               # Service unit tests
 │   ├── tileService.test.ts
+│   ├── tileService.download.test.ts   # download-pipeline cases (probe, sparse skip)
 │   ├── fontService.test.ts
+│   ├── fontService.download.test.ts
 │   ├── glyphService.test.ts
+│   ├── glyphService.download.test.ts
 │   ├── spriteService.test.ts
+│   ├── spriteService.download.test.ts
 │   ├── styleService.test.ts
+│   ├── styleService.download.test.ts
 │   ├── regionService.test.ts
+│   ├── modelService.test.ts
 │   ├── cleanupService.test.ts
 │   ├── analyticsService.test.ts
 │   ├── maintenanceService.test.ts
 │   ├── importExportService.test.ts
 │   └── resourceService.test.ts
+├── managers/               # Manager composition tests
+│   └── offlineMapManager/
 ├── storage/                # Storage layer tests
-│   └── indexedDbManager.test.ts
+│   ├── indexedDbManager.test.ts
+│   ├── migration.test.ts
+│   └── resetOfflineMapDB.test.ts
+├── sw/                     # Service Worker shared-helper tests
+│   └── shared.test.ts
 ├── utils/                  # Utility tests
 ├── ui/                     # UI component tests
 │   ├── offlineManagerControl.test.ts
@@ -525,12 +541,17 @@ tests/
 │   ├── components/
 │   ├── controls/
 │   ├── managers/
-│   └── modals/
+│   ├── modals/
+│   ├── translations/
+│   └── utils/
+├── bundle/                 # Built-artifact contract tests (skipped if dist/ is absent)
+│   └── umdBundle.test.ts
 ├── integration/            # Integration tests
 │   └── serviceIntegration.test.ts
 ├── e2e/                    # End-to-end tests
 │   └── downloadTiles.test.ts
 ├── offlineManager.test.ts  # Main manager tests
+├── package.test.ts         # Public entry-point smoke test
 └── setup.ts                # Test setup (fake-indexeddb)
 ```
 
@@ -543,11 +564,13 @@ Key testing patterns:
 
 ## Performance Considerations
 
-1. **Batch Downloads**: Tiles downloaded in configurable batches to avoid overwhelming the browser
-2. **Concurrent Limits**: Respects browser's connection limits (6 per host)
-3. **Memory Management**: Streams large data instead of loading into memory
-4. **Lazy Loading**: Services loaded on demand
-5. **Efficient Queries**: IndexedDB indexes for common lookups
+1. **Batch Downloads**: Tiles are fetched in configurable batches (`batchSize`, default 10) so a large region doesn't open thousands of concurrent requests
+2. **Concurrent Limits**: `maxConcurrency` (default 5) stays under the browser's per-host connection budget
+3. **Sparse-source elimination**: known-sparse tilesets are pre-skipped and every other source is probed, so no plan commits to a source that would 404 across the region
+4. **Lazy Loading**: heavy modules are dynamically imported at first use — `styleService` from the manager's style module, and `sql.js` only when MBTiles import/export runs
+5. **Cursor iteration**: cleanup and stats walk stores with cursors rather than `getAll`, so memory stays flat on large tile stores
+
+Stores are keyed by a single composite `key` (`keyPath: 'key'`) and carry no secondary indexes — lookups are direct key gets, and anything else (per-style, per-zoom, per-age) is a cursor scan.
 
 ## Security Considerations
 

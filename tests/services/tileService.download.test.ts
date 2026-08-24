@@ -1033,7 +1033,7 @@ describe('TileService.downloadTiles (mocked fetch)', () => {
         },
         landmarks: {
           type: 'vector',
-          tiles: ['mapbox://mapbox.landmark-pois-v1'],
+          tiles: ['mapbox://mapbox.mapbox-landmark-pois-v1'],
         },
         buildings: {
           type: 'vector',
@@ -1056,12 +1056,12 @@ describe('TileService.downloadTiles (mocked fetch)', () => {
     // Only `base` should have made it into the plan.
     expect(result.totalTiles).toBeGreaterThan(0);
     // The only probe URL that should appear is for `base` (no mapbox.indoor-v3,
-    // mapbox.landmark-pois-v1, or mapbox.procedural-buildings-v1).
+    // mapbox.mapbox-landmark-pois-v1, or mapbox.procedural-buildings-v1).
     const fetchedUrls = (fetchSpy as unknown as jest.Mock).mock.calls.map(c => c[0] as string);
     expect(
       fetchedUrls.some(
         u => u.includes('mapbox.indoor-v3') ||
-             u.includes('mapbox.landmark-pois-v1') ||
+             u.includes('mapbox-landmark-pois-v1') ||
              u.includes('mapbox.procedural-buildings-v1')
       )
     ).toBe(false);

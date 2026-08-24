@@ -61,10 +61,11 @@ await manager.downloadRegion(
 | `accessToken` | `string \| null`                      | Mapbox access token; required for `mapbox://` URLs. Accepts `null` (since 0.8.7) so `mapboxgl.accessToken` can be passed directly — `null` is treated as omitted. |
 | `skipSprites` | `boolean`                             | Skip the sprite-download phase. Default `false`.                                      |
 | `skipGlyphs`  | `boolean`                             | Skip the glyph-download phase. Default `false`.                                       |
+| `skipModels`  | `boolean`                             | Skip the 3D-model phase. Default `false`. Models are declared via `style.models` and live at `mapbox://models/…` URLs, so skipping is free for styles without model layers — and saves storage on Mapbox Standard at the cost of trees / wind turbines not rendering. |
 | `glyphRanges` | `string[]`                            | Override Unicode glyph ranges. Defaults to `GLYPH_CONFIG.COMPREHENSIVE_RANGES`.       |
 | `tileOptions` | `TileDownloadOptions`                 | Forwarded to the tile download step (e.g. `probeSourcesBeforeDownload`, `batchSize`). |
 
-**`DownloadRegionResult`** includes `regionId`, `styleId`, `styleResult?`, `spriteResults`, `glyphResult?`, and `tileResult`.
+**`DownloadRegionResult`** includes `regionId`, `styleId`, `styleResult?`, `spriteResults`, `glyphResult?`, `modelResult?`, and `tileResult`. `styleResult` is present only when the style wasn't already stored; `glyphResult` / `modelResult` are absent when the corresponding phase was skipped or had nothing to fetch.
 
 #### `loadRegion(region: OfflineRegionOptions, options?: DownloadRegionOptions): Promise<DownloadRegionResult>`
 
@@ -141,7 +142,12 @@ regions.forEach(r => console.log(`${r.name}: ${r.id}`));
 
 #### `deleteRegion(id: string): Promise<void>`
 
-Delete a specific region and all its associated resources.
+Delete a region and reclaim the storage only it was using.
+
+- **Other regions remain on the style** — the region is removed from `styles.regions[]` and only tiles that no remaining region covers are deleted. Shared style, sprites, glyphs and fonts are kept.
+- **It was the style's last region** — the style entry is deleted along with *all* of its tiles, sprites, glyphs and fonts.
+
+Deleting an unknown region ID is a no-op (logged, not thrown).
 
 ```typescript
 await manager.deleteRegion('my-region');
@@ -149,11 +155,66 @@ await manager.deleteRegion('my-region');
 
 #### `listRegions(): Promise<OfflineRegionOptions[]>`
 
-List all region options (without database metadata).
+List all stored regions, typed as the narrower `OfflineRegionOptions`. This is the same data `listStoredRegions()` returns — the extra `StoredRegion` fields (`key`, `styleId`, `lastModified`, …) are present at runtime, just not in the type. Prefer `listStoredRegions()` when you need them.
 
 ```typescript
 const regions = await manager.listRegions();
 regions.forEach(r => console.log(`${r.name}: ${r.id}`));
+```
+
+### Style Management Methods
+
+Styles are stored independently of regions (regions live inside `styles.regions[]`), so a style can be downloaded, inspected and reused across several regions.
+
+#### `downloadStyle(styleUrl, options?): Promise<StyleDownloadResult>`
+
+Fetch and store a style, resolving `mapbox://` URLs, flattening `imports`, and optionally embedding TileJSON sources. `downloadRegion` calls this for you when the style isn't already stored.
+
+`options` is `StyleDownloadOptions` plus `provider?: StyleProvider`, `accessToken?: string | null`, and `forceProvider?: boolean` (skip auto-detection and trust `provider`).
+
+```typescript
+const result = await manager.downloadStyle('mapbox://styles/mapbox/standard', {
+  provider: 'mapbox',
+  accessToken: mapboxgl.accessToken,
+  skipExisting: true,
+});
+console.log(result.styleId, result.sourcesProcessed, result.analytics.totalLayers);
+```
+
+#### `downloadMapboxStyle(styleUrl, accessToken?, options?): Promise<StyleDownloadResult>`
+
+`downloadStyle` with `provider: 'mapbox'` and `forceProvider: true`.
+
+#### `downloadMapLibreStyle(styleUrl, options?): Promise<StyleDownloadResult>`
+
+`downloadStyle` with `provider: 'maplibre'` and `forceProvider: true`.
+
+#### `downloadStyleWithAutoDetection(styleUrl, options?): Promise<StyleDownloadResult>`
+
+`downloadStyle` with `provider: 'auto'` — the provider is inferred from the URL and, once fetched, the style body. See [Style Provider Detection](./configuration#style-provider-detection).
+
+#### `listStyles(): Promise<StyleEntry[]>`
+
+Every stored style entry, each with its `regions[]`, `fonts[]`, `glyphs[]`, `sprites[]` and `provider`.
+
+#### `loadStyleById(styleId: string): Promise<StyleEntry | null>`
+
+One stored style entry, or `null` when it isn't stored.
+
+#### `getStyleStats(styleId: string): Promise<EnhancedStyleStats>`
+
+Size / source / layer statistics plus `storageRecommendations` for one style.
+
+#### `deleteStyle(styleId: string): Promise<void>`
+
+Delete the style **record only**. Its tiles, sprites, glyphs and fonts are left in place — use `deleteRegion` for each of the style's regions when you want the resources reclaimed too, or the `cleanupOld*` helpers with a `styleId` filter.
+
+#### `cleanupOldStyles(maxAgeDays?: number): Promise<number>`
+
+Delete style records whose `lastModified` is older than `maxAgeDays` (default `30`). Returns the number deleted. Like `deleteStyle`, this removes the style records only — tiles and other resources are untouched.
+
+```typescript
+const deleted = await manager.cleanupOldStyles(90);
 ```
 
 ### Analytics Methods
@@ -242,16 +303,20 @@ Get sprite statistics aggregated across all styles.
 
 Get glyph statistics aggregated across all styles.
 
+#### `getModelStats(): Promise<EnhancedModelStats>`
+
+Get 3D-model (`.glb`) statistics aggregated across all styles. Added in DB v4.
+
 ### Tile Download Options
 
 Options that `downloadRegion` forwards to the tile downloader (or that you can pass directly to `downloadTiles` / `ResourceService.downloadTilesWithOptions`).
 
 | Option                       | Type       | Default | Description                                                                                                                                                                                                                                                                                                                   |
 | ---------------------------- | ---------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `skipKnownSparseSources`     | `boolean`  | `true`  | **Added in 0.8.8.** Hard-skip Mapbox Standard sub-tilesets that are sparse-by-design across the whole planet — `mapbox.indoor-v3`, `mapbox.landmark-pois-v1`, `mapbox.procedural-buildings-v1` — *before* any network request is issued. Eliminates the 404s these would otherwise log in devtools (browsers log all non-2xx network responses at the protocol layer; JS can't suppress them). Set `false` to fall through to the probe-only path. |
+| `skipKnownSparseSources`     | `boolean`  | `true`  | **Added in 0.8.8.** Hard-skip Mapbox Standard sub-tilesets that are sparse-by-design across the whole planet — `mapbox.indoor-v3`, `mapbox.mapbox-landmark-pois-v1`, `mapbox.procedural-buildings-v1` — *before* any network request is issued. Eliminates the 404s these would otherwise log in devtools (browsers log all non-2xx network responses at the protocol layer; JS can't suppress them). Set `false` to fall through to the probe-only path. |
 | `probeSourcesBeforeDownload` | `boolean`  | `true`  | Fetch 3 representative tiles (start, middle, end) per source before committing its full plan. Majority-404 sources are dropped entirely. Keeps the console clean for composite styles that reference sparse tilesets which only have data at specific locations. The three known Mapbox Standard sparse tilesets are pre-skipped by `skipKnownSparseSources` first; this probe step catches any other sparse sources at runtime. |
 | `skipExisting`               | `boolean`  | `true`  | Skip tiles already present in IndexedDB.                                                                                                                                                                                                                                                                                      |
-| `batchSize`                  | `number`   | `10`    | Concurrent tiles per batch.                                                                                                                                                                                                                                                                                                   |
+| `batchSize`                  | `number`   | `10`    | Tiles per batch, issued in parallel — this is the effective download concurrency. (`TileDownloadOptions.maxConcurrency` exists for backwards compatibility but is not read.)                                                                                                                                                    |
 | `maxRetries`                 | `number`   | `3`     | Per-tile retry count before giving up.                                                                                                                                                                                                                                                                                        |
 | `timeout`                    | `number`   | `10000` | Per-tile fetch timeout in ms.                                                                                                                                                                                                                                                                                                 |
 | `retryDelay`                 | `number`   | `1000`  | Base delay between retries.                                                                                                                                                                                                                                                                                                   |
@@ -440,6 +505,10 @@ Same contract as `cleanupOldFonts`, for the `sprites` store.
 
 Same contract as `cleanupOldFonts`, for the `glyphs` store.
 
+#### `cleanupOldModels(options?: { maxAge?: number }): Promise<number>`
+
+Remove 3D-model entries older than `options.maxAge` days (default 30). Unlike the font/sprite/glyph variants this takes **no** `styleId` argument — model cleanup is always global.
+
 #### `setupAutoCleanup(options?: RegionCleanupOptions & { intervalHours?: number }): Promise<string>`
 
 Set up automatic periodic cleanup. Returns a cleanup ID that can be used to stop this specific auto-cleanup. The cleanup runs using the smart cleanup algorithm with the provided options.
@@ -470,7 +539,7 @@ const cleanupId = await manager.startEnhancedAutoCleanup(12, {
 
 #### `stopAutoCleanup(cleanupId?: string): Promise<void>`
 
-Stop a specific auto-cleanup by its ID. If no ID is provided, stops only the cleanup associated with the default.
+Stop a specific auto-cleanup by the ID returned from `setupAutoCleanup` / `startEnhancedAutoCleanup`. **Calling it with no ID stops every running auto-cleanup** — it is the same operation as `stopAllAutoCleanup()`. Passing an unknown ID is a no-op.
 
 #### `stopAllAutoCleanup(): Promise<void>`
 
@@ -482,7 +551,7 @@ await manager.stopAllAutoCleanup();
 
 ### Verification Methods
 
-These methods scan every stored entry in their respective store (across all styles), recompute each entry's integrity, remove unrecoverable ones, and fix the rest. They don't take a style filter — pass `manager.deleteStyle(styleId)` if you want to isolate a style.
+These methods scan every stored entry in their respective store (across all styles), recompute each entry's integrity, remove unrecoverable ones, and fix the rest. They take no style filter and none is available — for style-scoped maintenance use the `cleanupOld*` helpers, which do accept a `styleId`.
 
 #### `verifyAndRepairFonts(): Promise<{ verified: number; repaired: number; removed: number }>`
 
@@ -1090,11 +1159,26 @@ const result = await safeExecute(async () => {
 ### Style Utilities
 
 ```typescript
-import { patchStyleForOffline } from 'map-gl-offline';
-
-// Convert a style for offline use
-const offlineStyle = patchStyleForOffline(styleJson, styleId);
+import { patchStyleForOffline, normalizeSpriteProperty } from 'map-gl-offline';
 ```
+
+#### `patchStyleForOffline(style, downloadId, maxZoom?, tileExtension?, styleId?): MapboxStyle`
+
+Rewrites a style's tile / sprite / glyph URLs to the `idb://` protocol and caps each source's `maxzoom` to what was downloaded. Mutates and returns the passed style.
+
+- `downloadId` — the region/download ID that tiles were stored under; it becomes the authority segment of `idb://{downloadId}/tile/…`.
+- `maxZoom` — optional cap applied to sources so the map doesn't request zoom levels that were never downloaded.
+- `tileExtension` — optional override forcing one extension for every source. Omit it and the extension is derived per URL via `extractTileExtensionFromUrl`, which is what matches the stored tile keys.
+- `styleId` — the style ID sprites were stored under, when it differs from `downloadId`. Sprites are shared across a style's regions, so pass this whenever `downloadId` is a region ID.
+
+```typescript
+// Region-scoped tiles, style-scoped sprites
+const offlineStyle = patchStyleForOffline(styleJson, regionId, region.maxZoom, undefined, styleId);
+```
+
+#### `normalizeSpriteProperty(sprite: unknown): Array<{ id: string; url: string }>`
+
+Normalizes a style's `sprite` field — which may be a bare string or the MapLibre v3+ array-of-`{id, url}` form — into a uniform array. A bare string becomes a single entry with `id: 'sprite'`. Already-patched `idb://` sprite URLs are filtered out, so it is safe to call on an offline style.
 
 ### Import Resolution
 

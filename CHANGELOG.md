@@ -5,9 +5,45 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+> **Documentation-vs-implementation audit.** A page-by-page pass over the README and the docs site against the actual package surface. Two of the findings were bugs in the package rather than the prose: the 0.8.8 sparse-tileset allowlist named a tileset id that doesn't exist, so a third of the feature never fired; and the UMD bundle the docs point CDN users at expected globals that no CDN provides.
+
+### Fixed
+
+- **`MAPBOX_STANDARD_SPARSE_TILESETS` named a non-existent tileset.** The landmark-POI entry was `mapbox.landmark-pois-v1`, but the live Mapbox Standard style declares `mapbox://mapbox.mapbox-landmark-pois-v1` (doubled `mapbox` segment). `urlReferencesKnownSparseTileset` anchors on delimiters, so the entry never matched and that source still issued probe requests — the exact 404 noise 0.8.8 set out to remove. Verified against `GET /styles/v1/mapbox/standard`; `mapbox.indoor-v3` and `mapbox.procedural-buildings-v1` were already correct.
+- **The UMD build was unusable from a CDN.** `idb`, `@mapbox/tilebelt`, `i18next` and the four `@turf/*` packages were marked external for every output, including UMD. None of them publish a UMD global, so `<script src=".../index.umd.js">` — the usage documented in the README, intro and getting-started pages — loaded and then failed at the first IndexedDB call. The UMD output is now built from its own Rollup config that bundles them; only `mapbox-gl` / `maplibre-gl` (which the page loads itself) and `sql.js` stay external. `dist/index.umd.js` grows from ~660 KB to ~925 KB; the ESM and CJS builds are unchanged.
+- **MBTiles import/export from the UMD build.** `getSqlJs()` dynamically imports the `sql.js` bare specifier, which no CDN page can resolve. It now falls back to the `initSqlJs` global that sql.js's own `<script>` build defines, and throws a message naming both options when neither is available.
+
+### Changed
+
+- **`TileDownloadOptions.maxConcurrency` and `FontDownloadOptions.maxConcurrency` are marked `@deprecated`.** Neither downloader has ever read them — `batchSize` is the effective concurrency for tiles, fonts and sprites (each batch is issued in parallel), while glyphs do use a `maxConcurrency` worker pool. The fields stay so existing callers keep type-checking.
+- **`TileDownloadOptions.probeSourcesBeforeDownload` doc comment** described the pre-0.8.x single-probe behaviour ("probe one representative tile", "one probe HTTP request per source"). It has probed three tiles with a majority rule since 0.8.x.
+
+### Added
+
+- **`scripts/check-umd.mjs`**, run as part of `npm run build:lib`: fails the build if the UMD wrapper declares any external module beyond `mapbox-gl` / `maplibre-gl` / `sql.js`.
+- **Style Management section in the API reference.** `downloadStyle`, `downloadMapboxStyle`, `downloadMapLibreStyle`, `downloadStyleWithAutoDetection`, `listStyles`, `loadStyleById`, `getStyleStats`, `deleteStyle` and `cleanupOldStyles` are part of `OfflineMapManager` but were undocumented. Also adds `getModelStats` / `cleanupOldModels`, `DownloadRegionOptions.skipModels`, and `modelResult` on `DownloadRegionResult`.
+
+### Documentation
+
+- **`deleteRegion` semantics** were documented as "delete a region and all its associated resources". It actually deletes only tiles no remaining region covers — unless it was the style's last region, in which case the style and *all* its tiles, sprites, glyphs and fonts go too. Both paths are now spelled out.
+- **`stopAutoCleanup()` with no argument** stops *every* auto-cleanup (identical to `stopAllAutoCleanup()`); the reference claimed it stopped only a default one.
+- **`patchStyleForOffline`** was shown as `patchStyleForOffline(styleJson, styleId)`. The second parameter is `downloadId`; `styleId` is the fifth. Full signature and per-parameter semantics documented, along with `normalizeSpriteProperty`.
+- **Configuration → "CSS Custom Properties"** documented a `--panel-bg` / `--button-bg` / `--text-primary` variable API that does not exist anywhere in the stylesheet. Replaced with how the control is actually styled: compiled Tailwind utilities, the `.offline-manager-control` scope, class-based `.dark` on `<html>`, and the `.glass-panel` / `.glass-input` helpers.
+- **Architecture** — file tree listed `ui/modals/importExportModal.ts` (the file is `mbtilesModal.ts`) and a `BaseManager` module that isn't one; the test tree omitted several suites. "Performance Considerations" claimed streaming I/O and IndexedDB secondary indexes — the stores are keyed by a single composite `key` with no indexes at all.
+- **`listRegions()`** returns the same records as `listStoredRegions()`, just typed as `OfflineRegionOptions`; it was described as returning data "without database metadata".
+- **`cleanupOldStyles` / `deleteStyle`** delete the style record only, leaving tiles and other resources in place — now stated explicitly.
+- **Mapbox URL resolution table** gained the `mapbox://models/…` row and a note about `rewriteMapboxCdnTileUrl`.
+- The corrected landmark-POI tileset id is reflected in the README, the API reference, `TileDownloadOptions` doc comments and `.claude/CLAUDE.md`.
+
+### Tests
+
+- `+52`: `urlReferencesKnownSparseTileset` now pins all three Mapbox Standard sparse tileset ids across the three URL forms they can appear in, and asserts dense siblings (`mapbox.mapbox-landmark-icons-v1`, `mapbox.mapbox-streets-v8`) are not caught. New `tests/dist/umdBundle.test.ts` evaluates the built UMD bundle at global scope with no page-provided dependencies and asserts the documented exports exist and reach IndexedDB; it skips when `dist/` hasn't been built. The three probe tests were re-pointed at a non-allowlisted source so they exercise the probe path rather than the pre-skip. Total: 1808 passing.
+
 ## [0.8.8] - 2026-05-23
 
-> **Pre-skip Mapbox Standard sparse sub-tilesets.** Mapbox Standard composites in three sources that are sparse-by-design across the planet — `mapbox.indoor-v3`, `mapbox.landmark-pois-v1`, `mapbox.procedural-buildings-v1` — which only have tiles where indoor venues / landmark POIs / 3D buildings actually exist. The downstream probe pass already detected and skipped them for most regions, but the probe HTTP requests themselves logged 404s in devtools (browsers log all non-2xx network responses at the protocol layer; nothing JS can suppress that). 0.8.8 hard-skips these sources *before* issuing any network request.
+> **Pre-skip Mapbox Standard sparse sub-tilesets.** Mapbox Standard composites in three sources that are sparse-by-design across the planet — `mapbox.indoor-v3`, `mapbox.landmark-pois-v1`, `mapbox.procedural-buildings-v1` (the middle id was wrong — see Unreleased) — which only have tiles where indoor venues / landmark POIs / 3D buildings actually exist. The downstream probe pass already detected and skipped them for most regions, but the probe HTTP requests themselves logged 404s in devtools (browsers log all non-2xx network responses at the protocol layer; nothing JS can suppress that). 0.8.8 hard-skips these sources *before* issuing any network request.
 
 ### Added
 
