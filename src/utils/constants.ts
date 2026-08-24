@@ -183,10 +183,15 @@ export const MAPBOX_API = {
  * Matching is done against the tileset segment of the tile URL template
  * (e.g. `https://api.mapbox.com/v4/mapbox.indoor-v3/{z}/{x}/{y}.vector.pbf`
  * or `mapbox://mapbox.indoor-v3`).
+ *
+ * The ids below are the ones the live Mapbox Standard style declares — note
+ * that the landmark-POI tileset is `mapbox.mapbox-landmark-pois-v1` (doubled
+ * `mapbox` segment), unlike the other two. The matcher is delimiter-anchored,
+ * so an approximate id silently never matches.
  */
 export const MAPBOX_STANDARD_SPARSE_TILESETS = [
   'mapbox.indoor-v3',
-  'mapbox.landmark-pois-v1',
+  'mapbox.mapbox-landmark-pois-v1',
   'mapbox.procedural-buildings-v1',
 ] as const;
 

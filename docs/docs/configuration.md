@@ -163,17 +163,23 @@ const size = await manager.getRegionSize(regionId);
 
 ### Default Download Settings
 
-The library uses these defaults for downloads:
+Omitted download options fall back to these values:
 
 ```typescript
+import { DOWNLOAD_DEFAULTS } from 'map-gl-offline';
+
 const DOWNLOAD_DEFAULTS = {
-  BATCH_SIZE: 10, // Tiles per batch
-  MAX_CONCURRENCY: 5, // Concurrent downloads
+  BATCH_SIZE: 10, // Tiles per batch — each batch is issued in parallel
+  MAX_CONCURRENCY: 5, // Glyph worker-pool size
   MAX_RETRIES: 3, // Retry attempts per item
   TIMEOUT: 10000, // Request timeout (ms)
   RETRY_DELAY: 1000, // Delay between retries (ms)
 };
 ```
+
+`DOWNLOAD_DEFAULTS` is exported as a reference for these values; each service declares its own matching defaults, so overriding the constant object at runtime changes nothing — pass the option instead.
+
+Concurrency is controlled per resource type: tiles, fonts and sprites download in parallel batches of `batchSize`, while glyphs use a `maxConcurrency` worker pool. `maxConcurrency` on `TileDownloadOptions` / `FontDownloadOptions` is retained for backwards compatibility but is not read — set `batchSize` there instead.
 
 ### Tile Configuration
 
@@ -242,35 +248,41 @@ const control = new OfflineManagerControl(manager, {
 // Key: 'offline-manager-theme'
 ```
 
-### CSS Custom Properties
+### Customizing the appearance
 
-You can customize the appearance using CSS:
+The control is styled with **Tailwind utility classes compiled into `map-gl-offline/style.css`** — there are no themeable CSS custom properties to set. Restyle it by overriding the shipped rules with your own stylesheet loaded after `style.css`.
+
+Every element the control renders carries the `offline-manager-control` class, so it makes a reliable scope:
 
 ```css
+/* Loaded after `import 'map-gl-offline/style.css'` */
 .offline-manager-control {
-  /* Panel styling */
-  --panel-bg: rgba(255, 255, 255, 0.95);
-  --panel-border: rgba(0, 0, 0, 0.1);
-  --panel-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-
-  /* Button styling */
-  --button-bg: #3b82f6;
-  --button-hover: #2563eb;
-  --button-text: white;
-
-  /* Text colors */
-  --text-primary: #1f2937;
-  --text-secondary: #6b7280;
+  font-family: 'IBM Plex Sans', sans-serif;
 }
 
-/* Dark theme overrides */
-.dark .offline-manager-control {
-  --panel-bg: rgba(31, 41, 55, 0.95);
-  --panel-border: rgba(255, 255, 255, 0.1);
-  --text-primary: #f9fafb;
-  --text-secondary: #9ca3af;
+/* The control button in the map's control group */
+.maplibregl-ctrl.offline-manager-control button,
+.mapboxgl-ctrl.offline-manager-control button {
+  border-radius: 9999px;
 }
 ```
+
+Dark mode is **class-based**: `ThemeManager` toggles `.dark` on `<html>` (`document.documentElement`), and the stylesheet's dark variant is defined as `@custom-variant dark (&:where(.dark, .dark *))`. Scope your dark overrides the same way:
+
+```css
+.dark .offline-manager-control {
+  color-scheme: dark;
+}
+```
+
+Two composed utility classes are available if you're building UI that should match the panel:
+
+| Class          | What it applies                                                              |
+| -------------- | ---------------------------------------------------------------------------- |
+| `.glass-panel` | Translucent white/gray-900 background, backdrop blur, hairline border, shadow |
+| `.glass-input` | Translucent input background, blur, and focus transition                      |
+
+RTL layout is handled by the `[dir="rtl"]` / `.rtl` rules in `style.css`, which the i18n manager applies to `.offline-manager-control` elements when Arabic is active.
 
 ## Internationalization (i18n)
 
@@ -466,6 +478,9 @@ The library resolves `mapbox://` protocol URLs to their HTTPS API equivalents:
 | `mapbox://{tileset}`                            | `https://api.mapbox.com/v4/{tileset}.json?access_token={token}`                       |
 | `mapbox://sprites/{user}/{id}`                  | `https://api.mapbox.com/styles/v1/{user}/{id}/sprite?access_token={token}`            |
 | `mapbox://fonts/{user}/{fontstack}/{range}.pbf` | `https://api.mapbox.com/fonts/v1/{user}/{fontstack}/{range}.pbf?access_token={token}` |
+| `mapbox://models/{user}/{file}.glb`             | `https://api.mapbox.com/models/v1/{user}/{file}.glb?access_token={token}`             |
+
+The `mapbox://{tileset}` row is the fallback: any `mapbox://` URL that isn't a `styles/`, `sprites/`, `fonts/` or `models/` path is treated as a tileset id. A separate helper, `rewriteMapboxCdnTileUrl`, rewrites `*.tiles.mapbox.com/raster/v1/…` tile URLs onto `api.mapbox.com/v4/…`, because the CDN raster path requires an SKU session token that only the Mapbox GL JS SDK can mint.
 
 ```typescript
 import { resolveMapboxUrl, isMapboxProtocol } from 'map-gl-offline';
@@ -523,7 +538,7 @@ if (!result.isValid) {
 
 if (result.warnings.length > 0) {
   console.warn('Warnings:', result.warnings);
-  // e.g., ['Mapbox sources detected but no access token found']
+  // e.g., ['Mapbox sources detected but no access token found - authentication may be required']
 }
 ```
 

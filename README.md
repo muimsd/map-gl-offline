@@ -25,7 +25,7 @@ TypeScript offline-map library for **MapLibre GL JS** and **Mapbox GL JS**. Down
 npm install map-gl-offline
 ```
 
-Or via CDN as the `mapgloffline` global:
+Or via CDN as the `mapgloffline` global. The UMD build is self-contained — only your map library needs to be on the page:
 
 ```html
 <script src="https://unpkg.com/map-gl-offline/dist/index.umd.js"></script>
@@ -200,7 +200,7 @@ for (const city of cities) {
 
 For composite styles (e.g. Mapbox Standard) that reference sparse tilesets like `indoor-v3` or `landmark-pois-v1`, the tile downloader probes start/middle/end tiles per source and drops any that return majority-404. Disable with `tileOptions: { probeSourcesBeforeDownload: false }`.
 
-Three Mapbox Standard sub-tilesets are sparse-by-design across the planet — `mapbox.indoor-v3`, `mapbox.landmark-pois-v1`, `mapbox.procedural-buildings-v1`. Since 0.8.8 these are hard-skipped **before** the probe step so no network request is issued (and no 404s land in devtools). Opt out with `tileOptions: { skipKnownSparseSources: false }` to run them through the probe path instead.
+Three Mapbox Standard sub-tilesets are sparse-by-design across the planet — `mapbox.indoor-v3`, `mapbox.mapbox-landmark-pois-v1`, `mapbox.procedural-buildings-v1`. Since 0.8.8 these are hard-skipped **before** the probe step so no network request is issued (and no 404s land in devtools). Opt out with `tileOptions: { skipKnownSparseSources: false }` to run them through the probe path instead.
 
 ### Recovering from an incompatible DB
 
@@ -226,6 +226,7 @@ try {
 ## API at a glance
 
 - **Regions** — `downloadRegion`, `loadRegion`, `addRegion`, `getStoredRegion`, `listStoredRegions`, `listRegions`, `deleteRegion`
+- **Styles** — `downloadStyle`, `downloadMapboxStyle`, `downloadMapLibreStyle`, `downloadStyleWithAutoDetection`, `listStyles`, `loadStyleById`, `getStyleStats`, `deleteStyle`, `cleanupOldStyles`
 - **Analytics** — `getComprehensiveStorageAnalytics`, `getRegionAnalytics`, `getTileStats`, `getFontStats`, `getSpriteStats`, `getGlyphStats`
 - **Cleanup** — `cleanupExpiredRegions`, `performSmartCleanup`, `cleanupOld{Fonts,Sprites,Glyphs}`, `verifyAndRepair{Fonts,Sprites,Glyphs}`, `setupAutoCleanup`, `performCompleteMaintenance`
 - **Import / Export** — `exportRegionAsMBTiles`, `importRegion`, `downloadExportedRegion` (binary SQLite MBTiles, QGIS/tippecanoe-compatible)

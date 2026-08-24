@@ -55,7 +55,11 @@ export interface FontDownloadOptions {
   timeout?: number;
   /** Validate font data after download (default: true) */
   validateFonts?: boolean;
-  /** Maximum number of concurrent downloads (default: 5) */
+  /**
+   * @deprecated Not read by the font downloader — `batchSize` is the effective
+   * concurrency knob. Kept so existing callers still type-check; setting it has
+   * no effect.
+   */
   maxConcurrency?: number;
   /** Check storage quota before starting download (default: true) */
   storageQuotaCheck?: boolean;

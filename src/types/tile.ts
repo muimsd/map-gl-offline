@@ -51,7 +51,11 @@ export interface TileDownloadOptions {
   maxRetries?: number;
   /** Skip already downloaded tiles (default: true) */
   skipExisting?: boolean;
-  /** Maximum concurrent download connections (default: 5) */
+  /**
+   * @deprecated Not read by the tile downloader — `batchSize` is the effective
+   * concurrency knob (each batch is issued in parallel via `Promise.allSettled`).
+   * Kept so existing callers still type-check; setting it has no effect.
+   */
   maxConcurrency?: number;
   /** Delay between retries in ms (default: 1000) */
   retryDelay?: number;
@@ -68,15 +72,17 @@ export interface TileDownloadOptions {
   /** Check storage quota before download (default: true) */
   storageQuotaCheck?: boolean;
   /**
-   * Before committing to download a source's full tile plan, probe one
-   * representative tile. If that probe returns 404, the source is treated
-   * as sparse-for-this-region and skipped entirely. This adapts to the
-   * region (some cities have indoor/landmark/3D-building data, others
-   * don't) without requiring a static skip list.
+   * Before committing to download a source's full tile plan, probe three
+   * representative tiles from that plan (start, middle, end). If the
+   * majority return 404, the source is treated as sparse-for-this-region
+   * and skipped entirely. This adapts to the region (some cities have
+   * indoor/landmark/3D-building data, others don't) without requiring a
+   * static skip list.
    *
-   * One probe HTTP request is added per source. The probe itself may
-   * 404 (visible in the Network tab), but downstream we then avoid
-   * dozens of follow-up 404s.
+   * Up to three probe HTTP requests are added per source (fewer when the
+   * plan is small enough that start/middle/end collapse to the same
+   * coordinate). The probes themselves may 404 (visible in the Network
+   * tab), but downstream we then avoid dozens of follow-up 404s.
    *
    * Default: `true`. Set `false` to download every source regardless
    * (old behavior — noisier, but guaranteed-complete).
@@ -85,7 +91,7 @@ export interface TileDownloadOptions {
   /**
    * Pre-skip a small allowlist of Mapbox Standard sub-tilesets that are
    * sparse-by-design across the whole planet — `mapbox.indoor-v3`,
-   * `mapbox.landmark-pois-v1`, `mapbox.procedural-buildings-v1`. These
+   * `mapbox.mapbox-landmark-pois-v1`, `mapbox.procedural-buildings-v1`. These
    * have tiles only where indoor venues / landmark POIs / 3D buildings
    * actually exist; for typical regions they return 404 for nearly every
    * coordinate. Pre-skipping means we never issue probe or download

@@ -38,7 +38,7 @@
     "dev": "vite",
     "build": "npm run build:clean && npm run build:sw-src && npm run build:lib && npm run build:types && npm run build:css && npm run build:sw",
     "build:clean": "rimraf dist",
-    "build:lib": "rollup -c",
+    "build:lib": "rollup -c && node scripts/check-umd.mjs",
     "build:types": "tsc --declaration --emitDeclarationOnly --outDir dist && tsc-alias -p tsconfig.json --outDir dist",
     "build:css": "tailwindcss -i src/styles/style.css -o dist/style.css --minify",
     "build:sw-src": "node scripts/build-sw.mjs",

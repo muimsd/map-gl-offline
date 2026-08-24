@@ -24,7 +24,7 @@ A comprehensive **TypeScript** library for **MapLibre GL JS** and **Mapbox GL JS
 ### Map Library Support
 
 - **MapLibre GL JS** - Full support with `addProtocol` for seamless `idb://` tile serving
-- **Mapbox GL JS** - Full support via Service Worker for offline tile serving, including Mapbox Standard style, 3D models, and weather controls (rain/snow, day/night lighting)
+- **Mapbox GL JS** - Full support via Service Worker for offline tile serving, including the Mapbox Standard style and its 3D models. Mapbox GL's own runtime effects (`setRain` / `setSnow`) keep working offline; the Standard `lightPreset` is baked in at download time — see the [offline limitation](/docs/configuration#light-presets-daynight)
 
 ### Modern UI Control
 

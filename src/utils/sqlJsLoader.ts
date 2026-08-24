@@ -21,18 +21,42 @@ export function configureSqlJs(config: SqlJsConfig): void {
   sqlJsPromise = null;
 }
 
+type InitSqlJs = (config?: Record<string, unknown>) => Promise<SqlJsStatic>;
+
 /**
- * Lazily initialise `sql.js`. The underlying module is loaded via dynamic
- * `import()` so it only ships with bundles that actually call MBTiles code.
+ * Resolve the `initSqlJs` factory.
+ *
+ * Bundler builds resolve the npm package via dynamic `import()`, so `sql.js`
+ * only ships with bundles that actually call MBTiles code. The UMD/CDN build
+ * has no module resolver, so the import throws there — fall back to the
+ * `initSqlJs` global that sql.js's own `<script>` build defines.
+ */
+async function resolveInitSqlJs(): Promise<InitSqlJs> {
+  try {
+    const mod = (await import('sql.js')) as unknown as { default: InitSqlJs };
+    if (typeof mod?.default === 'function') return mod.default;
+  } catch {
+    // Bare specifier not resolvable (UMD/CDN); fall through to the global.
+  }
+
+  const globalInit = (globalThis as { initSqlJs?: InitSqlJs }).initSqlJs;
+  if (typeof globalInit === 'function') return globalInit;
+
+  throw new Error(
+    'sql.js could not be loaded. Install `sql.js` when bundling, or load ' +
+      'https://cdn.jsdelivr.net/npm/sql.js/dist/sql-wasm.js before map-gl-offline ' +
+      'when using the UMD build.'
+  );
+}
+
+/**
+ * Lazily initialise `sql.js`.
  */
 export async function getSqlJs(): Promise<SqlJsStatic> {
   if (sqlJsPromise) return sqlJsPromise;
 
   sqlJsPromise = (async () => {
-    const mod = (await import('sql.js')) as unknown as {
-      default: (config?: Record<string, unknown>) => Promise<SqlJsStatic>;
-    };
-    const initSqlJs = mod.default;
+    const initSqlJs = await resolveInitSqlJs();
 
     const options: Record<string, unknown> = {};
     if (currentConfig.wasmBinary) {
