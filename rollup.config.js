@@ -27,10 +27,10 @@ const external = [
 // at the first IndexedDB call.
 const umdExternal = ['mapbox-gl', 'maplibre-gl', 'sql.js'];
 
+// Shared by all three builds; identical to the pre-split configuration.
 const plugins = [
   resolve({
-    preferBuiltins: true,
-    browser: true
+    preferBuiltins: true
   }),
   commonjs(),
   typescript({

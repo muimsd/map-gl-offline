@@ -32,20 +32,26 @@ type InitSqlJs = (config?: Record<string, unknown>) => Promise<SqlJsStatic>;
  * `initSqlJs` global that sql.js's own `<script>` build defines.
  */
 async function resolveInitSqlJs(): Promise<InitSqlJs> {
+  let importError: unknown;
   try {
     const mod = (await import('sql.js')) as unknown as { default: InitSqlJs };
     if (typeof mod?.default === 'function') return mod.default;
-  } catch {
-    // Bare specifier not resolvable (UMD/CDN); fall through to the global.
+  } catch (error) {
+    // Bare specifier not resolvable (UMD/CDN), or the module threw while
+    // initialising. Either way, try the global before giving up.
+    importError = error;
   }
 
   const globalInit = (globalThis as { initSqlJs?: InitSqlJs }).initSqlJs;
   if (typeof globalInit === 'function') return globalInit;
 
+  // Preserve the original failure — a module that resolved but threw is a
+  // very different problem from one that couldn't be resolved at all.
   throw new Error(
     'sql.js could not be loaded. Install `sql.js` when bundling, or load ' +
       'https://cdn.jsdelivr.net/npm/sql.js/dist/sql-wasm.js before map-gl-offline ' +
-      'when using the UMD build.'
+      'when using the UMD build.',
+    importError !== undefined ? { cause: importError } : undefined
   );
 }
 
