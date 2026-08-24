@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.8.9] - 2026-08-24
 
 > **Documentation-vs-implementation audit.** A page-by-page pass over the README and the docs site against the actual package surface. Two of the findings were bugs in the package rather than the prose: the 0.8.8 sparse-tileset allowlist named a tileset id that doesn't exist, so a third of the feature never fired; and the UMD bundle the docs point CDN users at expected globals that no CDN provides.
 
@@ -43,7 +43,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.8.8] - 2026-05-23
 
-> **Pre-skip Mapbox Standard sparse sub-tilesets.** Mapbox Standard composites in three sources that are sparse-by-design across the planet — `mapbox.indoor-v3`, `mapbox.landmark-pois-v1`, `mapbox.procedural-buildings-v1` (the middle id was wrong — see Unreleased) — which only have tiles where indoor venues / landmark POIs / 3D buildings actually exist. The downstream probe pass already detected and skipped them for most regions, but the probe HTTP requests themselves logged 404s in devtools (browsers log all non-2xx network responses at the protocol layer; nothing JS can suppress that). 0.8.8 hard-skips these sources *before* issuing any network request.
+> **Pre-skip Mapbox Standard sparse sub-tilesets.** Mapbox Standard composites in three sources that are sparse-by-design across the planet — `mapbox.indoor-v3`, `mapbox.landmark-pois-v1`, `mapbox.procedural-buildings-v1` (the middle id was wrong — see 0.8.9) — which only have tiles where indoor venues / landmark POIs / 3D buildings actually exist. The downstream probe pass already detected and skipped them for most regions, but the probe HTTP requests themselves logged 404s in devtools (browsers log all non-2xx network responses at the protocol layer; nothing JS can suppress that). 0.8.8 hard-skips these sources *before* issuing any network request.
 
 ### Added
 
