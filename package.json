@@ -145,7 +145,7 @@
     "jest-environment-jsdom": "^30.2.0",
     "map-gl-style-switcher": "^0.9.2",
     "mapbox-gl": "^3.18.1",
-    "postcss": "^8.5.26",
+    "postcss": "^8.5.28",
     "prettier": "^3.8.1",
     "puppeteer": "^24.37.4",
     "rimraf": "^6.1.3",
