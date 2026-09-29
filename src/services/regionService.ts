@@ -599,13 +599,23 @@ export class RegionService {
     return undefined;
   }
 
-  async deleteRegion(regionId: string): Promise<void> {
+  /**
+   * Delete a region and the tiles/resources only it needed.
+   * @param styleId - The style holding the region. Region ids are only unique
+   *   within a style, so pass it whenever known; without it the first style
+   *   containing `regionId` is used.
+   */
+  async deleteRegion(regionId: string, styleId?: string): Promise<void> {
     const db = await dbPromise;
-    regionLogger.debug(`Deleting region: ${regionId}`);
+    regionLogger.debug(`Deleting region: ${regionId}${styleId ? ` from style ${styleId}` : ''}`);
 
     try {
       // Find which style contains this region
-      const allStyles = await db.getAll('styles');
+      const allStyles = styleId
+        ? [await db.get('styles', styleId)].filter(
+            (entry): entry is StyleEntry => entry !== undefined
+          )
+        : await db.getAll('styles');
       regionLogger.debug(`Found ${allStyles.length} styles to search through`);
 
       let foundStyle: StyleEntry | null = null;
@@ -629,7 +639,9 @@ export class RegionService {
       }
 
       if (!foundStyle || !foundRegion) {
-        regionLogger.warn(`Region ${regionId} not found in any style`);
+        regionLogger.warn(
+          `Region ${regionId} not found in ${styleId ? `style ${styleId}` : 'any style'}`
+        );
         return;
       }
 

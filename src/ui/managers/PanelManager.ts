@@ -714,7 +714,7 @@ export class PanelRenderer extends BaseComponent {
         cancelText: t('app.cancel'),
         onConfirm: async () => {
           try {
-            await this.offlineManager.deleteRegion(regionId);
+            await this.offlineManager.deleteRegion(regionId, region.styleId);
             this.modalManager.close();
             // Refresh the panel to show updated regions
             await this.refresh();
@@ -770,7 +770,7 @@ export class PanelRenderer extends BaseComponent {
 
             // Delete the existing region (and its tiles/resources)
             panelLogger.debug('Deleting region before re-download:', regionId);
-            await this.offlineManager.deleteRegion(regionId);
+            await this.offlineManager.deleteRegion(regionId, region.styleId);
 
             // Prepare form data for re-download
             const formData = {

@@ -16,10 +16,7 @@ jest.mock('../../src/utils/download', () => {
   };
 });
 
-import {
-  downloadStyles,
-  downloadStyleWithProvider,
-} from '../../src/services/styleService';
+import { downloadStyles, downloadStyleWithProvider } from '../../src/services/styleService';
 import { dbPromise } from '../../src/storage/indexedDbManager';
 
 const okJson = (body: unknown, status = 200) =>
@@ -186,8 +183,8 @@ describe('StyleService.downloadStyles', () => {
   });
 
   it('reports an invalid style when validation is enabled', async () => {
-    mockFetchWithRetry.mockImplementation(async () =>
-      okJson({ version: 7 }) // Too old — invalid
+    mockFetchWithRetry.mockImplementation(
+      async () => okJson({ version: 7 }) // Too old — invalid
     );
     const result = await downloadStyles('https://example.com/bad.json', {
       validateStyle: true,
@@ -517,6 +514,77 @@ describe('StyleService.downloadStyleWithProvider', () => {
     expect(result.styleId).toBe('explicit-provider');
   });
 
+  const namedStyle = (name: string, tiles: string) =>
+    okJson({
+      version: 8,
+      name,
+      sources: { s1: { type: 'raster', tiles: [tiles] } },
+      layers: [{ id: 'L', type: 'background' }],
+    });
+  const providerOptions = {
+    provider: 'maplibre' as const,
+    enableSourceEmbedding: false,
+    forceProvider: true,
+  };
+
+  it('keeps existing regions (and re-patches) when a style is downloaded again', async () => {
+    mockFetchWithRetry.mockImplementation(async () =>
+      namedStyle('Keep Regions', 'https://t.example.com/{z}/{x}/{y}.png')
+    );
+    const first = await downloadStyleWithProvider('https://example.com/keep.json', providerOptions);
+    const db = await dbPromise;
+    const entry = await db.get('styles', first.styleId);
+    if (!entry) throw new Error('style not stored');
+    entry.regions = [
+      {
+        id: 'r1',
+        name: 'r1',
+        bounds: [
+          [0, 0],
+          [1, 1],
+        ],
+        minZoom: 0,
+        maxZoom: 9,
+        styleUrl: 'https://example.com/keep.json',
+      },
+    ] as never;
+    await db.put('styles', entry);
+
+    const second = await downloadStyleWithProvider(
+      'https://example.com/keep.json',
+      providerOptions
+    );
+
+    expect(second.styleId).toBe(first.styleId);
+    const after = await db.get('styles', first.styleId);
+    expect(after?.regions.map(r => r.id)).toEqual(['r1']);
+    const source = (after?.style.sources as Record<string, Record<string, unknown>>).s1;
+    expect(source.tiles).toEqual([`idb://${first.styleId}/tile/s1/{z}/{x}/{y}.png`]);
+    expect(source.maxzoom).toBe(9);
+  });
+
+  it('stores two different styles that share a name under different keys', async () => {
+    mockFetchWithRetry.mockImplementation(async (url: string) =>
+      namedStyle(
+        'Streets',
+        url.includes('/a.json') ? 'https://a/{z}/{x}/{y}.png' : 'https://b/{z}/{x}/{y}.png'
+      )
+    );
+    const a = await downloadStyleWithProvider('https://example.com/a.json', providerOptions);
+    const b = await downloadStyleWithProvider('https://example.com/b.json', providerOptions);
+    // Re-downloading B (with a token this time) reuses B's key.
+    const bAgain = await downloadStyleWithProvider(
+      'https://example.com/b.json?access_token=pk.x',
+      providerOptions
+    );
+
+    expect(a.styleId).toBe('streets');
+    expect(b.styleId).toBe('streets-2');
+    expect(bAgain.styleId).toBe('streets-2');
+    const db = await dbPromise;
+    expect((await db.get('styles', 'streets'))?.originalUrl).toBe('https://example.com/a.json');
+  });
+
   it('throws when a mapbox:// URL has no token', async () => {
     const result = await downloadStyleWithProvider('mapbox://styles/mapbox/streets-v11');
     expect(result.success).toBe(false);
@@ -543,9 +611,7 @@ describe('StyleService.downloadStyleWithProvider', () => {
   });
 
   it('returns failure when response is not ok', async () => {
-    mockFetchWithRetry.mockResolvedValue(
-      new Response(null, { status: 500, statusText: 'boom' })
-    );
+    mockFetchWithRetry.mockResolvedValue(new Response(null, { status: 500, statusText: 'boom' }));
     const result = await downloadStyleWithProvider('https://example.com/bad.json');
     expect(result.success).toBe(false);
   });

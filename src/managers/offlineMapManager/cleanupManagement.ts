@@ -27,7 +27,7 @@ export const createCleanupManagement = (services: OfflineManagerServices): Clean
     let deletedCount = 0;
     for (const region of allRegions) {
       if (region.expiry && region.expiry < now) {
-        await services.regionService.deleteRegion(region.id);
+        await services.regionService.deleteRegion(region.id, region.styleId);
         deletedCount++;
       }
     }

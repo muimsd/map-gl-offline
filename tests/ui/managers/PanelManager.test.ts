@@ -1329,7 +1329,7 @@ describe('PanelRenderer', () => {
       const opts = capturedConfirmModals.find(c => (c as any).confirmText);
       expect(opts).toBeDefined();
       await (opts!.onConfirm as () => Promise<void>)();
-      expect(mockOfflineManager.deleteRegion).toHaveBeenCalledWith(region.id);
+      expect(mockOfflineManager.deleteRegion).toHaveBeenCalledWith(region.id, region.styleId);
     });
 
     it('handleRedownloadRegion onConfirm deletes and re-downloads', async () => {
@@ -1346,7 +1346,7 @@ describe('PanelRenderer', () => {
       }).handleRegionAction('redownload-region', region.id, region);
       const opts = capturedConfirmModals[0];
       await (opts!.onConfirm as () => Promise<void>)();
-      expect(mockOfflineManager.deleteRegion).toHaveBeenCalledWith(region.id);
+      expect(mockOfflineManager.deleteRegion).toHaveBeenCalledWith(region.id, region.styleId);
       expect(mockDownloadManager.downloadRegion).toHaveBeenCalled();
     });
 

@@ -46,7 +46,9 @@ function makeServices(): {
       getRegionAnalytics: fn('cleanupService.getRegionAnalytics', { totalRegions: 0 }),
     },
     resourceService: {
-      downloadTilesWithOptions: fn('resourceService.downloadTilesWithOptions', { downloadedTiles: 0 }),
+      downloadTilesWithOptions: fn('resourceService.downloadTilesWithOptions', {
+        downloadedTiles: 0,
+      }),
       getTileStats: fn('resourceService.getTileStats', { count: 0 }),
       getTileAnalytics: fn('resourceService.getTileAnalytics', { basic: {} }),
       cleanupOldTiles: fn('resourceService.cleanupOldTiles', 0),
@@ -119,7 +121,10 @@ describe('regionManagement', () => {
     const region = {
       id: 'r1',
       name: 'n',
-      bounds: [[0, 0], [1, 1]] as [[number, number], [number, number]],
+      bounds: [
+        [0, 0],
+        [1, 1],
+      ] as [[number, number], [number, number]],
       minZoom: 0,
       maxZoom: 0,
       styleUrl: 'u',
@@ -128,14 +133,16 @@ describe('regionManagement', () => {
     await mgmt.addRegion(region);
     await mgmt.downloadRegion(region, { accessToken: 'tok' });
     await mgmt.loadRegion(region);
-    await mgmt.deleteRegion('r1');
+    await mgmt.deleteRegion('r1', 'style-1');
     await mgmt.listRegions();
     await mgmt.listStoredRegions();
 
     expect(fns['regionService.addRegion']).toHaveBeenCalledWith(region);
-    expect(fns['regionService.downloadRegion']).toHaveBeenCalledWith(region, { accessToken: 'tok' });
+    expect(fns['regionService.downloadRegion']).toHaveBeenCalledWith(region, {
+      accessToken: 'tok',
+    });
     expect(fns['regionService.loadRegion']).toHaveBeenCalledWith(region, undefined);
-    expect(fns['regionService.deleteRegion']).toHaveBeenCalledWith('r1');
+    expect(fns['regionService.deleteRegion']).toHaveBeenCalledWith('r1', 'style-1');
     expect(fns['regionService.listRegions']).toHaveBeenCalled();
     expect(fns['regionService.listStoredRegions']).toHaveBeenCalled();
   });
@@ -168,18 +175,19 @@ describe('cleanupManagement', () => {
     const { services, fns } = makeServices();
     const now = Date.now();
     fns['cleanupService.getAllRegions'].mockResolvedValue([
-      { id: 'expired-1', expiry: now - 1 },
-      { id: 'fresh-1', expiry: now + 86_400_000 },
-      { id: 'no-expiry' }, // no `expiry` → skipped
-      { id: 'expired-2', expiry: now - 2 },
+      { id: 'expired-1', styleId: 'style-a', expiry: now - 1 },
+      { id: 'fresh-1', styleId: 'style-a', expiry: now + 86_400_000 },
+      { id: 'no-expiry', styleId: 'style-a' }, // no `expiry` → skipped
+      { id: 'expired-2', styleId: 'style-b', expiry: now - 2 },
     ]);
     const mgmt = createCleanupManagement(services);
 
     const count = await mgmt.forceCleanupExpiredRegions();
     expect(count).toBe(2);
     expect(fns['regionService.deleteRegion']).toHaveBeenCalledTimes(2);
-    expect(fns['regionService.deleteRegion']).toHaveBeenNthCalledWith(1, 'expired-1');
-    expect(fns['regionService.deleteRegion']).toHaveBeenNthCalledWith(2, 'expired-2');
+    // styleId is passed through: region ids are only unique within a style.
+    expect(fns['regionService.deleteRegion']).toHaveBeenNthCalledWith(1, 'expired-1', 'style-a');
+    expect(fns['regionService.deleteRegion']).toHaveBeenNthCalledWith(2, 'expired-2', 'style-b');
   });
 
   it('startEnhancedAutoCleanup forwards intervalHours + options to setupAutoCleanup', async () => {
@@ -235,13 +243,20 @@ describe('resourceManagement', () => {
     const region = {
       id: 'r',
       name: 'n',
-      bounds: [[0, 0], [1, 1]] as [[number, number], [number, number]],
+      bounds: [
+        [0, 0],
+        [1, 1],
+      ] as [[number, number], [number, number]],
       minZoom: 0,
       maxZoom: 0,
     };
 
     await mgmt.downloadTilesWithOptions(region, style, 's');
-    expect(fns['resourceService.downloadTilesWithOptions']).toHaveBeenCalledWith(region, style, 's');
+    expect(fns['resourceService.downloadTilesWithOptions']).toHaveBeenCalledWith(
+      region,
+      style,
+      's'
+    );
 
     await mgmt.getTileStats('s');
     expect(fns['resourceService.getTileStats']).toHaveBeenCalledWith('s');
@@ -487,7 +502,10 @@ describe('importExportManagement', () => {
       region: {
         id: 'r',
         name: 'n',
-        bounds: [[0, 0], [1, 1]],
+        bounds: [
+          [0, 0],
+          [1, 1],
+        ],
         minZoom: 0,
         maxZoom: 0,
       },
