@@ -1,4 +1,4 @@
-import { openDB, IDBPDatabase } from 'idb';
+import { openDB, unwrap, IDBPDatabase } from 'idb';
 import { OfflineMapDB } from '@/types';
 import { DB_NAME, DB_VERSION } from '@/utils/constants';
 
@@ -157,7 +157,10 @@ async function openOfflineMapDB(): Promise<IDBPDatabase<OfflineMapDB>> {
         // Migration: v2 -> v3
         // Move regions from 'regions' store to styles.regions[]
         if (oldVersion > 0 && oldVersion < 3) {
-          migrateRegionsToStyles(transaction as unknown as IDBTransaction);
+          // Unwrap to the raw IDBTransaction: on idb's wrapper, getAll()/get()
+          // return Promises, so the onsuccess callbacks the migration relies
+          // on would never fire and no region would be migrated.
+          migrateRegionsToStyles(unwrap(transaction));
         }
         // Migration: v3 -> v4
         // Adds the `models` store for Mapbox Standard 3D model assets.
