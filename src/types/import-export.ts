@@ -36,6 +36,11 @@ export interface TileExportData {
 export interface MBTilesExportOptions {
   /** Tile format written into the MBTiles metadata table. */
   format?: 'pbf' | 'png' | 'jpg';
+  /**
+   * Style source to export. MBTiles holds one tile per z/x/y, so only one
+   * source fits in a file. Defaults to the source with the most tiles.
+   */
+  sourceId?: string;
   /** Additional metadata rows. Values are JSON-stringified if non-string. */
   metadata?: Record<string, unknown>;
 }

@@ -10,12 +10,14 @@ import type { StyleProvider } from '../../src/types/style';
 
 // sql.js in jest/jsdom can't fetch its .wasm file over HTTP — point the loader
 // at the copy shipped in node_modules. Done once per test process.
-const wasmPath = path.resolve(
-  __dirname,
-  '../../node_modules/sql.js/dist/sql-wasm.wasm'
-);
+const wasmPath = path.resolve(__dirname, '../../node_modules/sql.js/dist/sql-wasm.wasm');
 const wasmBinary = fs.readFileSync(wasmPath);
-configureSqlJs({ wasmBinary: wasmBinary.buffer.slice(wasmBinary.byteOffset, wasmBinary.byteOffset + wasmBinary.byteLength) });
+configureSqlJs({
+  wasmBinary: wasmBinary.buffer.slice(
+    wasmBinary.byteOffset,
+    wasmBinary.byteOffset + wasmBinary.byteLength
+  ),
+});
 
 // Minimal File polyfill — jsdom's File doesn't implement arrayBuffer() reliably
 // enough for FileReader, and we now need to read binary files.
@@ -96,7 +98,10 @@ describe('ImportExportService', () => {
       await storeRegionInStyle(db, 'test-style', {
         id: 'test-region',
         name: 'Test Region',
-        bounds: [[-122.5, 37.5], [-122.0, 38.0]],
+        bounds: [
+          [-122.5, 37.5],
+          [-122.0, 38.0],
+        ],
         styleUrl: 'https://example.com/style.json',
         minZoom: 0,
         maxZoom: 14,
@@ -142,7 +147,10 @@ describe('ImportExportService', () => {
       await storeRegionInStyle(db, 'test-region', {
         id: 'test-region',
         name: 'Test Region',
-        bounds: [[-122.5, 37.5], [-122.0, 38.0]],
+        bounds: [
+          [-122.5, 37.5],
+          [-122.0, 38.0],
+        ],
         styleUrl: 'https://example.com/style.json',
         minZoom: 0,
         maxZoom: 14,
@@ -152,11 +160,11 @@ describe('ImportExportService', () => {
 
       const tileBytes = new Uint8Array([0x1f, 0x8b, 0x08, 0x00, 0xde, 0xad, 0xbe, 0xef]);
       await db.put('tiles', {
-        key: 'test-region:source:10:100:200.pbf',
+        key: 'test-region:source:10:163:395.pbf',
         styleId: 'test-region',
         sourceId: 'source',
-        x: 100,
-        y: 200,
+        x: 163,
+        y: 395,
         z: 10,
         size: tileBytes.byteLength,
         data: tileBytes.buffer,
@@ -179,9 +187,9 @@ describe('ImportExportService', () => {
         expect(rows[0].values).toHaveLength(1);
         const [z, x, tmsRow, data] = rows[0].values[0];
         expect(z).toBe(10);
-        expect(x).toBe(100);
-        // TMS flip: (2^10 - 1) - 200 = 823
-        expect(tmsRow).toBe(823);
+        expect(x).toBe(163);
+        // TMS flip: (2^10 - 1) - 395 = 628
+        expect(tmsRow).toBe(628);
         expect((data as Uint8Array)[0]).toBe(0x1f);
         expect((data as Uint8Array)[7]).toBe(0xef);
       } finally {
@@ -194,7 +202,10 @@ describe('ImportExportService', () => {
       await storeRegionInStyle(db, 'source-region', {
         id: 'source-region',
         name: 'Source Region',
-        bounds: [[-122.5, 37.5], [-122.0, 38.0]],
+        bounds: [
+          [-122.5, 37.5],
+          [-122.0, 38.0],
+        ],
         styleUrl: 'https://example.com/style.json',
         minZoom: 5,
         maxZoom: 7,
@@ -204,11 +215,11 @@ describe('ImportExportService', () => {
 
       const tileBytes = new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
       await db.put('tiles', {
-        key: 'source-region:source:5:10:20.pbf',
+        key: 'source-region:source:5:5:12.pbf',
         styleId: 'source-region',
         sourceId: 'source',
-        x: 10,
-        y: 20,
+        x: 5,
+        y: 12,
         z: 5,
         size: tileBytes.byteLength,
         data: tileBytes.buffer,
@@ -241,8 +252,8 @@ describe('ImportExportService', () => {
       const imported = storedTiles.filter(t => t.styleId === 'imported-region');
       expect(imported).toHaveLength(1);
       expect(imported[0].z).toBe(5);
-      expect(imported[0].x).toBe(10);
-      expect(imported[0].y).toBe(20);
+      expect(imported[0].x).toBe(5);
+      expect(imported[0].y).toBe(12);
 
       const restored = new Uint8Array(imported[0].data as ArrayBuffer);
       expect(Array.from(restored)).toEqual(Array.from(tileBytes));
@@ -253,7 +264,10 @@ describe('ImportExportService', () => {
       await storeRegionInStyle(db, 'vec-region', {
         id: 'vec-region',
         name: 'Vector Region',
-        bounds: [[-1, -1], [1, 1]],
+        bounds: [
+          [-1, -1],
+          [1, 1],
+        ],
         styleUrl: '',
         minZoom: 0,
         maxZoom: 2,
@@ -328,7 +342,10 @@ describe('ImportExportService', () => {
           {
             id: 'vl-region',
             name: 'VL Region',
-            bounds: [[0, 0], [1, 1]],
+            bounds: [
+              [0, 0],
+              [1, 1],
+            ],
             styleUrl: '',
             minZoom: 0,
             maxZoom: 2,
@@ -365,10 +382,7 @@ describe('ImportExportService', () => {
         expect(rows[0].values[0][0]).toBeTruthy();
         const parsed = JSON.parse(rows[0].values[0][0] as string);
         expect(parsed.vector_layers).toHaveLength(2);
-        expect(parsed.vector_layers.map((v: { id: string }) => v.id)).toEqual([
-          'water',
-          'roads',
-        ]);
+        expect(parsed.vector_layers.map((v: { id: string }) => v.id)).toEqual(['water', 'roads']);
       } finally {
         sqliteDb.close();
       }
@@ -379,7 +393,10 @@ describe('ImportExportService', () => {
       await storeRegionInStyle(db, 'test-style', {
         id: 'test-region',
         name: 'Test Region',
-        bounds: [[-122.5, 37.5], [-122.0, 38.0]],
+        bounds: [
+          [-122.5, 37.5],
+          [-122.0, 38.0],
+        ],
         styleUrl: 'https://example.com/style.json',
         minZoom: 0,
         maxZoom: 14,
@@ -395,13 +412,183 @@ describe('ImportExportService', () => {
       const SQL = await getSqlJs();
       const sqliteDb = new SQL.Database(new Uint8Array(buffer));
       try {
-        const rows = sqliteDb.exec(
-          "SELECT value FROM metadata WHERE name = 'attribution'"
-        );
+        const rows = sqliteDb.exec("SELECT value FROM metadata WHERE name = 'attribution'");
         expect(rows[0].values[0][0]).toBe('Test Author');
       } finally {
         sqliteDb.close();
       }
+    });
+
+    describe('region and source scoping', () => {
+      const base = {
+        styleUrl: '',
+        created: Date.now(),
+        expiry: Date.now() + 30 * 24 * 60 * 60 * 1000,
+      };
+
+      async function putTile(
+        db: Awaited<typeof dbPromise>,
+        sourceId: string,
+        z: number,
+        x: number,
+        y: number,
+        ext: string,
+        marker: number
+      ) {
+        const data = new Uint8Array([marker]);
+        await db.put('tiles', {
+          key: `shared-style:${sourceId}:${z}:${x}:${y}.${ext}`,
+          styleId: 'shared-style',
+          sourceId,
+          x,
+          y,
+          z,
+          size: data.byteLength,
+          data: data.buffer,
+          downloadedAt: new Date().toISOString(),
+          type: 'vector',
+          url: '',
+          lastModified: Date.now(),
+        });
+      }
+
+      async function readTileRows(blob: Blob): Promise<unknown[][]> {
+        const SQL = await getSqlJs();
+        const sqliteDb = new SQL.Database(new Uint8Array(await blobToArrayBuffer(blob)));
+        try {
+          const rows = sqliteDb.exec(
+            'SELECT zoom_level, tile_column, tile_row FROM tiles ORDER BY zoom_level'
+          );
+          return rows[0]?.values ?? [];
+        } finally {
+          sqliteDb.close();
+        }
+      }
+
+      async function readFormat(blob: Blob): Promise<unknown> {
+        const SQL = await getSqlJs();
+        const sqliteDb = new SQL.Database(new Uint8Array(await blobToArrayBuffer(blob)));
+        try {
+          return sqliteDb.exec("SELECT value FROM metadata WHERE name = 'format'")[0].values[0][0];
+        } finally {
+          sqliteDb.close();
+        }
+      }
+
+      beforeEach(async () => {
+        const db = await dbPromise;
+        // Two regions sharing one style: A near (0,0) at z0-2, B far away at z10-12.
+        await storeRegionInStyle(db, 'shared-style', {
+          ...base,
+          id: 'region-a',
+          name: 'A',
+          bounds: [
+            [0, 0],
+            [1, 1],
+          ],
+          minZoom: 0,
+          maxZoom: 2,
+        });
+        await storeRegionInStyle(db, 'shared-style', {
+          ...base,
+          id: 'region-b',
+          name: 'B',
+          bounds: [
+            [100, 50],
+            [101, 51],
+          ],
+          minZoom: 10,
+          maxZoom: 12,
+        });
+      });
+
+      it("excludes sibling regions' tiles that share the style", async () => {
+        const db = await dbPromise;
+        await putTile(db, 'basemap', 1, 1, 0, 'pbf', 1); // in region A
+        await putTile(db, 'basemap', 11, 1595, 690, 'pbf', 2); // in region B only
+        await putTile(db, 'basemap', 5, 16, 15, 'pbf', 3); // A's bounds, outside A's zooms
+
+        const result = await service.exportRegionAsMBTiles('region-a');
+
+        expect(result.statistics.tilesExported).toBe(1);
+        // z1 y0 -> TMS row (2^1 - 1) - 0 = 1
+        expect(await readTileRows(result.blob)).toEqual([[1, 1, 1]]);
+      });
+
+      it('exports a single source instead of letting sources overwrite each other', async () => {
+        const db = await dbPromise;
+        await putTile(db, 'basemap', 1, 1, 0, 'pbf', 1);
+        await putTile(db, 'basemap', 2, 2, 1, 'pbf', 2);
+        await putTile(db, 'overlay', 1, 1, 0, 'pbf', 9); // same z/x/y as a basemap tile
+
+        const result = await service.exportRegionAsMBTiles('region-a');
+
+        // Defaults to the source with the most tiles; the overlay is skipped.
+        expect(result.statistics.tilesExported).toBe(2);
+        expect(await readTileRows(result.blob)).toEqual([
+          [1, 1, 1],
+          [2, 2, 2],
+        ]);
+      });
+
+      it('exports the requested sourceId and takes format from its tiles', async () => {
+        const db = await dbPromise;
+        await putTile(db, 'basemap', 1, 1, 0, 'pbf', 1);
+        await putTile(db, 'basemap', 2, 2, 1, 'pbf', 2);
+        await putTile(db, 'satellite', 1, 1, 0, 'png', 9);
+
+        const result = await service.exportRegionAsMBTiles('region-a', { sourceId: 'satellite' });
+
+        expect(result.statistics.tilesExported).toBe(1);
+        expect(await readFormat(result.blob)).toBe('png');
+      });
+
+      it("keeps all of a sole region's tiles even outside its recorded bounds", async () => {
+        const db = await dbPromise;
+        // Imported regions take bounds from MBTiles metadata, which may be
+        // tighter than (or missing for) the tiles actually in the file.
+        await storeRegionInStyle(db, 'solo-style', {
+          ...base,
+          id: 'solo',
+          name: 'Solo',
+          bounds: [
+            [0, 0],
+            [0, 0],
+          ],
+          minZoom: 0,
+          maxZoom: 14,
+        });
+        const data = new Uint8Array([1]);
+        await db.put('tiles', {
+          key: 'solo-style:imported:15:100:200.mvt',
+          styleId: 'solo-style',
+          sourceId: 'imported',
+          x: 100,
+          y: 200,
+          z: 15,
+          size: data.byteLength,
+          data: data.buffer,
+          downloadedAt: new Date().toISOString(),
+          type: 'vector',
+          url: '',
+          lastModified: Date.now(),
+        });
+
+        const result = await service.exportRegionAsMBTiles('solo');
+
+        expect(result.statistics.tilesExported).toBe(1);
+        // Stored as .mvt, written with the MBTiles spec value.
+        expect(await readFormat(result.blob)).toBe('pbf');
+      });
+
+      it('rejects a sourceId with no tiles in the region', async () => {
+        const db = await dbPromise;
+        await putTile(db, 'basemap', 1, 1, 0, 'pbf', 1);
+
+        await expect(
+          service.exportRegionAsMBTiles('region-a', { sourceId: 'missing' })
+        ).rejects.toThrow('Source "missing" has no tiles in this region (available: basemap)');
+      });
     });
   });
 
@@ -413,7 +600,10 @@ describe('ImportExportService', () => {
       await storeRegionInStyle(db, 'src-style-' + regionId, {
         id: regionId,
         name: regionId,
-        bounds: [[-1, -1], [1, 1]],
+        bounds: [
+          [-1, -1],
+          [1, 1],
+        ],
         styleUrl: '',
         minZoom: 0,
         maxZoom: 1,
@@ -477,11 +667,9 @@ describe('ImportExportService', () => {
     });
 
     it('rejects a non-SQLite file masquerading as .mbtiles', async () => {
-      const mockFile = new TestFile(
-        [JSON.stringify({ not: 'an mbtiles file' })],
-        'fake.mbtiles',
-        { type: 'application/octet-stream' }
-      ) as unknown as File;
+      const mockFile = new TestFile([JSON.stringify({ not: 'an mbtiles file' })], 'fake.mbtiles', {
+        type: 'application/octet-stream',
+      }) as unknown as File;
 
       const result = await service.importRegion({ file: mockFile, format: 'mbtiles' });
 
@@ -512,7 +700,10 @@ describe('ImportExportService', () => {
       await storeRegionInStyle(db, 'source-region', {
         id: 'source-region',
         name: 'Source Region',
-        bounds: [[-1, -1], [1, 1]],
+        bounds: [
+          [-1, -1],
+          [1, 1],
+        ],
         styleUrl: '',
         minZoom: 0,
         maxZoom: 2,
