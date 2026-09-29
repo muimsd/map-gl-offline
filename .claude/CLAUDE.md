@@ -101,6 +101,8 @@ The class uses class/interface declaration merging — every method from the `*M
 - `tile_row` is flipped to TMS on export and back to XYZ on import via `flipY(y, z) = (2^z - 1) - y`.
 - For vector exports, the `json` metadata row is required by QGIS / tippecanoe / maplibre-native. `buildVectorJsonMetadata` derives `vector_layers` from the offline style's sources (populated by `styleService`'s TileJSON expansion) and filters by the source ids that actually contributed tiles.
 - `type` metadata is `baselayer` for vector, `overlay` for raster.
+- Export is scoped: when a style holds several regions, `exportTiles` keeps only tiles inside the region's bounds/zooms (`isTileInRegion` in `src/utils/tileRange.ts`, the same range math the download pipeline uses). A sole region exports all its style's tiles — imported regions' bounds come from MBTiles metadata and can be tighter than the tiles.
+- One source per file: MBTiles has one tile per z/x/y, so `selectSingleSource` keeps `options.sourceId` or the source with the most tiles. Never write multiple sources into one `tiles` table — they overwrite each other.
 - `parseMBTiles` validates the SQLite magic header (`"SQLite format 3"`) and the presence of `metadata` / `tiles` tables up front, so a non-MBTiles file renamed to `.mbtiles` gets a clear error instead of a cryptic one from sql.js.
 
 `sql.js` is dynamically imported so it only ships with bundles that call MBTiles code. Default wasm source is jsDelivr; override with `configureSqlJs({ wasmUrl })` or `configureSqlJs({ wasmBinary })`. Tests use `wasmBinary` from `node_modules/sql.js/dist/sql-wasm.wasm` and polyfill `CompressionStream` / `DecompressionStream` from `node:stream/web` in `tests/setup.ts`.

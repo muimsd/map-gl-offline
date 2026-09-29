@@ -543,6 +543,44 @@ describe('ImportExportService', () => {
         expect(await readFormat(result.blob)).toBe('png');
       });
 
+      it("keeps all of a sole region's tiles even outside its recorded bounds", async () => {
+        const db = await dbPromise;
+        // Imported regions take bounds from MBTiles metadata, which may be
+        // tighter than (or missing for) the tiles actually in the file.
+        await storeRegionInStyle(db, 'solo-style', {
+          ...base,
+          id: 'solo',
+          name: 'Solo',
+          bounds: [
+            [0, 0],
+            [0, 0],
+          ],
+          minZoom: 0,
+          maxZoom: 14,
+        });
+        const data = new Uint8Array([1]);
+        await db.put('tiles', {
+          key: 'solo-style:imported:15:100:200.mvt',
+          styleId: 'solo-style',
+          sourceId: 'imported',
+          x: 100,
+          y: 200,
+          z: 15,
+          size: data.byteLength,
+          data: data.buffer,
+          downloadedAt: new Date().toISOString(),
+          type: 'vector',
+          url: '',
+          lastModified: Date.now(),
+        });
+
+        const result = await service.exportRegionAsMBTiles('solo');
+
+        expect(result.statistics.tilesExported).toBe(1);
+        // Stored as .mvt, written with the MBTiles spec value.
+        expect(await readFormat(result.blob)).toBe('pbf');
+      });
+
       it('rejects a sourceId with no tiles in the region', async () => {
         const db = await dbPromise;
         await putTile(db, 'basemap', 1, 1, 0, 'pbf', 1);

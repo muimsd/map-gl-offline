@@ -106,6 +106,14 @@ function buildVectorJsonMetadata(style: unknown, sourceIds: Set<string>): string
 
 const serviceLogger = logger.scope('ImportExportService');
 
+/** Map stored tile extensions to MBTiles 1.3 `format` values (`pbf`, `jpg`, ...). */
+function normalizeMBTilesFormat(ext: string): string {
+  const lower = ext.toLowerCase();
+  if (lower === 'mvt') return 'pbf';
+  if (lower === 'jpeg') return 'jpg';
+  return lower;
+}
+
 /**
  * MBTiles holds one tile per z/x/y, so tiles from several style sources can't
  * share a file — they'd overwrite each other at every shared coordinate.
@@ -184,9 +192,9 @@ export class ImportExportService {
 
       // Pick format: caller override → stored tile extension → region.tileExtension
       // → default pbf. Drives both the metadata row and whether tile bytes get gzipped.
-      const format = String(
-        options.format || tiles[0]?.format || region.tileExtension || 'pbf'
-      ).toLowerCase();
+      const format = normalizeMBTilesFormat(
+        String(options.format || tiles[0]?.format || region.tileExtension || 'pbf')
+      );
       const isVector = VECTOR_FORMATS.has(format);
 
       onProgress({
@@ -445,6 +453,14 @@ export class ImportExportService {
     const db = await this.db;
     const styleId = region.styleId || region.id;
 
+    // Tiles are stored per style, not per region. When the style holds other
+    // regions too, keep only tiles inside this region's bounds and zoom range,
+    // or sibling regions' tiles leak into the export. A sole region owns all of
+    // its style's tiles — and an imported region's bounds come from MBTiles
+    // metadata, which can be tighter than the tiles — so don't filter then.
+    const styleEntry = await db.get('styles', styleId);
+    const sharesStyle = (styleEntry?.regions?.length ?? 0) > 1;
+
     const transaction = db.transaction(['tiles'], 'readonly');
     const store = transaction.objectStore('tiles');
 
@@ -456,9 +472,6 @@ export class ImportExportService {
 
       while (cursor) {
         const tile = cursor.value;
-        // A style can hold several regions, so scope by the region's own
-        // bounds and zoom range — not just the styleId — or sibling regions'
-        // tiles leak into the export.
         const parsed = parseTileKey(String(tile.key));
         const z = tile.z ?? parsed?.z;
         const x = tile.x ?? parsed?.x;
@@ -468,7 +481,7 @@ export class ImportExportService {
           z !== undefined &&
           x !== undefined &&
           y !== undefined &&
-          isTileInRegion(z, x, y, region)
+          (!sharesStyle || isTileInRegion(z, x, y, region))
         ) {
           tiles.push({
             z,
