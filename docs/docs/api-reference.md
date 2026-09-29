@@ -371,9 +371,12 @@ The MBTiles machinery is lazy-loaded — `sql.js` only joins your bundle when a 
 
 Export a region to a binary MBTiles file. Vector tiles are gzipped automatically (idempotent — already-gzipped tiles pass through untouched) and raster tiles are written verbatim.
 
+Only tiles inside the region's bounds and zoom range are exported, even when other regions share the same style. MBTiles stores one tile per `z/x/y`, so a file holds a single style source: pass `sourceId` to choose it, otherwise the source with the most tiles is exported and the rest are skipped with a logged warning. `format` defaults to the stored tiles' extension.
+
 ```typescript
 const result = await manager.exportRegionAsMBTiles('my-region', {
   format: 'pbf', // 'pbf' | 'png' | 'jpg' — written to metadata.format
+  sourceId: 'openmaptiles', // which style source to export (default: the one with the most tiles)
   metadata: { attribution: 'My Data' }, // extra rows for the metadata table
   onProgress: p => console.log(`[${p.stage}] ${p.percentage}% — ${p.message}`),
 });

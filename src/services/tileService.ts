@@ -1,5 +1,5 @@
 import { dbPromise } from '@/storage/indexedDbManager';
-import * as tilebelt from '@mapbox/tilebelt';
+import { getTileRangeAtZoom } from '@/utils/tileRange';
 import {
   fetchResourceWithRetry,
   processBatch,
@@ -715,14 +715,7 @@ export class TileService {
     tileLogger.debug(`Region dimensions: ${widthKm.toFixed(1)}km × ${heightKm.toFixed(1)}km`);
 
     for (let z = region.minZoom; z <= region.maxZoom; z++) {
-      const bounds = region.bounds;
-      const minTile = tilebelt.pointToTile(bounds[0][0], bounds[0][1], z);
-      const maxTile = tilebelt.pointToTile(bounds[1][0], bounds[1][1], z);
-
-      const minX = Math.min(minTile[0], maxTile[0]);
-      const maxX = Math.max(minTile[0], maxTile[0]);
-      const minY = Math.min(minTile[1], maxTile[1]);
-      const maxY = Math.max(minTile[1], maxTile[1]);
+      const { minX, maxX, minY, maxY } = getTileRangeAtZoom(region.bounds, z);
 
       const tilesAtZoom = (maxX - minX + 1) * (maxY - minY + 1);
       tilesByZoom[z] = tilesAtZoom;

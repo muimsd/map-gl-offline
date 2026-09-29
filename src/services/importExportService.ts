@@ -1,6 +1,7 @@
 import { dbPromise } from '@/storage/indexedDbManager';
 import { logger } from '@/utils/logger';
-import { createTileKey } from '@/utils/tileKey';
+import { createTileKey, parseTileKey } from '@/utils/tileKey';
+import { isTileInRegion } from '@/utils/tileRange';
 import { getSqlJs } from '@/utils/sqlJsLoader';
 import type {
   RegionExportData,
@@ -105,6 +106,47 @@ function buildVectorJsonMetadata(style: unknown, sourceIds: Set<string>): string
 
 const serviceLogger = logger.scope('ImportExportService');
 
+/**
+ * MBTiles holds one tile per z/x/y, so tiles from several style sources can't
+ * share a file — they'd overwrite each other at every shared coordinate.
+ * Keep only `sourceId` when given, otherwise the source with the most tiles
+ * (the basemap in practice), and warn about what was left out.
+ */
+function selectSingleSource(tiles: TileExportData[], sourceId?: string): TileExportData[] {
+  const bySource = new Map<string, TileExportData[]>();
+  for (const tile of tiles) {
+    const group = bySource.get(tile.sourceId);
+    if (group) group.push(tile);
+    else bySource.set(tile.sourceId, [tile]);
+  }
+
+  if (sourceId !== undefined) {
+    const selected = bySource.get(sourceId);
+    if (!selected) {
+      const available = [...bySource.keys()].join(', ') || 'none';
+      throw new Error(`Source "${sourceId}" has no tiles in this region (available: ${available})`);
+    }
+    return selected;
+  }
+
+  if (bySource.size <= 1) return tiles;
+
+  let chosen = '';
+  let chosenTiles: TileExportData[] = [];
+  for (const [id, group] of bySource) {
+    if (group.length > chosenTiles.length) {
+      chosen = id;
+      chosenTiles = group;
+    }
+  }
+  const skipped = [...bySource.keys()].filter(id => id !== chosen);
+  serviceLogger.warn(
+    `Region has tiles from ${bySource.size} sources; MBTiles holds one. Exporting "${chosen}", ` +
+      `skipping ${skipped.join(', ')}. Pass { sourceId } to choose another.`
+  );
+  return chosenTiles;
+}
+
 export class ImportExportService {
   private db = dbPromise;
 
@@ -137,11 +179,14 @@ export class ImportExportService {
         throw new Error(`Region ${regionId} not found`);
       }
 
-      const tiles = await this.exportTiles(regionId, onProgress);
+      const regionTiles = await this.exportTiles(region, onProgress);
+      const tiles = selectSingleSource(regionTiles, options.sourceId);
 
-      // Pick format: caller override → region.tileExtension → default pbf.
-      // Drives both the metadata row and whether tile bytes get gzipped.
-      const format = String(options.format || region.tileExtension || 'pbf').toLowerCase();
+      // Pick format: caller override → stored tile extension → region.tileExtension
+      // → default pbf. Drives both the metadata row and whether tile bytes get gzipped.
+      const format = String(
+        options.format || tiles[0]?.format || region.tileExtension || 'pbf'
+      ).toLowerCase();
       const isVector = VECTOR_FORMATS.has(format);
 
       onProgress({
@@ -394,14 +439,11 @@ export class ImportExportService {
    * Export tiles data
    */
   private async exportTiles(
-    regionId: string,
+    region: StoredRegion,
     onProgress?: (progress: ImportExportProgress) => void
   ): Promise<TileExportData[]> {
     const db = await this.db;
-
-    // First, find the styleId for this region
-    const region = await this.getRegionMetadata(regionId);
-    const styleId = region?.styleId || regionId;
+    const styleId = region.styleId || region.id;
 
     const transaction = db.transaction(['tiles'], 'readonly');
     const store = transaction.objectStore('tiles');
@@ -414,15 +456,27 @@ export class ImportExportService {
 
       while (cursor) {
         const tile = cursor.value;
-        // Filter tiles by the region's styleId
-        if (tile.styleId === styleId) {
+        // A style can hold several regions, so scope by the region's own
+        // bounds and zoom range — not just the styleId — or sibling regions'
+        // tiles leak into the export.
+        const parsed = parseTileKey(String(tile.key));
+        const z = tile.z ?? parsed?.z;
+        const x = tile.x ?? parsed?.x;
+        const y = tile.y ?? parsed?.y;
+        if (
+          tile.styleId === styleId &&
+          z !== undefined &&
+          x !== undefined &&
+          y !== undefined &&
+          isTileInRegion(z, x, y, region)
+        ) {
           tiles.push({
-            z: tile.z ?? 0, // Handle optional z
-            x: tile.x ?? 0, // Handle optional x
-            y: tile.y ?? 0, // Handle optional y
+            z,
+            x,
+            y,
             data: tile.data,
-            format: 'pbf', // TileEntry doesn't have format, use default
-            sourceId: tile.sourceId ?? 'default', // Handle optional sourceId
+            format: (parsed?.ext || 'pbf').toLowerCase() as TileExportData['format'],
+            sourceId: tile.sourceId ?? parsed?.sourceId ?? 'default',
           });
         }
 
@@ -430,7 +484,8 @@ export class ImportExportService {
         if (onProgress && processed % 100 === 0) {
           onProgress({
             stage: 'exporting',
-            percentage: 30 + (processed / 1000) * 40, // Rough estimation
+            // Total is unknown while walking the cursor; approach 70% asymptotically.
+            percentage: 30 + 40 * (1 - 1 / (1 + processed / 1000)),
             message: `Exported ${processed} tiles...`,
             currentItem: `${tile.z ?? 0}/${tile.x ?? 0}/${tile.y ?? 0}`,
             completedItems: processed,
@@ -633,7 +688,7 @@ export class ImportExportService {
             sourceId,
             downloadedAt: new Date().toISOString(),
             size: tile.data instanceof ArrayBuffer ? tile.data.byteLength : 0,
-            type: 'vector',
+            type: VECTOR_FORMATS.has(ext) ? 'vector' : 'raster',
             url: `tile://${tile.z}/${tile.x}/${tile.y}`,
             lastModified: Date.now(),
           });
