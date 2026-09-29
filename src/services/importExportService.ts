@@ -1,7 +1,7 @@
 import { dbPromise } from '@/storage/indexedDbManager';
 import { logger } from '@/utils/logger';
 import { createTileKey, parseTileKey } from '@/utils/tileKey';
-import { isTileInRegion } from '@/utils/tileRange';
+import { isTileInRegion, sourceZoomRange } from '@/utils/tileRange';
 import { getSqlJs } from '@/utils/sqlJsLoader';
 import type {
   RegionExportData,
@@ -454,12 +454,22 @@ export class ImportExportService {
     const styleId = region.styleId || region.id;
 
     // Tiles are stored per style, not per region. When the style holds other
-    // regions too, keep only tiles inside this region's bounds and zoom range,
-    // or sibling regions' tiles leak into the export. A sole region owns all of
-    // its style's tiles — and an imported region's bounds come from MBTiles
-    // metadata, which can be tighter than the tiles — so don't filter then.
+    // regions too, keep only tiles inside this region's bounds and the zooms
+    // the download pipeline fetches for each source (which can fall outside
+    // the region's own range — see sourceZoomRange), or sibling regions' tiles
+    // leak into the export. A sole region owns all of its style's tiles — and
+    // an imported region's bounds come from MBTiles metadata, which can be
+    // tighter than the tiles — so don't filter then.
     const styleEntry = await db.get('styles', styleId);
     const sharesStyle = (styleEntry?.regions?.length ?? 0) > 1;
+    const styleSources =
+      (styleEntry?.style as { sources?: Record<string, { minzoom?: number; maxzoom?: number }> })
+        ?.sources ?? {};
+    const belongsToRegion = (sourceId: string, z: number, x: number, y: number): boolean => {
+      const source = styleSources[sourceId];
+      const { min, max } = sourceZoomRange(region, source?.minzoom, source?.maxzoom);
+      return isTileInRegion(z, x, y, { bounds: region.bounds, minZoom: min, maxZoom: max });
+    };
 
     const transaction = db.transaction(['tiles'], 'readonly');
     const store = transaction.objectStore('tiles');
@@ -481,7 +491,7 @@ export class ImportExportService {
           z !== undefined &&
           x !== undefined &&
           y !== undefined &&
-          (!sharesStyle || isTileInRegion(z, x, y, region))
+          (!sharesStyle || belongsToRegion(tile.sourceId ?? parsed?.sourceId ?? '', z, x, y))
         ) {
           tiles.push({
             z,

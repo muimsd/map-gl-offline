@@ -1,5 +1,5 @@
 import { dbPromise } from '@/storage/indexedDbManager';
-import { getTileRangeAtZoom } from '@/utils/tileRange';
+import { getTileRangeAtZoom, sourceZoomRange } from '@/utils/tileRange';
 import {
   fetchResourceWithRetry,
   processBatch,
@@ -133,35 +133,21 @@ export class TileService {
       throw new Error('No valid tile sources found in style definition');
     }
 
-    // Some sources have zoom ranges outside the user's region (e.g. procedural-buildings
-    // at z15 when the user requested z0-z14). Generate additional tile coordinates so
+    // Some sources have zoom ranges entirely outside the user's region (e.g.
+    // procedural-buildings at z15 when the user requested z0-z14, or a z14-capped
+    // basemap for a z15-z17 region). Generate the extra coordinates they need so
     // these sources aren't silently skipped.
+    const generatedZooms = new Set<number>();
+    for (let z = region.minZoom; z <= region.maxZoom; z++) generatedZooms.add(z);
     for (const [sourceId, sourceConfig] of tileSources) {
-      const srcMin = sourceConfig.minzoom;
-      const srcMax = sourceConfig.maxzoom;
-      if (srcMin === undefined && srcMax === undefined) continue;
-
-      const extraMinZ = srcMin !== undefined && srcMin > region.maxZoom ? srcMin : null;
-      const extraMaxZ = srcMax !== undefined && srcMax < region.minZoom ? srcMax : null;
-      // Only extend upward (higher zoom) — sources that need zooms above region.maxZoom
-      if (extraMinZ !== null) {
-        const upperBound = srcMax !== undefined ? srcMax : extraMinZ;
+      const { min, max } = sourceZoomRange(region, sourceConfig.minzoom, sourceConfig.maxzoom);
+      for (let z = min; z <= max; z++) {
+        if (generatedZooms.has(z)) continue;
+        generatedZooms.add(z);
         tileLogger.debug(
-          `Source ${sourceId} needs zoom ${extraMinZ}-${upperBound} beyond region max ${region.maxZoom}, generating extra tiles`
+          `Source ${sourceId} needs zoom ${z} outside region ${region.minZoom}-${region.maxZoom}, generating extra tiles`
         );
-        const extraRegion = { ...region, minZoom: extraMinZ, maxZoom: upperBound };
-        const extraCoords = this.generateTileCoordinates(extraRegion);
-        tileCoords.push(...extraCoords);
-      }
-      // Extend downward (lower zoom) — sources that need zooms below region.minZoom
-      if (extraMaxZ !== null) {
-        const lowerBound = srcMin !== undefined ? srcMin : extraMaxZ;
-        tileLogger.debug(
-          `Source ${sourceId} needs zoom ${lowerBound}-${extraMaxZ} below region min ${region.minZoom}, generating extra tiles`
-        );
-        const extraRegion = { ...region, minZoom: lowerBound, maxZoom: extraMaxZ };
-        const extraCoords = this.generateTileCoordinates(extraRegion);
-        tileCoords.push(...extraCoords);
+        tileCoords.push(...this.generateTileCoordinates({ ...region, minZoom: z, maxZoom: z }));
       }
     }
 
@@ -229,8 +215,11 @@ export class TileService {
         continue;
       }
 
-      const sourceMinZ = Math.ceil(sourceConfig.minzoom ?? region.minZoom);
-      const sourceMaxZ = Math.floor(sourceConfig.maxzoom ?? region.maxZoom);
+      const { min: sourceMinZ, max: sourceMaxZ } = sourceZoomRange(
+        region,
+        sourceConfig.minzoom,
+        sourceConfig.maxzoom
+      );
 
       let coordsForSource = tileCoords.filter(
         coord => coord.z >= sourceMinZ && coord.z <= sourceMaxZ
