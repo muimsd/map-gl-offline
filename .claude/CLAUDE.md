@@ -82,6 +82,9 @@ Tile downloads probe each source with 3 representative tiles (start/middle/end) 
 ### `OfflineRegionOptions.expiry`
 `expiry` is an **absolute timestamp** (ms since epoch), matching the type doc. `addRegion` stores it verbatim. If omitted, it defaults to `Date.now() + 30 days`. Do not add `Date.now()` to caller-supplied values — that was a pre-0.6.0 bug that corrupted real timestamps.
 
+### Region cleanup semantics
+`cleanupExpiredRegions()` is intentionally **age-based**: it deletes regions last updated more than 30 days ago (`performCleanup({ maxAge: 30 })`) and does not read `region.expiry`. This is the documented, maintainer-confirmed behaviour — don't "fix" it to use `expiry`. `forceCleanupExpiredRegions()` is the expiry-based variant.
+
 ### Region dedup
 `addRegion` upserts by `region.id` (not bounds). Two regions sharing bounds with distinct ids both persist; repeated id → replaced in place (`created` preserved, `updated` refreshed).
 

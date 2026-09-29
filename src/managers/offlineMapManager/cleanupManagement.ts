@@ -3,7 +3,12 @@ import type { OfflineManagerServices } from './base';
 
 export interface CleanupManagement {
   getRegionSize(regionId: string, styleId?: string): Promise<number>;
+  /**
+   * Delete regions last updated more than 30 days ago. Age-based by design —
+   * it does not read `region.expiry`; use `forceCleanupExpiredRegions` for that.
+   */
   cleanupExpiredRegions(): Promise<number>;
+  /** Delete regions whose absolute `expiry` timestamp has passed. */
   forceCleanupExpiredRegions(): Promise<number>;
   setupAutoCleanup(options?: RegionCleanupOptions & { intervalHours?: number }): Promise<string>;
   stopAutoCleanup(cleanupId?: string): Promise<void>;
