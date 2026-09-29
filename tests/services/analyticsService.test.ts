@@ -168,6 +168,37 @@ describe('AnalyticsService', () => {
       expect(report.storageByType.fonts).toBe(0);
       expect(report.storageByType.sprites).toBe(0);
       expect(report.storageByType.glyphs).toBe(0);
+      expect(report.storageByType.models).toBe(0);
+    });
+
+    it('includes 3D models in the storage totals', async () => {
+      const db = await dbPromise;
+      await db.clear('models');
+      await db.put('models', {
+        key: 'style-1::model::tree',
+        styleId: 'style-1',
+        modelName: 'tree',
+        data: new ArrayBuffer(4096),
+        size: 4096,
+        lastModified: Date.now(),
+      } as never);
+      const report = await service.getComprehensiveStorageAnalytics(async () => ({
+        totalRegions: 0,
+        totalSize: 0,
+        averageSize: 0,
+        regionsByStyle: {},
+        expiryDistribution: {
+          expired: 0,
+          expiringWithin24h: 0,
+          expiringWithin7d: 0,
+          neverExpiring: 0,
+        },
+      }));
+
+      expect(report.storageByType.models).toBe(4096);
+      expect(report.totalStorageSize).toBe(4096);
+      expect(report.models.count).toBe(1);
+      await db.clear('models');
     });
 
     it('should generate recommendations for expired regions', async () => {
@@ -186,7 +217,9 @@ describe('AnalyticsService', () => {
 
       const report = await service.getComprehensiveStorageAnalytics(mockRegionAnalytics);
 
-      expect(report.recommendations).toContain('3 expired regions found. Run cleanup to free storage.');
+      expect(report.recommendations).toContain(
+        '3 expired regions found. Run cleanup to free storage.'
+      );
     });
 
     it('should generate recommendations for many regions', async () => {
@@ -217,7 +250,9 @@ describe('AnalyticsService', () => {
         key: 'big:v:0:0:0.pbf',
         styleId: 'big',
         sourceId: 'v',
-        x: 0, y: 0, z: 0,
+        x: 0,
+        y: 0,
+        z: 0,
         size: 1100 * 1024 * 1024, // 1.1 GB — triggers the > 1000 MB rec
         data: bigTile,
         downloadedAt: new Date().toISOString(),

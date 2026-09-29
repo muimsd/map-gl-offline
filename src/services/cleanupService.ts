@@ -1,8 +1,15 @@
 import { dbPromise } from '@/storage/indexedDbManager';
 import { logger } from '@/utils';
 import { parseTileKey } from '@/utils/tileKey';
-import { loadAllStoredRegions } from '@/services/regionService';
-import type { StoredRegion, RegionCleanupOptions, CleanupResult, RegionAnalytics } from '@/types';
+import { loadAllStoredRegions, resourceKeyBelongsToStyle } from '@/services/regionService';
+import { tileBelongsToRegion, type SourceZoomConfig } from '@/utils/tileRange';
+import type {
+  StoredRegion,
+  RegionCleanupOptions,
+  CleanupResult,
+  RegionAnalytics,
+  OfflineRegionOptions,
+} from '@/types';
 
 const cleanupLogger = logger.scope('CleanupService');
 
@@ -125,9 +132,12 @@ export class CleanupService {
       let deletedCount = 0;
       for (const region of uniqueRegionsToDelete) {
         try {
-          const regionSize = await this.getRegionSize(region.id);
+          const bytesBefore = await this.getStyleStoredBytes(region.styleId);
           await this.deleteRegionCallback(region.id, region.styleId);
-          result.freedSpace += regionSize;
+          result.freedSpace += Math.max(
+            0,
+            bytesBefore - (await this.getStyleStoredBytes(region.styleId))
+          );
           deletedCount++;
 
           onProgress?.({
@@ -200,7 +210,7 @@ export class CleanupService {
     };
 
     for (const region of regions) {
-      const regionSize = await this.getRegionSize(region.id);
+      const regionSize = await this.getRegionSize(region.id, region.styleId);
       totalSize += regionSize;
 
       // Track by style
@@ -316,13 +326,14 @@ export class CleanupService {
     fonts: number;
     sprites: number;
     glyphs: number;
+    models: number;
     total: number;
   }> {
     const db = await this.db;
     const now = Date.now();
-    const counts = { tiles: 0, fonts: 0, sprites: 0, glyphs: 0, total: 0 };
+    const counts = { tiles: 0, fonts: 0, sprites: 0, glyphs: 0, models: 0, total: 0 };
 
-    const stores = ['tiles', 'fonts', 'sprites', 'glyphs'] as const;
+    const stores = ['tiles', 'fonts', 'sprites', 'glyphs', 'models'] as const;
 
     for (const storeName of stores) {
       try {
@@ -376,54 +387,84 @@ export class CleanupService {
     return loadAllStoredRegions();
   }
 
+  /**
+   * Bytes of the tiles stored for a region: tiles on its style inside its
+   * bounds, at the zooms the download pipeline fetched for each source. Tiles
+   * are stored per style, so regions that overlap share (and both count)
+   * their common tiles; shared style resources are not included.
+   */
   async getRegionSize(regionId: string, styleIdParam?: string): Promise<number> {
     const db = await this.db;
-    let totalSize = 0;
 
-    let styleId = styleIdParam;
-    let regionMinZoom = 0;
-    let regionMaxZoom = 22;
-
-    // Find the region's styleId and zoom range from styles.regions[]
-    if (!styleId) {
-      const styles = await db.getAll('styles');
-      for (const style of styles) {
-        const styleEntry = style as {
-          key?: string;
-          regions?: Array<{ id?: string; minZoom?: number; maxZoom?: number }>;
-        };
-        if (styleEntry.regions && Array.isArray(styleEntry.regions)) {
-          const found = styleEntry.regions.find(r => r.id === regionId);
-          if (found) {
-            styleId = styleEntry.key;
-            regionMinZoom = found.minZoom ?? 0;
-            regionMaxZoom = found.maxZoom ?? 22;
-            break;
-          }
-        }
+    const candidates = styleIdParam
+      ? [await db.get('styles', styleIdParam)]
+      : await db.getAll('styles');
+    let styleEntry: (typeof candidates)[number];
+    let region: OfflineRegionOptions | undefined;
+    for (const entry of candidates) {
+      region = entry?.regions?.find(
+        (r: OfflineRegionOptions & { regionId?: string }) =>
+          r.id === regionId || r.regionId === regionId
+      );
+      if (region) {
+        styleEntry = entry;
+        break;
       }
     }
-
-    if (!styleId) {
+    if (!styleEntry || !region) {
       return 0;
     }
 
-    // Calculate size from tiles that belong to this style within the region's zoom range
+    const styleId = styleEntry.key;
+    const sources = (styleEntry.style?.sources ?? {}) as Record<
+      string,
+      SourceZoomConfig | undefined
+    >;
+    let totalSize = 0;
     const tx = db.transaction(['tiles'], 'readonly');
     for await (const cursor of tx.objectStore('tiles')) {
       const tile = cursor.value;
       if (tile.styleId !== styleId) continue;
-
-      // Filter by zoom range when possible
       const parsed = parseTileKey(tile.key);
-      if (parsed && (parsed.z < regionMinZoom || parsed.z > regionMaxZoom)) {
-        continue;
+      if (!parsed) continue;
+      const coords = {
+        sourceId: tile.sourceId ?? parsed.sourceId,
+        z: parsed.z,
+        x: parsed.x,
+        y: parsed.y,
+      };
+      if (tileBelongsToRegion(coords, region, sources)) {
+        totalSize += tile.size || 0;
       }
-
-      totalSize += tile.size || 0;
     }
 
     return totalSize;
+  }
+
+  /**
+   * Bytes stored for a style: its tiles plus the fonts, glyphs, sprites and
+   * models keyed to it. Measured before and after a deletion to report the
+   * space actually freed (a region's own size over-counts tiles it shares).
+   */
+  private async getStyleStoredBytes(styleId: string | undefined): Promise<number> {
+    if (!styleId) return 0;
+    const db = await this.db;
+    let total = 0;
+
+    const tx = db.transaction(['tiles'], 'readonly');
+    for await (const cursor of tx.objectStore('tiles')) {
+      if (cursor.value.styleId === styleId) total += cursor.value.size || 0;
+    }
+
+    for (const storeName of ['fonts', 'glyphs', 'sprites', 'models'] as const) {
+      const storeTx = db.transaction([storeName], 'readonly');
+      for await (const cursor of storeTx.objectStore(storeName)) {
+        const entry = cursor.value as { key: string; size?: number };
+        if (resourceKeyBelongsToStyle(entry.key, styleId)) total += entry.size || 0;
+      }
+    }
+
+    return total;
   }
 
   private async calculateTotalStorageSize(): Promise<number> {
@@ -436,11 +477,12 @@ export class CleanupService {
     const db = await this.db;
     let totalSize = 0;
 
-    const stores: Array<'tiles' | 'fonts' | 'sprites' | 'glyphs' | 'styles'> = [
+    const stores: Array<'tiles' | 'fonts' | 'sprites' | 'glyphs' | 'models' | 'styles'> = [
       'tiles',
       'fonts',
       'sprites',
       'glyphs',
+      'models',
       'styles',
     ];
 
@@ -492,7 +534,7 @@ export class CleanupService {
     for (const region of sortedRegions) {
       if (currentSize >= targetSize) break;
       selected.push(region);
-      const regionSize = await this.getRegionSize(region.id);
+      const regionSize = await this.getRegionSize(region.id, region.styleId);
       currentSize += regionSize > 0 ? regionSize : 10 * 1024 * 1024; // Fallback to 10MB if size unknown
     }
 

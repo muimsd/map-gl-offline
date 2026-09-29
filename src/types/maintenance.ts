@@ -2,6 +2,7 @@ import { EnhancedGlyphStats } from '@/services/glyphService';
 import { TileStats } from './tile';
 import { EnhancedFontStats } from './font';
 import { EnhancedSpriteStats } from './sprite';
+import { EnhancedModelStats } from './model';
 import { CleanupResult, RegionAnalytics } from './cleanup';
 
 // Maintenance Options Type
@@ -19,6 +20,7 @@ export interface StorageAnalyticsReport {
   fonts: EnhancedFontStats;
   sprites: EnhancedSpriteStats;
   glyphs: EnhancedGlyphStats;
+  models: EnhancedModelStats;
   regions: RegionAnalytics;
   totalStorageSize: number;
   storageByType: Record<string, number>;

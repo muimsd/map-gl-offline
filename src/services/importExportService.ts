@@ -1,7 +1,7 @@
 import { dbPromise } from '@/storage/indexedDbManager';
 import { logger } from '@/utils/logger';
 import { createTileKey, parseTileKey } from '@/utils/tileKey';
-import { isTileInRegion, sourceZoomRange } from '@/utils/tileRange';
+import { tileBelongsToRegion, type SourceZoomConfig } from '@/utils/tileRange';
 import { getSqlJs } from '@/utils/sqlJsLoader';
 import type {
   RegionExportData,
@@ -462,26 +462,10 @@ export class ImportExportService {
     // tighter than the tiles — so don't filter then.
     const styleEntry = await db.get('styles', styleId);
     const sharesStyle = (styleEntry?.regions?.length ?? 0) > 1;
-    const styleSources =
-      (
-        styleEntry?.style as {
-          sources?: Record<
-            string,
-            { minzoom?: number; maxzoom?: number; __originalMaxzoom?: number | null }
-          >;
-        }
-      )?.sources ?? {};
-    const belongsToRegion = (sourceId: string, z: number, x: number, y: number): boolean => {
-      const source = styleSources[sourceId];
-      // The stored style's maxzoom is capped for rendering; the pipeline
-      // planned from the upstream value patchStyleForOffline stashed.
-      const upstreamMaxzoom =
-        source?.__originalMaxzoom !== undefined
-          ? (source.__originalMaxzoom ?? undefined)
-          : source?.maxzoom;
-      const { min, max } = sourceZoomRange(region, source?.minzoom, upstreamMaxzoom);
-      return isTileInRegion(z, x, y, { bounds: region.bounds, minZoom: min, maxZoom: max });
-    };
+    const styleSources = (styleEntry?.style?.sources ?? {}) as Record<
+      string,
+      SourceZoomConfig | undefined
+    >;
 
     const transaction = db.transaction(['tiles'], 'readonly');
     const store = transaction.objectStore('tiles');
@@ -503,7 +487,12 @@ export class ImportExportService {
           z !== undefined &&
           x !== undefined &&
           y !== undefined &&
-          (!sharesStyle || belongsToRegion(tile.sourceId ?? parsed?.sourceId ?? '', z, x, y))
+          (!sharesStyle ||
+            tileBelongsToRegion(
+              { sourceId: tile.sourceId ?? parsed?.sourceId, z, x, y },
+              region,
+              styleSources
+            ))
         ) {
           tiles.push({
             z,

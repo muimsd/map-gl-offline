@@ -127,6 +127,32 @@ describe('SpriteService.downloadSprites', () => {
     expect(seen.length).toBeGreaterThan(0);
   });
 
+  it('advances progress for failed sprites instead of stalling', async () => {
+    mockFetchWithRetry.mockImplementation(async (url: string) =>
+      url.includes('bad') ? new Response(null, { status: 404 }) : okPngResponse()
+    );
+    const seen: number[] = [];
+    await service.downloadSprites(
+      [
+        'https://example.com/bad1.png',
+        'https://example.com/ok1.png',
+        'https://example.com/bad2.png',
+        'https://example.com/ok2.png',
+      ],
+      'style-progress',
+      {
+        storageQuotaCheck: false,
+        enableValidation: false,
+        maxRetries: 0,
+        skipExisting: false,
+        batchSize: 1,
+        onProgress: p => seen.push(p.completed),
+      }
+    );
+    // One step per sprite (success or failure), then the final report.
+    expect(seen).toEqual([1, 2, 3, 4, 4]);
+  });
+
   it('applies a namePrefix — call completes even when prefix is provided', async () => {
     mockFetchWithRetry.mockImplementation(async () => okPngResponse());
     const result = await service.downloadSprites(

@@ -20,6 +20,40 @@ describe('tileRange', () => {
     });
   });
 
+  it('keeps an east edge on the antimeridian at the last column (no wrap to x=0)', () => {
+    expect(
+      getTileRangeAtZoom(
+        [
+          [90, -85],
+          [180, 85],
+        ],
+        3
+      )
+    ).toEqual({
+      minX: 6,
+      maxX: 7,
+      minY: 0,
+      maxY: 7,
+    });
+  });
+
+  it('clamps latitudes beyond the Mercator limit onto the grid', () => {
+    expect(
+      getTileRangeAtZoom(
+        [
+          [-180, -90],
+          [180, 90],
+        ],
+        2
+      )
+    ).toEqual({
+      minX: 0,
+      maxX: 3,
+      minY: 0,
+      maxY: 3,
+    });
+  });
+
   describe('isTileInRegion', () => {
     const region = {
       bounds: [

@@ -75,6 +75,8 @@ Use `createTileKey()` from `src/utils/tileKey.ts` for consistent key generation.
 
 Per-source zoom levels come from `sourceZoomRange()` (`src/utils/tileRange.ts`) — both the extra-coordinate step and the per-source filter in `tileService.downloadTiles` must use it. A source whose `maxzoom` is below `region.minZoom` still needs its `maxzoom` tiles (the renderer overzooms them); never default a source's `minzoom` to `region.minZoom` in a filter, which empties that range.
 
+Whether a stored tile belongs to a region is decided in one place: `tileBelongsToRegion()` (`src/utils/tileRange.ts`), i.e. inside the region's bounds at a zoom `sourceZoomRange` gives the tile's source. `getRegionSize`, `deleteRegion`'s tile pruning and MBTiles export all use it; don't reintroduce ad-hoc bbox or zoom checks. `getTileRangeAtZoom` clamps to the tile grid (tilebelt wraps longitude 180 to x = 0).
+
 Tile downloads probe each source with 3 representative tiles (start/middle/end) before committing the full plan; sources with majority-404 (sparse-for-this-region) are skipped. Disable via `tileOptions: { probeSourcesBeforeDownload: false }`.
 
 ### `OfflineRegionOptions.expiry`

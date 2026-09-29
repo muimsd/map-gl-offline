@@ -1,7 +1,12 @@
 /**
  * Tests for Cleanup Service
  */
-import { CleanupService, cleanupService, getRegionAnalytics, optimizeStorage } from '../../src/services/cleanupService';
+import {
+  CleanupService,
+  cleanupService,
+  getRegionAnalytics,
+  optimizeStorage,
+} from '../../src/services/cleanupService';
 import { dbPromise } from '../../src/storage/indexedDbManager';
 
 // Helper to store region inside styles.regions[] (the new storage pattern)
@@ -61,7 +66,10 @@ describe('CleanupService', () => {
       await storeRegionInStyle(db, 'test-style', {
         id: 'region-1',
         name: 'Test Region 1',
-        bounds: [[-122.5, 37.5], [-122.0, 38.0]],
+        bounds: [
+          [-122.5, 37.5],
+          [-122.0, 38.0],
+        ],
         styleUrl: 'https://example.com/style.json',
         minZoom: 0,
         maxZoom: 10,
@@ -72,7 +80,10 @@ describe('CleanupService', () => {
       await storeRegionInStyle(db, 'test-style', {
         id: 'region-2',
         name: 'Test Region 2',
-        bounds: [[-73.5, 40.5], [-73.0, 41.0]],
+        bounds: [
+          [-73.5, 40.5],
+          [-73.0, 41.0],
+        ],
         styleUrl: 'https://example.com/style.json',
         minZoom: 0,
         maxZoom: 10,
@@ -103,7 +114,10 @@ describe('CleanupService', () => {
       await storeRegionInStyle(db, 'test-style', {
         id: 'region-with-tiles',
         name: 'Region With Tiles',
-        bounds: [[-122.5, 37.5], [-122.0, 38.0]],
+        bounds: [
+          [-122.5, 37.5],
+          [-122.0, 38.0],
+        ],
         styleUrl: 'https://example.com/style.json',
         minZoom: 0,
         maxZoom: 10,
@@ -111,12 +125,13 @@ describe('CleanupService', () => {
         expiry: Date.now() + 30 * 24 * 60 * 60 * 1000,
       });
 
+      // Inside the region's bounds at z10 (x 163-164, y 394-396).
       await db.put('tiles', {
-        key: 'test-style:source:10:100:200.pbf',
+        key: 'test-style:source:10:163:395.pbf',
         styleId: 'test-style',
         sourceId: 'source',
-        x: 100,
-        y: 200,
+        x: 163,
+        y: 395,
         z: 10,
         size: 1000,
         data: new ArrayBuffer(1000),
@@ -127,11 +142,11 @@ describe('CleanupService', () => {
       });
 
       await db.put('tiles', {
-        key: 'test-style:source:10:101:200.pbf',
+        key: 'test-style:source:10:164:395.pbf',
         styleId: 'test-style',
         sourceId: 'source',
-        x: 101,
-        y: 200,
+        x: 164,
+        y: 395,
         z: 10,
         size: 2000,
         data: new ArrayBuffer(2000),
@@ -143,6 +158,55 @@ describe('CleanupService', () => {
 
       const size = await service.getRegionSize('region-with-tiles');
       expect(size).toBe(3000);
+    });
+
+    it("counts only the region's own tiles when regions share a style", async () => {
+      const db = await dbPromise;
+      const base = {
+        styleUrl: 'https://example.com/style.json',
+        minZoom: 0,
+        maxZoom: 2,
+        created: Date.now(),
+        expiry: Date.now() + 30 * 24 * 60 * 60 * 1000,
+      };
+      await storeRegionInStyle(db, 'shared', {
+        ...base,
+        id: 'west',
+        name: 'West',
+        bounds: [
+          [-170, 10],
+          [-160, 20],
+        ],
+      });
+      await storeRegionInStyle(db, 'shared', {
+        ...base,
+        id: 'east',
+        name: 'East',
+        bounds: [
+          [160, 10],
+          [170, 20],
+        ],
+      });
+      const put = (x: number, size: number) =>
+        db.put('tiles', {
+          key: `shared:source:2:${x}:1.pbf`,
+          styleId: 'shared',
+          sourceId: 'source',
+          x,
+          y: 1,
+          z: 2,
+          size,
+          data: new ArrayBuffer(size),
+          downloadedAt: new Date().toISOString(),
+          type: 'vector',
+          url: '',
+          lastModified: Date.now(),
+        });
+      await put(0, 1000); // west
+      await put(3, 3000); // east
+
+      expect(await service.getRegionSize('west')).toBe(1000);
+      expect(await service.getRegionSize('east', 'shared')).toBe(3000);
     });
   });
 
@@ -164,7 +228,10 @@ describe('CleanupService', () => {
       await storeRegionInStyle(db, 'style-1', {
         id: 'region-1',
         name: 'Test Region',
-        bounds: [[-122.5, 37.5], [-122.0, 38.0]],
+        bounds: [
+          [-122.5, 37.5],
+          [-122.0, 38.0],
+        ],
         styleUrl: 'https://example.com/style.json',
         minZoom: 0,
         maxZoom: 10,
@@ -175,7 +242,10 @@ describe('CleanupService', () => {
       await storeRegionInStyle(db, 'style-2', {
         id: 'region-2',
         name: 'Test Region 2',
-        bounds: [[-73.5, 40.5], [-73.0, 41.0]],
+        bounds: [
+          [-73.5, 40.5],
+          [-73.0, 41.0],
+        ],
         styleUrl: 'https://example.com/style2.json',
         minZoom: 0,
         maxZoom: 10,
@@ -201,7 +271,10 @@ describe('CleanupService', () => {
       await storeRegionInStyle(db, 'style', {
         id: 'expired-region',
         name: 'Expired',
-        bounds: [[0, 0], [1, 1]],
+        bounds: [
+          [0, 0],
+          [1, 1],
+        ],
         styleUrl: 'https://example.com/style.json',
         minZoom: 0,
         maxZoom: 10,
@@ -213,7 +286,10 @@ describe('CleanupService', () => {
       await storeRegionInStyle(db, 'style', {
         id: 'recent-region',
         name: 'Recent',
-        bounds: [[0, 0], [1, 1]],
+        bounds: [
+          [0, 0],
+          [1, 1],
+        ],
         styleUrl: 'https://example.com/style.json',
         minZoom: 0,
         maxZoom: 10,
@@ -247,7 +323,10 @@ describe('CleanupService', () => {
       await storeRegionInStyle(db, 'style', {
         id: 'expired-region',
         name: 'Expired',
-        bounds: [[0, 0], [1, 1]],
+        bounds: [
+          [0, 0],
+          [1, 1],
+        ],
         styleUrl: 'https://example.com/style.json',
         minZoom: 0,
         maxZoom: 10,
@@ -265,7 +344,7 @@ describe('CleanupService', () => {
       const progressCalls: Array<{ phase: string; completed: number }> = [];
 
       await service.runCleanup({
-        onProgress: (progress) => {
+        onProgress: progress => {
           progressCalls.push({
             phase: progress.phase,
             completed: progress.completed,
@@ -285,7 +364,10 @@ describe('CleanupService', () => {
       await storeRegionInStyle(db, 'style', {
         id: 'priority-region',
         name: 'Important Region',
-        bounds: [[0, 0], [1, 1]],
+        bounds: [
+          [0, 0],
+          [1, 1],
+        ],
         styleUrl: 'https://example.com/style.json',
         minZoom: 0,
         maxZoom: 10,
@@ -310,7 +392,10 @@ describe('CleanupService', () => {
       await storeRegionInStyle(db, 'style', {
         id: 'expired-region',
         name: 'Old Region',
-        bounds: [[0, 0], [1, 1]],
+        bounds: [
+          [0, 0],
+          [1, 1],
+        ],
         styleUrl: 'https://example.com/style.json',
         minZoom: 0,
         maxZoom: 10,
@@ -332,7 +417,10 @@ describe('CleanupService', () => {
       await storeRegionInStyle(db, 'style', {
         id: 'old-region',
         name: 'Old',
-        bounds: [[0, 0], [1, 1]],
+        bounds: [
+          [0, 0],
+          [1, 1],
+        ],
         styleUrl: 'https://example.com/style.json',
         minZoom: 0,
         maxZoom: 10,
@@ -343,7 +431,10 @@ describe('CleanupService', () => {
       await storeRegionInStyle(db, 'style', {
         id: 'middle-region',
         name: 'Middle',
-        bounds: [[0, 0], [1, 1]],
+        bounds: [
+          [0, 0],
+          [1, 1],
+        ],
         styleUrl: 'https://example.com/style.json',
         minZoom: 0,
         maxZoom: 10,
@@ -354,7 +445,10 @@ describe('CleanupService', () => {
       await storeRegionInStyle(db, 'style', {
         id: 'new-region',
         name: 'New',
-        bounds: [[0, 0], [1, 1]],
+        bounds: [
+          [0, 0],
+          [1, 1],
+        ],
         styleUrl: 'https://example.com/style.json',
         minZoom: 0,
         maxZoom: 10,
@@ -378,7 +472,10 @@ describe('CleanupService', () => {
       await storeRegionInStyle(db, 'style', {
         id: 'error-region',
         name: 'Error Region',
-        bounds: [[0, 0], [1, 1]],
+        bounds: [
+          [0, 0],
+          [1, 1],
+        ],
         styleUrl: 'https://example.com/style.json',
         minZoom: 0,
         maxZoom: 10,
@@ -403,7 +500,10 @@ describe('CleanupService', () => {
       await storeRegionInStyle(db, 'test-style', {
         id: 'region-with-tiles',
         name: 'Region With Tiles',
-        bounds: [[0, 0], [1, 1]],
+        bounds: [
+          [0, 0],
+          [1, 1],
+        ],
         styleUrl: 'https://example.com/style.json',
         minZoom: 0,
         maxZoom: 10,
@@ -426,9 +526,54 @@ describe('CleanupService', () => {
         lastModified: Date.now(),
       });
 
+      // freedSpace is measured, so the deletion has to actually happen.
+      mockDeleteRegion.mockImplementationOnce(async () => {
+        await db.delete('tiles', 'test-style:source:10:100:200.pbf');
+      });
+
       const result = await service.runCleanup({ maxAge: 30 });
 
       expect(result.freedSpace).toBe(5000);
+    });
+
+    it('reports only the bytes actually deleted as freed', async () => {
+      const db = await dbPromise;
+      const now = Date.now();
+      const day = 24 * 60 * 60 * 1000;
+      await storeRegionInStyle(db, 'test-style', {
+        id: 'old-region',
+        name: 'Old',
+        bounds: [
+          [0, 0],
+          [1, 1],
+        ],
+        styleUrl: 'https://example.com/style.json',
+        minZoom: 0,
+        maxZoom: 2,
+        created: now - 40 * day,
+        expiry: now - 10 * day,
+      });
+      await db.put('tiles', {
+        key: 'test-style:source:1:1:0.pbf',
+        styleId: 'test-style',
+        sourceId: 'source',
+        x: 1,
+        y: 0,
+        z: 1,
+        size: 5000,
+        data: new ArrayBuffer(5000),
+        downloadedAt: new Date().toISOString(),
+        type: 'vector',
+        url: '',
+        lastModified: now,
+      });
+      // The tile is still needed by another region, so deletion keeps it.
+      mockDeleteRegion.mockResolvedValueOnce(undefined);
+
+      const result = await service.runCleanup({ maxAge: 30 });
+
+      expect(result.deletedRegions).toBe(1);
+      expect(result.freedSpace).toBe(0);
     });
 
     it('should preserve non-expired priority regions by name', async () => {
@@ -439,7 +584,10 @@ describe('CleanupService', () => {
       await storeRegionInStyle(db, 'style', {
         id: 'region-1',
         name: 'Important Home Region',
-        bounds: [[0, 0], [1, 1]],
+        bounds: [
+          [0, 0],
+          [1, 1],
+        ],
         styleUrl: 'https://example.com/style.json',
         minZoom: 0,
         maxZoom: 10,
@@ -507,7 +655,7 @@ describe('CleanupService', () => {
   describe('getExpiredResourceCount', () => {
     it('returns zeros when no expired resources exist', async () => {
       const counts = await service.getExpiredResourceCount();
-      expect(counts).toEqual({ tiles: 0, fonts: 0, sprites: 0, glyphs: 0, total: 0 });
+      expect(counts).toEqual({ tiles: 0, fonts: 0, sprites: 0, glyphs: 0, models: 0, total: 0 });
     });
 
     it('counts resources with past expires across stores', async () => {
@@ -519,7 +667,9 @@ describe('CleanupService', () => {
         key: 's:v:1:2:3.pbf',
         styleId: 's',
         sourceId: 'v',
-        x: 1, y: 2, z: 3,
+        x: 1,
+        y: 2,
+        z: 3,
         size: 100,
         data: new ArrayBuffer(100),
         downloadedAt: new Date().toISOString(),
@@ -532,7 +682,9 @@ describe('CleanupService', () => {
         key: 's:v:1:2:4.pbf',
         styleId: 's',
         sourceId: 'v',
-        x: 1, y: 2, z: 4,
+        x: 1,
+        y: 2,
+        z: 4,
         size: 100,
         data: new ArrayBuffer(100),
         downloadedAt: new Date().toISOString(),
@@ -582,7 +734,9 @@ describe('CleanupService', () => {
         key: 's1:v:10:100:200.pbf',
         styleId: 's1',
         sourceId: 'v',
-        x: 100, y: 200, z: 10,
+        x: 100,
+        y: 200,
+        z: 10,
         size: 500,
         data: new ArrayBuffer(500),
         downloadedAt: new Date().toISOString(),
@@ -595,7 +749,9 @@ describe('CleanupService', () => {
         key: 's1:v:10:100:201.pbf',
         styleId: 's1',
         sourceId: 'v',
-        x: 100, y: 201, z: 10,
+        x: 100,
+        y: 201,
+        z: 10,
         size: 700,
         data: new ArrayBuffer(700),
         downloadedAt: new Date().toISOString(),
@@ -615,7 +771,9 @@ describe('CleanupService', () => {
       const past = Date.now() - 1000;
       const base = {
         sourceId: 'v',
-        x: 0, y: 0, z: 0,
+        x: 0,
+        y: 0,
+        z: 0,
         size: 100,
         data: new ArrayBuffer(100),
         downloadedAt: new Date().toISOString(),
@@ -665,7 +823,10 @@ describe('CleanupService', () => {
       await storeRegionInStyle(db, 'exp-style', {
         id: 'expired-1',
         name: 'Expired',
-        bounds: [[0, 0], [1, 1]],
+        bounds: [
+          [0, 0],
+          [1, 1],
+        ],
         styleUrl: 'https://example.com/s.json',
         minZoom: 0,
         maxZoom: 10,
@@ -684,7 +845,10 @@ describe('CleanupService', () => {
       await storeRegionInStyle(db, 'soon-style', {
         id: 'soon-1',
         name: 'Soon',
-        bounds: [[0, 0], [1, 1]],
+        bounds: [
+          [0, 0],
+          [1, 1],
+        ],
         styleUrl: 'https://example.com/s.json',
         minZoom: 0,
         maxZoom: 10,
@@ -700,7 +864,10 @@ describe('CleanupService', () => {
       await storeRegionInStyle(db, 'plain-style', {
         id: 'plain-1',
         name: 'Plain',
-        bounds: [[0, 0], [1, 1]],
+        bounds: [
+          [0, 0],
+          [1, 1],
+        ],
         styleUrl: 'https://example.com/s.json',
         minZoom: 0,
         maxZoom: 10,
@@ -708,11 +875,9 @@ describe('CleanupService', () => {
         expiry: Date.now() + 86400000,
       });
       const result = await service.runCleanup(); // no options
-      expect(
-        result.recommendations.some(r =>
-          r.toLowerCase().includes('automatic cleanup')
-        )
-      ).toBe(true);
+      expect(result.recommendations.some(r => r.toLowerCase().includes('automatic cleanup'))).toBe(
+        true
+      );
     });
   });
 
@@ -724,7 +889,10 @@ describe('CleanupService', () => {
       await storeRegionInStyle(db, 'style-a', {
         id: 'big-1',
         name: 'Big 1',
-        bounds: [[0, 0], [1, 1]],
+        bounds: [
+          [0, 0],
+          [1, 1],
+        ],
         styleUrl: 'https://example.com/a.json',
         minZoom: 0,
         maxZoom: 10,
@@ -734,7 +902,10 @@ describe('CleanupService', () => {
       await storeRegionInStyle(db, 'style-a', {
         id: 'big-2',
         name: 'Big 2',
-        bounds: [[0, 0], [1, 1]],
+        bounds: [
+          [0, 0],
+          [1, 1],
+        ],
         styleUrl: 'https://example.com/a.json',
         minZoom: 0,
         maxZoom: 10,
@@ -747,7 +918,9 @@ describe('CleanupService', () => {
           key: `style-a:v:${i}:0:0.pbf`,
           styleId: 'style-a',
           sourceId: 'v',
-          x: 0, y: 0, z: i,
+          x: 0,
+          y: 0,
+          z: i,
           size: 1_000_000,
           data: new ArrayBuffer(8),
           downloadedAt: new Date().toISOString(),
@@ -771,7 +944,10 @@ describe('CleanupService', () => {
         await storeRegionInStyle(db, 'style-b', {
           id: `r-${i}`,
           name: `R${i}`,
-          bounds: [[0, 0], [1, 1]],
+          bounds: [
+            [0, 0],
+            [1, 1],
+          ],
           styleUrl: 'https://example.com/b.json',
           minZoom: 0,
           maxZoom: 10,
