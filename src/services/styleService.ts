@@ -9,6 +9,7 @@ import {
   resolveImports,
 } from '@/utils';
 import { GLYPH_CONFIG } from '@/utils/constants';
+import { patchStyleForOffline } from '@/utils/styleUtils';
 import {
   detectStyleProvider,
   extractAccessToken,
@@ -30,6 +31,72 @@ import type {
   FontDownloadResult,
   SpriteDownloadResult,
 } from '@/types';
+
+type StylesDb = Awaited<typeof dbPromise>;
+
+/** A style URL's identity, ignoring the access token (same style, different token). */
+function styleUrlIdentity(url: string): string {
+  try {
+    const parsed = new URL(url);
+    parsed.searchParams.delete('access_token');
+    return parsed.toString();
+  } catch {
+    return url;
+  }
+}
+
+/**
+ * Pick the storage key for a style downloaded from `styleUrl`. `baseId` comes
+ * from the style's `id`/`name`, which unrelated styles can share ("Streets"),
+ * so a key already held by a style from a different URL is never reused:
+ * fall back to the key this URL was stored under before, else a free
+ * `${baseId}-N`. Entries without `originalUrl` (saved with
+ * `includeMetadata: false`) are assumed to be the same style, so re-downloads
+ * don't pile up duplicates; `carryOverRegions` keeps their regions either way.
+ */
+async function resolveStyleKey(db: StylesDb, baseId: string, styleUrl: string): Promise<string> {
+  const target = styleUrlIdentity(styleUrl);
+  const isSameStyle = (entry: { originalUrl?: string }) =>
+    !!entry.originalUrl && styleUrlIdentity(entry.originalUrl) === target;
+
+  const existing = await db.get('styles', baseId);
+  if (!existing || !existing.originalUrl || isSameStyle(existing)) return baseId;
+
+  const all = await db.getAll('styles');
+  const previous = all.find(isSameStyle);
+  if (previous) return previous.key;
+
+  const taken = new Set(all.map(entry => entry.key));
+  let n = 2;
+  while (taken.has(`${baseId}-${n}`)) n++;
+  logger.warn(
+    `Style key "${baseId}" is used by a style from another URL; storing ${styleUrl} as "${baseId}-${n}"`
+  );
+  return `${baseId}-${n}`;
+}
+
+/**
+ * Re-downloading a style replaces its stored entry. Carry over the regions
+ * already attached to it and re-patch the fresh style for them — otherwise
+ * every existing region is dropped and their tiles are orphaned. Patches a
+ * copy, so callers can keep using the unpatched style for resource downloads.
+ */
+async function carryOverRegions(db: StylesDb, entry: StyleEntry): Promise<void> {
+  const existing = await db.get('styles', entry.key);
+  const regions = existing?.regions;
+  if (!Array.isArray(regions) || regions.length === 0) return;
+
+  entry.regions = regions;
+  entry.style = JSON.parse(JSON.stringify(entry.style)) as BaseStyle;
+  patchStyleForOffline(
+    entry.style,
+    entry.key,
+    Math.max(...regions.map(region => region.maxZoom)),
+    undefined,
+    entry.key
+  );
+  logger.debug(`Carried ${regions.length} region(s) over to re-downloaded style ${entry.key}`);
+}
 
 // Helper functions to work with StyleEntry structure
 function createStyleEntry(
@@ -185,6 +252,7 @@ export async function downloadStyles(
 
     // Check if style already exists in the database
     const db = await dbPromise;
+    style.id = await resolveStyleKey(db, style.id, stylesUrl);
 
     if (skipExisting) {
       const existingStyle = await db.get('styles', style.id);
@@ -339,6 +407,7 @@ export async function downloadStyles(
     );
 
     // Save the style
+    await carryOverRegions(db, styleStorageItem);
     await db.put('styles', styleStorageItem);
     logger.debug('Style with sources saved successfully');
 
@@ -1078,11 +1147,14 @@ export async function downloadStyleWithProvider(
     }
 
     // Generate style ID
-    const styleId =
-      processedStyle.name?.toLowerCase().replace(/\s+/g, '-') || `style-${Date.now()}`;
+    const db = await dbPromise;
+    const styleId = await resolveStyleKey(
+      db,
+      processedStyle.name?.toLowerCase().replace(/\s+/g, '-') || `style-${Date.now()}`,
+      styleUrl
+    );
 
     // Check if style already exists
-    const db = await dbPromise;
     if (skipExisting) {
       const existingStyle = await db.get('styles', styleId);
       if (existingStyle) {
@@ -1119,6 +1191,7 @@ export async function downloadStyleWithProvider(
     });
 
     // Save style
+    await carryOverRegions(db, styleEntry);
     await db.put('styles', styleEntry);
 
     const downloadTime = Date.now() - startTime;

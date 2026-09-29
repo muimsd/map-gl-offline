@@ -83,6 +83,8 @@ Tile downloads probe each source with 3 representative tiles (start/middle/end) 
 ### Region dedup
 `addRegion` upserts by `region.id` (not bounds). Two regions sharing bounds with distinct ids both persist; repeated id → replaced in place (`created` preserved, `updated` refreshed).
 
+Region ids are only unique **within a style**, so always pass `styleId` to `deleteRegion(regionId, styleId)` when you know it (every internal caller does). Style keys come from the style's `id`/`name`, which unrelated styles can share: `resolveStyleKey` in `styleService.ts` never reuses a key held by a style from a different URL, and `carryOverRegions` keeps a style's regions when it's downloaded again. Don't write a style entry without going through both.
+
 ### Resource-Key Boundaries
 Font/glyph/sprite keys are `styleId:…` (single colon). For deletion/cleanup, use `resourceKeyBelongsToStyle(key, styleId)` from `src/services/regionService.ts`, not ad-hoc `startsWith`, to avoid collisions with sibling styles like `abc_def`.
 

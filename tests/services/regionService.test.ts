@@ -971,6 +971,62 @@ describe('RegionService', () => {
     });
   });
 
+  describe('deleteRegion with styleId', () => {
+    it('deletes the region from the given style, not the first style with that id', async () => {
+      const db = await dbPromise;
+      const now = Date.now();
+      for (const [styleKey, expiry] of [
+        ['style-a', now + 365 * 86_400_000],
+        ['style-b', now - 1],
+      ] as const) {
+        await db.put('styles', {
+          key: styleKey,
+          style: { version: 8, sources: {}, layers: [] },
+          provider: 'auto' as StyleProvider,
+          regions: [
+            {
+              id: 'dup',
+              name: 'dup',
+              bounds: [
+                [0, 0],
+                [1, 1],
+              ],
+              minZoom: 0,
+              maxZoom: 2,
+              styleUrl: '',
+              created: now,
+              expiry,
+            },
+          ],
+          fonts: [],
+          glyphs: [],
+          sprites: [],
+        } as never);
+        await db.put('tiles', {
+          key: `${styleKey}:src:1:1:0.pbf`,
+          styleId: styleKey,
+          sourceId: 'src',
+          z: 1,
+          x: 1,
+          y: 0,
+          data: new ArrayBuffer(1),
+          size: 1,
+          url: '',
+          type: 'vector',
+          downloadedAt: '',
+          lastModified: now,
+        } as never);
+      }
+
+      await regionService.deleteRegion('dup', 'style-b');
+
+      expect(await db.get('styles', 'style-a')).toBeDefined();
+      expect(await db.get('tiles', 'style-a:src:1:1:0.pbf')).toBeDefined();
+      expect(await db.get('styles', 'style-b')).toBeUndefined();
+      expect(await db.get('tiles', 'style-b:src:1:1:0.pbf')).toBeUndefined();
+    });
+  });
+
   describe('multiple regions on one style', () => {
     const bounds = [
       [-122.5, 37.5],

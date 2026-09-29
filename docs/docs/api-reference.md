@@ -140,9 +140,9 @@ const regions = await manager.listStoredRegions();
 regions.forEach(r => console.log(`${r.name}: ${r.id}`));
 ```
 
-#### `deleteRegion(id: string): Promise<void>`
+#### `deleteRegion(id: string, styleId?: string): Promise<void>`
 
-Delete a region and reclaim the storage only it was using.
+Delete a region and reclaim the storage only it was using. Region ids are only unique within a style, so pass the region's `styleId` (from `listStoredRegions()`) when you have it; without it, the first style containing `id` is used.
 
 - **Other regions remain on the style** — the region is removed from `styles.regions[]` and only tiles that no remaining region covers are deleted. Shared style, sprites, glyphs and fonts are kept.
 - **It was the style's last region** — the style entry is deleted along with *all* of its tiles, sprites, glyphs and fonts.
@@ -171,6 +171,8 @@ Styles are stored independently of regions (regions live inside `styles.regions[
 Fetch and store a style, resolving `mapbox://` URLs, flattening `imports`, and optionally embedding TileJSON sources. `downloadRegion` calls this for you when the style isn't already stored.
 
 `options` is `StyleDownloadOptions` plus `provider?: StyleProvider`, `accessToken?: string | null`, and `forceProvider?: boolean` (skip auto-detection and trust `provider`).
+
+The style is stored under a key derived from its `name`. A different style that already holds that key is never overwritten; the new one gets `name-2`, `name-3`, … (`result.styleId` tells you which). Downloading the same URL again refreshes the stored style and keeps its existing regions.
 
 ```typescript
 const result = await manager.downloadStyle('mapbox://styles/mapbox/standard', {
