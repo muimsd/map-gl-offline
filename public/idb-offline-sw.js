@@ -175,6 +175,11 @@
       return cached.styleEntry;
     }
     try {
+      const direct = await idbGet(db, "styles", regionId);
+      if (direct) {
+        regionToStyleCache.set(regionId, { styleEntry: direct, ts: Date.now() });
+        return direct;
+      }
       const all = await idbGetAll(db, "styles");
       const hit = findStyleByRegionIdIn(all, regionId);
       if (hit) {

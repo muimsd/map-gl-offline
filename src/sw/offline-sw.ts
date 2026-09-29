@@ -96,6 +96,14 @@ async function findStyleByRegionId(
     return cached.styleEntry;
   }
   try {
+    // Style-keyed URLs (current patching) resolve with one keyed read; older
+    // stored styles use a region id and need the scan below.
+    const direct = await idbGet<StyleEntryLike>(db, 'styles', regionId);
+    if (direct) {
+      regionToStyleCache.set(regionId, { styleEntry: direct, ts: Date.now() });
+      return direct;
+    }
+
     const all = await idbGetAll<StyleEntryLike>(db, 'styles');
     const hit = findStyleByRegionIdIn(all, regionId);
     // Cache hit; skip caching negative results — a tile fetch can race ahead

@@ -6,6 +6,7 @@ import {
 } from '@/utils/styleUtils';
 import { logger } from '@/utils/logger';
 import { parseTileKey } from '@/utils/tileKey';
+import { clearAllCaches } from '@/utils/idbFetchHandler';
 import { GLYPH_CONFIG } from '@/utils/constants';
 import { isMapboxProtocol, resolveMapboxUrl } from '@/utils/styleProviderUtils';
 import { loadStyles } from '@/services/styleService';
@@ -260,12 +261,18 @@ export class RegionService {
       }
     }
 
-    // Patch style for offline use with the region's maxZoom and tileExtension
-    // Pass styleId for sprites since they're stored with the style ID, not region ID
+    // Patch style for offline use. URLs are keyed by styleId (resources are
+    // stored per style), and maxzoom is capped at the deepest region on the
+    // style — not just this one — so adding a shallow region doesn't hide a
+    // deeper sibling's tiles.
+    const otherRegions = styleEntry.regions.filter(
+      (r: OfflineRegionOptions & { regionId?: string }) =>
+        r.id !== region.id && r.regionId !== region.id
+    );
     patchStyleForOffline(
       styleEntry.style,
       region.id,
-      region.maxZoom,
+      Math.max(region.maxZoom, ...otherRegions.map(r => r.maxZoom)),
       region.tileExtension,
       styleId
     );
@@ -303,6 +310,8 @@ export class RegionService {
       styleEntry.regions.push(regionWithMeta);
     }
     await db.put('styles', styleEntry);
+    // Drop in-memory region→style / tile caches so the fetch handler sees the new region.
+    clearAllCaches();
   }
 
   async loadRegion(
@@ -665,6 +674,18 @@ export class RegionService {
           remainingRegions
         );
 
+        // Re-patch for the remaining regions: shrink maxzoom to the deepest
+        // survivor, and re-key URLs by styleId. Styles patched before URLs
+        // were style-keyed still point at `idb://{deletedRegionId}/...`,
+        // which no longer resolves once the region is gone.
+        patchStyleForOffline(
+          foundStyle.style,
+          foundStyle.key,
+          Math.max(...remainingRegions.map((r: OfflineRegionOptions) => r.maxZoom)),
+          undefined,
+          foundStyle.key
+        );
+
         // Update the style entry with the remaining regions
         await db.put('styles', foundStyle);
 
@@ -673,6 +694,7 @@ export class RegionService {
         );
       }
 
+      clearAllCaches();
       regionLogger.info(`Region deletion completed successfully for: ${regionId}`);
     } catch (error) {
       regionLogger.error(`Error during region deletion for ${regionId}:`, error);

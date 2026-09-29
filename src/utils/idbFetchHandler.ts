@@ -68,10 +68,10 @@ export function clearAllCaches(): void {
 }
 
 /**
- * Find a style entry that contains the given region ID
- * Since styles are stored by style key but patched with region IDs,
- * we need to search all styles to find which one contains this region
- * Results are cached to avoid repeated DB queries during tile fetching
+ * Resolve the `{id}` segment of an `idb://{id}/...` URL to its style entry.
+ * Styles patched since URLs became style-keyed use the style key itself (one
+ * keyed read); older stored styles use a region id, which needs a scan of all
+ * styles. Results are cached to avoid repeated DB queries during tile fetching.
  */
 async function findStyleByRegionId(
   db: IDBPDatabase<OfflineMapDB>,
@@ -84,6 +84,12 @@ async function findStyleByRegionId(
   }
 
   try {
+    const direct = (await db.get('styles', regionId)) as StyleStorageItem | undefined;
+    if (direct) {
+      regionToStyleCache.set(regionId, { styleEntry: direct, timestamp: Date.now() });
+      return direct;
+    }
+
     const allStyles = await db.getAll('styles');
     const hit = findStyleByRegionIdIn(allStyles, regionId) as StyleStorageItem | null;
     if (hit) {
