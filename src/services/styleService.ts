@@ -1024,10 +1024,13 @@ export async function downloadStyleWithProvider(
     enableSourceEmbedding = true,
     maxRetries = 3,
     timeoutMs = 30000,
+    onProgress,
   } = options;
 
   const startTime = Date.now();
   let sourcesEmbedded = 0;
+  const emit = (percentage: number, message: string) =>
+    onProgress?.({ completed: percentage, total: 100, percentage, message, errors: [] });
   logger.debug(`Downloading style from: ${styleUrl}`);
 
   try {
@@ -1053,6 +1056,7 @@ export async function downloadStyleWithProvider(
     }
 
     // Fetch the style
+    emit(0, 'Fetching style');
     const response = await fetchWithRetry(fetchUrl, {
       timeout: timeoutMs,
       retries: maxRetries,
@@ -1063,6 +1067,8 @@ export async function downloadStyleWithProvider(
     }
 
     const style = (await response.json()) as BaseStyle;
+
+    emit(20, 'Style fetched');
 
     // Resolve imports (Mapbox Standard / compositional styles)
     if (hasImports(style)) {
@@ -1078,6 +1084,8 @@ export async function downloadStyleWithProvider(
       });
     }
 
+    emit(40, 'Processing style sources');
+
     // Process style for the detected provider
     const processedStyle = processStyleSources(style, detectedProvider, extractedToken);
 
@@ -1085,7 +1093,13 @@ export async function downloadStyleWithProvider(
     // This fetches each source's TileJSON URL and merges the result (including tiles array,
     // minzoom, maxzoom) into the source config, so tile downloads don't need extra fetches
     if (enableSourceEmbedding && processedStyle.sources) {
-      for (const [sourceKey, sourceConfig] of Object.entries(processedStyle.sources)) {
+      const sourceEntries = Object.entries(processedStyle.sources);
+      let sourcesVisited = 0;
+      for (const [sourceKey, sourceConfig] of sourceEntries) {
+        emit(
+          40 + Math.round((sourcesVisited++ / Math.max(1, sourceEntries.length)) * 40),
+          `Embedding source ${sourceKey}`
+        );
         const source = sourceConfig as Record<string, unknown>;
         if (source.url && typeof source.url === 'string' && !source.tiles) {
           const sourceUrl = source.url as string;
@@ -1134,6 +1148,8 @@ export async function downloadStyleWithProvider(
       }
     }
 
+    emit(80, 'Saving style');
+
     // Set default glyphs URL if not present
     if (!processedStyle.glyphs) {
       processedStyle.glyphs = GLYPH_CONFIG.DEFAULT_URL;
@@ -1159,6 +1175,7 @@ export async function downloadStyleWithProvider(
       const existingStyle = await db.get('styles', styleId);
       if (existingStyle) {
         logger.debug(`Style ${styleId} already exists, skipping`);
+        emit(100, 'Style already exists');
         return {
           styleId,
           success: true,
@@ -1193,6 +1210,7 @@ export async function downloadStyleWithProvider(
     // Save style
     await carryOverRegions(db, styleEntry);
     await db.put('styles', styleEntry);
+    emit(100, 'Style saved');
 
     const downloadTime = Date.now() - startTime;
     logger.info(`Style ${styleId} downloaded in ${downloadTime}ms`);

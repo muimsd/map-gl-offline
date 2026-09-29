@@ -39,10 +39,7 @@ describe('FontService.downloadFonts', () => {
     mockFetchResource.mockResolvedValue(makePbfResponse(128));
 
     const result = await service.downloadFonts(
-      [
-        'https://example.com/fonts/Arial/0-255.pbf',
-        'https://example.com/fonts/Arial/256-511.pbf',
-      ],
+      ['https://example.com/fonts/Arial/0-255.pbf', 'https://example.com/fonts/Arial/256-511.pbf'],
       'style-a',
       { storageQuotaCheck: false, validateFonts: false, skipExisting: false }
     );
@@ -67,11 +64,11 @@ describe('FontService.downloadFonts', () => {
     // Pre-seed one of the URLs under the key the service will compute.
     mockFetchResource.mockResolvedValue(makePbfResponse(64));
     // Do one pass to seed the store via the real path.
-    await service.downloadFonts(
-      ['https://example.com/fonts/Roboto/0-255.pbf'],
-      'style-a',
-      { storageQuotaCheck: false, validateFonts: false, skipExisting: false }
-    );
+    await service.downloadFonts(['https://example.com/fonts/Roboto/0-255.pbf'], 'style-a', {
+      storageQuotaCheck: false,
+      validateFonts: false,
+      skipExisting: false,
+    });
     // Reset call count, then re-download with skipExisting.
     mockFetchResource.mockClear();
     const result = await service.downloadFonts(
@@ -92,16 +89,52 @@ describe('FontService.downloadFonts', () => {
     expect(n).toBe(2);
   });
 
+  it('reports progress per font, including skipped and failed ones', async () => {
+    mockFetchResource.mockResolvedValue(makePbfResponse(64));
+    await service.downloadFonts(['https://example.com/fonts/Roboto/0-255.pbf'], 'style-p', {
+      storageQuotaCheck: false,
+      validateFonts: false,
+      skipExisting: false,
+    });
+
+    mockFetchResource.mockImplementation(async (url: string) => {
+      if (url.includes('bad')) throw new Error('404');
+      return makePbfResponse(64);
+    });
+    const seen: Array<{ completed: number; total: number }> = [];
+    await service.downloadFonts(
+      [
+        'https://example.com/fonts/Roboto/0-255.pbf', // already stored -> skipped
+        'https://example.com/fonts/bad/0-255.pbf',
+        'https://example.com/fonts/Roboto/256-511.pbf',
+      ],
+      'style-p',
+      {
+        storageQuotaCheck: false,
+        validateFonts: false,
+        skipExisting: true,
+        maxRetries: 0,
+        batchSize: 1,
+        onProgress: p => seen.push({ completed: p.completed, total: p.total }),
+      }
+    );
+
+    // Skipped font counted up front, then one step per fetched font, then the final report.
+    expect(seen.map(p => p.completed)).toEqual([2, 3, 3]);
+    expect(seen.every(p => p.total === 3)).toBe(true);
+  });
+
   it('records failures without aborting the batch', async () => {
     mockFetchResource
       .mockResolvedValueOnce(makePbfResponse(100))
       .mockRejectedValueOnce(new Error('network'));
 
-    const result = await service.downloadFonts(
-      ['https://a/1.pbf', 'https://b/2.pbf'],
-      'style-a',
-      { storageQuotaCheck: false, validateFonts: false, skipExisting: false, quietMode: true }
-    );
+    const result = await service.downloadFonts(['https://a/1.pbf', 'https://b/2.pbf'], 'style-a', {
+      storageQuotaCheck: false,
+      validateFonts: false,
+      skipExisting: false,
+      quietMode: true,
+    });
     expect(result.downloadedFonts).toBe(1);
     expect(result.failedFonts).toBe(1);
     expect(result.errors).toHaveLength(1);
@@ -114,11 +147,12 @@ describe('FontService.downloadFonts', () => {
       contentType: 'application/json',
     });
 
-    const result = await service.downloadFonts(
-      ['https://bad/font.pbf'],
-      'style-a',
-      { storageQuotaCheck: false, validateFonts: false, skipExisting: false, quietMode: true }
-    );
+    const result = await service.downloadFonts(['https://bad/font.pbf'], 'style-a', {
+      storageQuotaCheck: false,
+      validateFonts: false,
+      skipExisting: false,
+      quietMode: true,
+    });
     expect(result.failedFonts).toBe(1);
     expect(result.errors[0].error).toMatch(/Unexpected JSON/);
   });
@@ -135,11 +169,11 @@ describe('FontService.downloadFonts', () => {
 
     mockFetchResource.mockResolvedValue(makePbfResponse(32));
     await expect(
-      service.downloadFonts(
-        ['https://example.com/font.pbf'],
-        'style-quota',
-        { storageQuotaCheck: true, validateFonts: false, skipExisting: false }
-      )
+      service.downloadFonts(['https://example.com/font.pbf'], 'style-quota', {
+        storageQuotaCheck: true,
+        validateFonts: false,
+        skipExisting: false,
+      })
     ).rejects.toThrow(/Insufficient storage/);
 
     // Restore navigator.storage to avoid leaking state to sibling tests.
