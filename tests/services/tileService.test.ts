@@ -754,6 +754,58 @@ describe('TileService', () => {
       }
     });
 
+    it('plans from stashed upstream tiles and maxzoom on an already-patched style', async () => {
+      // What the stored style looks like after an earlier region (maxZoom 1)
+      // was added: idb:// tiles, maxzoom capped at 1, originals stashed.
+      const realFetch = global.fetch;
+      const mockFetch = jest.fn().mockImplementation(
+        async () =>
+          new Response(new Uint8Array([0x89, 0x50, 0x4e, 0x47]).buffer, {
+            status: 200,
+            headers: { 'content-type': 'image/png' },
+          })
+      );
+      global.fetch = mockFetch as unknown as typeof fetch;
+      try {
+        const region = {
+          id: 'second',
+          name: 'Second region',
+          bounds: [
+            [55.27, 25.2],
+            [55.28, 25.21],
+          ] as [[number, number], [number, number]],
+          minZoom: 3,
+          maxZoom: 3,
+        };
+        const style = {
+          version: 8 as const,
+          sources: {
+            osm: {
+              type: 'raster',
+              tiles: ['idb://patched-style/tile/osm/{z}/{x}/{y}.png'],
+              maxzoom: 1,
+              __originalTiles: ['https://t.example.com/{z}/{x}/{y}.png'],
+              __originalMaxzoom: null,
+            },
+          },
+          layers: [],
+        };
+
+        const result = await service.downloadTiles(region, style, 'patched-style', {
+          storageQuotaCheck: false,
+          maxRetries: 0,
+        });
+
+        expect(result.downloadedTiles).toBeGreaterThan(0);
+        const urls = mockFetch.mock.calls.map(c => String(c[0]));
+        expect(urls.every(u => u.startsWith('https://t.example.com/3/'))).toBe(true);
+        // The caller's style is not mutated.
+        expect(style.sources.osm.maxzoom).toBe(1);
+      } finally {
+        global.fetch = realFetch;
+      }
+    });
+
     describe('sources whose zoom range misses the region', () => {
       const bounds = [
         [55.27, 25.2],
@@ -902,7 +954,7 @@ describe('TileService', () => {
       );
     });
 
-    it('should use fallback for sources without tile URLs', async () => {
+    it('rejects styles whose only source has no tile URLs', async () => {
       const region = {
         id: 'test-region',
         name: 'Test Region',
@@ -924,14 +976,14 @@ describe('TileService', () => {
         layers: [],
       };
 
-      // GeoJSON sources are ignored, but a fallback is created from the first source
-      // The download will fail but won't throw immediately
-      const result = await service.downloadTiles(region, style, 'test-style');
-      // The result will show failed tiles due to network errors
-      expect(result.failedTiles).toBeGreaterThan(0);
+      // GeoJSON sources are ignored. No relative '{z}/{x}/{y}.pbf' fallback is
+      // fabricated — it would resolve against the page and store junk as tiles.
+      await expect(service.downloadTiles(region, style, 'test-style')).rejects.toThrow(
+        'No valid tile sources found in style definition'
+      );
     });
 
-    it('should handle vector source with only idb:// URLs using fallback', async () => {
+    it('rejects a vector source with only idb:// URLs and no stashed originals', async () => {
       const region = {
         id: 'test-region',
         name: 'Test Region',
@@ -953,11 +1005,9 @@ describe('TileService', () => {
         layers: [],
       };
 
-      // idb:// URLs are skipped, but a fallback is created
-      // The download will fail but won't throw immediately
-      const result = await service.downloadTiles(region, style, 'test-style');
-      // The result will show failed tiles
-      expect(result.failedTiles).toBeGreaterThan(0);
+      await expect(service.downloadTiles(region, style, 'test-style')).rejects.toThrow(
+        'No valid tile sources found in style definition'
+      );
     });
   });
 

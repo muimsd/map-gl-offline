@@ -675,7 +675,10 @@ describe('RegionService', () => {
           {
             id: 'region-good',
             name: 'Good',
-            bounds: [[-1, -1], [1, 1]],
+            bounds: [
+              [-1, -1],
+              [1, 1],
+            ],
             minZoom: 0,
             maxZoom: 3,
           },
@@ -724,7 +727,10 @@ describe('RegionService', () => {
           {
             id: 'only-region',
             name: 'Only',
-            bounds: [[-1, -1], [1, 1]],
+            bounds: [
+              [-1, -1],
+              [1, 1],
+            ],
             minZoom: 0,
             maxZoom: 3,
           },
@@ -763,14 +769,20 @@ describe('RegionService', () => {
           {
             id: 'region-sf',
             name: 'SF',
-            bounds: [[-122.5, 37.5], [-122.0, 38.0]],
+            bounds: [
+              [-122.5, 37.5],
+              [-122.0, 38.0],
+            ],
             minZoom: 0,
             maxZoom: 3,
           },
           {
             id: 'region-ny',
             name: 'NY',
-            bounds: [[-73.5, 40.5], [-73.0, 41.0]],
+            bounds: [
+              [-73.5, 40.5],
+              [-73.0, 41.0],
+            ],
             minZoom: 0,
             maxZoom: 3,
           },
@@ -821,14 +833,20 @@ describe('RegionService', () => {
           {
             id: 'region-left',
             name: 'Left',
-            bounds: [[-180, -85], [-90, 85]],
+            bounds: [
+              [-180, -85],
+              [-90, 85],
+            ],
             minZoom: 0,
             maxZoom: 3,
           },
           {
             id: 'region-right',
             name: 'Right',
-            bounds: [[90, -85], [180, 85]],
+            bounds: [
+              [90, -85],
+              [180, 85],
+            ],
             minZoom: 0,
             maxZoom: 3,
           },
@@ -950,6 +968,119 @@ describe('RegionService', () => {
       expect(await db.get('glyphs', 'abc:NotoSans/0-255')).toBeUndefined();
       expect(await db.get('sprites', 'abc:sprite.png')).toBeUndefined();
       expect(await db.get('fonts', 'abc:Roboto')).toBeUndefined();
+    });
+  });
+
+  describe('multiple regions on one style', () => {
+    const bounds = [
+      [-122.5, 37.5],
+      [-122.0, 38.0],
+    ] as [[number, number], [number, number]];
+    const styleUrl = 'https://example.com/multi.json';
+
+    async function putStyle(sources: Record<string, unknown>) {
+      const db = await dbPromise;
+      await db.put('styles', {
+        key: 'multi',
+        style: {
+          version: 8,
+          sources,
+          glyphs: 'https://fonts.example.com/{fontstack}/{range}.pbf',
+          layers: [],
+        },
+        provider: 'auto' as StyleProvider,
+        regions: [],
+        fonts: [],
+        glyphs: [],
+        sprites: [],
+        originalUrl: styleUrl,
+      } as never);
+    }
+
+    async function storedSource(id: string) {
+      const db = await dbPromise;
+      const entry = await db.get('styles', 'multi');
+      return {
+        entry,
+        source: (entry?.style.sources as Record<string, Record<string, unknown>>)[id],
+      };
+    }
+
+    const region = (id: string, maxZoom: number) => ({
+      id,
+      styleId: 'multi',
+      name: id,
+      bounds,
+      minZoom: 0,
+      maxZoom,
+      styleUrl,
+    });
+
+    it('keys idb:// URLs by style and keeps upstream tiles for later downloads', async () => {
+      await putStyle({
+        osm: { type: 'raster', tiles: ['https://t.example.com/{z}/{x}/{y}.png'] },
+      });
+
+      await regionService.addRegion(region('a', 10));
+      await regionService.addRegion(region('b', 12));
+
+      const { entry, source } = await storedSource('osm');
+      expect(source.tiles).toEqual(['idb://multi/tile/osm/{z}/{x}/{y}.png']);
+      expect(source.__originalTiles).toEqual(['https://t.example.com/{z}/{x}/{y}.png']);
+      expect(entry?.style.glyphs).toBe('idb://multi/glyph/{fontstack}/{range}.pbf');
+    });
+
+    it('raises maxzoom when a deeper region is added and lowers it on delete', async () => {
+      await putStyle({
+        osm: { type: 'raster', tiles: ['https://t.example.com/{z}/{x}/{y}.png'] },
+        buildings: {
+          type: 'vector',
+          maxzoom: 14,
+          tiles: ['https://b.example.com/{z}/{x}/{y}.pbf'],
+        },
+      });
+
+      await regionService.addRegion(region('shallow', 10));
+      expect((await storedSource('osm')).source.maxzoom).toBe(10);
+
+      await regionService.addRegion(region('deep', 16));
+      expect((await storedSource('osm')).source.maxzoom).toBe(16);
+      // Never above the tileset's own range.
+      expect((await storedSource('buildings')).source.maxzoom).toBe(14);
+
+      // Adding another shallow region must not hide the deep one's zooms.
+      await regionService.addRegion(region('shallow-2', 8));
+      expect((await storedSource('osm')).source.maxzoom).toBe(16);
+
+      await regionService.deleteRegion('deep');
+      expect((await storedSource('osm')).source.maxzoom).toBe(10);
+    });
+
+    it('re-keys legacy region-keyed URLs when that region is deleted', async () => {
+      // A style patched before URLs were style-keyed, last by region "b".
+      await putStyle({
+        osm: {
+          type: 'raster',
+          maxzoom: 12,
+          tiles: ['idb://b/tile/osm/{z}/{x}/{y}.png'],
+        },
+      });
+      const db = await dbPromise;
+      const entry = await db.get('styles', 'multi');
+      if (!entry) throw new Error('style fixture missing');
+      entry.style.glyphs = 'idb://b/glyph/{fontstack}/{range}.pbf';
+      entry.regions = [
+        { ...region('a', 10), created: Date.now(), expiry: Date.now() + 1e9 },
+        { ...region('b', 12), created: Date.now(), expiry: Date.now() + 1e9 },
+      ] as never;
+      await db.put('styles', entry);
+
+      await regionService.deleteRegion('b');
+
+      const after = await storedSource('osm');
+      expect(after.source.tiles).toEqual(['idb://multi/tile/osm/{z}/{x}/{y}.png']);
+      expect(after.entry?.style.glyphs).toBe('idb://multi/glyph/{fontstack}/{range}.pbf');
+      expect(after.entry?.regions.map(r => r.id)).toEqual(['a']);
     });
   });
 
@@ -1149,8 +1280,10 @@ describe('RegionService', () => {
           glyphs: 'https://example.com/fonts/{fontstack}/{range}.pbf',
           // Mapbox Standard-style model shape: {name: "URI string"}.
           models: {
-            'maple1-lod1': 'https://api.mapbox.com/models/v1/mapbox/maple1-v4-lod1.glb?access_token=foo',
-            'oak1-lod2': 'https://api.mapbox.com/models/v1/mapbox/oak1-v4-lod2.glb?access_token=foo',
+            'maple1-lod1':
+              'https://api.mapbox.com/models/v1/mapbox/maple1-v4-lod1.glb?access_token=foo',
+            'oak1-lod2':
+              'https://api.mapbox.com/models/v1/mapbox/oak1-v4-lod2.glb?access_token=foo',
           },
         },
       });

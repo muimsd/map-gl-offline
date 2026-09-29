@@ -750,13 +750,18 @@ export class TileService {
     tileLogger.debug('Processing sources in extractTileSources:', Object.keys(style.sources));
 
     for (const [sourceId, sourceConfig] of Object.entries(style.sources)) {
-      const config = sourceConfig as {
-        type?: string;
-        url?: string;
-        tiles?: string[];
-        minzoom?: number;
-        maxzoom?: number;
-        __originalTilesetUrl?: string;
+      // Shallow copy: the maxzoom override below must not mutate the caller's style.
+      const config = {
+        ...(sourceConfig as {
+          type?: string;
+          url?: string;
+          tiles?: string[];
+          minzoom?: number;
+          maxzoom?: number;
+          __originalTilesetUrl?: string;
+          __originalTiles?: string[];
+          __originalMaxzoom?: number | null;
+        }),
       };
 
       tileLogger.debug(`Source ${sourceId} RAW DATA:`, JSON.stringify(config, null, 2));
@@ -781,10 +786,18 @@ export class TileService {
         config.type === 'raster-array' ||
         config.type === 'batched-model'
       ) {
+        // A style already patched for offline (every region after the first)
+        // has idb:// tiles and a maxzoom capped to earlier regions; plan from
+        // the upstream values patchStyleForOffline stashed instead.
+        const sourceTiles = config.__originalTiles ?? config.tiles;
+        if (config.__originalMaxzoom !== undefined) {
+          config.maxzoom = config.__originalMaxzoom ?? undefined;
+        }
+
         // Handle direct tile URLs in the source config
-        if (config.tiles && Array.isArray(config.tiles) && config.tiles.length > 0) {
+        if (sourceTiles && Array.isArray(sourceTiles) && sourceTiles.length > 0) {
           // Resolve mapbox:// tile URLs to HTTPS, then filter for HTTP(S) URLs
-          const resolvedTiles = config.tiles.map((tile: string) => {
+          const resolvedTiles = sourceTiles.map((tile: string) => {
             if (isMapboxProtocol(tile)) {
               // Try to find an access token from the style or source URL
               const accessToken = this.extractAccessTokenFromStyle(style);
@@ -1000,17 +1013,9 @@ export class TileService {
     }
 
     if (tileSources.size === 0) {
+      // No fabricated fallback: a relative '{z}/{x}/{y}.pbf' template resolves
+      // against the page and stores whatever the app server returns as tiles.
       tileLogger.warn('No valid tile sources found in style', Object.keys(style.sources));
-      // As a last resort, try to use a common vector tile source pattern if we can't extract any
-      if (style.sources && Object.keys(style.sources).length > 0) {
-        const firstSourceId = Object.keys(style.sources)[0];
-        tileLogger.debug(`Attempting to create fallback source from ${firstSourceId}`);
-
-        tileSources.set(firstSourceId, {
-          type: 'vector',
-          tiles: ['{z}/{x}/{y}.pbf'],
-        });
-      }
     }
 
     return tileSources;

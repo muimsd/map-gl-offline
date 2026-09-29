@@ -52,6 +52,12 @@ const regions = style.regions; // Array of regions
 // await db.get('regions', regionId); // Deprecated
 ```
 
+### Offline style patching
+`patchStyleForOffline` runs on the *stored* style every time `addRegion` is called, so it must stay idempotent:
+- It stashes each source's upstream `tiles` / `maxzoom` once under `__originalTiles` / `__originalMaxzoom` (`null` = none) and always patches from those. `tileService.extractTileSources` plans downloads from the stashed values; never plan from a patched style's `idb://` tiles or capped `maxzoom`.
+- All `idb://` URLs are keyed by **styleId** (tiles, glyphs, sprites and models are stored per style). Region-keyed URLs break once that region is deleted. The fetch handlers resolve a style key with one keyed read before falling back to the legacy region-id scan.
+- `maxzoom` is capped at the deepest region on the style (`addRegion`), and `deleteRegion` re-patches for the regions that remain.
+
 ### Database Version
 Current DB version is **4**. Migrations are handled in `src/storage/indexedDbManager.ts`. When on-disk version > supported version, `dbPromise` throws `OfflineMapDBVersionError` (not raw `DOMException`); consumers can call `resetOfflineMapDB()` to recover.
 

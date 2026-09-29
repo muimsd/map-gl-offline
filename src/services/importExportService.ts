@@ -463,11 +463,23 @@ export class ImportExportService {
     const styleEntry = await db.get('styles', styleId);
     const sharesStyle = (styleEntry?.regions?.length ?? 0) > 1;
     const styleSources =
-      (styleEntry?.style as { sources?: Record<string, { minzoom?: number; maxzoom?: number }> })
-        ?.sources ?? {};
+      (
+        styleEntry?.style as {
+          sources?: Record<
+            string,
+            { minzoom?: number; maxzoom?: number; __originalMaxzoom?: number | null }
+          >;
+        }
+      )?.sources ?? {};
     const belongsToRegion = (sourceId: string, z: number, x: number, y: number): boolean => {
       const source = styleSources[sourceId];
-      const { min, max } = sourceZoomRange(region, source?.minzoom, source?.maxzoom);
+      // The stored style's maxzoom is capped for rendering; the pipeline
+      // planned from the upstream value patchStyleForOffline stashed.
+      const upstreamMaxzoom =
+        source?.__originalMaxzoom !== undefined
+          ? (source.__originalMaxzoom ?? undefined)
+          : source?.maxzoom;
+      const { min, max } = sourceZoomRange(region, source?.minzoom, upstreamMaxzoom);
       return isTileInRegion(z, x, y, { bounds: region.bounds, minZoom: min, maxZoom: max });
     };
 

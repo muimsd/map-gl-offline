@@ -5,14 +5,21 @@ import { extractTileExtensionFromUrl } from './tileKey';
 const styleLogger = logger.scope('StyleUtils');
 
 /**
- * Patches a MapboxStyle for offline use by replacing URLs with IndexedDB references
+ * Patches a MapboxStyle for offline use by replacing URLs with IndexedDB references.
+ *
+ * Safe to call repeatedly on the same stored style (every `addRegion` does):
+ * the first call stashes each source's upstream `tiles` / `maxzoom` under
+ * `__originalTiles` / `__originalMaxzoom`, and later calls patch from those,
+ * so the download pipeline can still reach the network and `maxzoom` can grow
+ * again when a deeper region is added.
+ *
  * @param style - The style to patch
- * @param downloadId - The download/region ID for tiles and other resources
- * @param maxZoom - Optional max zoom level for sources
+ * @param downloadId - Fallback ID for `idb://` URLs when `styleId` is omitted
+ * @param maxZoom - Max zoom downloaded for this style (the highest across its regions)
  * @param tileExtension - Optional tile extension
- * @param styleId - Optional style ID for sprites (if different from downloadId). Sprites are shared
- *                  across regions and stored with the style ID, so this parameter allows the sprite
- *                  URLs to correctly reference the style ID.
+ * @param styleId - Style ID used in all `idb://` URLs. Tiles, glyphs, sprites and
+ *                  models are stored per style, so URLs keyed by style keep working
+ *                  when any one region is deleted.
  */
 export function patchStyleForOffline(
   style: MapboxStyle,
@@ -26,17 +33,34 @@ export function patchStyleForOffline(
   );
   styleLogger.debug(`Original style:`, style);
 
+  const urlId = styleId || downloadId;
+
   // Patch sources
   for (const sourceKey in style.sources) {
     const source = style.sources[sourceKey] as {
       tiles?: string[];
       url?: string;
       maxzoom?: number;
+      __originalTiles?: string[];
+      __originalMaxzoom?: number | null;
     };
     styleLogger.debug(`Patching source: ${sourceKey}`, source);
 
+    // Stash upstream values once. Already-patched tiles (all idb://) are never
+    // stashed as "original"; `null` records that the source had no maxzoom.
+    if (
+      source.tiles &&
+      source.__originalTiles === undefined &&
+      !source.tiles.every(url => url.startsWith('idb://'))
+    ) {
+      source.__originalTiles = [...source.tiles];
+    }
+    if (source.__originalMaxzoom === undefined) {
+      source.__originalMaxzoom = source.maxzoom ?? null;
+    }
+
     if (source.tiles) {
-      const originalTiles = [...source.tiles];
+      const originalTiles = source.__originalTiles ?? [...source.tiles];
       // Patch to idb://{downloadId}/tile/{sourceKey}/{z}/{x}/{y}.ext.
       // Extension extraction goes through the shared extractTileExtensionFromUrl
       // helper so the patched URL's extension matches what tileService used when
@@ -44,9 +68,9 @@ export function patchStyleForOffline(
       // stored key under `.pbf` but a patched URL with `.vector`, forcing
       // idbFetchHandler to fall through its pbf/mvt/png/jpg/webp fallback loop
       // on every tile.
-      source.tiles = source.tiles.map((url: string) => {
+      source.tiles = originalTiles.map((url: string) => {
         const ext = tileExtension ?? extractTileExtensionFromUrl(url);
-        return `idb://${downloadId}/tile/${sourceKey}/{z}/{x}/{y}.${ext}`;
+        return `idb://${urlId}/tile/${sourceKey}/{z}/{x}/{y}.${ext}`;
       });
       styleLogger.debug(
         `Patched tiles for ${sourceKey} with extension .${tileExtension || 'pbf'}:`,
@@ -58,10 +82,12 @@ export function patchStyleForOffline(
     }
 
     // Cap maxzoom so the map doesn't request tiles beyond what we downloaded.
-    // Use the lower of the region maxZoom and the source's original maxzoom so we
-    // don't raise it above the tileset's actual range (e.g. 3dbuildings at z14).
+    // Use the lower of the downloaded maxZoom and the source's *upstream*
+    // maxzoom so we don't raise it above the tileset's actual range (e.g.
+    // 3dbuildings at z14) — and so an earlier, shallower region's cap doesn't
+    // stick once a deeper region is added.
     if (maxZoom !== undefined) {
-      const originalMaxzoom = source.maxzoom;
+      const originalMaxzoom = source.__originalMaxzoom ?? undefined;
       source.maxzoom = originalMaxzoom !== undefined ? Math.min(maxZoom, originalMaxzoom) : maxZoom;
       styleLogger.debug(`Set maxzoom for ${sourceKey}: ${originalMaxzoom} → ${source.maxzoom}`);
     }
@@ -75,7 +101,7 @@ export function patchStyleForOffline(
       if (!source.tiles) {
         let ext = tileExtension;
         if (!ext) ext = 'pbf';
-        source.tiles = [`idb://${downloadId}/tile/${sourceKey}/{z}/{x}/{y}.${ext}`];
+        source.tiles = [`idb://${urlId}/tile/${sourceKey}/{z}/{x}/{y}.${ext}`];
         styleLogger.debug(`Added tiles array for TileJSON-only source ${sourceKey}:`, {
           tiles: source.tiles,
         });
@@ -93,7 +119,7 @@ export function patchStyleForOffline(
   // Patch glyphs
   if (style.glyphs) {
     const originalGlyphs = style.glyphs;
-    style.glyphs = `idb://${downloadId}/glyph/{fontstack}/{range}.pbf`;
+    style.glyphs = `idb://${urlId}/glyph/{fontstack}/{range}.pbf`;
     styleLogger.debug(`Patched glyphs:`, { original: originalGlyphs, patched: style.glyphs });
   }
 
