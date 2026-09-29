@@ -7,6 +7,7 @@ import {
 import { logger } from '@/utils/logger';
 import { parseTileKey } from '@/utils/tileKey';
 import { clearAllCaches } from '@/utils/idbFetchHandler';
+import { tileBelongsToRegion, type SourceZoomConfig } from '@/utils/tileRange';
 import { GLYPH_CONFIG } from '@/utils/constants';
 import { isMapboxProtocol, resolveMapboxUrl } from '@/utils/styleProviderUtils';
 import { loadStyles } from '@/services/styleService';
@@ -19,7 +20,6 @@ import type {
 } from '@/types/region';
 import type { BaseStyle, StyleEntry } from '@/types/style';
 import type { SpriteDownloadResult, TileEntry } from '@/types';
-import * as tilebelt from '@mapbox/tilebelt';
 
 const regionLogger = logger.scope('RegionService');
 
@@ -40,65 +40,13 @@ export function resourceKeyBelongsToStyle(key: string, styleId: string): boolean
 
 export class RegionService {
   /**
-   * Check if a tile overlaps with any region bounds
-   */
-  private tileOverlapsWithRegion(
-    tileX: number,
-    tileY: number,
-    tileZ: number,
-    region: OfflineRegionOptions
-  ): boolean {
-    // Validate region bounds exist and have correct structure
-    if (
-      !region.bounds ||
-      !Array.isArray(region.bounds) ||
-      region.bounds.length !== 2 ||
-      !Array.isArray(region.bounds[0]) ||
-      !Array.isArray(region.bounds[1]) ||
-      region.bounds[0].length !== 2 ||
-      region.bounds[1].length !== 2
-    ) {
-      regionLogger.warn('Invalid region bounds structure:', region.bounds);
-      return false;
-    }
-
-    // Get tile bounds using tilebelt
-    const tileBounds = tilebelt.tileToBBOX([tileX, tileY, tileZ]);
-    const [tileWest, tileSouth, tileEast, tileNorth] = tileBounds;
-
-    // Region bounds format: [[west, south], [east, north]]
-    const regionWest = region.bounds[0][0];
-    const regionSouth = region.bounds[0][1];
-    const regionEast = region.bounds[1][0];
-    const regionNorth = region.bounds[1][1];
-
-    // Check if bounding boxes overlap
-    return !(
-      tileEast < regionWest ||
-      tileWest > regionEast ||
-      tileNorth < regionSouth ||
-      tileSouth > regionNorth
-    );
-  }
-
-  /**
-   * Check if a tile overlaps with any of the given regions
-   */
-  private tileOverlapsWithAnyRegion(
-    tileX: number,
-    tileY: number,
-    tileZ: number,
-    regions: OfflineRegionOptions[]
-  ): boolean {
-    return regions.some(region => this.tileOverlapsWithRegion(tileX, tileY, tileZ, region));
-  }
-
-  /**
-   * Delete tiles that don't overlap with any remaining regions
+   * Delete tiles no remaining region needs — outside every remaining region's
+   * bounds, or at a zoom none of them downloads for that tile's source.
    */
   private async deleteNonOverlappingTiles(
     styleId: string,
-    remainingRegions: OfflineRegionOptions[]
+    remainingRegions: OfflineRegionOptions[],
+    sources: Record<string, SourceZoomConfig | undefined>
   ): Promise<number> {
     const db = await dbPromise;
     let deletedCount = 0;
@@ -123,10 +71,13 @@ export class RegionService {
         continue;
       }
 
-      const { x, y, z } = parsed;
-
-      // Check if this tile overlaps with any remaining region
-      if (!this.tileOverlapsWithAnyRegion(x, y, z, remainingRegions)) {
+      const tile = {
+        sourceId: tileEntry.sourceId ?? parsed.sourceId,
+        z: parsed.z,
+        x: parsed.x,
+        y: parsed.y,
+      };
+      if (!remainingRegions.some(region => tileBelongsToRegion(tile, region, sources))) {
         regionLogger.debug(`Deleting non-overlapping tile: ${tileEntry.key}`);
         await cursor.delete();
         deletedCount++;
@@ -683,7 +634,8 @@ export class RegionService {
         // Delete tiles that don't overlap with any remaining regions
         const deletedTileCount = await this.deleteNonOverlappingTiles(
           foundStyle.key,
-          remainingRegions
+          remainingRegions,
+          (foundStyle.style?.sources ?? {}) as Record<string, SourceZoomConfig | undefined>
         );
 
         // Re-patch for the remaining regions: shrink maxzoom to the deepest

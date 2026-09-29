@@ -103,6 +103,10 @@ export class SpriteService {
       });
 
       skippedSprites = spriteUrls.length - urlsToDownload.length;
+      // Skipped sprites count toward the total, so mark them done up front.
+      if (skippedSprites > 0) {
+        progressTracker.update(skippedSprites);
+      }
     }
 
     // Check storage quota if enabled
@@ -254,7 +258,9 @@ export class SpriteService {
           });
           spriteLogger.error(`Failed to download sprite ${spriteUrl}:`, error);
 
-          // Update progress even on failure
+          // Advance progress on failure too — a failed item is finished, and
+          // otherwise the bar stalls, then jumps to 100% at the end.
+          progressTracker.update(1, this.extractSpriteName(spriteUrl));
           if (onProgress) {
             const progress = progressTracker.getProgress();
             onProgress({

@@ -2,6 +2,7 @@ import { getTileStats } from './tileService';
 import { getFontStats } from './fontService';
 import { getSpriteStats } from './spriteService';
 import { getGlyphStats, EnhancedGlyphStats } from './glyphService';
+import { getModelStats } from './modelService';
 import type {
   RegionAnalytics,
   TileStats,
@@ -33,26 +34,25 @@ export class AnalyticsService {
   async getComprehensiveStorageAnalytics(
     getRegionAnalytics: () => Promise<RegionAnalytics>
   ): Promise<StorageAnalyticsReport> {
-    const [tileStats, fontStats, spriteStats, glyphStats, regionAnalytics] = await Promise.all([
-      this.getAllTileStats(),
-      this.getAllFontStats(),
-      this.getAllSpriteStats(),
-      this.getAllGlyphStats(),
-      getRegionAnalytics(),
-    ]);
-
-    const totalStorageSize =
-      (tileStats.totalSize || 0) +
-      (fontStats.totalSize || 0) +
-      (spriteStats.totalSize || 0) +
-      (glyphStats.totalSize || 0);
+    const [tileStats, fontStats, spriteStats, glyphStats, modelStats, regionAnalytics] =
+      await Promise.all([
+        this.getAllTileStats(),
+        this.getAllFontStats(),
+        this.getAllSpriteStats(),
+        this.getAllGlyphStats(),
+        getModelStats(),
+        getRegionAnalytics(),
+      ]);
 
     const storageByType = {
       tiles: tileStats.totalSize || 0,
       fonts: fontStats.totalSize || 0,
       sprites: spriteStats.totalSize || 0,
       glyphs: glyphStats.totalSize || 0,
+      // Mapbox Standard 3D models (.glb) — often several MB each.
+      models: modelStats.totalSize || 0,
     };
+    const totalStorageSize = Object.values(storageByType).reduce((sum, size) => sum + size, 0);
 
     const recommendations = this.generateStorageRecommendations({
       tiles: tileStats,
@@ -68,6 +68,7 @@ export class AnalyticsService {
       fonts: fontStats,
       sprites: spriteStats,
       glyphs: glyphStats,
+      models: modelStats,
       regions: regionAnalytics,
       totalStorageSize,
       storageByType,

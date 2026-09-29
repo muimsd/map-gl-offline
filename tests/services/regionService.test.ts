@@ -971,6 +971,77 @@ describe('RegionService', () => {
     });
   });
 
+  describe('deleteRegion tile pruning', () => {
+    it('drops tiles at zooms no remaining region uses, keeps overzoom tiles', async () => {
+      const db = await dbPromise;
+      const now = Date.now();
+      const bounds = [
+        [0, 0],
+        [1, 1],
+      ] as [[number, number], [number, number]];
+      await db.put('styles', {
+        key: 'prune',
+        style: {
+          version: 8,
+          sources: {
+            basemap: { type: 'vector', maxzoom: 2, __originalMaxzoom: 2 },
+            detail: { type: 'vector' },
+          },
+          layers: [],
+        },
+        provider: 'auto' as StyleProvider,
+        regions: [
+          {
+            id: 'low',
+            name: 'low',
+            bounds,
+            minZoom: 3,
+            maxZoom: 4,
+            styleUrl: '',
+            created: now,
+            expiry: now + 1e9,
+          },
+          {
+            id: 'high',
+            name: 'high',
+            bounds,
+            minZoom: 3,
+            maxZoom: 6,
+            styleUrl: '',
+            created: now,
+            expiry: now + 1e9,
+          },
+        ],
+        fonts: [],
+        glyphs: [],
+        sprites: [],
+      } as never);
+      const put = (sourceId: string, z: number, x: number, y: number) =>
+        db.put('tiles', {
+          key: `prune:${sourceId}:${z}:${x}:${y}.pbf`,
+          styleId: 'prune',
+          sourceId,
+          z,
+          x,
+          y,
+          data: new ArrayBuffer(1),
+          size: 1,
+          url: '',
+          type: 'vector',
+          downloadedAt: '',
+          lastModified: now,
+        } as never);
+      await put('detail', 4, 8, 7); // used by "low"
+      await put('detail', 6, 32, 31); // only "high" used z6
+      await put('basemap', 2, 2, 1); // overzoom tile for both (basemap stops at z2)
+
+      await regionService.deleteRegion('high', 'prune');
+
+      const keys = (await db.getAllKeys('tiles')).map(String).filter(k => k.startsWith('prune:'));
+      expect(keys.sort()).toEqual(['prune:basemap:2:2:1.pbf', 'prune:detail:4:8:7.pbf']);
+    });
+  });
+
   describe('deleteRegion with styleId', () => {
     it('deletes the region from the given style, not the first style with that id', async () => {
       const db = await dbPromise;
