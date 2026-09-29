@@ -171,7 +171,7 @@ npm run dev           # Start Vite dev server
 ## Things to Avoid
 
 1. Writing to the deprecated `regions` store
-2. Using `async/await` inside IndexedDB `upgrade` callbacks (use IDBRequest callbacks)
+2. Using `async/await` inside IndexedDB `upgrade` callbacks (use IDBRequest callbacks) — and hand those helpers the raw transaction via `unwrap(transaction)` from `idb`. On idb's wrapper, `get()`/`getAll()` return Promises, so `request.onsuccess` never fires and the migration silently does nothing.
 3. Adding `db.clear('regions')` in new tests
 4. Hardcoding DB version numbers (use `DB_VERSION` constant)
 5. Treating `region.expiry` as a duration — it's an absolute timestamp (ms since epoch)
