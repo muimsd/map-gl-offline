@@ -13,6 +13,7 @@ import {
   matchTileJsonSource,
   modelCandidateKeys,
   parseGlyphPath,
+  safeDecodeURIComponent,
   spriteCandidateKeys,
   tileFallbackExtensions,
 } from '@/sw/shared';
@@ -205,7 +206,7 @@ export async function idbFetchHandler(url: string, init?: RequestInit): Promise<
   const parsed = url.replace('idb://', '').split('/');
   const [downloadId, type, ...rest] = parsed;
   const resourcePath = rest.join('/');
-  const decodedResourcePath = decodeURIComponent(resourcePath);
+  const decodedResourcePath = safeDecodeURIComponent(resourcePath);
   const key = `${downloadId}::${decodedResourcePath}`;
 
   try {
@@ -270,7 +271,7 @@ export async function idbFetchHandler(url: string, init?: RequestInit): Promise<
           if (pathParts.length === 1) {
             // Old format without sourceKey - try to extract from the URL
             const encodedTileUrl = pathParts[0];
-            const tileUrl = decodeURIComponent(encodedTileUrl);
+            const tileUrl = safeDecodeURIComponent(encodedTileUrl);
             // Try to extract source from URL pattern
             // For example: https://domain.com/service/source/vt/{z}/{x}/{y}.pbf
             const urlParts = tileUrl.split('/');

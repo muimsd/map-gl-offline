@@ -9,6 +9,13 @@
 (() => {
   // src/sw/shared.ts
   var OFFLINE_PREFIX = "/__offline__/";
+  function safeDecodeURIComponent(value) {
+    try {
+      return decodeURIComponent(value);
+    } catch {
+      return value;
+    }
+  }
   var DB_NAME = "offline-map-db";
   function makeTileKey(x, y, z, styleId, sourceId, ext) {
     return `${styleId}:${sourceId}:${z}:${x}:${y}.${ext}`;
@@ -229,7 +236,7 @@
     const yExt = rest[rest.length - 1];
     const x = parseInt(rest[rest.length - 2], 10);
     const z = Math.floor(parseFloat(rest[rest.length - 3]));
-    const sourceKey = rest.slice(0, rest.length - 3).join("/");
+    const sourceKey = safeDecodeURIComponent(rest.slice(0, rest.length - 3).join("/"));
     const parsed = parseTileYExt(yExt);
     if (!parsed || Number.isNaN(x) || Number.isNaN(z)) {
       return new Response("Invalid tile coordinates", { status: 400 });
@@ -247,7 +254,7 @@
   async function handleGlyph(db, downloadId, rest) {
     const styleEntry = await findStyleByRegionId(db, downloadId);
     const styleId = styleEntry?.key ?? downloadId;
-    const { fontstacks, rangePart } = parseGlyphPath(decodeURIComponent(rest.join("/")));
+    const { fontstacks, rangePart } = parseGlyphPath(safeDecodeURIComponent(rest.join("/")));
     for (const fontstack of fontstacks) {
       for (const key of glyphCandidateKeys(styleId, downloadId, fontstack, rangePart)) {
         const resource = await idbGet(db, "glyphs", key);
@@ -264,7 +271,7 @@
   async function handleSprite(db, downloadId, rest) {
     const styleEntry = await findStyleByRegionId(db, downloadId);
     const styleId = styleEntry?.key ?? downloadId;
-    const path = decodeURIComponent(rest.join("/"));
+    const path = safeDecodeURIComponent(rest.join("/"));
     for (const key of spriteCandidateKeys(styleId, downloadId, path)) {
       const resource = await idbGet(db, "sprites", key);
       if (resource?.data) {
@@ -278,7 +285,7 @@
   async function handleModel(db, downloadId, rest) {
     const styleEntry = await findStyleByRegionId(db, downloadId);
     const styleId = styleEntry?.key ?? downloadId;
-    const path = decodeURIComponent(rest.join("/"));
+    const path = safeDecodeURIComponent(rest.join("/"));
     for (const key of modelCandidateKeys(styleId, downloadId, path)) {
       const resource = await idbGet(db, "models", key);
       if (resource?.data) {
@@ -291,7 +298,7 @@
     return new Response("Model not found", { status: 404 });
   }
   async function handleTileJSON(db, downloadId, rest) {
-    const path = decodeURIComponent(rest.join("/"));
+    const path = safeDecodeURIComponent(rest.join("/"));
     let styleEntry = await idbGet(db, "styles", downloadId);
     if (!styleEntry?.style?.sources) {
       styleEntry = await findStyleByRegionId(db, downloadId);
@@ -327,7 +334,8 @@
     try {
       const path = url.substring(prefixIndex + OFFLINE_PREFIX.length);
       const parts = path.split("/");
-      const [downloadId, type, ...rest] = parts;
+      const [encodedDownloadId, type, ...rest] = parts;
+      const downloadId = safeDecodeURIComponent(encodedDownloadId ?? "");
       if (!downloadId || !type) {
         return new Response("Invalid offline URL", { status: 400 });
       }

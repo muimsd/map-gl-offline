@@ -20,6 +20,19 @@
  */
 
 export const OFFLINE_PREFIX = '/__offline__/';
+
+/**
+ * `decodeURIComponent` that returns the input unchanged instead of throwing
+ * on a malformed escape (e.g. a literal `%` in a font or source name), so a
+ * bad path becomes a lookup miss / 404 rather than a rejected fetch.
+ */
+export function safeDecodeURIComponent(value: string): string {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+}
 export const DB_NAME = 'offline-map-db';
 
 /**

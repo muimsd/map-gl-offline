@@ -143,13 +143,18 @@ describe('IDBFetchHandler', () => {
           key: 'main-style',
           style: { version: 8, sources: {}, layers: [] },
           provider: 'auto' as StyleProvider,
-          regions: [{
-            id: 'region-123',
-            name: 'Test Region',
-            bounds: [[-180, -85], [180, 85]] as [[number, number], [number, number]],
-            minZoom: 0,
-            maxZoom: 14,
-          }],
+          regions: [
+            {
+              id: 'region-123',
+              name: 'Test Region',
+              bounds: [
+                [-180, -85],
+                [180, 85],
+              ] as [[number, number], [number, number]],
+              minZoom: 0,
+              maxZoom: 14,
+            },
+          ],
           fonts: [],
           glyphs: [],
           sprites: [],
@@ -176,6 +181,11 @@ describe('IDBFetchHandler', () => {
 
         expect(response.status).toBe(200);
       });
+    });
+
+    it('returns 404 instead of throwing on a malformed percent escape', async () => {
+      const response = await idbFetchHandler('idb://style-1/tile/a%zz/10/100/200.pbf');
+      expect(response.status).toBe(404);
     });
 
     describe('glyph requests', () => {
@@ -239,13 +249,18 @@ describe('IDBFetchHandler', () => {
           key: 'main-style',
           style: { version: 8, sources: {}, layers: [] },
           provider: 'auto' as StyleProvider,
-          regions: [{
-            id: 'region-abc',
-            name: 'Test Region',
-            bounds: [[-180, -85], [180, 85]] as [[number, number], [number, number]],
-            minZoom: 0,
-            maxZoom: 14,
-          }],
+          regions: [
+            {
+              id: 'region-abc',
+              name: 'Test Region',
+              bounds: [
+                [-180, -85],
+                [180, 85],
+              ] as [[number, number], [number, number]],
+              minZoom: 0,
+              maxZoom: 14,
+            },
+          ],
           fonts: [],
           glyphs: [],
           sprites: [],
@@ -326,13 +341,18 @@ describe('IDBFetchHandler', () => {
           key: 'main-style',
           style: { version: 8, sources: {}, layers: [] },
           provider: 'auto' as StyleProvider,
-          regions: [{
-            id: 'region-xyz',
-            name: 'Test Region',
-            bounds: [[-180, -85], [180, 85]] as [[number, number], [number, number]],
-            minZoom: 0,
-            maxZoom: 14,
-          }],
+          regions: [
+            {
+              id: 'region-xyz',
+              name: 'Test Region',
+              bounds: [
+                [-180, -85],
+                [180, 85],
+              ] as [[number, number], [number, number]],
+              minZoom: 0,
+              maxZoom: 14,
+            },
+          ],
           fonts: [],
           glyphs: [],
           sprites: [],
@@ -446,13 +466,18 @@ describe('IDBFetchHandler', () => {
             layers: [],
           },
           provider: 'auto' as StyleProvider,
-          regions: [{
-            id: 'region-001',
-            name: 'Test Region',
-            bounds: [[-180, -85], [180, 85]] as [[number, number], [number, number]],
-            minZoom: 0,
-            maxZoom: 14,
-          }],
+          regions: [
+            {
+              id: 'region-001',
+              name: 'Test Region',
+              bounds: [
+                [-180, -85],
+                [180, 85],
+              ] as [[number, number], [number, number]],
+              minZoom: 0,
+              maxZoom: 14,
+            },
+          ],
           fonts: [],
           glyphs: [],
           sprites: [],
@@ -563,7 +588,9 @@ describe('IDBFetchHandler', () => {
           key: 'style-1:source:1:1:1.pbf',
           styleId: 'style-1',
           sourceId: 'source',
-          x: 1, y: 1, z: 1,
+          x: 1,
+          y: 1,
+          z: 1,
           size: 16,
           data: tileData,
           downloadedAt: new Date().toISOString(),
@@ -598,7 +625,9 @@ describe('IDBFetchHandler', () => {
           key: 'style-gz:source:2:2:2.pbf',
           styleId: 'style-gz',
           sourceId: 'source',
-          x: 2, y: 2, z: 2,
+          x: 2,
+          y: 2,
+          z: 2,
           size: gzBuffer.byteLength,
           data: gzBuffer,
           downloadedAt: new Date().toISOString(),
@@ -620,7 +649,9 @@ describe('IDBFetchHandler', () => {
           key: 'style-r:source:0:0:0.png',
           styleId: 'style-r',
           sourceId: 'source',
-          x: 0, y: 0, z: 0,
+          x: 0,
+          y: 0,
+          z: 0,
           size: gzipHeader.byteLength,
           data: gzipHeader.buffer,
           downloadedAt: new Date().toISOString(),
@@ -639,7 +670,9 @@ describe('IDBFetchHandler', () => {
           key: 'style-exp:source:3:3:3.pbf',
           styleId: 'style-exp',
           sourceId: 'source',
-          x: 3, y: 3, z: 3,
+          x: 3,
+          y: 3,
+          z: 3,
           size: 4,
           data: new ArrayBuffer(4),
           downloadedAt: new Date().toISOString(),
@@ -659,7 +692,9 @@ describe('IDBFetchHandler', () => {
           key: 'style-br:source:4:4:4.pbf',
           styleId: 'style-br',
           sourceId: 'source',
-          x: 4, y: 4, z: 4,
+          x: 4,
+          y: 4,
+          z: 4,
           size: 4,
           data: new ArrayBuffer(4),
           downloadedAt: new Date().toISOString(),
@@ -761,5 +796,4 @@ describe('IDBFetchHandler', () => {
       });
     });
   });
-
 });

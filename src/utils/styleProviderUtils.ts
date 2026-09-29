@@ -63,35 +63,44 @@ export function resolveMapboxUrl(mapboxUrl: string, accessToken: string): string
     throw new Error(`Mapbox access token is required to resolve mapbox:// URL: ${mapboxUrl}`);
   }
 
-  // Strip the protocol prefix
-  const path = mapboxUrl.slice(MAPBOX_API.PROTOCOL.length);
+  // Strip the protocol prefix, and split off any query so path matching and
+  // the resolved URL's suffixes (`.json`, `/sprite`) go before it. Existing
+  // parameters are kept; `access_token` is set exactly once.
+  const withoutProtocol = mapboxUrl.slice(MAPBOX_API.PROTOCOL.length);
+  const queryIndex = withoutProtocol.indexOf('?');
+  const path = queryIndex === -1 ? withoutProtocol : withoutProtocol.slice(0, queryIndex);
+  const params = new URLSearchParams(
+    queryIndex === -1 ? '' : withoutProtocol.slice(queryIndex + 1)
+  );
+  params.set('access_token', accessToken);
+  const query = `?${params.toString()}`;
 
   // mapbox://styles/{user}/{id}
   if (path.startsWith('styles/')) {
     const rest = path.slice('styles/'.length);
-    return `${MAPBOX_API.BASE_URL}${MAPBOX_API.STYLES_PATH}/${rest}?access_token=${accessToken}`;
+    return `${MAPBOX_API.BASE_URL}${MAPBOX_API.STYLES_PATH}/${rest}${query}`;
   }
 
   // mapbox://sprites/{user}/{id}
   if (path.startsWith('sprites/')) {
     const rest = path.slice('sprites/'.length);
-    return `${MAPBOX_API.BASE_URL}${MAPBOX_API.STYLES_PATH}/${rest}/sprite?access_token=${accessToken}`;
+    return `${MAPBOX_API.BASE_URL}${MAPBOX_API.STYLES_PATH}/${rest}/sprite${query}`;
   }
 
   // mapbox://fonts/{user}/{fontstack}/{range}.pbf
   if (path.startsWith('fonts/')) {
     const rest = path.slice('fonts/'.length);
-    return `${MAPBOX_API.BASE_URL}${MAPBOX_API.FONTS_PATH}/${rest}?access_token=${accessToken}`;
+    return `${MAPBOX_API.BASE_URL}${MAPBOX_API.FONTS_PATH}/${rest}${query}`;
   }
 
   // mapbox://models/{path}
   if (path.startsWith('models/')) {
     const rest = path.slice('models/'.length);
-    return `${MAPBOX_API.BASE_URL}${MAPBOX_API.MODELS_PATH}/${rest}?access_token=${accessToken}`;
+    return `${MAPBOX_API.BASE_URL}${MAPBOX_API.MODELS_PATH}/${rest}${query}`;
   }
 
   // mapbox://{tileset} (e.g. mapbox://mapbox.mapbox-streets-v8)
-  return `${MAPBOX_API.BASE_URL}${MAPBOX_API.TILES_PATH}/${path}.json?access_token=${accessToken}`;
+  return `${MAPBOX_API.BASE_URL}${MAPBOX_API.TILES_PATH}/${path}.json${query}`;
 }
 
 /**

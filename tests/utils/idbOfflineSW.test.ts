@@ -59,15 +59,7 @@ function openTestDB(): Promise<IDBDatabase> {
     const req = indexedDB.open('offline-map-db', 4);
     req.onupgradeneeded = () => {
       const db = req.result;
-      for (const name of [
-        'regions',
-        'tiles',
-        'styles',
-        'sprites',
-        'glyphs',
-        'fonts',
-        'models',
-      ]) {
+      for (const name of ['regions', 'tiles', 'styles', 'sprites', 'glyphs', 'fonts', 'models']) {
         if (!db.objectStoreNames.contains(name)) {
           db.createObjectStore(name, { keyPath: 'key' });
         }
@@ -280,6 +272,28 @@ describe('idb-offline-sw.js', () => {
       expect(data.byteLength).toBe(64);
     });
 
+    it('decodes percent-encoded style and source ids in tile URLs', async () => {
+      // Browsers percent-encode Request.url; ids come from style names and
+      // may contain spaces or non-ASCII characters.
+      await idbPut(db, 'tiles', {
+        key: 'خريطة:my source:10:100:200.pbf',
+        data: new ArrayBuffer(8),
+        type: 'vector',
+      });
+
+      const url = new URL(
+        'https://localhost/__offline__/خريطة/tile/my source/10/100/200.pbf'
+      ).toString();
+      expect(url).toContain('%20'); // what the SW actually receives
+      const resp = await swFetch(url);
+      expect(resp.status).toBe(200);
+    });
+
+    it('returns 404 (not 500) for a malformed percent escape', async () => {
+      const resp = await swFetch('https://localhost/__offline__/style-1/tile/a%zz/10/100/200.pbf');
+      expect(resp.status).toBe(404);
+    });
+
     it('should serve a tile with custom contentType', async () => {
       const tileData = new ArrayBuffer(32);
 
@@ -290,24 +304,18 @@ describe('idb-offline-sw.js', () => {
         contentType: 'image/png',
       });
 
-      const resp = await swFetch(
-        'https://localhost/__offline__/style-1/tile/source/5/10/20.png'
-      );
+      const resp = await swFetch('https://localhost/__offline__/style-1/tile/source/5/10/20.png');
       expect(resp.status).toBe(200);
       expect(resp.headers.get('Content-Type')).toBe('image/png');
     });
 
     it('should return 400 for invalid tile path (too few segments)', async () => {
-      const resp = await swFetch(
-        'https://localhost/__offline__/style-1/tile/source/10/100'
-      );
+      const resp = await swFetch('https://localhost/__offline__/style-1/tile/source/10/100');
       expect(resp.status).toBe(400);
     });
 
     it('should return 400 for invalid tile coordinates', async () => {
-      const resp = await swFetch(
-        'https://localhost/__offline__/style-1/tile/source/10/100/bad'
-      );
+      const resp = await swFetch('https://localhost/__offline__/style-1/tile/source/10/100/bad');
       expect(resp.status).toBe(400);
     });
 
@@ -450,9 +458,7 @@ describe('idb-offline-sw.js', () => {
 
   describe('glyph handling', () => {
     it('should return 404 for non-existent glyph', async () => {
-      const resp = await swFetch(
-        'https://localhost/__offline__/style-1/glyph/Arial/0-255.pbf'
-      );
+      const resp = await swFetch('https://localhost/__offline__/style-1/glyph/Arial/0-255.pbf');
       expect(resp.status).toBe(404);
     });
 
@@ -464,9 +470,7 @@ describe('idb-offline-sw.js', () => {
         data: glyphData,
       });
 
-      const resp = await swFetch(
-        'https://localhost/__offline__/style-1/glyph/Arial/0-255.pbf'
-      );
+      const resp = await swFetch('https://localhost/__offline__/style-1/glyph/Arial/0-255.pbf');
       expect(resp.status).toBe(200);
       expect(resp.headers.get('Content-Type')).toBe('application/x-protobuf');
     });
@@ -513,9 +517,7 @@ describe('idb-offline-sw.js', () => {
         data: glyphData,
       });
 
-      const resp = await swFetch(
-        'https://localhost/__offline__/region-g/glyph/Arial/0-255.pbf'
-      );
+      const resp = await swFetch('https://localhost/__offline__/region-g/glyph/Arial/0-255.pbf');
       expect(resp.status).toBe(200);
     });
 
@@ -529,9 +531,7 @@ describe('idb-offline-sw.js', () => {
       });
 
       // Request path already has .pbf
-      const resp = await swFetch(
-        'https://localhost/__offline__/style-1/glyph/Arial/0-255.pbf'
-      );
+      const resp = await swFetch('https://localhost/__offline__/style-1/glyph/Arial/0-255.pbf');
       expect(resp.status).toBe(200);
     });
   });
@@ -542,9 +542,7 @@ describe('idb-offline-sw.js', () => {
 
   describe('sprite handling', () => {
     it('should return 404 for non-existent sprite', async () => {
-      const resp = await swFetch(
-        'https://localhost/__offline__/style-1/sprite/sprite.json'
-      );
+      const resp = await swFetch('https://localhost/__offline__/style-1/sprite/sprite.json');
       expect(resp.status).toBe(404);
     });
 
@@ -557,9 +555,7 @@ describe('idb-offline-sw.js', () => {
         contentType: 'application/json',
       });
 
-      const resp = await swFetch(
-        'https://localhost/__offline__/style-1/sprite/sprite.json'
-      );
+      const resp = await swFetch('https://localhost/__offline__/style-1/sprite/sprite.json');
       expect(resp.status).toBe(200);
       expect(resp.headers.get('Content-Type')).toBe('application/json');
     });
@@ -573,9 +569,7 @@ describe('idb-offline-sw.js', () => {
         contentType: 'image/png',
       });
 
-      const resp = await swFetch(
-        'https://localhost/__offline__/style-1/sprite/sprite@2x.png'
-      );
+      const resp = await swFetch('https://localhost/__offline__/style-1/sprite/sprite@2x.png');
       expect(resp.status).toBe(200);
       expect(resp.headers.get('Content-Type')).toBe('image/png');
     });
@@ -590,9 +584,7 @@ describe('idb-offline-sw.js', () => {
         contentType: 'application/json',
       });
 
-      const resp = await swFetch(
-        'https://localhost/__offline__/style-1/sprite/sprite.json'
-      );
+      const resp = await swFetch('https://localhost/__offline__/style-1/sprite/sprite.json');
       expect(resp.status).toBe(200);
     });
 
@@ -610,9 +602,7 @@ describe('idb-offline-sw.js', () => {
         contentType: 'image/png',
       });
 
-      const resp = await swFetch(
-        'https://localhost/__offline__/region-s/sprite/sprite.png'
-      );
+      const resp = await swFetch('https://localhost/__offline__/region-s/sprite/sprite.png');
       expect(resp.status).toBe(200);
     });
 
@@ -625,9 +615,7 @@ describe('idb-offline-sw.js', () => {
         // no contentType
       });
 
-      const resp = await swFetch(
-        'https://localhost/__offline__/style-1/sprite/sprite.png'
-      );
+      const resp = await swFetch('https://localhost/__offline__/style-1/sprite/sprite.png');
       expect(resp.status).toBe(200);
       // No Content-Type header when resource has none
       expect(resp.headers.get('Content-Type')).toBeNull();
@@ -640,9 +628,7 @@ describe('idb-offline-sw.js', () => {
 
   describe('model handling', () => {
     it('should return 404 for non-existent model', async () => {
-      const resp = await swFetch(
-        'https://localhost/__offline__/mapbox-standard/model/maple1-lod1'
-      );
+      const resp = await swFetch('https://localhost/__offline__/mapbox-standard/model/maple1-lod1');
       expect(resp.status).toBe(404);
     });
 
@@ -653,9 +639,7 @@ describe('idb-offline-sw.js', () => {
         data: glb,
       });
 
-      const resp = await swFetch(
-        'https://localhost/__offline__/mapbox-standard/model/maple1-lod1'
-      );
+      const resp = await swFetch('https://localhost/__offline__/mapbox-standard/model/maple1-lod1');
       expect(resp.status).toBe(200);
       expect(resp.headers.get('Content-Type')).toBe('model/gltf-binary');
     });
@@ -688,9 +672,7 @@ describe('idb-offline-sw.js', () => {
         data: glb,
       });
 
-      const resp = await swFetch(
-        'https://localhost/__offline__/region-m/model/palm2-lod2'
-      );
+      const resp = await swFetch('https://localhost/__offline__/region-m/model/palm2-lod2');
       expect(resp.status).toBe(200);
       expect(resp.headers.get('Content-Type')).toBe('model/gltf-binary');
     });
@@ -726,9 +708,7 @@ describe('idb-offline-sw.js', () => {
         },
       });
 
-      const resp = await swFetch(
-        'https://localhost/__offline__/my-style/tilesjson/openmaptiles'
-      );
+      const resp = await swFetch('https://localhost/__offline__/my-style/tilesjson/openmaptiles');
       expect(resp.status).toBe(200);
       expect(resp.headers.get('Content-Type')).toBe('application/json');
 
@@ -760,9 +740,7 @@ describe('idb-offline-sw.js', () => {
         },
       });
 
-      const resp = await swFetch(
-        'https://localhost/__offline__/my-style/tilesjson/raster'
-      );
+      const resp = await swFetch('https://localhost/__offline__/my-style/tilesjson/raster');
       expect(resp.status).toBe(200);
 
       const tileJson = await resp.json();
@@ -786,9 +764,7 @@ describe('idb-offline-sw.js', () => {
         },
       });
 
-      const resp = await swFetch(
-        'https://localhost/__offline__/my-style/tilesjson/openmaptiles'
-      );
+      const resp = await swFetch('https://localhost/__offline__/my-style/tilesjson/openmaptiles');
       const tileJson = await resp.json();
       expect(tileJson.tiles[0]).toContain('.pbf');
     });
@@ -879,9 +855,7 @@ describe('idb-offline-sw.js', () => {
         regions: [{ regionId: 'region-tj', name: 'Test' }],
       });
 
-      const resp = await swFetch(
-        'https://localhost/__offline__/region-tj/tilesjson/openmaptiles'
-      );
+      const resp = await swFetch('https://localhost/__offline__/region-tj/tilesjson/openmaptiles');
       expect(resp.status).toBe(200);
 
       const tileJson = await resp.json();
@@ -909,9 +883,7 @@ describe('idb-offline-sw.js', () => {
         },
       });
 
-      const resp = await swFetch(
-        'https://localhost/__offline__/my-style/tilesjson/openmaptiles'
-      );
+      const resp = await swFetch('https://localhost/__offline__/my-style/tilesjson/openmaptiles');
       const tileJson = await resp.json();
       expect(tileJson.vector_layers).toEqual([{ id: 'water', fields: {} }]);
       expect(tileJson.attribution).toBe('(c) OpenMapTiles');
@@ -935,9 +907,7 @@ describe('idb-offline-sw.js', () => {
         },
       });
 
-      const resp = await swFetch(
-        'https://localhost/__offline__/my-style/tilesjson/openmaptiles'
-      );
+      const resp = await swFetch('https://localhost/__offline__/my-style/tilesjson/openmaptiles');
       const tileJson = await resp.json();
       expect(tileJson.tilejson).toBe('3.0.0');
     });
@@ -963,15 +933,11 @@ describe('idb-offline-sw.js', () => {
       });
 
       // First call populates cache
-      const resp1 = await swFetch(
-        'https://localhost/__offline__/cached-region/tile/src/5/1/1.pbf'
-      );
+      const resp1 = await swFetch('https://localhost/__offline__/cached-region/tile/src/5/1/1.pbf');
       expect(resp1.status).toBe(200);
 
       // Second call should use cache
-      const resp2 = await swFetch(
-        'https://localhost/__offline__/cached-region/tile/src/5/1/1.pbf'
-      );
+      const resp2 = await swFetch('https://localhost/__offline__/cached-region/tile/src/5/1/1.pbf');
       expect(resp2.status).toBe(200);
     });
 
