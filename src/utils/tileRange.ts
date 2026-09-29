@@ -39,3 +39,32 @@ export function isTileInRegion(
   const { minX, maxX, minY, maxY } = getTileRangeAtZoom(region.bounds, z);
   return x >= minX && x <= maxX && y >= minY && y <= maxY;
 }
+
+/**
+ * Zoom levels to download for one source in `region`: the overlap of the
+ * region's and the source's zoom ranges. When they don't overlap, the source
+ * still gets the zooms the map needs from it:
+ * - source ends below the region (`maxzoom` < region min) → its `maxzoom`,
+ *   which the renderer overzooms for the region's zooms;
+ * - source starts above the region (`minzoom` > region max) → `minzoom`
+ *   through `maxzoom` (or just `minzoom` if unbounded).
+ */
+export function sourceZoomRange(
+  region: { minZoom: number; maxZoom: number },
+  sourceMinZoom?: number,
+  sourceMaxZoom?: number
+): { min: number; max: number } {
+  const srcMin = sourceMinZoom !== undefined ? Math.ceil(sourceMinZoom) : undefined;
+  const srcMax = sourceMaxZoom !== undefined ? Math.floor(sourceMaxZoom) : undefined;
+
+  if (srcMax !== undefined && srcMax < region.minZoom) {
+    return { min: srcMax, max: srcMax };
+  }
+  if (srcMin !== undefined && srcMin > region.maxZoom) {
+    return { min: srcMin, max: srcMax ?? srcMin };
+  }
+  return {
+    min: Math.max(region.minZoom, srcMin ?? region.minZoom),
+    max: Math.min(region.maxZoom, srcMax ?? region.maxZoom),
+  };
+}

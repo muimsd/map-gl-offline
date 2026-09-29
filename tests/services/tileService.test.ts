@@ -398,7 +398,11 @@ describe('TileService', () => {
     it('should return empty analytics when no tiles exist', async () => {
       const analytics = await service.getTileAnalytics();
 
-      const basic = analytics.basic as { totalTiles: number; totalSize: number; averageSize: number };
+      const basic = analytics.basic as {
+        totalTiles: number;
+        totalSize: number;
+        averageSize: number;
+      };
       expect(basic.totalTiles).toBe(0);
       expect(basic.totalSize).toBe(0);
       expect(basic.averageSize).toBe(0);
@@ -441,18 +445,29 @@ describe('TileService', () => {
 
       const analytics = await service.getTileAnalytics();
 
-      const basic = analytics.basic as { totalTiles: number; totalSize: number; averageSize: number };
+      const basic = analytics.basic as {
+        totalTiles: number;
+        totalSize: number;
+        averageSize: number;
+      };
       expect(basic.totalTiles).toBe(2);
       expect(basic.totalSize).toBe(3000);
       expect(basic.averageSize).toBe(1500);
 
-      const distribution = analytics.distribution as { tilesByZoom: Record<string, number>; sizeByZoom: Record<string, number> };
+      const distribution = analytics.distribution as {
+        tilesByZoom: Record<string, number>;
+        sizeByZoom: Record<string, number>;
+      };
       expect(distribution.tilesByZoom['10']).toBe(1);
       expect(distribution.tilesByZoom['12']).toBe(1);
       expect(distribution.sizeByZoom['10']).toBe(1000);
       expect(distribution.sizeByZoom['12']).toBe(2000);
 
-      const temporal = analytics.temporal as { oldestTile: number; newestTile: number; ageSpan: number };
+      const temporal = analytics.temporal as {
+        oldestTile: number;
+        newestTile: number;
+        ageSpan: number;
+      };
       expect(temporal.oldestTile).toBe(oldTime);
       expect(temporal.newestTile).toBe(now);
       expect(temporal.ageSpan).toBe(now - oldTime);
@@ -502,7 +517,11 @@ describe('TileService', () => {
     it('should handle empty ageSpan when no tiles exist', async () => {
       const analytics = await service.getTileAnalytics();
 
-      const temporal = analytics.temporal as { oldestTile: number | undefined; newestTile: number | undefined; ageSpan: number };
+      const temporal = analytics.temporal as {
+        oldestTile: number | undefined;
+        newestTile: number | undefined;
+        ageSpan: number;
+      };
       expect(temporal.oldestTile).toBeUndefined();
       expect(temporal.newestTile).toBeUndefined();
       expect(temporal.ageSpan).toBe(0);
@@ -514,7 +533,10 @@ describe('TileService', () => {
       const region = {
         id: 'test-region',
         name: 'Test Region',
-        bounds: [[-122.5, 37.5], [-122.0, 38.0]] as [[number, number], [number, number]],
+        bounds: [
+          [-122.5, 37.5],
+          [-122.0, 38.0],
+        ] as [[number, number], [number, number]],
         minZoom: 0,
         maxZoom: 10,
       };
@@ -533,7 +555,10 @@ describe('TileService', () => {
       const region = {
         id: 'test-region',
         name: 'Test Region',
-        bounds: [[-122.5, 37.5], [-122.0, 38.0]] as [[number, number], [number, number]],
+        bounds: [
+          [-122.5, 37.5],
+          [-122.0, 38.0],
+        ] as [[number, number], [number, number]],
         minZoom: 0,
         maxZoom: 10,
       };
@@ -551,15 +576,16 @@ describe('TileService', () => {
     it('skips sources when the majority of probe tiles return 404 (sparse-for-this-region)', async () => {
       // Mock fetch so all probe tiles return 404.
       const realFetch = global.fetch;
-      const mockFetch = jest.fn().mockResolvedValue(
-        new Response(null, { status: 404 })
-      );
+      const mockFetch = jest.fn().mockResolvedValue(new Response(null, { status: 404 }));
       global.fetch = mockFetch as unknown as typeof fetch;
 
       const region = {
         id: 'test-probe-404',
         name: 'Probe 404',
-        bounds: [[55.27, 25.2], [55.4, 25.34]] as [[number, number], [number, number]],
+        bounds: [
+          [55.27, 25.2],
+          [55.4, 25.34],
+        ] as [[number, number], [number, number]],
         minZoom: 10,
         maxZoom: 12, // enough coords for start/middle/end to be distinct
       };
@@ -608,7 +634,10 @@ describe('TileService', () => {
       const region = {
         id: 'test-probe-mixed',
         name: 'Probe mixed',
-        bounds: [[55.27, 25.2], [55.4, 25.34]] as [[number, number], [number, number]],
+        bounds: [
+          [55.27, 25.2],
+          [55.4, 25.34],
+        ] as [[number, number], [number, number]],
         minZoom: 10,
         maxZoom: 12,
       };
@@ -642,15 +671,16 @@ describe('TileService', () => {
 
     it('can be disabled with probeSourcesBeforeDownload: false', async () => {
       const realFetch = global.fetch;
-      const mockFetch = jest.fn().mockResolvedValue(
-        new Response(null, { status: 404 })
-      );
+      const mockFetch = jest.fn().mockResolvedValue(new Response(null, { status: 404 }));
       global.fetch = mockFetch as unknown as typeof fetch;
 
       const region = {
         id: 'test-probe-disabled',
         name: 'Probe disabled',
-        bounds: [[55.27, 25.2], [55.28, 25.21]] as [[number, number], [number, number]],
+        bounds: [
+          [55.27, 25.2],
+          [55.28, 25.21],
+        ] as [[number, number], [number, number]],
         minZoom: 1,
         maxZoom: 1,
       };
@@ -685,13 +715,18 @@ describe('TileService', () => {
       // `raster-array` is used by Mapbox Standard's `mapbox-landmarks` source.
       // Previously filtered out of the plan; this regression guards the fix.
       const realFetch = global.fetch;
-      const mockFetch = jest.fn().mockResolvedValue(new Response(new ArrayBuffer(0), { status: 200 }));
+      const mockFetch = jest
+        .fn()
+        .mockResolvedValue(new Response(new ArrayBuffer(0), { status: 200 }));
       global.fetch = mockFetch as unknown as typeof fetch;
 
       const region = {
         id: 'test-raster-array',
         name: 'Raster array',
-        bounds: [[55.27, 25.2], [55.4, 25.34]] as [[number, number], [number, number]],
+        bounds: [
+          [55.27, 25.2],
+          [55.4, 25.34],
+        ] as [[number, number], [number, number]],
         minZoom: 10,
         maxZoom: 10,
       };
@@ -717,6 +752,85 @@ describe('TileService', () => {
       } finally {
         global.fetch = realFetch;
       }
+    });
+
+    describe('sources whose zoom range misses the region', () => {
+      const bounds = [
+        [55.27, 25.2],
+        [55.28, 25.21],
+      ] as [[number, number], [number, number]];
+      let realFetch: typeof fetch;
+
+      beforeEach(() => {
+        realFetch = global.fetch;
+        global.fetch = jest.fn().mockImplementation(
+          async () =>
+            new Response(new Uint8Array([0x1a, 0x01, 0x02]).buffer, {
+              status: 200,
+              headers: { 'content-type': 'application/x-protobuf' },
+            })
+        ) as unknown as typeof fetch;
+      });
+
+      afterEach(() => {
+        global.fetch = realFetch;
+      });
+
+      async function storedZooms(styleId: string): Promise<number[]> {
+        const db = await dbPromise;
+        const tiles = await db.getAll('tiles');
+        return [...new Set(tiles.filter(t => t.styleId === styleId).map(t => t.z ?? -1))].sort(
+          (a, b) => a - b
+        );
+      }
+
+      it('downloads the source maxzoom when the region starts above it (overzoom)', async () => {
+        const region = { id: 'hi', name: 'High zoom', bounds, minZoom: 15, maxZoom: 16 };
+        const style = {
+          version: 8 as const,
+          sources: {
+            basemap: {
+              type: 'vector',
+              minzoom: 0,
+              maxzoom: 14,
+              tiles: ['https://tiles.example.com/basemap/{z}/{x}/{y}.pbf'],
+            },
+          },
+          layers: [],
+        };
+
+        const result = await service.downloadTiles(region, style, 'overzoom-style', {
+          storageQuotaCheck: false,
+          maxRetries: 0,
+        });
+
+        expect(result.totalTiles).toBeGreaterThan(0);
+        // Only z14 — the renderer overzooms it for z15-16; lower zooms aren't needed.
+        expect(await storedZooms('overzoom-style')).toEqual([14]);
+      });
+
+      it('downloads an unbounded source that starts above the region max', async () => {
+        const region = { id: 'lo', name: 'Low zoom', bounds, minZoom: 12, maxZoom: 13 };
+        const style = {
+          version: 8 as const,
+          sources: {
+            buildings: {
+              type: 'vector',
+              minzoom: 15,
+              tiles: ['https://tiles.example.com/buildings/{z}/{x}/{y}.pbf'],
+            },
+          },
+          layers: [],
+        };
+
+        const result = await service.downloadTiles(region, style, 'underzoom-style', {
+          storageQuotaCheck: false,
+          maxRetries: 0,
+        });
+
+        expect(result.totalTiles).toBeGreaterThan(0);
+        expect(await storedZooms('underzoom-style')).toEqual([15]);
+      });
     });
   });
 
@@ -749,21 +863,31 @@ describe('TileService', () => {
       const region = {
         id: 'test-region',
         name: 'Test Region',
-        bounds: [[-122.5, 37.5], [-122.0, 38.0]] as [[number, number], [number, number]],
+        bounds: [
+          [-122.5, 37.5],
+          [-122.0, 38.0],
+        ] as [[number, number], [number, number]],
         minZoom: 0,
         maxZoom: 10,
       };
 
-      await expect(service.downloadTiles(region, null as unknown as { version: 8; sources: Record<string, unknown>; layers: unknown[] }, 'test-style')).rejects.toThrow(
-        'Style does not contain any sources to download tiles from'
-      );
+      await expect(
+        service.downloadTiles(
+          region,
+          null as unknown as { version: 8; sources: Record<string, unknown>; layers: unknown[] },
+          'test-style'
+        )
+      ).rejects.toThrow('Style does not contain any sources to download tiles from');
     });
 
     it('should throw error when sources is empty object', async () => {
       const region = {
         id: 'test-region',
         name: 'Test Region',
-        bounds: [[-122.5, 37.5], [-122.0, 38.0]] as [[number, number], [number, number]],
+        bounds: [
+          [-122.5, 37.5],
+          [-122.0, 38.0],
+        ] as [[number, number], [number, number]],
         minZoom: 0,
         maxZoom: 10,
       };
@@ -782,7 +906,10 @@ describe('TileService', () => {
       const region = {
         id: 'test-region',
         name: 'Test Region',
-        bounds: [[-122.5, 37.5], [-122.0, 38.0]] as [[number, number], [number, number]],
+        bounds: [
+          [-122.5, 37.5],
+          [-122.0, 38.0],
+        ] as [[number, number], [number, number]],
         minZoom: 0,
         maxZoom: 2,
       };
@@ -808,7 +935,10 @@ describe('TileService', () => {
       const region = {
         id: 'test-region',
         name: 'Test Region',
-        bounds: [[-122.5, 37.5], [-122.0, 38.0]] as [[number, number], [number, number]],
+        bounds: [
+          [-122.5, 37.5],
+          [-122.0, 38.0],
+        ] as [[number, number], [number, number]],
         minZoom: 0,
         maxZoom: 2,
       };
@@ -1020,12 +1150,19 @@ describe('TileService', () => {
       const region = {
         id: 'test-region',
         name: 'Test Region',
-        bounds: [[0, 0], [1, 1]] as [[number, number], [number, number]],
+        bounds: [
+          [0, 0],
+          [1, 1],
+        ] as [[number, number], [number, number]],
         minZoom: 0,
         maxZoom: 2,
       };
 
-      const coords = (service as unknown as { generateTileCoordinates: (r: typeof region) => Array<{ x: number; y: number; z: number }> }).generateTileCoordinates(region);
+      const coords = (
+        service as unknown as {
+          generateTileCoordinates: (r: typeof region) => Array<{ x: number; y: number; z: number }>;
+        }
+      ).generateTileCoordinates(region);
 
       expect(coords.length).toBeGreaterThan(0);
       // Should have tiles at zoom 0, 1, and 2
@@ -1040,12 +1177,19 @@ describe('TileService', () => {
       const region = {
         id: 'test-region',
         name: 'Test Region',
-        bounds: [[-180, -85], [180, 85]] as [[number, number], [number, number]],
+        bounds: [
+          [-180, -85],
+          [180, 85],
+        ] as [[number, number], [number, number]],
         minZoom: 0,
         maxZoom: 0,
       };
 
-      const coords = (service as unknown as { generateTileCoordinates: (r: typeof region) => Array<{ x: number; y: number; z: number }> }).generateTileCoordinates(region);
+      const coords = (
+        service as unknown as {
+          generateTileCoordinates: (r: typeof region) => Array<{ x: number; y: number; z: number }>;
+        }
+      ).generateTileCoordinates(region);
 
       expect(coords.length).toBe(1);
       expect(coords[0]).toEqual({ x: 0, y: 0, z: 0 });
@@ -1054,47 +1198,53 @@ describe('TileService', () => {
 
   describe('extractExtension', () => {
     it('should extract pbf extension from template URL', () => {
-      const ext = (service as unknown as { extractExtension: (t: string) => string }).extractExtension(
-        'https://example.com/tiles/{z}/{x}/{y}.pbf'
-      );
+      const ext = (
+        service as unknown as { extractExtension: (t: string) => string }
+      ).extractExtension('https://example.com/tiles/{z}/{x}/{y}.pbf');
       expect(ext).toBe('pbf');
     });
 
     it('should extract png extension from template URL', () => {
-      const ext = (service as unknown as { extractExtension: (t: string) => string }).extractExtension(
-        'https://example.com/tiles/{z}/{x}/{y}.png?access_token=pk.test'
-      );
+      const ext = (
+        service as unknown as { extractExtension: (t: string) => string }
+      ).extractExtension('https://example.com/tiles/{z}/{x}/{y}.png?access_token=pk.test');
       expect(ext).toBe('png');
     });
 
     it('should extract mvt extension', () => {
-      const ext = (service as unknown as { extractExtension: (t: string) => string }).extractExtension(
-        'https://example.com/tiles/{z}/{x}/{y}.mvt'
-      );
+      const ext = (
+        service as unknown as { extractExtension: (t: string) => string }
+      ).extractExtension('https://example.com/tiles/{z}/{x}/{y}.mvt');
       expect(ext).toBe('mvt');
     });
 
     it('should extract glb extension for 3D tiles', () => {
-      const ext = (service as unknown as { extractExtension: (t: string) => string }).extractExtension(
+      const ext = (
+        service as unknown as { extractExtension: (t: string) => string }
+      ).extractExtension(
         'https://a.tiles.mapbox.com/3dtiles/v1/mapbox.mapbox-3dbuildings-v1/{z}/{x}/{y}.glb?access_token=pk.test'
       );
       expect(ext).toBe('glb');
     });
 
     it('should default to pbf when no extension found', () => {
-      const ext = (service as unknown as { extractExtension: (t: string) => string }).extractExtension(
-        'https://example.com/tiles'
-      );
+      const ext = (
+        service as unknown as { extractExtension: (t: string) => string }
+      ).extractExtension('https://example.com/tiles');
       expect(ext).toBe('pbf');
     });
   });
 
   describe('selectTileTemplate', () => {
     it('should return the only template when there is one', () => {
-      const template = (service as unknown as { selectTileTemplate: (t: readonly string[], c: { x: number; y: number; z: number }) => string }).selectTileTemplate(
-        ['https://example.com/{z}/{x}/{y}.pbf'],
-        { x: 0, y: 0, z: 0 }
-      );
+      const template = (
+        service as unknown as {
+          selectTileTemplate: (
+            t: readonly string[],
+            c: { x: number; y: number; z: number }
+          ) => string;
+        }
+      ).selectTileTemplate(['https://example.com/{z}/{x}/{y}.pbf'], { x: 0, y: 0, z: 0 });
       expect(template).toBe('https://example.com/{z}/{x}/{y}.pbf');
     });
 
@@ -1105,7 +1255,14 @@ describe('TileService', () => {
         'https://c.example.com/{z}/{x}/{y}.pbf',
       ];
 
-      const selectTemplate = (service as unknown as { selectTileTemplate: (t: readonly string[], c: { x: number; y: number; z: number }) => string }).selectTileTemplate.bind(service);
+      const selectTemplate = (
+        service as unknown as {
+          selectTileTemplate: (
+            t: readonly string[],
+            c: { x: number; y: number; z: number }
+          ) => string;
+        }
+      ).selectTileTemplate.bind(service);
 
       // Different coords should potentially select different templates
       const results = new Set<string>();
@@ -1120,10 +1277,11 @@ describe('TileService', () => {
 
   describe('populateTemplate', () => {
     it('should replace {z}, {x}, {y} placeholders', () => {
-      const url = (service as unknown as { populateTemplate: (t: string, c: { x: number; y: number; z: number }) => string }).populateTemplate(
-        'https://example.com/{z}/{x}/{y}.pbf',
-        { x: 100, y: 200, z: 12 }
-      );
+      const url = (
+        service as unknown as {
+          populateTemplate: (t: string, c: { x: number; y: number; z: number }) => string;
+        }
+      ).populateTemplate('https://example.com/{z}/{x}/{y}.pbf', { x: 100, y: 200, z: 12 });
       expect(url).toBe('https://example.com/12/100/200.pbf');
     });
   });

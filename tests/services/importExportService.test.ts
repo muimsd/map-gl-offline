@@ -543,6 +543,27 @@ describe('ImportExportService', () => {
         expect(await readFormat(result.blob)).toBe('png');
       });
 
+      it("includes overzoom tiles below the region's minZoom for capped sources", async () => {
+        const db = await dbPromise;
+        // basemap stops at z9, so the download pipeline fetched z9 for region B (z10-12).
+        const styleEntry = await db.get('styles', 'shared-style');
+        if (!styleEntry) throw new Error('style fixture missing');
+        styleEntry.style = {
+          version: 8,
+          sources: { basemap: { type: 'vector', maxzoom: 9 } },
+          layers: [],
+        } as typeof styleEntry.style;
+        await db.put('styles', styleEntry);
+        await putTile(db, 'basemap', 9, 398, 172, 'pbf', 1); // B's bounds at z9
+        await putTile(db, 'basemap', 1, 1, 0, 'pbf', 2); // region A's tile
+
+        const result = await service.exportRegionAsMBTiles('region-b');
+
+        expect(result.statistics.tilesExported).toBe(1);
+        // z9 y172 -> TMS row (2^9 - 1) - 172 = 339
+        expect(await readTileRows(result.blob)).toEqual([[9, 398, 339]]);
+      });
+
       it("keeps all of a sole region's tiles even outside its recorded bounds", async () => {
         const db = await dbPromise;
         // Imported regions take bounds from MBTiles metadata, which may be

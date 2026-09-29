@@ -67,6 +67,8 @@ Use `createTileKey()` from `src/utils/tileKey.ts` for consistent key generation.
 
 `addRegion` only stores region metadata and patches the style's URLs to `idb://`. It does **not** fetch tiles, sprites, or glyphs. Most callers want `downloadRegion`.
 
+Per-source zoom levels come from `sourceZoomRange()` (`src/utils/tileRange.ts`) — both the extra-coordinate step and the per-source filter in `tileService.downloadTiles` must use it. A source whose `maxzoom` is below `region.minZoom` still needs its `maxzoom` tiles (the renderer overzooms them); never default a source's `minzoom` to `region.minZoom` in a filter, which empties that range.
+
 Tile downloads probe each source with 3 representative tiles (start/middle/end) before committing the full plan; sources with majority-404 (sparse-for-this-region) are skipped. Disable via `tileOptions: { probeSourcesBeforeDownload: false }`.
 
 ### `OfflineRegionOptions.expiry`
