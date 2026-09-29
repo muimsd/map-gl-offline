@@ -20,6 +20,7 @@
 import {
   OFFLINE_PREFIX,
   DB_NAME,
+  safeDecodeURIComponent,
   findStyleByRegionIdIn,
   makeTileKey,
   parseTileYExt,
@@ -178,7 +179,7 @@ async function handleTile(db: IDBDatabase, downloadId: string, rest: string[]): 
   const yExt = rest[rest.length - 1];
   const x = parseInt(rest[rest.length - 2], 10);
   const z = Math.floor(parseFloat(rest[rest.length - 3]));
-  const sourceKey = rest.slice(0, rest.length - 3).join('/');
+  const sourceKey = safeDecodeURIComponent(rest.slice(0, rest.length - 3).join('/'));
   const parsed = parseTileYExt(yExt);
   if (!parsed || Number.isNaN(x) || Number.isNaN(z)) {
     return new Response('Invalid tile coordinates', { status: 400 });
@@ -199,7 +200,7 @@ async function handleTile(db: IDBDatabase, downloadId: string, rest: string[]): 
 async function handleGlyph(db: IDBDatabase, downloadId: string, rest: string[]): Promise<Response> {
   const styleEntry = await findStyleByRegionId(db, downloadId);
   const styleId = styleEntry?.key ?? downloadId;
-  const { fontstacks, rangePart } = parseGlyphPath(decodeURIComponent(rest.join('/')));
+  const { fontstacks, rangePart } = parseGlyphPath(safeDecodeURIComponent(rest.join('/')));
 
   for (const fontstack of fontstacks) {
     for (const key of glyphCandidateKeys(styleId, downloadId, fontstack, rangePart)) {
@@ -222,7 +223,7 @@ async function handleSprite(
 ): Promise<Response> {
   const styleEntry = await findStyleByRegionId(db, downloadId);
   const styleId = styleEntry?.key ?? downloadId;
-  const path = decodeURIComponent(rest.join('/'));
+  const path = safeDecodeURIComponent(rest.join('/'));
 
   for (const key of spriteCandidateKeys(styleId, downloadId, path)) {
     const resource = await idbGet<{ data: ArrayBuffer; contentType?: string }>(db, 'sprites', key);
@@ -238,7 +239,7 @@ async function handleSprite(
 async function handleModel(db: IDBDatabase, downloadId: string, rest: string[]): Promise<Response> {
   const styleEntry = await findStyleByRegionId(db, downloadId);
   const styleId = styleEntry?.key ?? downloadId;
-  const path = decodeURIComponent(rest.join('/'));
+  const path = safeDecodeURIComponent(rest.join('/'));
 
   for (const key of modelCandidateKeys(styleId, downloadId, path)) {
     const resource = await idbGet<{ data: ArrayBuffer; contentType?: string }>(db, 'models', key);
@@ -257,7 +258,7 @@ async function handleTileJSON(
   downloadId: string,
   rest: string[]
 ): Promise<Response> {
-  const path = decodeURIComponent(rest.join('/'));
+  const path = safeDecodeURIComponent(rest.join('/'));
 
   let styleEntry = await idbGet<StyleEntryLike>(db, 'styles', downloadId);
   if (!styleEntry?.style?.sources) {
@@ -303,7 +304,10 @@ async function handleOfflineRequest(url: string, prefixIndex: number): Promise<R
   try {
     const path = url.substring(prefixIndex + OFFLINE_PREFIX.length);
     const parts = path.split('/');
-    const [downloadId, type, ...rest] = parts;
+    // Request.url is percent-encoded by the browser, so ids with spaces or
+    // non-ASCII characters (style ids come from style names) arrive encoded.
+    const [encodedDownloadId, type, ...rest] = parts;
+    const downloadId = safeDecodeURIComponent(encodedDownloadId ?? '');
     if (!downloadId || !type) {
       return new Response('Invalid offline URL', { status: 400 });
     }

@@ -38,10 +38,26 @@ describe('resolveMapboxUrl', () => {
     );
   });
 
-  it('throws when the URL is mapbox:// but no access token is provided', () => {
-    expect(() => resolveMapboxUrl('mapbox://styles/mapbox/standard', '')).toThrow(
-      /access token/i
+  it('sets access_token once when the mapbox:// URL already carries one', () => {
+    expect(resolveMapboxUrl('mapbox://styles/mapbox/streets-v12?access_token=pk.old', token)).toBe(
+      `https://api.mapbox.com/styles/v1/mapbox/streets-v12?access_token=${token}`
     );
+  });
+
+  it('keeps other query parameters and puts path suffixes before the query', () => {
+    expect(resolveMapboxUrl('mapbox://styles/mapbox/streets-v12?optimize=true', token)).toBe(
+      `https://api.mapbox.com/styles/v1/mapbox/streets-v12?optimize=true&access_token=${token}`
+    );
+    expect(resolveMapboxUrl('mapbox://mapbox.mapbox-streets-v8?secure', token)).toBe(
+      `https://api.mapbox.com/v4/mapbox.mapbox-streets-v8.json?secure=&access_token=${token}`
+    );
+    expect(resolveMapboxUrl('mapbox://sprites/mapbox/streets-v12?fresh=true', token)).toBe(
+      `https://api.mapbox.com/styles/v1/mapbox/streets-v12/sprite?fresh=true&access_token=${token}`
+    );
+  });
+
+  it('throws when the URL is mapbox:// but no access token is provided', () => {
+    expect(() => resolveMapboxUrl('mapbox://styles/mapbox/standard', '')).toThrow(/access token/i);
   });
 
   it('resolves mapbox://styles/{user}/{id} to /styles/v1/…', () => {
@@ -50,7 +66,10 @@ describe('resolveMapboxUrl', () => {
   });
 
   it('resolves mapbox://sprites/{user}/{id}[/hash] to /styles/v1/.../sprite', () => {
-    const url = resolveMapboxUrl('mapbox://sprites/mapbox/standard/00kxhqqddcml91u4n6ur3drf3', token);
+    const url = resolveMapboxUrl(
+      'mapbox://sprites/mapbox/standard/00kxhqqddcml91u4n6ur3drf3',
+      token
+    );
     expect(url).toBe(
       `https://api.mapbox.com/styles/v1/mapbox/standard/00kxhqqddcml91u4n6ur3drf3/sprite?access_token=${token}`
     );
@@ -142,7 +161,7 @@ describe('styleProviderUtils', () => {
       const style = {
         version: 8,
         sources: {
-          'osm': {
+          osm: {
             type: 'vector',
             tiles: ['https://tiles.example.com/{z}/{x}/{y}.pbf'],
           },
@@ -272,7 +291,7 @@ describe('styleProviderUtils', () => {
       const style: BaseStyle = {
         version: 8,
         sources: {
-          'osm': {
+          osm: {
             type: 'vector',
             tiles: ['https://tiles.example.com/{z}/{x}/{y}.pbf'],
           },
@@ -290,7 +309,7 @@ describe('styleProviderUtils', () => {
       const style: BaseStyle = {
         version: 8,
         sources: {
-          'tiles': {
+          tiles: {
             type: 'vector',
             tiles: ['https://tiles.example.com/{z}/{x}/{y}.pbf'],
           },
@@ -353,7 +372,7 @@ describe('styleProviderUtils', () => {
       const style: BaseStyle = {
         version: 8,
         sources: {
-          'test': { type: 'vector', tiles: ['https://example.com/{z}/{x}/{y}.pbf'] },
+          test: { type: 'vector', tiles: ['https://example.com/{z}/{x}/{y}.pbf'] },
         },
         layers: [{ id: 'layer1', type: 'fill', source: 'test' }],
       };
@@ -481,10 +500,7 @@ describe('styleProviderUtils', () => {
       const cdnUrl =
         'https://a.tiles.mapbox.com/raster/v1/mapbox.mapbox-terrain-dem-v1/{z}/{x}/{y}.png';
       const result = rewriteMapboxCdnTileUrl(cdnUrl);
-      expect(result).toBe(
-        'https://api.mapbox.com/v4/mapbox.mapbox-terrain-dem-v1/{z}/{x}/{y}.png'
-      );
+      expect(result).toBe('https://api.mapbox.com/v4/mapbox.mapbox-terrain-dem-v1/{z}/{x}/{y}.png');
     });
   });
-
 });
