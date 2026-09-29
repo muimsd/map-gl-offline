@@ -299,8 +299,10 @@ describe('importResolver', () => {
 
       /** Evaluate an icon-image value the way MapLibre does and return the image name. */
       function iconName(value: unknown, properties: Record<string, unknown> = {}, zoom = 10) {
+        // style-spec >= 26: (value, rootKey, specification)
         const normalized = spec.expression.normalizePropertyExpression(
           value,
+          'icon-image',
           spec.latest.layout_symbol['icon-image']
         );
         const image = normalized.evaluate({ zoom }, { type: 'Point', properties, geometry: [] });
