@@ -88,7 +88,7 @@ async function resolveImportsRecursive(
   // Collect all flattened sources, layers from imports
   const flattenedSources: Record<string, unknown> = {};
   const flattenedLayers: unknown[] = [];
-  let importedSprite: BaseStyle['sprite'] | Array<{ id: string; url: string }> | undefined;
+  const importSprites: ImportSprite[] = [];
   let importedGlyphs: string | undefined;
   let importedModels: BaseStyle['models'] | undefined;
 
@@ -157,6 +157,7 @@ async function resolveImportsRecursive(
     const configValues = buildConfigLookup(importedStyle, importEntry.config);
 
     // Flatten layers: prefix layer IDs, update source references, resolve config expressions
+    const importLayers: Record<string, unknown>[] = [];
     if (importedStyle.layers && Array.isArray(importedStyle.layers)) {
       for (const layer of importedStyle.layers) {
         const layerObj = layer as Record<string, unknown>;
@@ -176,12 +177,14 @@ async function resolveImportsRecursive(
         resolveConfigExpressions(prefixedLayer, configValues);
 
         flattenedLayers.push(prefixedLayer);
+        importLayers.push(prefixedLayer);
       }
     }
 
-    // Sprite: collect imported sprite
-    if (importedStyle.sprite && !importedSprite) {
-      importedSprite = importedStyle.sprite;
+    // Sprite: collect every import's sprite with its layers, so each can be
+    // scoped if the flattened style ends up with more than one sprite.
+    if (importedStyle.sprite) {
+      importSprites.push({ importId, sprite: importedStyle.sprite, layers: importLayers });
     }
 
     // Glyphs: collect imported glyphs
@@ -203,11 +206,10 @@ async function resolveImportsRecursive(
   const outerLayers = style.layers || [];
   style.layers = [...flattenedLayers, ...outerLayers];
 
-  // Sprite: merge if both exist
-  if (style.sprite && importedSprite) {
-    style.sprite = mergeSprites(style.sprite, importedSprite);
-  } else if (!style.sprite && importedSprite) {
-    style.sprite = importedSprite;
+  // Sprite: a single sprite stays as-is; several become an array sprite with
+  // each import's image references scoped to its sprite id.
+  if (importSprites.length > 0) {
+    style.sprite = combineSprites(style.sprite, importSprites) as BaseStyle['sprite'];
   }
 
   // Glyphs: outer wins; if absent, use imported
@@ -417,32 +419,54 @@ function isExpression(value: unknown): boolean {
   return Array.isArray(value) && value.length > 0 && typeof value[0] === 'string';
 }
 
-/**
- * Merge two sprite values into array format.
- * Handles string + string, string + array, array + string, array + array.
- */
-function mergeSprites(
-  outer: BaseStyle['sprite'],
-  imported: BaseStyle['sprite'] | Array<{ id: string; url: string }>
-): Array<{ id: string; url: string }> {
-  const result: Array<{ id: string; url: string }> = [];
+type SpriteEntry = { id: string; url: string };
 
-  // Add imported sprites first (bottom)
-  if (typeof imported === 'string') {
-    result.push({ id: 'imported', url: imported });
-  } else if (Array.isArray(imported)) {
-    for (const entry of imported as Array<{ id: string; url: string }>) {
-      if (entry && typeof entry.url === 'string') {
-        result.push(entry);
+interface ImportSprite {
+  importId: string;
+  sprite: BaseStyle['sprite'] | SpriteEntry[];
+  layers: Record<string, unknown>[];
+}
+
+/**
+ * Combine the outer style's sprite with its imports' sprites.
+ *
+ * With one sprite in total it is returned unchanged (a plain string keeps
+ * working in Mapbox GL, which only accepts a string `sprite`). With several,
+ * the result is a MapLibre array sprite: imports first, the outer sprite last
+ * as `default`. Array-sprite images from any entry other than `default` are
+ * only reachable as `{id}:{name}`, so each string-sprite import gets its
+ * import id as sprite id and its layers' image references are prefixed with
+ * `{importId}:`. Imports that already use an array sprite keep their entries
+ * and references unchanged.
+ */
+function combineSprites(
+  outer: BaseStyle['sprite'] | SpriteEntry[] | undefined,
+  imports: ImportSprite[]
+): BaseStyle['sprite'] | SpriteEntry[] {
+  if (!outer && imports.length === 1) {
+    return imports[0].sprite;
+  }
+
+  const result: SpriteEntry[] = [];
+  for (const { importId, sprite, layers } of imports) {
+    if (typeof sprite === 'string') {
+      result.push({ id: importId, url: sprite });
+      for (const layer of layers) {
+        prefixLayerImages(layer, `${importId}:`);
+      }
+    } else if (Array.isArray(sprite)) {
+      for (const entry of sprite as SpriteEntry[]) {
+        if (entry && typeof entry.url === 'string') {
+          result.push(entry);
+        }
       }
     }
   }
 
-  // Add outer sprites on top
   if (typeof outer === 'string') {
     result.push({ id: 'default', url: outer });
   } else if (Array.isArray(outer)) {
-    for (const entry of outer as unknown as Array<{ id: string; url: string }>) {
+    for (const entry of outer as unknown as SpriteEntry[]) {
       if (entry && typeof entry.url === 'string') {
         result.push(entry);
       }
@@ -450,4 +474,79 @@ function mergeSprites(
   }
 
   return result;
+}
+
+/** Layer properties whose values name sprite images. */
+const IMAGE_PROPERTIES: ReadonlyArray<['layout' | 'paint', string]> = [
+  ['layout', 'icon-image'],
+  ['paint', 'fill-pattern'],
+  ['paint', 'line-pattern'],
+  ['paint', 'fill-extrusion-pattern'],
+  ['paint', 'background-pattern'],
+];
+
+function prefixLayerImages(layer: Record<string, unknown>, prefix: string): void {
+  for (const [group, property] of IMAGE_PROPERTIES) {
+    const props = layer[group] as Record<string, unknown> | undefined;
+    if (props && property in props) {
+      props[property] = prefixImageValue(props[property], prefix);
+    }
+  }
+}
+
+/**
+ * Prefix the image name(s) a property value resolves to. Handles plain names
+ * (including `{token}` templates), legacy `stops` functions, and expressions:
+ * `image` / `literal` directly, the output branches of `coalesce` / `case` /
+ * `match` / `step`, and anything else string-valued via `concat`.
+ */
+function prefixImageValue(value: unknown, prefix: string): unknown {
+  if (typeof value === 'string') {
+    return value === '' ? value : `${prefix}${value}`;
+  }
+
+  if (Array.isArray(value)) {
+    if (value.length === 0 || typeof value[0] !== 'string') return value;
+    const [op, ...args] = value as [string, ...unknown[]];
+    const mapAt = (isOutput: (index: number) => boolean) =>
+      value.map((arg, i) => (i > 0 && isOutput(i) ? prefixImageValue(arg, prefix) : arg));
+    const lastIndex = value.length - 1;
+
+    switch (op) {
+      case 'image':
+        return ['image', prefixImageValue(args[0], prefix), ...args.slice(1)];
+      case 'literal':
+        return typeof args[0] === 'string' ? ['literal', `${prefix}${args[0]}`] : value;
+      case 'coalesce':
+        return mapAt(() => true);
+      case 'case':
+        // ["case", cond, out, cond, out, ..., fallback]
+        return mapAt(i => i % 2 === 0 || i === lastIndex);
+      case 'match':
+        // ["match", input, label, out, label, out, ..., fallback]
+        return mapAt(i => (i >= 3 && i % 2 === 1) || i === lastIndex);
+      case 'step':
+        // ["step", input, out0, stop, out, ...]
+        return mapAt(i => i >= 2 && i % 2 === 0);
+      default:
+        return ['concat', prefix, value];
+    }
+  }
+
+  if (value && typeof value === 'object') {
+    const fn = value as { stops?: unknown };
+    if (Array.isArray(fn.stops)) {
+      return {
+        ...fn,
+        stops: fn.stops.map(stop =>
+          Array.isArray(stop) ? [stop[0], prefixImageValue(stop[1], prefix)] : stop
+        ),
+        ...('default' in fn
+          ? { default: prefixImageValue((fn as { default: unknown }).default, prefix) }
+          : {}),
+      };
+    }
+  }
+
+  return value;
 }
