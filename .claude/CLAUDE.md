@@ -58,6 +58,9 @@ const regions = style.regions; // Array of regions
 - All `idb://` URLs are keyed by **styleId** (tiles, glyphs, sprites and models are stored per style). Region-keyed URLs break once that region is deleted. The fetch handlers resolve a style key with one keyed read before falling back to the legacy region-id scan.
 - `maxzoom` is capped at the deepest region on the style (`addRegion`), and `deleteRegion` re-patches for the regions that remain.
 
+### Flattened imports and sprites
+`resolveImports` flattens a style's `imports`. With a single sprite in total it stays a plain string. With several, it becomes a MapLibre array sprite: each string-sprite import gets its import id as the sprite id, and that import's layers' image references (`icon-image`, `*-pattern`) are prefixed `importId:` (`combineSprites` / `prefixImageValue` in `importResolver.ts`), because array-sprite images outside `default` only resolve as `{id}:{name}`. Mapbox GL only accepts a string `sprite`, so a merged array sprite renders with MapLibre only.
+
 ### Database Version
 Current DB version is **4**. Migrations are handled in `src/storage/indexedDbManager.ts`. When on-disk version > supported version, `dbPromise` throws `OfflineMapDBVersionError` (not raw `DOMException`); consumers can call `resetOfflineMapDB()` to recover.
 

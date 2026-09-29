@@ -71,7 +71,10 @@ describe('importResolver', () => {
     it('should resolve a single import and flatten sources/layers', async () => {
       const importedStyle = makeStyle({
         sources: {
-          composite: { type: 'vector', url: 'https://api.mapbox.com/v4/mapbox.mapbox-streets-v8.json' },
+          composite: {
+            type: 'vector',
+            url: 'https://api.mapbox.com/v4/mapbox.mapbox-streets-v8.json',
+          },
         },
         layers: [
           { id: 'land', type: 'fill', source: 'composite' },
@@ -291,6 +294,191 @@ describe('importResolver', () => {
       expect(sprites[1].url).toBe('https://example.com/outer-sprite');
     });
 
+    describe('scoping imported icons when sprites are merged', () => {
+      const spec = jest.requireActual('@maplibre/maplibre-gl-style-spec');
+
+      /** Evaluate an icon-image value the way MapLibre does and return the image name. */
+      function iconName(value: unknown, properties: Record<string, unknown> = {}, zoom = 10) {
+        const normalized = spec.expression.normalizePropertyExpression(
+          value,
+          spec.latest.layout_symbol['icon-image']
+        );
+        const image = normalized.evaluate({ zoom }, { type: 'Point', properties, geometry: [] });
+        return image?.name ?? String(image);
+      }
+
+      const importedLayers = [
+        {
+          id: 'plain',
+          type: 'symbol',
+          source: 'composite',
+          'source-layer': 'poi',
+          layout: { 'icon-image': 'bank' },
+        },
+        {
+          id: 'token',
+          type: 'symbol',
+          source: 'composite',
+          'source-layer': 'poi',
+          layout: { 'icon-image': '{maki}-11' },
+        },
+        {
+          id: 'coalesce',
+          type: 'symbol',
+          source: 'composite',
+          'source-layer': 'poi',
+          layout: {
+            'icon-image': ['coalesce', ['image', ['get', 'maki']], ['image', 'marker']],
+          },
+        },
+        {
+          id: 'match',
+          type: 'symbol',
+          source: 'composite',
+          'source-layer': 'poi',
+          layout: { 'icon-image': ['match', ['get', 'class'], 'park', 'tree', 'dot'] },
+        },
+        {
+          id: 'step',
+          type: 'symbol',
+          source: 'composite',
+          'source-layer': 'poi',
+          layout: { 'icon-image': ['step', ['zoom'], 'small', 12, 'large'] },
+        },
+        {
+          id: 'case',
+          type: 'symbol',
+          source: 'composite',
+          'source-layer': 'poi',
+          layout: { 'icon-image': ['case', ['has', 'icon'], ['get', 'icon'], 'fallback'] },
+        },
+        {
+          id: 'getter',
+          type: 'symbol',
+          source: 'composite',
+          'source-layer': 'poi',
+          layout: { 'icon-image': ['get', 'icon'] },
+        },
+        {
+          id: 'pattern',
+          type: 'fill',
+          source: 'composite',
+          'source-layer': 'poi',
+          paint: { 'fill-pattern': 'hatch' },
+        },
+      ];
+
+      const outerLayer = {
+        id: 'outer',
+        type: 'symbol',
+        source: 'mine',
+        layout: { 'icon-image': 'pin' },
+      };
+
+      async function resolveWithOuterSprite() {
+        const style: BaseStyle = {
+          version: 8,
+          imports: [
+            {
+              id: 'basemap',
+              url: 'https://example.com/basemap.json',
+              data: makeStyle({
+                sprite: 'https://example.com/basemap-sprite',
+                layers: importedLayers as BaseStyle['layers'],
+              }),
+            },
+          ] as BaseStyle['imports'],
+          sources: { mine: { type: 'geojson', data: { type: 'FeatureCollection', features: [] } } },
+          layers: [outerLayer] as BaseStyle['layers'],
+          sprite: 'https://example.com/outer-sprite',
+        };
+        const result = await resolveImports(style, 'test-token');
+        const byId = Object.fromEntries(
+          (result.layers as Array<Record<string, unknown>>).map(l => [l.id, l])
+        );
+        const icon = (id: string) => (byId[id].layout as Record<string, unknown>)['icon-image'];
+        return { result, byId, icon };
+      }
+
+      it("names the import's sprite by import id and keeps the outer one as default", async () => {
+        const { result } = await resolveWithOuterSprite();
+        expect(result.sprite).toEqual([
+          { id: 'basemap', url: 'https://example.com/basemap-sprite' },
+          { id: 'default', url: 'https://example.com/outer-sprite' },
+        ]);
+        expect(spec.validateStyleMin(result)).toEqual([]);
+      });
+
+      it("prefixes the import's image references so MapLibre resolves them", async () => {
+        const { byId, icon } = await resolveWithOuterSprite();
+
+        expect(iconName(icon('basemap/plain'))).toBe('basemap:bank');
+        // `{token}` templates are filled in at symbol layout, after the prefix.
+        expect(iconName(icon('basemap/token'))).toBe('basemap:{maki}-11');
+        expect(iconName(icon('basemap/coalesce'), { maki: 'cafe' })).toBe('basemap:cafe');
+        expect(iconName(icon('basemap/match'), { class: 'park' })).toBe('basemap:tree');
+        expect(iconName(icon('basemap/match'), { class: 'road' })).toBe('basemap:dot');
+        expect(iconName(icon('basemap/step'), {}, 10)).toBe('basemap:small');
+        expect(iconName(icon('basemap/step'), {}, 13)).toBe('basemap:large');
+        expect(iconName(icon('basemap/case'), { icon: 'shop' })).toBe('basemap:shop');
+        expect(iconName(icon('basemap/case'), {})).toBe('basemap:fallback');
+        expect(iconName(icon('basemap/getter'), { icon: 'shop' })).toBe('basemap:shop');
+        expect((byId['basemap/pattern'].paint as Record<string, unknown>)['fill-pattern']).toBe(
+          'basemap:hatch'
+        );
+        // Outer layers use the default sprite: unprefixed.
+        expect(icon('outer')).toBe('pin');
+      });
+
+      it('keeps a lone imported sprite as a plain string with unprefixed icons', async () => {
+        const style: BaseStyle = {
+          version: 8,
+          imports: [
+            {
+              id: 'basemap',
+              url: 'https://example.com/basemap.json',
+              data: makeStyle({
+                sprite: 'https://example.com/basemap-sprite',
+                layers: [importedLayers[0]] as BaseStyle['layers'],
+              }),
+            },
+          ] as BaseStyle['imports'],
+          sources: {},
+          layers: [],
+        };
+        const result = await resolveImports(style, 'test-token');
+        expect(result.sprite).toBe('https://example.com/basemap-sprite');
+        const layer = (result.layers as Array<Record<string, unknown>>)[0];
+        expect((layer.layout as Record<string, unknown>)['icon-image']).toBe('bank');
+      });
+
+      it("keeps every import's sprite, not just the first", async () => {
+        const importWith = (id: string) => ({
+          id,
+          url: `https://example.com/${id}.json`,
+          data: makeStyle({
+            sprite: `https://example.com/${id}-sprite`,
+            layers: [importedLayers[0]] as BaseStyle['layers'],
+          }),
+        });
+        const style: BaseStyle = {
+          version: 8,
+          imports: [importWith('first'), importWith('second')] as BaseStyle['imports'],
+          sources: {},
+          layers: [],
+        };
+        const result = await resolveImports(style, 'test-token');
+        expect(result.sprite).toEqual([
+          { id: 'first', url: 'https://example.com/first-sprite' },
+          { id: 'second', url: 'https://example.com/second-sprite' },
+        ]);
+        const icons = (result.layers as Array<Record<string, unknown>>).map(
+          l => (l.layout as Record<string, unknown>)['icon-image']
+        );
+        expect(icons).toEqual(['first:bank', 'second:bank']);
+      });
+    });
+
     it('should merge sprites when import has array format', async () => {
       const importedStyle = makeStyle({
         sprite: [
@@ -414,7 +602,9 @@ describe('importResolver', () => {
 
       const style: BaseStyle = {
         version: 8,
-        imports: [{ id: 'inline', url: 'https://example.com/never-fetched.json', data: inlineStyle }],
+        imports: [
+          { id: 'inline', url: 'https://example.com/never-fetched.json', data: inlineStyle },
+        ],
         sources: {},
         layers: [],
       };
@@ -521,11 +711,13 @@ describe('importResolver', () => {
 
       const style: BaseStyle = {
         version: 8,
-        imports: [{
-          id: 'basemap',
-          url: 'https://example.com/standard.json',
-          config: { showBuildings: false }, // Override default
-        }],
+        imports: [
+          {
+            id: 'basemap',
+            url: 'https://example.com/standard.json',
+            config: { showBuildings: false }, // Override default
+          },
+        ],
         sources: {},
         layers: [],
       };
@@ -602,9 +794,7 @@ describe('importResolver', () => {
 
     it('rewrites ["is-active-floor", <id>] to false (the arg form)', () => {
       const style = makeStyle({
-        layers: [
-          { id: 'indoor-floor', type: 'fill', filter: ['is-active-floor', ['get', 'id']] },
-        ],
+        layers: [{ id: 'indoor-floor', type: 'fill', filter: ['is-active-floor', ['get', 'id']] }],
       } as Partial<BaseStyle>);
 
       sanitizeIndoorExpressions(style);
