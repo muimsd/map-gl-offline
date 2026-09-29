@@ -585,6 +585,21 @@ describe('StyleService.downloadStyleWithProvider', () => {
     expect((await db.get('styles', 'streets'))?.originalUrl).toBe('https://example.com/a.json');
   });
 
+  it('reports progress from 0 to 100', async () => {
+    mockFetchWithRetry.mockImplementation(async () =>
+      namedStyle('Progress Style', 'https://t.example.com/{z}/{x}/{y}.png')
+    );
+    const seen: number[] = [];
+    await downloadStyleWithProvider('https://example.com/progress.json', {
+      ...providerOptions,
+      onProgress: p => seen.push(p.percentage),
+    });
+
+    expect(seen[0]).toBe(0);
+    expect(seen[seen.length - 1]).toBe(100);
+    expect([...seen].sort((a, b) => a - b)).toEqual(seen); // never goes backwards
+  });
+
   it('throws when a mapbox:// URL has no token', async () => {
     const result = await downloadStyleWithProvider('mapbox://styles/mapbox/streets-v11');
     expect(result.success).toBe(false);

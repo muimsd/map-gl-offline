@@ -28,6 +28,7 @@ export class FontService {
       validateFonts = true,
       storageQuotaCheck = true,
       quietMode = false,
+      onProgress,
     } = options;
 
     const startTime = Date.now();
@@ -40,6 +41,17 @@ export class FontService {
 
     // Create progress tracker
     const progressTracker = createProgressTracker(fontUrls.length);
+    const reportProgress = (message: string) => {
+      if (!onProgress) return;
+      const progress = progressTracker.getProgress();
+      onProgress({
+        completed: progress.completed,
+        total: progress.total,
+        percentage: progress.percentage,
+        message,
+        errors: errors.map(e => e.error),
+      });
+    };
 
     // Filter existing fonts if skipExisting is true
     let urlsToDownload = fontUrls;
@@ -59,6 +71,10 @@ export class FontService {
       });
 
       skippedFonts = fontUrls.length - urlsToDownload.length;
+      // Skipped fonts count toward the total, so mark them done up front.
+      if (skippedFonts > 0) {
+        progressTracker.update(skippedFonts);
+      }
     }
 
     // Check storage quota if enabled
@@ -123,6 +139,7 @@ export class FontService {
           await db.put('fonts', fontEntry);
 
           progressTracker.update(1, fontKey);
+          reportProgress(`Downloaded ${fontKey}`);
 
           totalSize += fontData.byteLength;
           downloadedFonts++;
@@ -137,6 +154,9 @@ export class FontService {
             url: fontUrl,
             error: errorMessage,
           });
+          // A failed font is finished too; don't let the bar stall on it.
+          progressTracker.update(1, fontUrl);
+          reportProgress(`Failed: ${fontUrl}`);
 
           // Only log detailed errors if not in quiet mode
           if (!quietMode) {
@@ -154,6 +174,9 @@ export class FontService {
 
     const downloadTime = Date.now() - startTime;
     const averageSpeed = downloadTime > 0 ? (totalSize / downloadTime) * 1000 : 0;
+    reportProgress(
+      `Font download complete: ${downloadedFonts} downloaded, ${skippedFonts} skipped, ${failedFonts} failed`
+    );
 
     return {
       totalFonts: fontUrls.length,
