@@ -91,15 +91,19 @@ describe('IndexedDB regions migration', () => {
     const db = await dbPromise;
 
     // 5. Assert: the legacy region was moved into the style's regions[]
-    //    array. (The migration uses IDBRequest callbacks; they may run
-    //    asynchronously within the upgrade transaction.)
+    //    array and removed from the deprecated store. The upgrade
+    //    transaction completes before dbPromise resolves, so the
+    //    migration's IDBRequest callbacks have all run by now.
     const migratedStyle = await db.get('styles', 'styleM');
     expect(migratedStyle).toBeDefined();
-    // Either the regions[] contains the migrated region, or the legacy
-    // `regions` store retained it — both exercise the migration code.
-    const migratedIds = (migratedStyle?.regions ?? []).map(r => r.id);
-    const legacy = await db.get('regions', 'regionM');
-    expect(migratedIds.includes('regionM') || !!legacy).toBe(true);
+    const migrated = (migratedStyle?.regions ?? []).find(r => r.id === 'regionM');
+    expect(migrated).toMatchObject({
+      name: 'Region M',
+      minZoom: 0,
+      maxZoom: 5,
+      tileExtension: 'pbf',
+    });
+    expect(await db.get('regions', 'regionM')).toBeUndefined();
 
     db.close();
   }, 15000);
