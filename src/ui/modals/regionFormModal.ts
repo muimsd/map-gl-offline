@@ -59,6 +59,17 @@ export interface RegionFormOptions {
   mapSources?: MapTileSource[];
 }
 
+/** Mapbox Standard's buildings start at this zoom. */
+const STANDARD_BUILDINGS_MIN_ZOOM = 15;
+
+/**
+ * True when a region of Mapbox Standard stops below the zoom where its buildings
+ * start. Standard Satellite has no buildings, so it doesn't count.
+ */
+export function regionMissesBuildings(styleUrl: string, maxZoom: number): boolean {
+  return /mapbox\/standard(?![\w-])/.test(styleUrl) && maxZoom < STANDARD_BUILDINGS_MIN_ZOOM;
+}
+
 export class RegionFormModal {
   private options: RegionFormOptions;
   private modal?: Modal;
@@ -66,6 +77,7 @@ export class RegionFormModal {
   private minZoomInput?: HTMLInputElement;
   private maxZoomInput?: HTMLInputElement;
   private styleUrlInput?: HTMLInputElement;
+  private buildingsHint?: HTMLParagraphElement;
   // Enhanced Mapbox GL support
   private providerSelect?: HTMLSelectElement;
   private accessTokenInput?: HTMLInputElement;
@@ -195,6 +207,13 @@ export class RegionFormModal {
     zoomGroup.appendChild(maxZoomDiv);
     form.appendChild(zoomGroup);
 
+    this.buildingsHint = document.createElement('p');
+    this.buildingsHint.className = 'm-0 text-sm text-amber-700 dark:text-amber-400 hidden';
+    this.buildingsHint.setAttribute('role', 'status');
+    this.buildingsHint.textContent = t('regionForm.buildingsHint');
+    form.appendChild(this.buildingsHint);
+    this.maxZoomInput.addEventListener('input', () => this.updateBuildingsHint());
+
     // Style URL input
     const styleGroup = document.createElement('div');
     styleGroup.innerHTML = `
@@ -207,9 +226,13 @@ export class RegionFormModal {
     this.styleUrlInput.value = styleUrl;
     this.styleUrlInput.className =
       'w-full px-4 py-3 rounded-xl text-base glass-input text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500/50 transition-all shadow-sm';
-    this.styleUrlInput.addEventListener('input', () => this.handleStyleUrlChange());
+    this.styleUrlInput.addEventListener('input', () => {
+      this.handleStyleUrlChange();
+      this.updateBuildingsHint();
+    });
     styleGroup.appendChild(this.styleUrlInput);
     form.appendChild(styleGroup);
+    this.updateBuildingsHint();
 
     // Provider selection
     const providerGroup = document.createElement('div');
@@ -407,6 +430,15 @@ export class RegionFormModal {
   /**
    * Handle style URL changes to auto-detect provider
    */
+  /** Warn when a region would be saved without the style's buildings. */
+  private updateBuildingsHint(): void {
+    const missesBuildings = regionMissesBuildings(
+      this.styleUrlInput?.value ?? '',
+      Number(this.maxZoomInput?.value)
+    );
+    this.buildingsHint?.classList.toggle('hidden', !missesBuildings);
+  }
+
   private handleStyleUrlChange(): void {
     this.detectProviderFromUrl();
   }

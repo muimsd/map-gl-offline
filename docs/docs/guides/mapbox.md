@@ -60,7 +60,7 @@ To save every source and decide later, pass `tileOptions: { skipInactiveSources:
 If you don't see buildings, check these first:
 
 - **Zoom in to 15 or more.** Standard draws no buildings below that, even online.
-- **Download up to at least zoom 15.** A region that stops at 14 has no building data.
+- **Download up to at least zoom 15.** A region that stops at 14 has no building data. The control's form warns about this.
 - **Tilt the map.** Looking straight down, buildings look flat. Right-drag or Ctrl-drag to tilt, or set `pitch` on the map.
 
 3D landmark models, like the Burj Khalifa, come from their own tiles at zoom 14. A large model tile can take several seconds to appear, with a plain building shown until then.

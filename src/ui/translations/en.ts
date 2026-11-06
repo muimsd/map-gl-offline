@@ -49,6 +49,8 @@ export const en = {
   'regionForm.namePlaceholder': 'e.g., Downtown District',
   'regionForm.minZoom': 'Min Zoom',
   'regionForm.maxZoom': 'Max Zoom',
+  'regionForm.buildingsHint':
+    "Mapbox Standard's buildings start at zoom 15. Set Max Zoom to 15 or more to include them.",
   'regionForm.styleUrl': 'Style URL',
   'regionForm.provider': 'Style Provider',
   'regionForm.providerAuto': 'Auto-detect',

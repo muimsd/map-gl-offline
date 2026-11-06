@@ -50,6 +50,8 @@ export const ar = {
   'regionForm.namePlaceholder': 'مثال: وسط المدينة',
   'regionForm.minZoom': 'أدنى تكبير',
   'regionForm.maxZoom': 'أقصى تكبير',
+  'regionForm.buildingsHint':
+    'تبدأ مباني Mapbox Standard عند مستوى التكبير 15. اضبط أقصى تكبير على 15 أو أكثر لتضمينها.',
   'regionForm.styleUrl': 'رابط النمط',
   'regionForm.provider': 'مزود النمط',
   'regionForm.providerAuto': 'اكتشاف تلقائي',

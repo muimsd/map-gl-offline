@@ -2,7 +2,13 @@
  * Tests for RegionFormModal Component
  */
 
-import { RegionFormModal, RegionFormOptions, RegionFormData, MapTileSource } from '../../../src/ui/modals/regionFormModal';
+import {
+  RegionFormModal,
+  RegionFormOptions,
+  RegionFormData,
+  MapTileSource,
+  regionMissesBuildings,
+} from '../../../src/ui/modals/regionFormModal';
 
 describe('RegionFormModal', () => {
   let container: HTMLDivElement;
@@ -511,5 +517,25 @@ describe('RegionFormModal', () => {
       expect(formData.extraSources![1].id).toBe('terrain');
       expect(formData.extraSources![1].type).toBe('raster-dem');
     });
+  });
+});
+
+describe('regionMissesBuildings', () => {
+  const STANDARD = 'mapbox://styles/mapbox/standard';
+
+  it('is true for Mapbox Standard below zoom 15', () => {
+    expect(regionMissesBuildings(STANDARD, 14)).toBe(true);
+    expect(regionMissesBuildings('https://api.mapbox.com/styles/v1/mapbox/standard', 10)).toBe(true);
+  });
+
+  it('is false from zoom 15', () => {
+    expect(regionMissesBuildings(STANDARD, 15)).toBe(false);
+    expect(regionMissesBuildings(STANDARD, 18)).toBe(false);
+  });
+
+  it('is false for styles without those buildings', () => {
+    expect(regionMissesBuildings('mapbox://styles/mapbox/standard-satellite', 14)).toBe(false);
+    expect(regionMissesBuildings('mapbox://styles/mapbox/streets-v12', 14)).toBe(false);
+    expect(regionMissesBuildings('https://tiles.openfreemap.org/styles/liberty', 14)).toBe(false);
   });
 });
