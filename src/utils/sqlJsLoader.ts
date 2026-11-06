@@ -7,7 +7,7 @@ export interface SqlJsConfig {
   wasmBinary?: ArrayBuffer | Uint8Array;
 }
 
-const DEFAULT_WASM_URL = 'https://cdn.jsdelivr.net/npm/sql.js@1.14.1/dist/';
+const DEFAULT_WASM_URL = 'https://cdn.jsdelivr.net/npm/sql.js@1.15.2/dist/';
 
 let currentConfig: SqlJsConfig = {};
 let sqlJsPromise: Promise<SqlJsStatic> | null = null;
