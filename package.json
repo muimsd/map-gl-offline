@@ -148,7 +148,7 @@
     "mapbox-gl": "^3.34.2",
     "postcss": "^8.5.32",
     "prettier": "^3.9.10",
-    "puppeteer": "^24.43.1",
+    "puppeteer": "^25.16.0",
     "rimraf": "^6.1.4",
     "rollup": "^4.67.5",
     "rollup-plugin-dts": "^6.5.1",
