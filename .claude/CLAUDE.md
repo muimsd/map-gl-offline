@@ -196,7 +196,7 @@ MapLibre GL 6 stamps a non-configurable `_classRegistryKey` onto the built-in `S
 ## Upgrading dependencies
 
 - Confirm the test count, not just the exit code. Jest once printed a Watchman crash and exited 0 without running a test, so `test:ci` passes `--no-watchman`.
-- Unit tests don't cover the demo's runtime. After bumping `maplibre-gl`, `mapbox-gl` or `vite`, load **both** demo tabs in a browser and look at the rendered map, not just the console: a blank Mapbox map logged nothing. That's how the `setWorkerUrl` need in `src/main.ts` was found.
+- Unit tests don't cover the demo's runtime, so `npm run check:demo` (also a CI job) builds the demo and checks both tabs draw, judging rendered pixels because a blank Mapbox map logged nothing. It covers Streets and Standard at the default view, so also look at any other behaviour a bump could affect.
 - `DEFAULT_WASM_URL` in `sqlJsLoader.ts` pins a `sql.js` version; keep it equal to the installed one.
 - TypeScript 7 is blocked until `ts-jest` and `typescript-eslint` support it.
 
