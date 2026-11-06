@@ -53,6 +53,8 @@ const createMockMap = () => ({
       [-122.3, 37.9],
     ],
   }),
+  getPitch: jest.fn().mockReturnValue(0),
+  getBearing: jest.fn().mockReturnValue(0),
   on: jest.fn(),
   off: jest.fn(),
   getSource: jest.fn().mockReturnValue(null),
@@ -390,6 +392,10 @@ describe('OfflineManagerControl', () => {
       await expect(handler({ url: 'idb://missing/tile/s/0/0/0.pbf' })).rejects.toThrow(
         /IDB fetch failed/
       );
+      // MapLibre stays quiet about a missing tile only if the error says 404.
+      await expect(handler({ url: 'idb://missing/tile/s/0/0/0.pbf' })).rejects.toMatchObject({
+        status: 404,
+      });
     });
   });
 
@@ -582,9 +588,12 @@ describe('OfflineManagerControl', () => {
       (control as unknown as {
         handleDownloadComplete: (id: string) => void;
       }).handleDownloadComplete('r1');
+      const alertMock = jest.spyOn(window, 'alert').mockImplementation(() => {});
       (control as unknown as {
         handleDownloadError: (id: string, err: unknown) => void;
       }).handleDownloadError('r1', new Error('boom'));
+      expect(alertMock).toHaveBeenCalledWith(expect.stringContaining('boom'));
+      alertMock.mockRestore();
       // Must not throw, and panel should still be present.
       expect(document.querySelector('.offline-manager-control.fixed')).not.toBeNull();
     });

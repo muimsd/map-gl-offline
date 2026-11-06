@@ -17,6 +17,10 @@ const createMockMap = () => {
     getBounds: jest.fn().mockReturnValue({
       toArray: () => [[-122.5, 37.7], [-122.3, 37.9]],
     }),
+    getPitch: jest.fn().mockReturnValue(0),
+    getBearing: jest.fn().mockReturnValue(0),
+    getCenter: jest.fn().mockReturnValue({ lng: 0, lat: 0 }),
+    unproject: jest.fn(),
     on: jest.fn((event: string, handler: Function) => {
       if (!eventHandlers[event]) {
         eventHandlers[event] = [];
@@ -286,6 +290,32 @@ describe('PolygonControl', () => {
 
       // Should call getBounds to update visualization
       expect(mockMap.getBounds).toHaveBeenCalled();
+    });
+
+    it('centres the selection on the map when it is tilted', () => {
+      // getBounds runs far north of the view, as it does on a tilted map.
+      mockMap.getBounds.mockReturnValue({
+        toArray: () => [[-1, -1], [1, 9]],
+      });
+      mockMap.getPitch.mockReturnValue(60);
+      mockMap.getContainer.mockReturnValue({
+        querySelector: jest.fn().mockReturnValue(null),
+        appendChild: jest.fn(),
+        clientWidth: 800,
+        clientHeight: 600,
+      });
+      mockMap.unproject.mockImplementation(([x]: [number, number]) =>
+        x === 0 ? { lng: -1, lat: 0 } : { lng: 0, lat: -0.5 }
+      );
+
+      const control = new PolygonControl(mockMap as unknown as MaplibreMap, createOptions());
+      control.enter();
+
+      const [west, south, east, north] = control.getCurrentBounds() as number[];
+      expect(south).toBeCloseTo(-0.3);
+      expect(north).toBeCloseTo(0.3);
+      expect(west).toBeCloseTo(-0.3);
+      expect(east).toBeCloseTo(0.3);
     });
 
     it('should update visualization on zoomend', () => {

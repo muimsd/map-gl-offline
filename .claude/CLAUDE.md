@@ -97,6 +97,9 @@ Current Mapbox GL fetches each font of a stack separately and merges client-side
 
 When testing offline rendering, don't rely on Chrome's offline emulation (it missed worker fetches here). Relaunch with `--host-resolver-rules="MAP * ~NOTFOUND, EXCLUDE localhost"`, and let 3D models settle before judging a screenshot.
 
+### Missing tiles
+Moving outside a saved region is normal, so a missing tile must stay quiet. The `addProtocol` handler's error carries `status: 404`, because MapLibre only skips its console error for that status. Only the start of a download error decides whether it's a 404: the rest includes the URL, whose coordinates or token can contain `404`.
+
 ### `OfflineRegionOptions.expiry`
 `expiry` is an **absolute timestamp** (ms since epoch), matching the type doc. `addRegion` stores it verbatim. If omitted, it defaults to `Date.now() + 30 days`. Do not add `Date.now()` to caller-supplied values — that was a pre-0.6.0 bug that corrupted real timestamps.
 

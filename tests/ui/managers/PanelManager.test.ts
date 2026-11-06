@@ -46,6 +46,7 @@ jest.mock('../../../src/ui/ThemeManager', () => ({
 jest.mock('../../../src/services/styleService', () => ({
   loadStyles: jest.fn().mockResolvedValue([]),
   getStyleStats: jest.fn().mockResolvedValue({ styles: [] }),
+  getStyleStorageSizes: jest.fn().mockResolvedValue({}),
   deleteStyleById: jest.fn().mockResolvedValue(undefined),
   loadStyleById: jest.fn().mockResolvedValue({ accessToken: 'pk.test' }),
 }));

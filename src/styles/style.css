@@ -177,11 +177,13 @@
 }
 
 /* Native scrollbars and form controls follow the panel's theme, not the page's. */
-.glass-panel {
+.glass-panel,
+.offline-manager-control {
   color-scheme: light;
 }
 
-.dark .glass-panel {
+.dark .glass-panel,
+.dark .offline-manager-control {
   color-scheme: dark;
 }
 

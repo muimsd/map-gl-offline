@@ -31,7 +31,7 @@ export const en = {
 
   // Header
   'header.title': 'Offline Manager',
-  'header.subtitle': '{{count}} regions • {{size}} total',
+  'header.subtitle': '{{regions}} • {{size}} total',
 
   // Actions
   'actions.addRegion': 'Add Region',
@@ -51,6 +51,7 @@ export const en = {
   'regionForm.maxZoom': 'Max Zoom',
   'regionForm.buildingsHint':
     "Mapbox Standard's buildings start at zoom 15. Set Max Zoom to 15 or more to include them.",
+  'regionForm.zoomRangeError': 'Max Zoom must be at least Min Zoom.',
   'regionForm.styleUrl': 'Style URL',
   'regionForm.provider': 'Style Provider',
   'regionForm.providerAuto': 'Auto-detect',
@@ -82,7 +83,10 @@ export const en = {
   'regionList.downloaded': 'Downloaded',
   'regionList.size': 'Size',
   'regionList.tiles': 'Tiles',
+  'regionList.resources': 'Fonts, icons and models',
   'regionList.styleData': 'Style',
+  'regionList.regionCountOne': '1 region',
+  'regionList.regionCount': '{{count}} regions',
   'regionList.totalSize': 'Total',
   'regionList.styleId': 'Style ID',
 
@@ -225,6 +229,7 @@ export const en = {
 
   // Alerts/Messages
   'alert.unknownError': 'Unknown error occurred',
+  'alert.downloadFailed': 'Download failed',
   'alert.downloadNotImplemented': 'Download feature not implemented in this refactored version',
   'alert.mapNotAvailable': 'Map not available',
   'alert.invalidBounds': 'Invalid bounds for region',

@@ -506,7 +506,9 @@ export class TileService {
             errorMessage = errorObject instanceof Error ? errorObject.message : String(errorObject);
 
             // 404s on sparse tilesets (landmarks, POIs) are expected — don't count as failures
-            const is404 = errorMessage.includes('404') || errorMessage.includes('not found');
+            // Match the start only: the message goes on to include the URL, whose
+            // coordinates or token can contain "404".
+            const is404 = /^(Resource not found \(404\)|HTTP 404\b)/.test(errorMessage);
             const isExpected = errorMessage.includes('NonRetryableError');
 
             if (is404) {

@@ -304,6 +304,26 @@ describe('RegionFormModal', () => {
       expect(typeof formData.maxZoom).toBe('number');
     });
 
+    it('does not save when Min Zoom is above Max Zoom', async () => {
+      const onSave = jest.fn().mockResolvedValue(undefined);
+      const modal = new RegionFormModal(createOptions({ onSave }));
+      modal.show();
+      // Earlier tests' modals stay in the document, so take this modal's pair.
+      const [min, max] = Array.from(
+        document.querySelectorAll<HTMLInputElement>('input[type="number"]')
+      ).slice(-2);
+
+      min.value = '15';
+      max.value = '14';
+      await modal.save();
+      expect(onSave).not.toHaveBeenCalled();
+      expect(max.validity.customError).toBe(true);
+
+      max.value = '15';
+      await modal.save();
+      expect(onSave).toHaveBeenCalledTimes(1);
+    });
+
     it('should generate default name if empty', async () => {
       const onSave = jest.fn().mockResolvedValue(undefined);
       const options = createOptions({ onSave });

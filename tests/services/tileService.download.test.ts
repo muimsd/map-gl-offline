@@ -122,6 +122,37 @@ describe('TileService.downloadTiles (mocked fetch)', () => {
     expect(result.skippedTiles).toBeGreaterThanOrEqual(1);
   });
 
+  it('counts an error whose URL merely contains 404 as failed', async () => {
+    global.fetch = jest
+      .fn()
+      .mockResolvedValue(new Response(null, { status: 200 })) as unknown as typeof fetch;
+    mockFetchResource.mockRejectedValue(
+      new Error('Access denied (401): https://tiles.example.com/1/404/2.pbf')
+    );
+
+    const result = await service.downloadTiles(
+      {
+        id: 'region-404',
+        name: 'Region 404',
+        bounds: [[-1, -1], [1, 1]] as [[number, number], [number, number]],
+        minZoom: 0,
+        maxZoom: 0,
+      },
+      {
+        version: 8 as const,
+        sources: {
+          s: { type: 'vector', tiles: ['https://tiles.example.com/{z}/{x}/{y}.pbf'] },
+        },
+        layers: [],
+      },
+      'style-404',
+      { storageQuotaCheck: false, maxRetries: 0, probeSourcesBeforeDownload: false }
+    );
+
+    expect(result.failedTiles).toBeGreaterThan(0);
+    expect(result.skippedTiles).toBe(0);
+  });
+
   it('counts 404s from sparse tilesets as skipped (not failed)', async () => {
     global.fetch = jest
       .fn()
