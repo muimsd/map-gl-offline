@@ -176,6 +176,15 @@
   @apply bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 shadow-xl;
 }
 
+/* Native scrollbars and form controls follow the panel's theme, not the page's. */
+.glass-panel {
+  color-scheme: light;
+}
+
+.dark .glass-panel {
+  color-scheme: dark;
+}
+
 .glass-input {
   @apply bg-white dark:bg-gray-800 border border-gray-400 dark:border-gray-600 transition-colors
     focus:outline-none focus:border-blue-600 dark:focus:border-blue-400;

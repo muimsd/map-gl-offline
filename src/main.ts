@@ -467,6 +467,16 @@ async function initMapbox() {
   let currentWeather: WeatherMode = 'none';
   let isStandardStyle = defaultMapboxStyle.id === 'standard';
 
+  // Standard only draws buildings from zoom 15, and they look flat from straight
+  // above, so go somewhere they show. Flat styles go back to looking straight down.
+  const showBuildingsForStyle = (isStandard: boolean) => {
+    map.jumpTo(
+      isStandard
+        ? { zoom: Math.max(map.getZoom(), 15.5), pitch: Math.max(map.getPitch(), 60) }
+        : { pitch: 0 }
+    );
+  };
+
   const lightBtns: HTMLButtonElement[] = [];
   const weatherBtns: Map<WeatherMode, HTMLButtonElement> = new Map();
 
@@ -561,6 +571,7 @@ async function initMapbox() {
     const selected = MAPBOX_STYLES.find(s => s.id === select.value);
     if (selected) {
       isStandardStyle = selected.id === 'standard';
+      showBuildingsForStyle(isStandardStyle);
       updateModeBarVisibility(isStandardStyle);
     }
   });
