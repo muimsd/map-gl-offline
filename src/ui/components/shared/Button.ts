@@ -118,7 +118,7 @@ export class Button extends BaseComponent {
   private createProgressBadge(): void {
     this.progressBadge = document.createElement('span');
     this.progressBadge.className =
-      'absolute -top-1 -right-1 bg-blue-500 text-white rounded-full px-2 py-1 text-xs font-bold hidden min-w-4 text-center shadow-md';
+      'progress-badge absolute top-1/2 right-full mr-1.5 -translate-y-1/2 whitespace-nowrap bg-blue-600 text-white rounded-md px-1.5 py-0.5 text-xs font-semibold shadow-md pointer-events-none hidden';
     // Accessibility: badge ID for aria-describedby
     const badgeId = `btn-badge-${Date.now()}`;
     this.progressBadge.id = badgeId;
@@ -134,6 +134,22 @@ export class Button extends BaseComponent {
       this.element.innerHTML = `${this.config.icon} <span class="ml-2">${text}</span>`;
     } else {
       this.element.textContent = text;
+    }
+    this.restoreProgressBadge();
+  }
+
+  /**
+   * Replace the button's content, keeping its progress badge.
+   */
+  public setContent(html: string): void {
+    this.element.innerHTML = html;
+    this.restoreProgressBadge();
+  }
+
+  /** Replacing the button's content removes the badge, so put it back. */
+  private restoreProgressBadge(): void {
+    if (this.progressBadge) {
+      this.element.appendChild(this.progressBadge);
     }
   }
 
