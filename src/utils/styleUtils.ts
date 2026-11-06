@@ -233,16 +233,6 @@ export function extractFontNamesFromTextField(textFont: unknown, schema?: FontSc
     'linear',
     'exponential',
     'cubic-bezier',
-    'zoom',
-    '==',
-    '!=',
-    '<',
-    '<=',
-    '>',
-    '>=',
-    '!',
-    'all',
-    'any',
     // Mapbox GL v3 config system (Standard style uses ["config", "font"])
     'config',
   ]);
@@ -270,12 +260,28 @@ export function extractFontNamesFromTextField(textFont: unknown, schema?: FontSc
       return;
     }
 
-    // Recurse into sub-arrays (covers step/match/case branches)
-    for (const item of value) {
-      if (Array.isArray(item)) {
-        walk(item);
+    // Only the branches that output a font. Conditions and inputs hold strings
+    // like `["zoom"]` or match labels that aren't fonts.
+    const last = value.length - 1;
+    const isOutput = (i: number): boolean => {
+      switch (value[0]) {
+        case 'step': // ["step", input, out0, stop, out, ...]
+          return i >= 2 && i % 2 === 0;
+        case 'match': // ["match", input, label, out, label, out, ..., fallback]
+          return i === last || (i >= 3 && i % 2 === 1);
+        case 'case': // ["case", cond, out, cond, out, ..., fallback]
+          return i === last || (i >= 2 && i % 2 === 0);
+        case 'coalesce':
+          return i >= 1;
+        case 'let': // ["let", name, value, ..., body]
+          return i === last;
+        default:
+          return false;
       }
-    }
+    };
+    value.forEach((item: unknown, i: number) => {
+      if (isOutput(i)) walk(item);
+    });
   }
 
   walk(textFont);

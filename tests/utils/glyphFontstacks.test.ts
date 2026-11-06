@@ -45,6 +45,13 @@ describe('extractFontNamesFromTextField', () => {
     expect(extractFontNamesFromTextField(value)).toEqual(['A', 'B', 'C']);
   });
 
+  it("doesn't read match labels or a step's input as fonts", () => {
+    const match = ['match', ['get', 'class'], ['park', 'cemetery'], ['literal', ['A']], ['literal', ['B']]];
+    expect(extractFontNamesFromTextField(match)).toEqual(['A', 'B']);
+    const step = ['step', ['pitch'], ['literal', ['A']], 10, ['literal', ['B']]];
+    expect(extractFontNamesFromTextField(step)).toEqual(['A', 'B']);
+  });
+
   it('drops an entry it cannot resolve', () => {
     expect(extractFontNamesFromTextField(medium)).toEqual(['Arial Unicode MS Bold']);
   });

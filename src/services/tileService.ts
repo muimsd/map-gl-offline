@@ -15,7 +15,7 @@ import {
   rewriteMapboxCdnTileUrl,
 } from '@/utils/styleProviderUtils';
 import { MAPBOX_STANDARD_SPARSE_TILESETS } from '@/utils/constants';
-import { findInactiveSources, isConfigDrivenStyle } from '@/utils/styleConfig';
+import { classifySources } from '@/utils/styleConfig';
 import type { FetchResourceResult } from '@/utils';
 import type {
   TileDownloadOptions,
@@ -137,8 +137,9 @@ export class TileService {
 
     // Features a config-driven style has switched off (Mapbox Standard's HD
     // roads, indoor, landmark icons...) don't need their tiles.
+    const { active: activeSources, inactive: inactiveSources } = classifySources(style);
     if (skipInactiveSources) {
-      for (const sourceId of findInactiveSources(style)) {
+      for (const sourceId of inactiveSources) {
         if (tileSources.delete(sourceId)) {
           tileLogger.info(
             `Skipping source "${sourceId}" — nothing visible uses it under the style's config`
@@ -146,7 +147,6 @@ export class TileService {
         }
       }
     }
-    const configDriven = isConfigDrivenStyle(style);
 
     // Some sources have zoom ranges entirely outside the user's region (e.g.
     // procedural-buildings at z15 when the user requested z0-z14, or a z14-capped
@@ -219,11 +219,11 @@ export class TileService {
       // issuing any network request. They 404 for nearly every coord in a
       // typical region; the downstream probe step would catch them, but the
       // probe itself logs 404s in devtools. Matching here keeps the console
-      // clean. On a config-driven style, a sparse source still here is one a
-      // switched-on feature needs, so it's kept (and not probed, because its
-      // tiles cluster and the three probe tiles could easily all miss).
+      // clean. A sparse source a switched-on feature needs is kept instead, and
+      // not probed, because its tiles cluster and the three probe tiles could
+      // easily all miss.
       const knownSparse = tiles.some(template => urlReferencesKnownSparseTileset(template));
-      const neededSparseSource = knownSparse && configDriven;
+      const neededSparseSource = knownSparse && activeSources.has(sourceId);
       if (skipKnownSparseSources && knownSparse && !neededSparseSource) {
         tileLogger.info(
           `Skipping source "${sourceId}" — references a known sparse Mapbox Standard sub-tileset (no probe/download issued)`

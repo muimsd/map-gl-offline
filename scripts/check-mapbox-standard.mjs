@@ -124,8 +124,7 @@ function compareRenderer(issues) {
   const rendererPath = 'node_modules/mapbox-gl/dist/mapbox-gl-dev.js';
   const sharedPath = 'src/sw/shared.ts';
   if (!existsSync(rendererPath)) {
-    console.warn(`Skipping runtime asset check: ${rendererPath} not found`);
-    return;
+    throw new Error(`${rendererPath} not found; run npm install`);
   }
   const renderer = readFileSync(rendererPath, 'utf8');
   const shared = readFileSync(sharedPath, 'utf8');
@@ -146,16 +145,20 @@ if (!token) {
   process.exit(2);
 }
 
-const response = await fetch(`https://api.mapbox.com/styles/v1/mapbox/standard?access_token=${token}`);
-if (!response.ok) {
-  console.error(`Could not fetch the Mapbox Standard style: HTTP ${response.status}`);
+const issues = [];
+let style;
+try {
+  const response = await fetch(
+    `https://api.mapbox.com/styles/v1/mapbox/standard?access_token=${token}`
+  );
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  style = await response.json();
+  compareStyle(style, issues);
+  compareRenderer(issues);
+} catch (error) {
+  console.error(`The check could not run: ${error.message.replaceAll(token, '<token>')}`);
   process.exit(2);
 }
-const style = await response.json();
-
-const issues = [];
-compareStyle(style, issues);
-compareRenderer(issues);
 
 console.log(`Mapbox Standard, modified ${style.modified}`);
 if (issues.length > 0) {

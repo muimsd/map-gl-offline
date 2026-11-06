@@ -135,11 +135,26 @@ describe('TileService with a config-driven style', () => {
     expect(urls.some(u => u.includes('streets-v8-lite'))).toBe(false);
   });
 
-  it('downloads every source with skipInactiveSources: false', async () => {
+  it('downloads hidden features with skipInactiveSources: false', async () => {
     const urls = await downloadedUrls(standardLike(false), { skipInactiveSources: false });
     expect(urls.some(u => u.includes('hd-road'))).toBe(true);
     expect(urls.some(u => u.includes('rasterarrays'))).toBe(true);
-    expect(urls.some(u => u.includes('landmark-pois'))).toBe(true);
+  });
+
+  it('still pre-skips a known-sparse source no switched-on feature needs', async () => {
+    const urls = await downloadedUrls(standardLike(false), { skipInactiveSources: false });
+    expect(urls.some(u => u.includes('landmark-pois'))).toBe(false);
+  });
+
+  it('probes a hidden known-sparse source when asked to attempt it', async () => {
+    const urls = await downloadedUrls(standardLike(false), {
+      skipInactiveSources: false,
+      skipKnownSparseSources: false,
+      probeSourcesBeforeDownload: true,
+    });
+    const probed = (global.fetch as jest.Mock).mock.calls.map(call => String(call[0]));
+    expect(probed.some(u => u.includes('landmark-pois'))).toBe(true);
+    expect(urls.some(u => u.includes('landmark-pois'))).toBe(false);
   });
 
   it('requests DEM tiles with an sku, from raster/v1', async () => {

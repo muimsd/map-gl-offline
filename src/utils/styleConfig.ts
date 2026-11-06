@@ -9,7 +9,7 @@
  */
 
 import type { BaseStyle } from '@/types/style';
-import { logger } from './logger';
+import { logger } from '@/utils/logger';
 
 const configLogger = logger.scope('StyleConfig');
 
@@ -111,17 +111,17 @@ function collectIconsetIds(value: unknown, ids: Set<string>): void {
 }
 
 /**
- * Source ids a config-driven style declares a use for, but doesn't need under
- * its current config: every layer on the source is hidden, and for an iconset's
- * source, no visible layer uses that iconset.
+ * Sources a config-driven style uses under its current config (`active`), and
+ * those it references but only from hidden layers or unused iconsets (`inactive`).
  *
  * Deliberately errs towards keeping sources: a visibility expression that can't
- * be decided counts as visible, and sources nothing in the style references
- * (`extraSources`, ones a caller adds at runtime) are never reported.
+ * be decided counts as visible. Sources nothing in the style references
+ * (`extraSources`, ones a caller adds at runtime) are in neither set.
  */
-export function findInactiveSources(style: unknown): Set<string> {
+export function classifySources(style: unknown): { active: Set<string>; inactive: Set<string> } {
   const inactive = new Set<string>();
-  if (!isConfigDrivenStyle(style)) return inactive;
+  const active = new Set<string>();
+  if (!isConfigDrivenStyle(style)) return { active, inactive };
 
   const s = style as ConfigStyle;
   const config: ConfigValues = {};
@@ -129,13 +129,11 @@ export function findInactiveSources(style: unknown): Set<string> {
     if (entry && typeof entry === 'object' && 'default' in entry) config[key] = entry.default;
   }
 
-  const active = new Set<string>();
   const activeIconsets = new Set<string>();
 
   for (const layer of (s.layers ?? []) as Array<{
     source?: unknown;
     layout?: { visibility?: unknown };
-    paint?: unknown;
   }>) {
     const visible = evaluate(layer?.layout?.visibility ?? 'visible', config) !== 'none';
     if (typeof layer?.source === 'string') {
@@ -143,8 +141,8 @@ export function findInactiveSources(style: unknown): Set<string> {
       if (visible) active.add(layer.source);
     }
     if (visible) {
-      collectIconsetIds(layer?.layout, activeIconsets);
-      collectIconsetIds(layer?.paint, activeIconsets);
+      // The whole layer, since `appearances` can also name an iconset.
+      collectIconsetIds(layer, activeIconsets);
     }
   }
 
@@ -157,7 +155,12 @@ export function findInactiveSources(style: unknown): Set<string> {
   if (typeof s.terrain?.source === 'string') active.add(s.terrain.source);
 
   for (const id of active) inactive.delete(id);
-  return inactive;
+  return { active, inactive };
+}
+
+/** The sources {@link classifySources} found to be unneeded under the current config. */
+export function findInactiveSources(style: unknown): Set<string> {
+  return classifySources(style).inactive;
 }
 
 /**

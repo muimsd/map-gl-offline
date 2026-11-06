@@ -46,7 +46,8 @@ export const MAPBOX_RUNTIME_CACHE = 'map-gl-offline-runtime-v1';
  * Code Mapbox GL fetches from api.mapbox.com while rendering, so it has to be
  * available offline too. Paths are versioned, so a renderer that moves to a new
  * version misses here; `npm run check:mapbox-standard` compares this list with
- * the installed renderer.
+ * the installed renderer. They match Mapbox GL 3.34; an app on a version with
+ * other paths gets no offline copy of those files.
  */
 export const MAPBOX_RUNTIME_ASSETS = [
   '/mapbox-gl-js/draco_decoder_gltf_v1.5.6.wasm',

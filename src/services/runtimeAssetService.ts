@@ -1,7 +1,10 @@
 import { MAPBOX_RUNTIME_ASSETS, MAPBOX_RUNTIME_CACHE, MAPBOX_RUNTIME_ORIGIN } from '@/sw/shared';
+import { fetchWithRetry } from '@/utils/download';
 import { logger } from '@/utils/logger';
 
 const assetLogger = logger.scope('RuntimeAssets');
+
+const ASSET_TIMEOUT_MS = 30000;
 
 /**
  * Cache the code Mapbox GL fetches from api.mapbox.com while rendering: the
@@ -17,14 +20,20 @@ const assetLogger = logger.scope('RuntimeAssets');
 export async function cacheMapboxRuntimeAssets(): Promise<number> {
   if (typeof caches === 'undefined') return 0;
 
-  const cache = await caches.open(MAPBOX_RUNTIME_CACHE);
+  let cache: Cache;
+  try {
+    cache = await caches.open(MAPBOX_RUNTIME_CACHE);
+  } catch (error) {
+    assetLogger.warn('Cache API unavailable, skipping runtime assets:', error);
+    return 0;
+  }
+
   const results = await Promise.all(
     MAPBOX_RUNTIME_ASSETS.map(async path => {
       const url = `${MAPBOX_RUNTIME_ORIGIN}${path}`;
       try {
         if (await cache.match(url)) return true;
-        const response = await fetch(url, { mode: 'cors' });
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const response = await fetchWithRetry(url, { retries: 0, timeout: ASSET_TIMEOUT_MS });
         await cache.put(url, response);
         return true;
       } catch (error) {

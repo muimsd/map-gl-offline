@@ -137,6 +137,24 @@ describe('findInactiveSources', () => {
     expect(findInactiveSources(style).has('a')).toBe(true);
   });
 
+  it('counts an iconset used only from a layer\'s appearances', () => {
+    const style = {
+      schema: { a: { default: true } },
+      iconsets: { landmarks: { type: 'source', source: 'icons' } },
+      sources: { icons: {}, pois: {} },
+      layers: [
+        {
+          id: 'l',
+          source: 'pois',
+          appearances: [
+            { properties: { 'icon-image': ['image', 'x', { iconset: { id: 'landmarks' } }] } },
+          ],
+        },
+      ],
+    };
+    expect(findInactiveSources(style).has('icons')).toBe(false);
+  });
+
   it('uses literal visibility on a style flattened from imports', () => {
     const style = {
       imports: [{ id: 'basemap' }],

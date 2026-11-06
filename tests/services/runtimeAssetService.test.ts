@@ -62,6 +62,15 @@ describe('cacheMapboxRuntimeAssets', () => {
     await expect(cacheMapboxRuntimeAssets()).resolves.toBe(MAPBOX_RUNTIME_ASSETS.length - 2);
   });
 
+  it('does not throw when the cache cannot be opened', async () => {
+    (global as { caches?: unknown }).caches = {
+      open: async () => {
+        throw new Error('SecurityError');
+      },
+    };
+    await expect(cacheMapboxRuntimeAssets()).resolves.toBe(0);
+  });
+
   it('does nothing where the Cache API is unavailable', async () => {
     delete (global as { caches?: unknown }).caches;
     await expect(cacheMapboxRuntimeAssets()).resolves.toBe(0);

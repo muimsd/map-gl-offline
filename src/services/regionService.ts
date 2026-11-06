@@ -5,6 +5,7 @@ import {
   patchStyleForOffline,
 } from '@/utils/styleUtils';
 import { applyStyleConfig } from '@/utils/styleConfig';
+import { sanitizeIndoorExpressions } from '@/utils/importResolver';
 import { logger } from '@/utils/logger';
 import { parseTileKey } from '@/utils/tileKey';
 import { clearAllCaches } from '@/utils/idbFetchHandler';
@@ -357,8 +358,10 @@ export class RegionService {
     // Applied before the resource phases, which all plan from the style's config.
     if (styleConfig) {
       applyStyleConfig(storedStyle, styleConfig);
-      await (await dbPromise).put('styles', styleEntry);
     }
+    // A reused style may predate download-time sanitizing.
+    sanitizeIndoorExpressions(storedStyle);
+    await (await dbPromise).put('styles', styleEntry);
 
     // 2. Sprites
     const spriteResults: SpriteDownloadResult[] = [];

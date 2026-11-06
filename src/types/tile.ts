@@ -97,10 +97,9 @@ export interface TileDownloadOptions {
    * coordinate. Pre-skipping means we never issue probe or download
    * requests for them, eliminating the 404 noise in devtools.
    *
-   * On a config-driven style this only applies when the source's feature is
-   * off (and `skipInactiveSources` already covers that); a feature that's on
-   * keeps its source, without probing, because the tiles cluster and the probe
-   * tiles could all miss.
+   * A source a switched-on feature of a config-driven style needs is always
+   * kept, without probing, because the tiles cluster and the probe tiles could
+   * all miss.
    *
    * Default: `true`. Set `false` to attempt these sources anyway — the
    * downstream `probeSourcesBeforeDownload` pass will still skip them

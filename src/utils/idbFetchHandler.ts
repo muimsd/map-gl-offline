@@ -358,6 +358,9 @@ export async function idbFetchHandler(url: string, init?: RequestInit): Promise<
         }
         // Never a 404: Mapbox GL fails a tile's whole glyph request if one range
         // errors, so a range outside the downloaded set would blank all its labels.
+        if (!emptyRange) {
+          idbLogger.warn(`Glyph not found for any font in: ${fontstacks.join(', ')}`);
+        }
         return glyphResponse(emptyRange ?? new ArrayBuffer(0));
       }
       case 'sprite': {
