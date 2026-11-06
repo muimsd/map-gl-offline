@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
+  <!-- Map pin, in the UI's revision magenta -->
+  <path d="M50 5 C30 5 15 20 15 40 C15 65 50 95 50 95 C50 95 85 65 85 40 C85 20 70 5 50 5 Z" fill="#a8116f"/>
+  <circle cx="50" cy="38" r="15" fill="#ffffff"/>
+  <!-- Download arrow, for saving offline -->
+  <path d="M50 30 L50 46 M44 40 L50 46 L56 40" stroke="#a8116f" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+</svg>
