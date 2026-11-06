@@ -199,6 +199,17 @@
   outline-color: var(--color-blue-400);
 }
 
+/* The progress badge sits beside the map button, towards the middle of the map. */
+.maplibregl-ctrl-top-left .progress-badge,
+.maplibregl-ctrl-bottom-left .progress-badge,
+.mapboxgl-ctrl-top-left .progress-badge,
+.mapboxgl-ctrl-bottom-left .progress-badge {
+  right: auto;
+  left: 100%;
+  margin-right: 0;
+  margin-left: 0.375rem;
+}
+
 .bottom-chips-container .glass-panel {
   border-radius: var(--radius-lg);
 }

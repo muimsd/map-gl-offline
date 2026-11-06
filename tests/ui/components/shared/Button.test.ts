@@ -235,4 +235,28 @@ describe('Button', () => {
       expect((button.getElement() as HTMLButtonElement).disabled).toBe(false);
     });
   });
+
+  describe('progress badge', () => {
+    const makeButton = () => new Button({ icon: '<svg></svg>', showProgressBadge: true });
+    const badgeOf = (button: Button) => button.getElement().querySelector('[aria-live="polite"]');
+
+    it('keeps the badge when the text changes', () => {
+      const button = makeButton();
+      button.setText('Downloading');
+      expect(badgeOf(button)).not.toBeNull();
+    });
+
+    it('keeps the badge when the content is replaced, so later downloads still show it', () => {
+      const button = makeButton();
+      button.setContent('<svg></svg>');
+      button.updateProgressBadge('22%', true);
+      expect(badgeOf(button)?.textContent).toBe('22%');
+    });
+
+    it('sits beside the button rather than on it', () => {
+      const className = makeButton().getElement().querySelector('[aria-live="polite"]')?.className;
+      expect(className).toContain('right-full');
+      expect(className).not.toContain('-right-1');
+    });
+  });
 });

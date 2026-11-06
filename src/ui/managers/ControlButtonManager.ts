@@ -51,7 +51,7 @@ export class ButtonManager {
    * Reset button to default state
    */
   public resetToDefault(): void {
-    this.button.getElement().innerHTML = icons.cloud({ size: 20, color: 'black' });
+    this.button.setContent(icons.cloud({ size: 20, color: 'black' }));
     this.button.setDisabled(false);
     this.button.getElement().title = 'Offline Map Manager';
     this.button.hideProgressBadge();

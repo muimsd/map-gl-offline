@@ -54,7 +54,7 @@ export class ControlButton extends BaseComponent {
 
     const badge = document.createElement('span');
     badge.className =
-      'progress-badge absolute -top-1 -right-1 bg-blue-500 text-white rounded-full px-2 py-1 text-xs font-bold hidden min-w-4 text-center shadow-md';
+      'progress-badge absolute top-1/2 right-full mr-1.5 -translate-y-1/2 whitespace-nowrap bg-blue-600 text-white rounded-md px-1.5 py-0.5 text-xs font-semibold shadow-md pointer-events-none hidden';
 
     button.appendChild(badge);
     container.appendChild(button);
