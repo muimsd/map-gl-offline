@@ -11,6 +11,7 @@ import {
 import { GLYPH_CONFIG } from '@/utils/constants';
 import { patchStyleForOffline } from '@/utils/styleUtils';
 import { sanitizeIndoorExpressions } from '@/utils/importResolver';
+import { clearAllCaches } from '@/utils/idbFetchHandler';
 import {
   detectStyleProvider,
   extractAccessToken,
@@ -721,18 +722,30 @@ export async function loadStyleById(styleId: string): Promise<StyleStorageItem |
   }
 }
 
+/** Delete every style and everything stored for them. */
 export async function deleteStyles(): Promise<void> {
   try {
     const db = await dbPromise;
-    await db.clear('styles');
+    await Promise.all(
+      (['tiles', 'fonts', 'glyphs', 'sprites', 'models', 'styles'] as const).map(store =>
+        db.clear(store)
+      )
+    );
+    clearAllCaches();
     logger.debug('All styles deleted successfully');
   } catch (error) {
     logger.error('Error deleting styles:', error);
   }
 }
 
+/**
+ * Delete a style, its regions and everything stored for it. The entry goes last,
+ * so a failure part-way leaves the style listed and able to be deleted again.
+ */
 export async function deleteStyleById(styleId: string): Promise<void> {
   try {
+    const { RegionService } = await import('@/services/regionService');
+    await new RegionService().deleteStyleData(styleId);
     const db = await dbPromise;
     await db.delete('styles', styleId);
     logger.debug(`Style with ID ${styleId} deleted successfully`);

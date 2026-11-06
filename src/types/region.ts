@@ -156,7 +156,9 @@ export interface OfflineRegionOptions {
   name: string;
   /** Geographic bounds: [[west, south], [east, north]] */
   bounds: BoundingBox;
-  /** Whether this region is part of a multi-region download */
+  /**
+   * @deprecated Has no effect. Regions already coexist, keyed by `id`.
+   */
   multipleRegions?: boolean;
   /** URL to the map style JSON */
   styleUrl?: string;
@@ -177,7 +179,7 @@ export interface OfflineRegionOptions {
    */
   expiry?: number;
   /**
-   * Whether to automatically delete this region when it expires (default: false)
+   * @deprecated Has no effect. Use `forceCleanupExpiredRegions` to delete expired regions.
    */
   deleteOnExpiry?: boolean;
   /** The actual tile extension used (mvt, pbf, png, jpg, etc.) */

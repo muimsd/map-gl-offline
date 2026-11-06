@@ -34,7 +34,7 @@ Browsers can clear storage they haven't been told to keep. If offline maps matte
 | Method | What it removes |
 |---|---|
 | `deleteRegion(id, styleId)` | One region, keeping anything other regions need. Deleting a style's last region also removes the style and all its data. |
-| `deleteStyle(styleId)` | Only the style's own entry. **Its tiles, fonts and sprites stay in storage**, so prefer `deleteRegion`. |
+| `deleteStyle(styleId)` | A style, all its regions, and everything stored for them |
 | `cleanupExpiredRegions()` | Regions last updated **more than 30 days ago**. It doesn't read `expiry`. |
 | `forceCleanupExpiredRegions()` | Regions past their `expiry` date |
 | `performSmartCleanup(options)` | Whatever breaks the limits you set |

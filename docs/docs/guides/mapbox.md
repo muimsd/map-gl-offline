@@ -85,16 +85,9 @@ Standard's extras can be large. These are approximate sizes from single tiles:
 
 ## Upgrading stored regions
 
-Downloads made with older versions of the library can have wrong terrain heights, missing 3D buildings and missing fallback fonts. Tile URLs are saved with the style, so a fresh download alone won't fix this. Delete the style's regions, which removes the style with the last one, then download them again:
+Downloads made with older versions of the library can have wrong terrain heights, missing 3D buildings and missing fallback fonts. Tile URLs are saved with the style, so a fresh download alone won't fix this. Delete the style, which also removes its regions and data, then download them again:
 
 ```ts
-const regions = await offlineManager.listStoredRegions();
-
-for (const stored of regions.filter(r => r.styleId === 'mapbox-standard')) {
-  await offlineManager.deleteRegion(stored.id, stored.styleId);
-}
-
+await offlineManager.deleteStyle('mapbox-standard');
 await offlineManager.downloadRegion(region, { accessToken: mapboxgl.accessToken });
 ```
-
-Use `deleteRegion` for this, not `deleteStyle`, which leaves the style's tiles in storage.
