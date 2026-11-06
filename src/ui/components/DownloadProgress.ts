@@ -66,7 +66,7 @@ export function createDownloadProgressSection(props: DownloadProgressSectionProp
   // Create section card with modern DOM creation
   const sectionCard = document.createElement('div');
   sectionCard.className =
-    'p-6 bg-gradient-to-br from-blue-50 to-white dark:from-blue-900/20 dark:to-gray-800 border border-blue-200 dark:border-blue-700 rounded-lg shadow-sm mb-6';
+    'p-6 bg-blue-50 dark:bg-gray-800 border border-blue-200 dark:border-blue-700 rounded-lg shadow-sm mb-6';
 
   sectionCard.appendChild(header);
   sectionCard.appendChild(progressList);

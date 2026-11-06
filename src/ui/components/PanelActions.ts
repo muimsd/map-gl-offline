@@ -29,7 +29,7 @@ export function createActionButtons(props: ActionButtonsProps): HTMLDivElement {
       icon: icons.plus({ size: 16, color: 'white' }),
       onClick: onAddRegion,
       className:
-        'bg-gradient-to-r from-green-600 to-green-700 text-white border-0 text-base px-4 py-3 rounded-md font-semibold shadow-md transition-all duration-200 min-w-[100px] hover:from-green-700 hover:to-green-800',
+        'bg-blue-600 hover:bg-blue-700 text-white border-0 text-base px-4 py-3 rounded-md font-semibold shadow-md transition-all duration-200 min-w-[100px]',
     });
 
     container.appendChild(addButton.getElement());

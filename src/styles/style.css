@@ -4,19 +4,133 @@
 /* Enable class-based dark mode for Tailwind v4 */
 @custom-variant dark (&:where(.dark, .dark *));
 
-:root {
-  font-family: 'Inter', system-ui, Avenir, Helvetica, Arial, sans-serif;
-  line-height: 1.5;
-  font-weight: 400;
+/*
+ * The palette comes from printed survey maps: spruce collar ink, map-paper mist,
+ * and magenta, which survey maps use to mark revisions, for what you act on and
+ * what you've saved. Remapping Tailwind's scales here themes every utility class
+ * the components use. Corners tighten as elements get smaller, and surfaces are
+ * flat: no gradients or glass.
+ *
+ * Barlow is only used if the page has it. This library is for offline use, so it
+ * never fetches a font.
+ */
+@theme {
+  --font-sans: 'Barlow', 'Segoe UI', system-ui, -apple-system, 'Noto Sans', Arial, sans-serif;
 
-  color-scheme: light dark;
-  color: rgba(255, 255, 255, 0.87);
-  background-color: #242424;
+  --color-gray-50: #f2f6f1;
+  --color-gray-100: #e6ece6;
+  --color-gray-200: #d3dcd5;
+  --color-gray-300: #b4c1b8;
+  --color-gray-400: #9eaea4;
+  --color-gray-500: #5f706a;
+  --color-gray-600: #4a5b55;
+  --color-gray-700: #344641;
+  --color-gray-800: #1e3a34;
+  --color-gray-900: #12332d;
+  --color-gray-950: #0a1f1b;
 
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+  --color-slate-50: var(--color-gray-50);
+  --color-slate-100: var(--color-gray-100);
+  --color-slate-200: var(--color-gray-200);
+  --color-slate-300: var(--color-gray-300);
+  --color-slate-400: var(--color-gray-400);
+  --color-slate-500: var(--color-gray-500);
+  --color-slate-600: var(--color-gray-600);
+  --color-slate-700: var(--color-gray-700);
+  --color-slate-800: var(--color-gray-800);
+  --color-slate-900: var(--color-gray-900);
+
+  --color-blue-50: #fcedf6;
+  --color-blue-100: #f8d9eb;
+  --color-blue-200: #f0b2d6;
+  --color-blue-300: #e585bd;
+  --color-blue-400: #e77cbb;
+  --color-blue-500: #c22a85;
+  --color-blue-600: #a8116f;
+  --color-blue-700: #8c0d5c;
+  --color-blue-800: #6f0b49;
+  --color-blue-900: #520837;
+  --color-blue-950: #33041f;
+
+  --color-primary-50: var(--color-blue-50);
+  --color-primary-100: var(--color-blue-100);
+  --color-primary-200: var(--color-blue-200);
+  --color-primary-300: var(--color-blue-300);
+  --color-primary-400: var(--color-blue-400);
+  --color-primary-500: var(--color-blue-500);
+  --color-primary-600: var(--color-blue-600);
+  --color-primary-700: var(--color-blue-700);
+  --color-primary-800: var(--color-blue-800);
+  --color-primary-900: var(--color-blue-900);
+
+  --color-green-50: #edf6ef;
+  --color-green-100: #d7ebdc;
+  --color-green-200: #b0d6ba;
+  --color-green-300: #82bd92;
+  --color-green-400: #6db581;
+  --color-green-500: #3a8a53;
+  --color-green-600: #2f7346;
+  --color-green-700: #265c39;
+  --color-green-800: #1e482d;
+  --color-green-900: #173723;
+
+  --color-emerald-50: var(--color-green-50);
+  --color-emerald-100: var(--color-green-100);
+  --color-emerald-200: var(--color-green-200);
+  --color-emerald-300: var(--color-green-300);
+  --color-emerald-400: var(--color-green-400);
+  --color-emerald-500: var(--color-green-500);
+  --color-emerald-600: var(--color-green-600);
+  --color-emerald-700: var(--color-green-700);
+  --color-emerald-800: var(--color-green-800);
+  --color-emerald-900: var(--color-green-900);
+
+  --color-purple-50: var(--color-blue-50);
+  --color-purple-100: var(--color-blue-100);
+  --color-purple-200: var(--color-blue-200);
+  --color-purple-300: var(--color-blue-300);
+  --color-purple-400: var(--color-blue-400);
+  --color-purple-500: var(--color-blue-500);
+  --color-purple-600: var(--color-blue-600);
+  --color-purple-700: var(--color-blue-700);
+  --color-purple-800: var(--color-blue-800);
+  --color-purple-900: var(--color-blue-900);
+
+  --color-indigo-50: var(--color-blue-50);
+  --color-indigo-100: var(--color-blue-100);
+  --color-indigo-200: var(--color-blue-200);
+  --color-indigo-300: var(--color-blue-300);
+  --color-indigo-400: var(--color-blue-400);
+  --color-indigo-500: var(--color-blue-500);
+  --color-indigo-600: var(--color-blue-600);
+  --color-indigo-700: var(--color-blue-700);
+  --color-indigo-800: var(--color-blue-800);
+  --color-indigo-900: var(--color-blue-900);
+
+  --color-amber-50: #f8f1e7;
+  --color-amber-100: #efdfc8;
+  --color-amber-200: #e0c49a;
+  --color-amber-400: #d2a163;
+  --color-amber-600: #8a5a2b;
+  --color-amber-700: #704822;
+  --color-amber-900: #43290f;
+
+  --color-red-50: #fbeeec;
+  --color-red-400: #ec8579;
+  --color-red-600: #b3261e;
+  --color-red-700: #8f1d17;
+
+  --radius-sm: 2px;
+  --radius-md: 3px;
+  --radius-lg: 4px;
+  --radius-xl: 4px;
+  --radius-2xl: 8px;
+
+  --shadow-sm: 0 1px 2px rgb(18 51 45 / 0.14);
+  --shadow-md: 0 2px 6px rgb(18 51 45 / 0.18);
+  --shadow-lg: 0 4px 12px rgb(18 51 45 / 0.22);
+  --shadow-xl: 0 8px 24px rgb(18 51 45 / 0.26);
+  --shadow-2xl: 0 16px 40px rgb(18 51 45 / 0.32);
 }
 
 /* Protect map elements from Tailwind preflight resets */
@@ -57,13 +171,44 @@
   animation: modal-scale-in 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
-/* Glassmorphism Utilities */
+/* Surfaces. The names predate the flat design; they're kept for compatibility. */
 .glass-panel {
-  @apply bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl border border-white/20 dark:border-white/10 shadow-xl;
+  @apply bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 shadow-xl;
 }
 
 .glass-input {
-  @apply bg-white/50 dark:bg-gray-800/50 border border-gray-200/50 dark:border-gray-700/50 backdrop-blur-sm focus:bg-white/80 dark:focus:bg-gray-800/80 transition-all duration-200;
+  @apply bg-white dark:bg-gray-800 border border-gray-400 dark:border-gray-600 transition-colors
+    focus:outline-none focus:border-blue-600 dark:focus:border-blue-400;
+}
+
+.glass-input:focus {
+  box-shadow: 0 0 0 1px var(--color-blue-600);
+}
+
+.dark .glass-input:focus {
+  box-shadow: 0 0 0 1px var(--color-blue-400);
+}
+
+.glass-panel :focus-visible,
+.offline-manager-control :focus-visible {
+  outline: 2px solid var(--color-blue-600);
+  outline-offset: 2px;
+}
+
+.dark .glass-panel :focus-visible {
+  outline-color: var(--color-blue-400);
+}
+
+.bottom-chips-container .glass-panel {
+  border-radius: var(--radius-lg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-modal-fade-in,
+  .animate-modal-scale-in,
+  .mode-bar-enter {
+    animation-duration: 0.01ms;
+  }
 }
 
 /* RTL (Right-to-Left) Support for Arabic and other RTL languages */
@@ -147,7 +292,7 @@
 
 /* Mode chip buttons (Standard style controls) */
 .mode-chip-btn {
-  @apply px-3 py-1.5 rounded-full text-xs font-semibold cursor-pointer
+  @apply px-3 py-1 rounded-md text-sm font-medium cursor-pointer
          bg-transparent text-gray-700 dark:text-gray-200
          border border-gray-300/50 dark:border-white/15
          transition-all duration-200 ease-out

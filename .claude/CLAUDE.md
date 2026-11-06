@@ -185,6 +185,9 @@ npm run dev           # Start Vite dev server
 | `src/utils/tileKey.ts` | Tile key generation (`createTileKey`, `parseTileKey`) |
 | `src/utils/formatting.ts` | XSS prevention (`escapeHtml`) |
 
+### UI theme
+`src/styles/style.css` themes the shipped UI by remapping Tailwind's scales in `@theme` (`blue-*` is the magenta accent, `gray-*` the spruce neutrals), so components keep their ordinary utility classes. Keep surfaces flat: no gradients or glass. Inside map control groups, a flat background needs `!bg-*`, because the renderers' `ctrl-group button` rule sets it transparent. The shipped CSS must never fetch a font: Barlow only loads in the demo (`@fontsource/barlow`), and the theme falls back to system fonts. The demo's own page styles live in `src/styles/demo.css`.
+
 ### One renderer per page
 MapLibre GL 6 stamps a non-configurable `_classRegistryKey` onto the built-in `Set` and `Error`. Mapbox GL 3.34 reads that property when serializing worker messages, throws on `.omit`, and its map stays blank. So `src/main.ts` must not statically import either renderer: each tab imports its own on demand, and switching tabs reloads the page.
 

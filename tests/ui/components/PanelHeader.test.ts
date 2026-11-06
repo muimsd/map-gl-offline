@@ -157,7 +157,7 @@ describe('PanelHeader', () => {
 
       const header = createHeader(props);
 
-      expect(header.classList.contains('bg-gradient-to-br')).toBe(true);
+      expect(header.classList.contains('bg-gray-900')).toBe(true);
     });
 
     it('should have both theme and close buttons when both are provided', () => {

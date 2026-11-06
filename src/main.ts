@@ -10,6 +10,10 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import 'map-gl-style-switcher/dist/map-gl-style-switcher.css';
+import '@fontsource/barlow/400.css';
+import '@fontsource/barlow/500.css';
+import '@fontsource/barlow/600.css';
+import { attachCollar, type CollarMap } from './sheet/collar';
 
 // Configure proxy for CARTO tiles (required for local development)
 configureProxy({
@@ -56,19 +60,15 @@ function setActiveTab(tab: 'maplibre' | 'mapbox') {
   const isFirstLoad = activeTab === null;
   activeTab = tab;
 
-  const activeClasses = 'bg-blue-600 text-white';
-  const inactiveClasses = 'bg-gray-200 text-gray-700 hover:bg-gray-300';
+  tabMaplibre.setAttribute('aria-pressed', String(tab === 'maplibre'));
+  tabMapbox.setAttribute('aria-pressed', String(tab === 'mapbox'));
 
   if (tab === 'maplibre') {
-    tabMaplibre.className = `tab-btn px-4 py-2 rounded-lg font-semibold text-sm transition-colors cursor-pointer ${activeClasses}`;
-    tabMapbox.className = `tab-btn px-4 py-2 rounded-lg font-semibold text-sm transition-colors cursor-pointer ${inactiveClasses}`;
     containerMaplibre.classList.remove('hidden');
     containerMapbox.classList.add('hidden');
     if (isFirstLoad) void initMaplibre();
     else maplibreMap?.resize();
   } else {
-    tabMapbox.className = `tab-btn px-4 py-2 rounded-lg font-semibold text-sm transition-colors cursor-pointer ${activeClasses}`;
-    tabMaplibre.className = `tab-btn px-4 py-2 rounded-lg font-semibold text-sm transition-colors cursor-pointer ${inactiveClasses}`;
     containerMapbox.classList.remove('hidden');
     containerMaplibre.classList.add('hidden');
     if (isFirstLoad) void initMapbox();
@@ -184,22 +184,7 @@ async function initMaplibre() {
     'bottom-chips-container absolute bottom-8 left-1/2 transform -translate-x-1/2 flex items-center gap-3 z-[999]';
   mapContainer.appendChild(chipsContainer);
 
-  const zoomDisplay = document.createElement('div');
-  zoomDisplay.className =
-    'glass-panel rounded-full px-5 py-2.5 font-sans text-sm font-semibold text-gray-800 dark:text-white whitespace-nowrap flex items-center gap-2.5 pointer-events-none transition-all shadow-lg backdrop-blur-xl border border-white/40 dark:border-white/10 bg-white/60 dark:bg-gray-900/60';
-
-  const zoomIcon = document.createElement('span');
-  zoomIcon.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="text-primary-600 dark:text-primary-400"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.35-4.35"></path></svg>`;
-  zoomDisplay.appendChild(zoomIcon);
-
-  const zoomText = document.createElement('span');
-  zoomText.textContent = `Zoom: ${map.getZoom().toFixed(2)}`;
-  zoomDisplay.appendChild(zoomText);
-  chipsContainer.appendChild(zoomDisplay);
-
-  map.on('zoom', () => {
-    zoomText.textContent = `Zoom: ${map.getZoom().toFixed(2)}`;
-  });
+  attachCollar(map as unknown as CollarMap);
 
   const styleSwitcher = new StyleSwitcherControl({
     styles,
@@ -234,23 +219,16 @@ const MAPBOX_STYLES: { id: string; name: string; url: string }[] = [
 
 function showMapboxTokenPrompt() {
   containerMapbox.innerHTML = `
-    <div class="flex items-center justify-center h-full">
-      <div class="bg-white rounded-xl shadow-lg p-8 max-w-md w-full mx-4 text-center">
-        <svg class="mx-auto mb-4" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-          <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
-          <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
-        </svg>
-        <h2 class="text-xl font-bold text-gray-800 mb-2">Mapbox Access Token Required</h2>
-        <p class="text-gray-500 text-sm mb-6">Enter your Mapbox access token to use the Mapbox GL map. You can find it at
-          <a href="https://account.mapbox.com/access-tokens/" target="_blank" rel="noopener" class="text-blue-600 underline hover:text-blue-800">account.mapbox.com</a>.
+    <div class="token-prompt">
+      <div class="token-card">
+        <h2>Add a Mapbox access token</h2>
+        <p>The Mapbox tab needs a public token, which stays in this browser.
+          <a href="https://account.mapbox.com/access-tokens/" target="_blank" rel="noopener">Get a token from your Mapbox account</a>.
         </p>
-        <form id="mapbox-token-form" class="flex flex-col gap-3">
-          <input id="mapbox-token-input" type="text" placeholder="pk.eyJ1Ijo..." spellcheck="false" autocomplete="off"
-            class="w-full px-4 py-3 border border-gray-300 rounded-lg text-sm font-mono text-black focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
-          <button type="submit"
-            class="w-full px-4 py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-colors text-sm cursor-pointer">
-            Save &amp; Load Map
-          </button>
+        <form id="mapbox-token-form">
+          <label for="mapbox-token-input">Access token</label>
+          <input id="mapbox-token-input" type="text" placeholder="pk.eyJ1Ijo..." spellcheck="false" autocomplete="off" required />
+          <button type="submit">Save token and load map</button>
         </form>
       </div>
     </div>`;
@@ -377,12 +355,10 @@ async function initMapbox() {
 
   // Style switcher for Mapbox
   const switcherContainer = document.createElement('div');
-  switcherContainer.className =
-    'mapboxgl-ctrl mapboxgl-ctrl-group bg-white rounded-lg shadow-md p-2';
+  switcherContainer.className = 'mapboxgl-ctrl mapboxgl-ctrl-group demo-control';
 
   const select = document.createElement('select');
-  select.className =
-    'text-sm font-medium text-gray-700 bg-white border-none cursor-pointer outline-none';
+  select.setAttribute('aria-label', 'Map style');
   for (const s of MAPBOX_STYLES) {
     const option = document.createElement('option');
     option.value = s.id;
@@ -415,8 +391,7 @@ async function initMapbox() {
   // Clear token button
   const clearTokenBtn = document.createElement('button');
   clearTokenBtn.textContent = 'Clear Token';
-  clearTokenBtn.className =
-    'mapboxgl-ctrl mapboxgl-ctrl-group bg-white rounded-lg shadow-md px-3 py-2 text-xs font-medium text-red-600 hover:bg-red-50 cursor-pointer transition-colors';
+  clearTokenBtn.className = 'mapboxgl-ctrl mapboxgl-ctrl-group demo-control demo-control-danger';
   clearTokenBtn.addEventListener('click', () => {
     localStorage.removeItem('mapbox-access-token');
     window.location.reload();
@@ -440,22 +415,7 @@ async function initMapbox() {
     'bottom-chips-container absolute bottom-8 left-1/2 transform -translate-x-1/2 flex items-center gap-3 z-[999]';
   mapContainer.appendChild(chipsContainer);
 
-  const zoomDisplay = document.createElement('div');
-  zoomDisplay.className =
-    'glass-panel rounded-full px-5 py-2.5 font-sans text-sm font-semibold text-gray-800 dark:text-white whitespace-nowrap flex items-center gap-2.5 pointer-events-none transition-all shadow-lg backdrop-blur-xl border border-white/40 dark:border-white/10 bg-white/60 dark:bg-gray-900/60';
-
-  const zoomIcon = document.createElement('span');
-  zoomIcon.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="text-primary-600 dark:text-primary-400"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.35-4.35"></path></svg>`;
-  zoomDisplay.appendChild(zoomIcon);
-
-  const zoomText = document.createElement('span');
-  zoomText.textContent = `Zoom: ${map.getZoom().toFixed(2)}`;
-  zoomDisplay.appendChild(zoomText);
-  chipsContainer.appendChild(zoomDisplay);
-
-  map.on('zoom', () => {
-    zoomText.textContent = `Zoom: ${map.getZoom().toFixed(2)}`;
-  });
+  attachCollar(map as unknown as CollarMap);
 
   // ---------- Standard style mode controls (Mapbox GL JS v3+ only) ----------
 

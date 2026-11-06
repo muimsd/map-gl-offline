@@ -67,14 +67,14 @@ export class RegionDetailsModal {
 
     content.innerHTML = `
       <div class="glass-input p-4 rounded-xl border-0 bg-gray-50/50 dark:bg-gray-800/50">
-        <h3 class="m-0 text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-gray-900 to-gray-600 dark:from-white dark:to-gray-300">
+        <h3 class="m-0 text-xl font-semibold text-gray-900 dark:text-white">
           ${region.name}
         </h3>
       </div>
 
       <div class="grid grid-cols-2 gap-4">
         <div class="glass-input p-4 rounded-xl border-0 bg-gray-50/30 dark:bg-gray-800/30">
-          <label class="block mb-1.5 text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+          <label class="block mb-1.5 text-sm font-semibold text-gray-500 dark:text-gray-400">
             ${t('regionDetails.bounds')}
           </label>
           <div class="text-sm font-mono text-gray-700 dark:text-gray-300 leading-relaxed">
@@ -84,7 +84,7 @@ export class RegionDetailsModal {
         </div>
 
         <div class="glass-input p-4 rounded-xl border-0 bg-gray-50/30 dark:bg-gray-800/30">
-          <label class="block mb-1.5 text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+          <label class="block mb-1.5 text-sm font-semibold text-gray-500 dark:text-gray-400">
             ${t('regionDetails.zoomRange')}
           </label>
           <div class="text-lg font-semibold text-gray-900 dark:text-white">
@@ -97,7 +97,7 @@ export class RegionDetailsModal {
         region.created
           ? `
         <div class="glass-input p-4 rounded-xl border-0 bg-gray-50/30 dark:bg-gray-800/30">
-          <label class="block mb-1.5 text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+          <label class="block mb-1.5 text-sm font-semibold text-gray-500 dark:text-gray-400">
             ${t('regionDetails.created')}
           </label>
           <div class="text-sm font-medium text-gray-700 dark:text-gray-300">

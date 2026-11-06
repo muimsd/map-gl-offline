@@ -110,7 +110,7 @@ export class PolygonControl {
     this.saveButton = document.createElement('button');
     this.saveButton.type = 'button';
     const prefix = this.options.cssPrefix || 'maplibregl';
-    this.saveButton.className = `${prefix}-ctrl-icon offline-manager-control mt-0.5 bg-gradient-to-br from-green-600 to-green-700 border border-green-700 rounded-sm cursor-pointer relative w-[29px] h-[29px] flex items-center justify-center hover:from-green-700 hover:to-green-800 transition-all duration-200`;
+    this.saveButton.className = `${prefix}-ctrl-icon offline-manager-control mt-0.5 !bg-green-600 border border-green-700 rounded-sm cursor-pointer relative w-[29px] h-[29px] flex items-center justify-center hover:!bg-green-700 transition-all duration-200`;
     this.saveButton.innerHTML = icons.check({ size: 16, color: 'white' });
     this.saveButton.title = 'Save Selected Region';
     this.saveButton.addEventListener('click', () => this.handleSave());
@@ -277,7 +277,7 @@ export class PolygonControl {
         source: 'selectionPolygon',
         layout: {},
         paint: {
-          'line-color': '#8B5CF6', // Primary purple color
+          'line-color': '#A8116F', // Revision magenta, the UI's accent
           'line-width': 3,
           'line-dasharray': [2, 2],
         },

@@ -93,7 +93,7 @@ export class RegionControl {
     this.cancelButton = document.createElement('button');
     this.cancelButton.type = 'button';
     const prefix = this.options.cssPrefix || 'maplibregl';
-    this.cancelButton.className = `${prefix}-ctrl-icon offline-manager-control mt-0.5 bg-gradient-to-br from-red-600 to-red-700 border border-red-700 rounded-sm cursor-pointer relative w-[29px] h-[29px] flex items-center justify-center hover:from-red-700 hover:to-red-800 transition-all duration-200`;
+    this.cancelButton.className = `${prefix}-ctrl-icon offline-manager-control mt-0.5 !bg-red-600 border border-red-700 rounded-sm cursor-pointer relative w-[29px] h-[29px] flex items-center justify-center hover:!bg-red-700 transition-all duration-200`;
     this.cancelButton.innerHTML = icons.x({ size: 16, color: 'white' });
     this.cancelButton.title = 'Cancel Selection';
     this.cancelButton.addEventListener('click', () => this.cancelSelection());
@@ -101,7 +101,7 @@ export class RegionControl {
     // Create save button (green checkmark)
     this.saveButton = document.createElement('button');
     this.saveButton.type = 'button';
-    this.saveButton.className = `${prefix}-ctrl-icon offline-manager-control mt-0.5 bg-gradient-to-br from-green-600 to-green-700 border border-green-700 rounded-sm cursor-pointer relative w-[29px] h-[29px] flex items-center justify-center hover:from-green-700 hover:to-green-800 transition-all duration-200`;
+    this.saveButton.className = `${prefix}-ctrl-icon offline-manager-control mt-0.5 !bg-green-600 border border-green-700 rounded-sm cursor-pointer relative w-[29px] h-[29px] flex items-center justify-center hover:!bg-green-700 transition-all duration-200`;
     this.saveButton.innerHTML = icons.check({ size: 16, color: 'white' });
     this.saveButton.title = 'Save Selected Region';
     this.saveButton.addEventListener('click', () => this.handleSaveClick());
