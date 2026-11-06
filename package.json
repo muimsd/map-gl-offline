@@ -135,7 +135,7 @@
     "@types/mapbox__tilebelt": "^1.0.4",
     "@types/mapbox-gl": "^3.5.0",
     "@types/maplibre-gl": "^1.14.0",
-    "@types/node": "^25.9.9",
+    "@types/node": "^26.6.6",
     "@types/sql.js": "^1.4.11",
     "autoprefixer": "^10.6.2",
     "esbuild": "^0.28.2",
