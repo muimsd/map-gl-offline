@@ -11,9 +11,9 @@
     "rootDir": "./src",
     "moduleResolution": "bundler",
     "declaration": true,
-    "baseUrl": "./",
+    "types": ["node"],
     "paths": {
-      "@/*": ["src/*"]
+      "@/*": ["./src/*"]
     }
   },
   "include": ["src/**/*"],

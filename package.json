@@ -160,7 +160,7 @@
     "tsconfig-paths": "^4.2.0",
     "tslib": "^2.9.1",
     "tsx": "^4.23.15",
-    "typescript": "^5.9.3",
+    "typescript": "^6.0.3",
     "typescript-eslint": "^8.72.1",
     "vite": "^8.3.6",
     "vite-tsconfig-paths": "^6.1.1"
