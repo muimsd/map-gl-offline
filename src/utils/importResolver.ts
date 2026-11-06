@@ -294,8 +294,7 @@ function buildConfigLookup(
 
   // Start with schema defaults
   const schema = (importedStyle as Record<string, unknown>).schema as
-    | Record<string, { default?: unknown }>
-    | undefined;
+    Record<string, { default?: unknown }> | undefined;
   if (schema && typeof schema === 'object') {
     for (const [key, entry] of Object.entries(schema)) {
       if (entry && typeof entry === 'object' && 'default' in entry) {
