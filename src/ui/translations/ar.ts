@@ -32,7 +32,7 @@ export const ar = {
 
   // Header - الرأس
   'header.title': 'مدير الخرائط غير المتصلة',
-  'header.subtitle': '{{count}} منطقة • {{size}} إجمالي',
+  'header.subtitle': '{{regions}} • {{size}} إجمالي',
 
   // Actions - الإجراءات
   'actions.addRegion': 'إضافة منطقة',
@@ -52,6 +52,7 @@ export const ar = {
   'regionForm.maxZoom': 'أقصى تكبير',
   'regionForm.buildingsHint':
     'تبدأ مباني Mapbox Standard عند مستوى التكبير 15. اضبط أقصى تكبير على 15 أو أكثر لتضمينها.',
+  'regionForm.zoomRangeError': 'يجب ألا يقل أقصى تكبير عن أدنى تكبير.',
   'regionForm.styleUrl': 'رابط النمط',
   'regionForm.provider': 'مزود النمط',
   'regionForm.providerAuto': 'اكتشاف تلقائي',
@@ -82,7 +83,10 @@ export const ar = {
   'regionList.downloaded': 'تم التحميل',
   'regionList.size': 'الحجم',
   'regionList.tiles': 'البلاطات',
+  'regionList.resources': 'الخطوط والرموز والنماذج',
   'regionList.styleData': 'النمط',
+  'regionList.regionCountOne': 'منطقة واحدة',
+  'regionList.regionCount': '{{count}} منطقة',
   'regionList.totalSize': 'الإجمالي',
   'regionList.styleId': 'معرف النمط',
 
@@ -221,6 +225,7 @@ export const ar = {
 
   // Alerts/Messages - التنبيهات/الرسائل
   'alert.unknownError': 'حدث خطأ غير معروف',
+  'alert.downloadFailed': 'فشل التحميل',
   'alert.downloadNotImplemented': 'ميزة التحميل غير مطبقة في هذه النسخة',
   'alert.mapNotAvailable': 'الخريطة غير متاحة',
   'alert.invalidBounds': 'حدود غير صالحة للمنطقة',

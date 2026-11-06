@@ -14,7 +14,7 @@ import { MBTilesModal } from '@/ui/modals/mbtilesModal';
 import { formatBytes, escapeHtml } from '@/utils/formatting';
 import { themeManager } from '@/ui/ThemeManager';
 import { logger } from '@/utils/logger';
-import { i18n, t } from '@/ui/translations';
+import { i18n, regionCountLabel, t } from '@/ui/translations';
 
 const panelLogger = logger.scope('PanelManager');
 
@@ -149,7 +149,7 @@ export class PanelRenderer extends BaseComponent {
     titleSection.innerHTML = `
       <h2 class="text-xl font-semibold text-gray-900 dark:text-white">${t('header.title')}</h2>
       <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
-        ${t('header.subtitle', { count: regions.length, size: formatBytes(analytics.totalStorageSize) })}
+        ${t('header.subtitle', { regions: regionCountLabel(regions.length), size: formatBytes(analytics.totalStorageSize) })}
       </p>
     `;
 
@@ -268,9 +268,11 @@ export class PanelRenderer extends BaseComponent {
 
     try {
       // Load styles from IndexedDB and get stats
-      const { loadStyles, getStyleStats } = await import('@/services/styleService');
+      const { loadStyles, getStyleStats, getStyleStorageSizes } =
+        await import('@/services/styleService');
       const styles = await loadStyles();
       const statsResult = await getStyleStats();
+      const storageSizes = await getStyleStorageSizes();
       panelLogger.debug('Loaded styles:', styles);
       panelLogger.debug('Style stats:', statsResult);
 
@@ -300,16 +302,15 @@ export class PanelRenderer extends BaseComponent {
         for (const style of styles) {
           const styleRegions = regionsByStyle[style.key] || [];
           const styleJsonSize = styleSizeMap[style.key] || 0;
-          const regionTilesSize = styleRegions.reduce(
-            (sum, r) => sum + ((r as { tileSize?: number }).tileSize || 0),
-            0
-          );
-          const totalSize = styleJsonSize + regionTilesSize;
+          const regionTilesSize = storageSizes[style.key]?.tiles ?? 0;
+          const resourcesSize = storageSizes[style.key]?.resources ?? 0;
+          const totalSize = styleJsonSize + regionTilesSize + resourcesSize;
 
           // Add style item with computed sizes
           const styleWithSizes = {
             ...style,
             styleJsonSize,
+            resourcesSize,
             regionTilesSize,
             totalSize,
           };
@@ -453,6 +454,7 @@ export class PanelRenderer extends BaseComponent {
       key: string;
       style?: { name?: string };
       styleJsonSize: number;
+      resourcesSize: number;
       regionTilesSize: number;
       totalSize: number;
     },
@@ -474,10 +476,10 @@ export class PanelRenderer extends BaseComponent {
                 ${t('regionList.styleId')}: ${escapeHtml(style.key)}
               </p>
               <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">
-                ${regionCount} region${regionCount === 1 ? '' : 's'} • ${t('regionList.totalSize')}: ${formatBytes(style.totalSize)}
+                ${regionCountLabel(regionCount)} • ${t('regionList.totalSize')}: ${formatBytes(style.totalSize)}
               </p>
               <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                ${t('regionList.tiles')}: ${formatBytes(style.regionTilesSize)} • ${t('regionList.styleData')}: ${formatBytes(style.styleJsonSize)}
+                ${t('regionList.tiles')}: ${formatBytes(style.regionTilesSize)} • ${t('regionList.resources')}: ${formatBytes(style.resourcesSize)} • ${t('regionList.styleData')}: ${formatBytes(style.styleJsonSize)}
               </p>
             </div>
             <div class="flex items-center gap-2">
@@ -551,6 +553,7 @@ export class PanelRenderer extends BaseComponent {
       key: string;
       style?: { name?: string };
       styleJsonSize: number;
+      resourcesSize: number;
       regionTilesSize: number;
       totalSize: number;
     },
@@ -571,10 +574,10 @@ export class PanelRenderer extends BaseComponent {
                 ${t('regionList.styleId')}: ${escapeHtml(style.key)}
               </p>
               <p class="text-sm text-blue-600 dark:text-blue-400 mt-1">
-                ${regionCount} region${regionCount === 1 ? '' : 's'} • ${t('regionList.totalSize')}: ${formatBytes(style.totalSize)}
+                ${regionCountLabel(regionCount)} • ${t('regionList.totalSize')}: ${formatBytes(style.totalSize)}
               </p>
               <p class="text-xs text-blue-500 dark:text-blue-500 mt-1">
-                ${t('regionList.tiles')}: ${formatBytes(style.regionTilesSize)} • ${t('regionList.styleData')}: ${formatBytes(style.styleJsonSize)}
+                ${t('regionList.tiles')}: ${formatBytes(style.regionTilesSize)} • ${t('regionList.resources')}: ${formatBytes(style.resourcesSize)} • ${t('regionList.styleData')}: ${formatBytes(style.styleJsonSize)}
               </p>
             </div>
             <div class="flex items-center gap-2">

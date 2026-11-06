@@ -41,7 +41,7 @@ import { themeManager } from './ThemeManager';
 import { idbFetchHandler } from '@/utils/idbFetchHandler';
 import { logger } from '@/utils/logger';
 import { escapeHtml } from '@/utils/formatting';
-import { i18n } from './translations';
+import { i18n, regionCountLabel, t } from './translations';
 import {
   registerOfflineServiceWorker,
   unregisterOfflineServiceWorker,
@@ -221,10 +221,11 @@ export class OfflineManagerControl implements IControl {
       this.mapLib.addProtocol('idb', async (params: { url: string; type?: string }) => {
         const response = await idbFetchHandler(params.url);
         if (!response.ok) {
-          controlLogger.warn(
-            `addProtocol: IDB fetch failed for ${params.url} (type=${params.type})`
-          );
-          throw new Error(`IDB fetch failed: ${response.statusText}`);
+          // MapLibre treats a 404 as "no tile here", which is normal once the map
+          // moves outside a saved region. Any other error gets logged for every tile.
+          throw Object.assign(new Error(`IDB fetch failed (${response.status}): ${params.url}`), {
+            status: response.status,
+          });
         }
         // MapLibre's makeRequest bypasses JSON parsing for protocol handlers,
         // so we must parse JSON responses ourselves (e.g. sprite atlas, TileJSON).
@@ -542,6 +543,9 @@ export class OfflineManagerControl implements IControl {
    */
   private handleDownloadError(regionId: string, error: unknown): void {
     controlLogger.error(`Download error for region ${regionId}:`, error);
+    alert(
+      `${t('alert.downloadFailed')}: ${error instanceof Error ? error.message : t('alert.unknownError')}`
+    );
     // Use the panel's refresh method instead of renderPanel to avoid conflicts
     if (this.panelRenderer) {
       this.panelRenderer.refresh();
@@ -834,7 +838,7 @@ export class OfflineManagerControl implements IControl {
             <button class="w-full p-3 text-left border border-gray-200 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors" data-style-id="${escapeHtml(style.key)}">
               <div class="font-medium text-gray-900 dark:text-white">${escapeHtml(style.style.name || style.key)}</div>
               <div class="text-sm text-gray-500 dark:text-gray-400">
-                ${style.regions?.length || 0} regions •
+                ${regionCountLabel(style.regions?.length || 0)} •
                 ${Object.keys(style.style.sources || {}).length} sources
               </div>
             </button>

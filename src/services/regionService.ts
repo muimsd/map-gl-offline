@@ -10,6 +10,7 @@ import { logger } from '@/utils/logger';
 import { parseTileKey } from '@/utils/tileKey';
 import { clearAllCaches } from '@/utils/idbFetchHandler';
 import { tileBelongsToRegion, type SourceZoomConfig } from '@/utils/tileRange';
+import { validateZoomLevels } from '@/utils/validation';
 import { GLYPH_CONFIG } from '@/utils/constants';
 import { isMapboxProtocol, resolveMapboxUrl } from '@/utils/styleProviderUtils';
 import { loadStyles } from '@/services/styleService';
@@ -324,6 +325,7 @@ export class RegionService {
     if (!region.styleUrl) {
       throw new Error('Region must have a styleUrl');
     }
+    validateZoomLevels(region.minZoom, region.maxZoom);
 
     const {
       onProgress,
@@ -562,6 +564,15 @@ export class RegionService {
         tileOptions?.onProgress?.(progress);
       },
     });
+
+    // A region with no tiles at all isn't worth saving as if it had worked, as happens
+    // with an expired token. Partial failures still save: tileResult reports them.
+    const { failedTiles, downloadedTiles, skippedTiles } = tileResult;
+    if (failedTiles > 0 && downloadedTiles === 0 && skippedTiles === 0) {
+      throw new Error(
+        `None of the ${failedTiles} tiles could be downloaded. Check your connection and access token.`
+      );
+    }
 
     // 6. Metadata — must run last, since addRegion patches style URLs to idb://.
     // Do NOT auto-fill tileExtension from tileResult: that's only the first

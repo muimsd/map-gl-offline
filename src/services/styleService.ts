@@ -755,6 +755,28 @@ export async function deleteStyleById(styleId: string): Promise<void> {
 }
 
 /**
+ * Bytes stored for each style, by style id: its tiles, and its other resources
+ * (glyphs, sprites, models and fonts). Tiles shared by regions count once.
+ */
+export async function getStyleStorageSizes(): Promise<
+  Record<string, { tiles: number; resources: number }>
+> {
+  const db = await dbPromise;
+  const sizes: Record<string, { tiles: number; resources: number }> = {};
+
+  for (const storeName of ['tiles', 'glyphs', 'sprites', 'models', 'fonts'] as const) {
+    for await (const cursor of db.transaction(storeName).store) {
+      const { styleId, size } = cursor.value as { styleId?: string; size?: number };
+      if (!styleId) continue;
+      sizes[styleId] ??= { tiles: 0, resources: 0 };
+      sizes[styleId][storeName === 'tiles' ? 'tiles' : 'resources'] += size ?? 0;
+    }
+  }
+
+  return sizes;
+}
+
+/**
  * Get enhanced style statistics
  */
 export async function getStyleStats(styleId?: string): Promise<EnhancedStyleStats> {
@@ -1185,7 +1207,9 @@ export async function downloadStyleWithProvider(
     const db = await dbPromise;
     const styleId = await resolveStyleKey(
       db,
-      processedStyle.name?.toLowerCase().replace(/\s+/g, '-') || `style-${Date.now()}`,
+      // The key goes into resource keys ("{key}:...") and idb:// URLs, so ":" or "/"
+      // in a style's name would make its data look like another style's or break its URLs.
+      processedStyle.name?.toLowerCase().replace(/[\s:/\\?#%]+/g, '-') || `style-${Date.now()}`,
       styleUrl
     );
 

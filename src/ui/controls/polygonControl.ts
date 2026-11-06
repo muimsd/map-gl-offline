@@ -189,6 +189,45 @@ export class PolygonControl {
   };
 
   /**
+   * The area to select: the middle of what's on screen. On a tilted or rotated map
+   * `getBounds()` reaches far past the view, so insetting it would miss the part
+   * nearest the camera. There, measure from the map's centre to the screen's edges.
+   */
+  private getSelectionBbox(
+    minLng: number,
+    minLat: number,
+    maxLng: number,
+    maxLat: number
+  ): [number, number, number, number] {
+    if (!this.map.getPitch() && !this.map.getBearing()) {
+      const lngInset = (maxLng - minLng) * 0.2;
+      const latInset = (maxLat - minLat) * 0.2;
+      return [minLng + lngInset, minLat + latInset, maxLng - lngInset, maxLat - latInset];
+    }
+
+    const center = this.map.getCenter();
+    const { clientWidth, clientHeight } = this.map.getContainer();
+    const lngScale = Math.cos((center.lat * Math.PI) / 180);
+    const degreesFromCenter = (point: [number, number]): number => {
+      const { lng, lat } = this.map.unproject(point);
+      return Math.hypot((lng - center.lng) * lngScale, lat - center.lat);
+    };
+    const halfSize =
+      0.6 *
+      Math.min(
+        degreesFromCenter([0, clientHeight / 2]),
+        degreesFromCenter([clientWidth / 2, clientHeight])
+      );
+
+    return [
+      center.lng - halfSize / lngScale,
+      center.lat - halfSize,
+      center.lng + halfSize / lngScale,
+      center.lat + halfSize,
+    ];
+  }
+
+  /**
    * Update polygon visualization based on current map bounds
    */
   private updateVisualization(): void {
@@ -198,10 +237,7 @@ export class PolygonControl {
     const [minLng, minLat] = bboxArray[0];
     const [maxLng, maxLat] = bboxArray[1];
 
-    const lngDiff = (maxLng - minLng) * 0.2;
-    const latDiff = (maxLat - minLat) * 0.2;
-
-    const clippedBbox = [minLng + lngDiff, minLat + latDiff, maxLng - lngDiff, maxLat - latDiff];
+    const clippedBbox = this.getSelectionBbox(minLng, minLat, maxLng, maxLat);
 
     // Store current bounds for later use
     this.currentBounds = clippedBbox as [number, number, number, number];

@@ -17,6 +17,7 @@ import { createRegionsList } from '@/ui/components/RegionList';
 import { createDownloadProgressSection } from '@/ui/components/DownloadProgress';
 import { formatBytes } from '@/utils/formatting';
 import { themeManager } from '@/ui/ThemeManager';
+import { regionCountLabel } from '@/ui/translations';
 import { logger } from '@/utils/logger';
 
 const contentLogger = logger.scope('PanelContent');
@@ -96,7 +97,7 @@ export class PanelContentRenderer extends BaseComponent {
     // Header
     const header = createHeader({
       title: 'Offline Map Manager',
-      subtitle: `${regions.length} regions • ${formatBytes(analytics.totalStorageSize)}`,
+      subtitle: `${regionCountLabel(regions.length)} • ${formatBytes(analytics.totalStorageSize)}`,
       onClose: this.contentConfig.onClose,
       onThemeToggle: () => {
         themeManager.cycleTheme();

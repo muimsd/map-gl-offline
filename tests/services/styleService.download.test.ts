@@ -514,6 +514,23 @@ describe('StyleService.downloadStyleWithProvider', () => {
     expect(result.styleId).toBe('explicit-provider');
   });
 
+  it('keeps characters that would break resource keys and URLs out of the style key', async () => {
+    mockFetchWithRetry.mockImplementation(async () =>
+      okJson({
+        version: 8,
+        name: 'OSM: Liberty/Dark',
+        sources: {},
+        layers: [{ id: 'L', type: 'background' }],
+      })
+    );
+    const result = await downloadStyleWithProvider('https://example.com/style.json', {
+      provider: 'maplibre',
+      enableSourceEmbedding: false,
+      forceProvider: true,
+    });
+    expect(result.styleId).toBe('osm-liberty-dark');
+  });
+
   const namedStyle = (name: string, tiles: string) =>
     okJson({
       version: 8,

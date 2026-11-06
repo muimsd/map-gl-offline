@@ -521,10 +521,22 @@ export class RegionFormModal {
     return footer;
   }
 
+  /** Check the zoom fields, showing the browser's message on the first bad one. */
+  private zoomRangeIsValid(): boolean {
+    const { minZoomInput: min, maxZoomInput: max } = this;
+    if (!min || !max) return true;
+
+    const reversed = min.value !== '' && max.value !== '' && Number(min.value) > Number(max.value);
+    max.setCustomValidity(reversed ? t('regionForm.zoomRangeError') : '');
+    return min.reportValidity() && max.reportValidity();
+  }
+
   /**
    * Handle form save
    */
   private async handleSave(): Promise<void> {
+    if (!this.zoomRangeIsValid()) return;
+
     try {
       const selectedSources = this.getSelectedExtraSources();
 

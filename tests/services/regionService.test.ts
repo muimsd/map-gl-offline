@@ -1262,6 +1262,38 @@ describe('RegionService', () => {
       ).rejects.toThrow('Region must have a styleUrl');
     });
 
+    it.each([
+      ['min above max', { minZoom: 15, maxZoom: 14 }],
+      ['NaN', { minZoom: NaN, maxZoom: 14 }],
+    ])('rejects an invalid zoom range and stores nothing: %s', async (_label, zooms) => {
+      await seedStyle();
+      await expect(regionService.downloadRegion({ ...makeRegion(), ...zooms })).rejects.toThrow(
+        /zoom/i
+      );
+      const db = await dbPromise;
+      expect((await db.get('styles', 'test-style-id'))?.regions).toEqual([]);
+    });
+
+    it('does not save a region when every tile failed', async () => {
+      await seedStyle();
+      mockDownloadTiles.mockResolvedValueOnce({
+        totalTiles: 4,
+        downloadedTiles: 0,
+        skippedTiles: 0,
+        failedTiles: 4,
+        totalSize: 0,
+        downloadTime: 0,
+        averageSpeed: 0,
+        errors: [],
+      });
+
+      await expect(regionService.downloadRegion(makeRegion())).rejects.toThrow(
+        'None of the 4 tiles could be downloaded'
+      );
+      const db = await dbPromise;
+      expect((await db.get('styles', 'test-style-id'))?.regions).toEqual([]);
+    });
+
     it('runs sprites → glyphs → tiles → metadata and stores the region', async () => {
       await seedStyle();
       const phases: string[] = [];

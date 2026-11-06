@@ -130,6 +130,10 @@ export const t = (key: TranslationKey, replacements?: Record<string, string | nu
 };
 
 // Re-export i18next for advanced usage
+/** "1 region" or "3 regions", in the current language. */
+export const regionCountLabel = (count: number): string =>
+  count === 1 ? t('regionList.regionCountOne') : t('regionList.regionCount', { count });
+
 export { i18next };
 
 export { en, ar };

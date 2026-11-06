@@ -466,6 +466,7 @@ export async function idbFetchHandler(url: string, init?: RequestInit): Promise<
     idbLogger.error(`Error fetching resource from IDB: ${url}`, error);
   }
 
-  idbLogger.warn(`Resource not found in IDB: ${url}`);
+  // Normal once the map moves outside a saved region, so not worth a warning per tile.
+  idbLogger.debug(`Resource not found in IDB: ${url}`);
   return new Response('Not found in IDB', { status: 404 });
 }

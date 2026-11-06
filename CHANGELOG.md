@@ -11,6 +11,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Failed downloads could look finished.** A region where every tile failed, as with an expired token, was saved as complete. `downloadRegion` now rejects, and the control shows the error. Errors whose URL happened to contain `404` were also counted as sparse tiles and not failures.
+- **`downloadRegion` accepted invalid zoom ranges.** It saved regions with `minZoom` above `maxZoom` or `NaN`. It now rejects them, along with non-integer zooms, and the region form explains the problem.
+- **The selection box missed the nearest part of a tilted map.** On a tilted or rotated map it now sits in the middle of the view.
+- **Style sizes in the panel left out fonts, icons and 3D models**, so a style holding 34 MB could report 1 MB. Shared tiles were also counted once per region.
+- **MapLibre logged an empty error for each missing tile** when the map moved outside a saved region. Missing tiles are now treated as "no tile here".
+- **Style names containing `:` or `/`** could make deleting one style remove another's data, or break the stored style's URLs. Those characters now become `-` in new style keys.
+- **The panel's scrollbar stayed light in dark mode**, and the header said "1 regions".
 - **Terrain elevations were wrong offline.** `/raster/v1/` DEM URLs were rewritten to `/v4/`, which serves a 256px palette PNG: in one tile, elevations were off by 46 m on average and up to 207 m, and the size didn't match the style's `tileSize: 514`. These URLs now stay on `/raster/v1/` with an `sku` session token.
 - **3D models and RTL text needed the network.** Mapbox GL fetches its Draco and meshopt decoders, RTL text and procedural-building modules from api.mapbox.com at render time. `downloadRegion` now caches them, and the Service Worker serves them.
 - **Non-Latin labels were blank.** `text-font` parsing missed fallback fonts in Mapbox Standard's config-built stacks, so only `DIN Pro` was stored, and its empty Arabic and Devanagari ranges were served as matches. Fallback fonts are now downloaded, and handlers skip empty ranges.

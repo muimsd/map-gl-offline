@@ -1,7 +1,11 @@
 /**
  * Deleting a style removes everything stored for it, and nothing else.
  */
-import { deleteStyleById, deleteStyles } from '../../src/services/styleService';
+import {
+  deleteStyleById,
+  deleteStyles,
+  getStyleStorageSizes,
+} from '../../src/services/styleService';
 import { dbPromise } from '../../src/storage/indexedDbManager';
 
 const STORES = ['styles', 'tiles', 'glyphs', 'sprites', 'fonts', 'models'] as const;
@@ -34,6 +38,15 @@ describe('deleting styles', () => {
   beforeEach(async () => {
     const db = await dbPromise;
     for (const store of STORES) await db.clear(store as 'tiles');
+  });
+
+  it('getStyleStorageSizes totals tiles and other resources for each style', async () => {
+    await seed('abc');
+    await seed('abc_def');
+    expect(await getStyleStorageSizes()).toEqual({
+      abc: { tiles: 8, resources: 32 },
+      abc_def: { tiles: 8, resources: 32 },
+    });
   });
 
   it('deleteStyleById removes the style and all its stored data', async () => {
