@@ -67,6 +67,10 @@ maplibregl.setWorkerUrl(maplibreWorkerUrl);
 ```
 :::
 
+:::warning Don't load MapLibre GL and Mapbox GL on the same page
+MapLibre GL 6 marks the browser's built-in `Set` and `Error` in a way that breaks Mapbox GL 3.34's worker messaging. The Mapbox map stays blank apart from its background, and the only sign is a `Cannot read properties of undefined (reading 'omit')` error event on the map. If your app offers both, load only one per page.
+:::
+
 ## Basic Setup with MapLibre GL JS
 
 ### 1. Import the Required Modules

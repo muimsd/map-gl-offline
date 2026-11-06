@@ -1,5 +1,9 @@
-import * as maplibregl from 'maplibre-gl';
-import mapboxgl from 'mapbox-gl';
+// Type-only: each renderer is loaded on demand, because they can't share a page.
+// MapLibre 6 stamps `_classRegistryKey` onto the built-in `Set` and `Error`, and
+// Mapbox GL 3.34's worker messaging then throws reading its own registry, so its
+// map stays blank. The stamp can't be undone, so switching tabs reloads the page.
+import type * as maplibregl from 'maplibre-gl';
+import type mapboxgl from 'mapbox-gl';
 import { OfflineMapManager, OfflineManagerControl, configureProxy } from './index';
 import { StyleSwitcherControl, type StyleItem } from 'map-gl-style-switcher';
 import 'maplibre-gl/dist/maplibre-gl.css';
@@ -25,16 +29,9 @@ const MAPTILER_API_KEY = import.meta.env.VITE_MAPTILER_API_KEY || '';
 const MAPBOX_ACCESS_TOKEN =
   import.meta.env.VITE_MAPBOX_ACCESS_TOKEN || localStorage.getItem('mapbox-access-token') || '';
 
-// MapLibre looks for its worker next to its own module, which isn't there once
-// bundled, so bundle the worker and tell MapLibre where it is.
-maplibregl.setWorkerUrl(maplibreWorkerUrl);
-
-// ---------- RTL text plugin ----------
 // MapLibre only: current Mapbox GL has RTL support built in.
 const RTL_PLUGIN_URL =
   'https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-rtl-text/v0.3.0/mapbox-gl-rtl-text.js';
-
-maplibregl.setRTLTextPlugin(RTL_PLUGIN_URL, true);
 
 // Tab elements
 const tabMaplibre = document.getElementById('tab-maplibre')!;
@@ -44,13 +41,20 @@ const containerMapbox = document.getElementById('map-mapbox')!;
 
 let maplibreMap: maplibregl.Map | null = null;
 let mapboxMap: mapboxgl.Map | null = null;
-let activeTab: 'maplibre' | 'mapbox' = 'maplibre';
+let activeTab: 'maplibre' | 'mapbox' | null = null;
 
 // ---------- Tab switching ----------
 
 function setActiveTab(tab: 'maplibre' | 'mapbox') {
-  activeTab = tab;
   localStorage.setItem('active-map-tab', tab);
+
+  // The other renderer is already loaded on this page: start clean with this one.
+  if (activeTab && activeTab !== tab) {
+    window.location.reload();
+    return;
+  }
+  const isFirstLoad = activeTab === null;
+  activeTab = tab;
 
   const activeClasses = 'bg-blue-600 text-white';
   const inactiveClasses = 'bg-gray-200 text-gray-700 hover:bg-gray-300';
@@ -60,15 +64,15 @@ function setActiveTab(tab: 'maplibre' | 'mapbox') {
     tabMapbox.className = `tab-btn px-4 py-2 rounded-lg font-semibold text-sm transition-colors cursor-pointer ${inactiveClasses}`;
     containerMaplibre.classList.remove('hidden');
     containerMapbox.classList.add('hidden');
-    if (!maplibreMap) initMaplibre();
-    else maplibreMap.resize();
+    if (isFirstLoad) void initMaplibre();
+    else maplibreMap?.resize();
   } else {
     tabMapbox.className = `tab-btn px-4 py-2 rounded-lg font-semibold text-sm transition-colors cursor-pointer ${activeClasses}`;
     tabMaplibre.className = `tab-btn px-4 py-2 rounded-lg font-semibold text-sm transition-colors cursor-pointer ${inactiveClasses}`;
     containerMapbox.classList.remove('hidden');
     containerMaplibre.classList.add('hidden');
-    if (!mapboxMap) initMapbox();
-    else mapboxMap.resize();
+    if (isFirstLoad) void initMapbox();
+    else mapboxMap?.resize();
   }
 }
 
@@ -87,7 +91,14 @@ interface StyleSwitcherControlOptions {
   onAfterStyleChange?: (from: StyleItem, to: StyleItem) => void;
 }
 
-function initMaplibre() {
+async function initMaplibre() {
+  const maplibregl = await import('maplibre-gl');
+
+  // MapLibre looks for its worker next to its own module, which isn't there once
+  // bundled, so bundle the worker and tell MapLibre where it is.
+  maplibregl.setWorkerUrl(maplibreWorkerUrl);
+  maplibregl.setRTLTextPlugin(RTL_PLUGIN_URL, true);
+
   const styles: StyleItem[] = [
     {
       id: 'liberty',
@@ -306,6 +317,7 @@ async function initMapbox() {
     return;
   }
 
+  const { default: mapboxgl } = await import('mapbox-gl');
   mapboxgl.accessToken = MAPBOX_ACCESS_TOKEN;
 
   const map = new mapboxgl.Map({
@@ -326,7 +338,10 @@ async function initMapbox() {
     const status = (err as { status?: number } | undefined)?.status;
     const isAuthFailure =
       status === 401 || /invalid.*access token/i.test(errMsg) || /401/.test(errMsg);
-    if (!isAuthFailure) return;
+    if (!isAuthFailure) {
+      console.error('Mapbox GL error:', err);
+      return;
+    }
 
     console.warn('Mapbox token rejected (runtime); clearing and re-prompting.');
     try {
