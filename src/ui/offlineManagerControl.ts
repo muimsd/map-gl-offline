@@ -514,45 +514,17 @@ export class OfflineManagerControl implements IControl {
   private handleProgressUpdate(
     downloads: Map<string, { percentage: number; phase?: string; currentResource?: string }>
   ): void {
-    // Update the progress badge with the current download percentage
     if (downloads.size > 0) {
-      // Get the first download's info (or average percentage if multiple)
-      const firstDownload = downloads.values().next().value;
-      let displayText = '';
-
-      if (downloads.size === 1 && firstDownload) {
-        // Show phase-specific progress for single download
-        const phase = firstDownload.phase;
-        const percentage = firstDownload.percentage;
-
-        switch (phase) {
-          case 'style':
-            displayText = 'Style';
-            break;
-          case 'sprites':
-            displayText = `Spr ${percentage}%`;
-            break;
-          case 'glyphs':
-            displayText = `Gly ${percentage}%`;
-            break;
-          case 'tiles':
-            displayText = `${percentage}%`;
-            break;
-          default:
-            displayText = `${percentage}%`;
-        }
-      } else {
-        // Multiple downloads - show average
-        let totalPercentage = 0;
-        for (const download of downloads.values()) {
-          totalPercentage += download.percentage;
-        }
-        const avgPercentage = Math.round(totalPercentage / downloads.size);
-        displayText = `${avgPercentage}%`;
+      // The panel has the detail for each phase; the badge only has room for the
+      // overall figure, averaged when several regions are downloading.
+      let totalPercentage = 0;
+      for (const download of downloads.values()) {
+        totalPercentage += download.percentage;
       }
-
-      this.updateProgressBadge(displayText, true);
+      this.updateProgressBadge(`${Math.round(totalPercentage / downloads.size)}%`, true);
     }
+
+    this.panelRenderer?.updateDownloadProgress(downloads);
   }
 
   /**

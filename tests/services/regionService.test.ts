@@ -1349,6 +1349,85 @@ describe('RegionService', () => {
       });
     });
 
+    describe('progress', () => {
+      const record = async (options = {}) => {
+        const updates: Array<{ phase: string; percentage: number; overallPercentage: number; total: number }> = [];
+        await regionService.downloadRegion(makeRegion(), {
+          ...options,
+          onProgress: p => updates.push(p),
+        });
+        return updates;
+      };
+
+      beforeEach(() => {
+        mockDownloadGlyphs.mockImplementation(async (_u, _f, _s, _r, opts) => {
+          opts.onProgress({ completed: 5, total: 10 });
+          opts.onProgress({ completed: 10, total: 10 });
+          return {};
+        });
+        mockDownloadTiles.mockImplementationOnce(async (_r, _s, _i, opts) => {
+          opts.onProgress({ completed: 0, total: 4, percentage: 0, errors: [] });
+          opts.onProgress({ completed: 4, total: 4, percentage: 100, errors: [] });
+          return { totalTiles: 4, downloadedTiles: 4, skippedTiles: 0, failedTiles: 0, totalSize: 0, downloadTime: 0, averageSpeed: 0, errors: [] };
+        });
+      });
+
+      it('moves the overall percentage only forward, from low to exactly 100', async () => {
+        await seedStyle();
+        const overall = (await record()).map(u => u.overallPercentage);
+        for (let i = 1; i < overall.length; i++) {
+          expect(overall[i]).toBeGreaterThanOrEqual(overall[i - 1]);
+        }
+        expect(overall[0]).toBeLessThan(10);
+        expect(overall[overall.length - 1]).toBe(100);
+      });
+
+      it('stays below 100 until the region is saved', async () => {
+        await seedStyle();
+        const updates = await record();
+        for (const update of updates.filter(u => u.phase !== 'metadata')) {
+          expect(update.overallPercentage).toBeLessThan(100);
+        }
+      });
+
+      it('still restarts the per-phase percentage in each phase', async () => {
+        await seedStyle();
+        const updates = await record();
+        const firstTiles = updates.find(u => u.phase === 'tiles');
+        const lastGlyphs = updates.filter(u => u.phase === 'glyphs').pop();
+        expect(lastGlyphs?.percentage).toBe(100);
+        expect(firstTiles?.percentage).toBe(0);
+      });
+
+      it('jumps over skipped phases without going backwards', async () => {
+        await seedStyle();
+        const updates = await record({ skipSprites: true, skipGlyphs: true, skipModels: true });
+        expect(updates.some(u => u.phase === 'glyphs')).toBe(false);
+        expect(updates[updates.length - 1].overallPercentage).toBe(100);
+      });
+
+      it('reports no tile total until the plan exists', async () => {
+        await seedStyle();
+        const tiles = (await record()).filter(u => u.phase === 'tiles');
+        expect(tiles[0].total).toBe(0);
+        expect(tiles[tiles.length - 1].total).toBe(4);
+      });
+
+      it('counts four sprite files for a style without a Mapbox iconset', async () => {
+        await seedStyle();
+        const sprites = (await record()).filter(u => u.phase === 'sprites');
+        expect(sprites[0].total).toBe(4);
+        expect(sprites[sprites.length - 1].percentage).toBe(100);
+      });
+
+      it('counts the iconset for a Mapbox-hosted sprite', async () => {
+        const sprite = 'https://api.mapbox.com/styles/v1/mapbox/standard/abc/sprite';
+        await seedStyle({ originalSpriteUrl: sprite });
+        const sprites = (await record()).filter(u => u.phase === 'sprites');
+        expect(sprites[0].total).toBe(5);
+      });
+    });
+
     it('does not auto-fill tileExtension from tileResult (regression: mixed-format styles)', async () => {
       // tileResult.tileExtension is the first source's extension only; passing
       // it through to addRegion→patchStyleForOffline would override ALL

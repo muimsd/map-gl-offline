@@ -15,9 +15,18 @@ export type DownloadRegionPhase = 'style' | 'sprites' | 'glyphs' | 'models' | 't
  */
 export interface DownloadRegionProgress {
   phase: DownloadRegionPhase;
+  /** Items finished in this phase. */
   completed: number;
+  /** Items in this phase, or 0 while that's still unknown. */
   total: number;
+  /** How far through this phase, 0-100. It starts again in each phase. */
   percentage: number;
+  /**
+   * How far through the whole download, 0-100. Only moves forward and reaches 100
+   * when the region is ready. Phases are weighted, so it's an estimate of the work
+   * done rather than a count of files, and it jumps ahead over skipped phases.
+   */
+  overallPercentage: number;
   message?: string;
 }
 

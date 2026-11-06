@@ -417,6 +417,7 @@ describe('DownloadManager', () => {
           completed: 50,
           total: 100,
           percentage: 50,
+          overallPercentage: 64.5,
           message: 'Downloading tiles',
         });
         opts.onProgress({
@@ -424,13 +425,20 @@ describe('DownloadManager', () => {
           completed: 100,
           total: 100,
           percentage: 100,
+          overallPercentage: 100,
           message: 'Metadata',
         });
         return {};
       });
       (mockOfflineManager as unknown as Record<string, unknown>).downloadRegion = downloadRegion;
 
-      const onProgressUpdate = jest.fn();
+      // The map is reused between calls, so copy what each one saw.
+      const seen: Array<Partial<DownloadProgress>> = [];
+      const onProgressUpdate = jest.fn((downloads: Map<string, DownloadProgress>) => {
+        for (const { percentage, phasePercentage, phase } of downloads.values()) {
+          seen.push({ percentage, phasePercentage, phase });
+        }
+      });
       const options = createOptions({
         offlineManager: mockOfflineManager as unknown as DownloadManagerOptions['offlineManager'],
         onProgressUpdate,
@@ -444,6 +452,8 @@ describe('DownloadManager', () => {
         styleUrl: 'https://example.com/s.json',
       });
       expect(onProgressUpdate).toHaveBeenCalled();
+      expect(seen[0]).toEqual({ percentage: 65, phasePercentage: 50, phase: 'tiles' });
+      expect(seen[1].percentage).toBe(100);
     });
   });
 

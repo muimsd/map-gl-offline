@@ -75,8 +75,10 @@ export interface DownloadProgress {
   completed: number;
   /** Total number of resources in current phase */
   total: number;
-  /** Completion percentage (0-100) */
+  /** How far through the whole download (0-100). Only moves forward. */
   percentage: number;
+  /** How far through the current phase (0-100). */
+  phasePercentage?: number;
   /** Human-readable description of current activity */
   currentResource: string;
   /** Current download phase */
@@ -148,9 +150,11 @@ export class DownloadManager {
     phase: DownloadProgress['phase'],
     completed: number,
     total: number,
-    currentResource: string
+    currentResource: string,
+    overallPercentage: number
   ): void {
-    const percentage = total > 0 ? Math.round((completed / total) * 100) : 0;
+    const percentage = Math.round(overallPercentage);
+    const phasePercentage = total > 0 ? Math.round((completed / total) * 100) : 0;
 
     this.currentDownloads.set(regionId, {
       regionId,
@@ -158,6 +162,7 @@ export class DownloadManager {
       completed,
       total,
       percentage,
+      phasePercentage,
       currentResource,
       phase,
     });
@@ -210,7 +215,8 @@ export class DownloadManager {
             uiPhase,
             progress.completed,
             progress.total,
-            progress.message ?? `Downloading ${progress.phase}`
+            progress.message ?? `Downloading ${progress.phase}`,
+            progress.overallPercentage
           );
         },
         tileOptions: {
