@@ -175,8 +175,10 @@ export const MAPBOX_API = {
 /**
  * Mapbox Standard sub-tilesets that are sparse-by-design across the planet.
  * These only have tiles where the underlying feature (indoor venues, landmark
- * POIs, 3D procedural buildings) actually exists, and return 404 for nearly
- * every other coordinate. The tile downloader pre-skips any source whose tile
+ * POIs, 3D procedural buildings) actually exists, and return 404 for every other
+ * coordinate, though they can be dense inside a major city. Unless the style's
+ * config has switched on a feature that needs one, the tile downloader pre-skips
+ * any source whose tile
  * URL templates reference one of these tileset IDs, so we never issue probe
  * or download requests for them — eliminating the 404 noise in devtools.
  *

@@ -461,22 +461,32 @@ describe('styleProviderUtils', () => {
   });
 
   describe('rewriteMapboxCdnTileUrl', () => {
-    it('should rewrite raster/v1 CDN URLs to v4 API URLs', () => {
+    const SKU = /[?&]sku=101[0-9a-zA-Z]{10}$/;
+
+    it('should add an sku to raster/v1 URLs and keep them on raster/v1', () => {
       const cdnUrl =
         'https://a.tiles.mapbox.com/raster/v1/mapbox.mapbox-terrain-dem-v1/{z}/{x}/{y}.png?access_token=pk.test';
       const result = rewriteMapboxCdnTileUrl(cdnUrl);
-      expect(result).toBe(
-        'https://api.mapbox.com/v4/mapbox.mapbox-terrain-dem-v1/{z}/{x}/{y}.png?access_token=pk.test'
-      );
+      // /v4/ would serve a different, palette-compressed tile: wrong elevations.
+      expect(result.startsWith(`${cdnUrl}&sku=`)).toBe(true);
+      expect(result).toMatch(SKU);
     });
 
-    it('should rewrite subdomain b CDN URLs', () => {
-      const cdnUrl =
-        'https://b.tiles.mapbox.com/raster/v1/mapbox.mapbox-terrain-dem-v1/{z}/{x}/{y}.png?access_token=pk.test';
-      const result = rewriteMapboxCdnTileUrl(cdnUrl);
-      expect(result).toBe(
-        'https://api.mapbox.com/v4/mapbox.mapbox-terrain-dem-v1/{z}/{x}/{y}.png?access_token=pk.test'
-      );
+    it('should handle other CDN subdomains and the API host', () => {
+      for (const host of ['b.tiles.mapbox.com', 'api.mapbox.com']) {
+        const url = `https://${host}/raster/v1/mapbox.mapbox-terrain-dem-v1/{z}/{x}/{y}.png?access_token=pk.test`;
+        expect(rewriteMapboxCdnTileUrl(url)).toMatch(SKU);
+      }
+    });
+
+    it('should reuse one session token', () => {
+      const url = 'https://a.tiles.mapbox.com/raster/v1/t/{z}/{x}/{y}.png';
+      expect(rewriteMapboxCdnTileUrl(url)).toBe(rewriteMapboxCdnTileUrl(url));
+    });
+
+    it('should leave a URL that already has an sku', () => {
+      const url = 'https://a.tiles.mapbox.com/raster/v1/t/{z}/{x}/{y}.png?sku=101abc';
+      expect(rewriteMapboxCdnTileUrl(url)).toBe(url);
     });
 
     it('should not rewrite v4 CDN URLs (they already work)', () => {
@@ -500,7 +510,7 @@ describe('styleProviderUtils', () => {
       const cdnUrl =
         'https://a.tiles.mapbox.com/raster/v1/mapbox.mapbox-terrain-dem-v1/{z}/{x}/{y}.png';
       const result = rewriteMapboxCdnTileUrl(cdnUrl);
-      expect(result).toBe('https://api.mapbox.com/v4/mapbox.mapbox-terrain-dem-v1/{z}/{x}/{y}.png');
+      expect(result.startsWith(`${cdnUrl}?sku=`)).toBe(true);
     });
   });
 });

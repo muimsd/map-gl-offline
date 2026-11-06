@@ -17,6 +17,21 @@
     }
   }
   var DB_NAME = "offline-map-db";
+  var MAPBOX_RUNTIME_ORIGIN = "https://api.mapbox.com";
+  var MAPBOX_RUNTIME_CACHE = "map-gl-offline-runtime-v1";
+  var MAPBOX_RUNTIME_ASSETS = [
+    "/mapbox-gl-js/draco_decoder_gltf_v1.5.6.wasm",
+    "/mapbox-gl-js/meshopt_base_v1.2.wasm",
+    "/mapbox-gl-js/meshopt_simd_v1.2.wasm",
+    "/mapbox-gl-js/rtl_text_v1.0.0.wasm",
+    "/mapbox-gl-js/building-gen/building_gen_v1.2.6.wasm",
+    "/mapbox-gl-js/plugins/mapbox-gl-rtl-text/v0.3.0/mapbox-gl-rtl-text.js"
+  ];
+  function isMapboxRuntimeAsset(url) {
+    if (!url.startsWith(`${MAPBOX_RUNTIME_ORIGIN}/`)) return false;
+    const path = url.slice(MAPBOX_RUNTIME_ORIGIN.length).split(/[?#]/)[0];
+    return MAPBOX_RUNTIME_ASSETS.includes(path);
+  }
   function makeTileKey(x, y, z, styleId, sourceId, ext) {
     return `${styleId}:${sourceId}:${z}:${x}:${y}.${ext}`;
   }
@@ -49,6 +64,33 @@
     const rangePart = pathParts[1] || "0-255.pbf";
     const fontstacks = fontstackPart.split(",").map((f) => f.trim()).filter(Boolean);
     return { fontstacks, rangePart };
+  }
+  function readVarint(bytes, start) {
+    let value = 0;
+    let multiplier = 1;
+    for (let pos = start; pos < bytes.length && pos < start + 5; pos++) {
+      value += (bytes[pos] & 127) * multiplier;
+      if (bytes[pos] < 128) return { value, next: pos + 1 };
+      multiplier *= 128;
+    }
+    return null;
+  }
+  function isEmptyGlyphRange(data) {
+    const bytes = new Uint8Array(data);
+    if (bytes[0] !== 10) return false;
+    const stack = readVarint(bytes, 1);
+    if (!stack) return false;
+    const end = stack.next + stack.value;
+    if (end !== bytes.length) return false;
+    let pos = stack.next;
+    while (pos < end) {
+      const tag = bytes[pos];
+      if ((tag & 7) !== 2 || tag >> 3 === 3) return false;
+      const length = readVarint(bytes, pos + 1);
+      if (!length) return false;
+      pos = length.next + length.value;
+    }
+    return true;
   }
   function glyphCandidateKeys(actualStyleId, downloadId, fontstack, rangePart) {
     const glyphPath = `${fontstack}/${rangePart}`;
@@ -255,18 +297,21 @@
     const styleEntry = await findStyleByRegionId(db, downloadId);
     const styleId = styleEntry?.key ?? downloadId;
     const { fontstacks, rangePart } = parseGlyphPath(safeDecodeURIComponent(rest.join("/")));
+    const glyphResponse = (data) => new Response(data, {
+      status: 200,
+      headers: { "Content-Type": "application/x-protobuf" }
+    });
+    let emptyRange;
     for (const fontstack of fontstacks) {
       for (const key of glyphCandidateKeys(styleId, downloadId, fontstack, rangePart)) {
         const resource = await idbGet(db, "glyphs", key);
         if (resource?.data) {
-          return new Response(resource.data, {
-            status: 200,
-            headers: { "Content-Type": "application/x-protobuf" }
-          });
+          if (!isEmptyGlyphRange(resource.data)) return glyphResponse(resource.data);
+          emptyRange ?? (emptyRange = resource.data);
         }
       }
     }
-    return new Response("Glyph not found", { status: 404 });
+    return glyphResponse(emptyRange ?? new ArrayBuffer(0));
   }
   async function handleSprite(db, downloadId, rest) {
     const styleEntry = await findStyleByRegionId(db, downloadId);
@@ -326,10 +371,19 @@
   }
   self.addEventListener("fetch", (event) => {
     const url = event.request.url;
+    if (isMapboxRuntimeAsset(url)) {
+      event.respondWith(serveRuntimeAsset(event.request));
+      return;
+    }
     const idx = url.indexOf(OFFLINE_PREFIX);
     if (idx === -1) return;
     event.respondWith(handleOfflineRequest(url, idx));
   });
+  async function serveRuntimeAsset(request) {
+    const cache = await caches.open(MAPBOX_RUNTIME_CACHE);
+    const cached = await cache.match(request.url, { ignoreSearch: true });
+    return cached ?? fetch(request);
+  }
   async function handleOfflineRequest(url, prefixIndex) {
     try {
       const path = url.substring(prefixIndex + OFFLINE_PREFIX.length);

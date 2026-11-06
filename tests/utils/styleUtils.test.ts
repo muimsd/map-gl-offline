@@ -556,8 +556,8 @@ describe('styleUtils', () => {
         [[0, 255]]
       );
 
-      // 'zoom' from ['zoom'] is also extracted as a font name (known limitation of expression parsing)
-      expect(urls.length).toBe(3);
+      // Just the two fonts: ['zoom'] is an expression, not a font stack.
+      expect(urls.length).toBe(2);
       expect(urls.some(u => u.includes('Small%20Zoom%20Font'))).toBe(true);
       expect(urls.some(u => u.includes('Large%20Zoom%20Font'))).toBe(true);
     });

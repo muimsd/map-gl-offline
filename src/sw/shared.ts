@@ -35,6 +35,36 @@ export function safeDecodeURIComponent(value: string): string {
 }
 export const DB_NAME = 'offline-map-db';
 
+// ---------------------------------------------------------------------------
+// Mapbox GL runtime assets
+// ---------------------------------------------------------------------------
+
+export const MAPBOX_RUNTIME_ORIGIN = 'https://api.mapbox.com';
+export const MAPBOX_RUNTIME_CACHE = 'map-gl-offline-runtime-v1';
+
+/**
+ * Code Mapbox GL fetches from api.mapbox.com while rendering, so it has to be
+ * available offline too. Paths are versioned, so a renderer that moves to a new
+ * version misses here; `npm run check:mapbox-standard` compares this list with
+ * the installed renderer. They match Mapbox GL 3.34; an app on a version with
+ * other paths gets no offline copy of those files.
+ */
+export const MAPBOX_RUNTIME_ASSETS = [
+  '/mapbox-gl-js/draco_decoder_gltf_v1.5.6.wasm',
+  '/mapbox-gl-js/meshopt_base_v1.2.wasm',
+  '/mapbox-gl-js/meshopt_simd_v1.2.wasm',
+  '/mapbox-gl-js/rtl_text_v1.0.0.wasm',
+  '/mapbox-gl-js/building-gen/building_gen_v1.2.6.wasm',
+  '/mapbox-gl-js/plugins/mapbox-gl-rtl-text/v0.3.0/mapbox-gl-rtl-text.js',
+] as const;
+
+/** True when `url` is one of the runtime assets, ignoring any query string. */
+export function isMapboxRuntimeAsset(url: string): boolean {
+  if (!url.startsWith(`${MAPBOX_RUNTIME_ORIGIN}/`)) return false;
+  const path = url.slice(MAPBOX_RUNTIME_ORIGIN.length).split(/[?#]/)[0];
+  return (MAPBOX_RUNTIME_ASSETS as readonly string[]).includes(path);
+}
+
 /**
  * Minimal stored-style shape used for region-by-style lookup and
  * tilejson source resolution.
@@ -116,9 +146,10 @@ export function findStyleByRegionIdIn(
 // ---------------------------------------------------------------------------
 
 /**
- * Parse `FontA,FontB,FontC/0-255.pbf` into (fontstacks, rangePart). Mapbox
- * requests a comma-joined font-family fallback chain; each glyph is stored
- * individually, so the caller tries each fontstack in order.
+ * Parse `FontA,FontB,FontC/0-255.pbf` into (fontstacks, rangePart). Older Mapbox
+ * GL requests a comma-joined font-family fallback chain (current versions fetch
+ * each font and merge them client-side); each glyph is stored individually, so
+ * the caller tries each fontstack in order.
  */
 export function parseGlyphPath(decodedPath: string): {
   fontstacks: string[];
@@ -132,6 +163,45 @@ export function parseGlyphPath(decodedPath: string): {
     .map(f => f.trim())
     .filter(Boolean);
   return { fontstacks, rangePart };
+}
+
+function readVarint(bytes: Uint8Array, start: number): { value: number; next: number } | null {
+  let value = 0;
+  let multiplier = 1;
+  for (let pos = start; pos < bytes.length && pos < start + 5; pos++) {
+    value += (bytes[pos] & 0x7f) * multiplier;
+    if (bytes[pos] < 0x80) return { value, next: pos + 1 };
+    multiplier *= 128;
+  }
+  return null;
+}
+
+/**
+ * True for a glyph range PBF holding only its font name and range. Servers
+ * return these for blocks a font doesn't cover, e.g. `DIN Pro Medium/1536-1791`.
+ * Serving one in place of a later font in the chain blanks those labels.
+ *
+ * Reads `glyphs { fontstack stacks = 1 { name = 1; range = 2; glyph = 3 } }`.
+ * Anything unexpected counts as not empty, so unknown data is still served.
+ */
+export function isEmptyGlyphRange(data: ArrayBuffer): boolean {
+  const bytes = new Uint8Array(data);
+  if (bytes[0] !== 0x0a) return false;
+  const stack = readVarint(bytes, 1);
+  if (!stack) return false;
+
+  const end = stack.next + stack.value;
+  if (end !== bytes.length) return false;
+
+  let pos = stack.next;
+  while (pos < end) {
+    const tag = bytes[pos];
+    if ((tag & 0x07) !== 2 || tag >> 3 === 3) return false;
+    const length = readVarint(bytes, pos + 1);
+    if (!length) return false;
+    pos = length.next + length.value;
+  }
+  return true;
 }
 
 /**

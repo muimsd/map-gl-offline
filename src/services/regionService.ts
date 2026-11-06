@@ -4,6 +4,8 @@ import {
   normalizeSpriteProperty,
   patchStyleForOffline,
 } from '@/utils/styleUtils';
+import { applyStyleConfig } from '@/utils/styleConfig';
+import { sanitizeIndoorExpressions } from '@/utils/importResolver';
 import { logger } from '@/utils/logger';
 import { parseTileKey } from '@/utils/tileKey';
 import { clearAllCaches } from '@/utils/idbFetchHandler';
@@ -294,6 +296,7 @@ export class RegionService {
       skipModels = false,
       glyphRanges,
       tileOptions,
+      styleConfig,
     } = options;
 
     const emit = (
@@ -351,6 +354,14 @@ export class RegionService {
     const originalSpriteUrl = (styleEntry.originalSpriteUrl ??
       storedStyle.sprite) as BaseStyle['sprite'];
     const originalGlyphsUrl = styleEntry.originalGlyphsUrl ?? storedStyle.glyphs;
+
+    // Applied before the resource phases, which all plan from the style's config.
+    if (styleConfig) {
+      applyStyleConfig(storedStyle, styleConfig);
+    }
+    // A reused style may predate download-time sanitizing.
+    sanitizeIndoorExpressions(storedStyle);
+    await (await dbPromise).put('styles', styleEntry);
 
     // 2. Sprites
     const spriteResults: SpriteDownloadResult[] = [];
@@ -490,6 +501,16 @@ export class RegionService {
       }
     }
 
+    // Renderer code fetched from api.mapbox.com at render time (3D decoders,
+    // RTL text, procedural buildings). Never throws; see cacheMapboxRuntimeAssets.
+    let runtimeAssetsCached: number | undefined;
+    if (
+      /mapbox:\/\/|api\.mapbox\.com/.test(`${region.styleUrl ?? ''} ${originalGlyphsUrl ?? ''}`)
+    ) {
+      const { cacheMapboxRuntimeAssets } = await import('@/services/runtimeAssetService');
+      runtimeAssetsCached = await cacheMapboxRuntimeAssets();
+    }
+
     // 5. Tiles — use the stored (source-embedded) style, which still has HTTP tile URLs
     const { downloadTiles } = await import('@/services/tileService');
     const regionForTiles = { ...region, styleId };
@@ -522,6 +543,7 @@ export class RegionService {
       spriteResults,
       glyphResult,
       modelResult,
+      runtimeAssetsCached,
       tileResult,
     };
   }

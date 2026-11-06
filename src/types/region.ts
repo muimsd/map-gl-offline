@@ -51,6 +51,15 @@ export interface DownloadRegionOptions {
   glyphRanges?: string[];
   /** Extra options forwarded to the tile download step. */
   tileOptions?: TileDownloadOptions;
+  /**
+   * Config values for a style with a `schema`, such as Mapbox Standard:
+   * `{ showLandmarkIcons: true, show3dFacades: true }`. They're saved as the
+   * stored style's defaults, so they decide both what gets downloaded and what
+   * renders offline. They apply to the whole style, not just this region, and
+   * features a region enabled earlier keep their tiles. Floor selection isn't
+   * available offline, so `showIndoor` adds little.
+   */
+  styleConfig?: Record<string, unknown>;
 }
 
 /**
@@ -63,6 +72,8 @@ export interface DownloadRegionResult {
   spriteResults: SpriteDownloadResult[];
   glyphResult?: GlyphDownloadResult;
   modelResult?: ModelDownloadResult;
+  /** Mapbox GL runtime assets in the offline cache. Undefined for non-Mapbox styles. */
+  runtimeAssetsCached?: number;
   tileResult: TileDownloadResult;
 }
 

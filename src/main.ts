@@ -25,11 +25,11 @@ const MAPBOX_ACCESS_TOKEN =
   import.meta.env.VITE_MAPBOX_ACCESS_TOKEN || localStorage.getItem('mapbox-access-token') || '';
 
 // ---------- RTL text plugin ----------
+// MapLibre only: current Mapbox GL has RTL support built in.
 const RTL_PLUGIN_URL =
   'https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-rtl-text/v0.3.0/mapbox-gl-rtl-text.js';
 
 maplibregl.setRTLTextPlugin(RTL_PLUGIN_URL, true);
-mapboxgl.setRTLTextPlugin(RTL_PLUGIN_URL, null, true);
 
 // Tab elements
 const tabMaplibre = document.getElementById('tab-maplibre')!;

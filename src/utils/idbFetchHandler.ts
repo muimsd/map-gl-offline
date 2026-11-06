@@ -10,6 +10,7 @@ import {
   buildOfflineTileJson,
   findStyleByRegionIdIn,
   glyphCandidateKeys,
+  isEmptyGlyphRange,
   matchTileJsonSource,
   modelCandidateKeys,
   parseGlyphPath,
@@ -335,22 +336,32 @@ export async function idbFetchHandler(url: string, init?: RequestInit): Promise<
           `Trying ${fontstacks.length} fonts in fallback order: ${fontstacks.join(', ')}`
         );
 
+        const glyphResponse = (data: ArrayBuffer) =>
+          new Response(data, {
+            status: 200,
+            headers: { 'Content-Type': 'application/x-protobuf' },
+          });
+
+        let emptyRange: ArrayBuffer | undefined;
         for (const fontstack of fontstacks) {
           const candidateKeys = glyphCandidateKeys(actualStyleId, downloadId, fontstack, rangePart);
           for (const candidateKey of candidateKeys) {
             const resource = await db.get('glyphs', candidateKey);
             if (resource?.data) {
-              idbLogger.debug(`Found glyph using key: ${candidateKey} (font: ${fontstack})`);
-              return new Response(resource.data, {
-                status: 200,
-                headers: { 'Content-Type': 'application/x-protobuf' },
-              });
+              if (!isEmptyGlyphRange(resource.data)) {
+                idbLogger.debug(`Found glyph using key: ${candidateKey} (font: ${fontstack})`);
+                return glyphResponse(resource.data);
+              }
+              emptyRange ??= resource.data;
             }
           }
         }
-
-        idbLogger.warn(`Glyph not found for any font in: ${fontstacks.join(', ')}`);
-        break;
+        // Never a 404: Mapbox GL fails a tile's whole glyph request if one range
+        // errors, so a range outside the downloaded set would blank all its labels.
+        if (!emptyRange) {
+          idbLogger.warn(`Glyph not found for any font in: ${fontstacks.join(', ')}`);
+        }
+        return glyphResponse(emptyRange ?? new ArrayBuffer(0));
       }
       case 'sprite': {
         idbLogger.debug(`Looking for sprite with key: ${key}`);

@@ -189,10 +189,28 @@ describe('IDBFetchHandler', () => {
     });
 
     describe('glyph requests', () => {
-      it('should return 404 for non-existent glyph', async () => {
+      it('should serve an empty range, not a 404, for a glyph range it lacks', async () => {
         const response = await idbFetchHandler('idb://style-1/glyph/Arial/0-255.pbf');
 
-        expect(response.status).toBe(404);
+        expect(response.status).toBe(200);
+        expect((await response.arrayBuffer()).byteLength).toBe(0);
+      });
+
+      it('should pass over an empty range for a later font that has glyphs', async () => {
+        const name = Array.from(Buffer.from('DIN'));
+        const range = Array.from(Buffer.from('1536-1791'));
+        const stack = [0x0a, name.length, ...name, 0x12, range.length, ...range];
+        const empty = new Uint8Array([0x0a, stack.length, ...stack]).buffer;
+
+        const db = await dbPromise;
+        await db.put('glyphs', { key: 'style-1::DIN/1536-1791.pbf', data: empty } as never);
+        await db.put('glyphs', {
+          key: 'style-1::Arial/1536-1791.pbf',
+          data: new ArrayBuffer(50),
+        } as never);
+
+        const response = await idbFetchHandler('idb://style-1/glyph/DIN,Arial/1536-1791.pbf');
+        expect((await response.arrayBuffer()).byteLength).toBe(50);
       });
 
       it('should serve stored glyph', async () => {
