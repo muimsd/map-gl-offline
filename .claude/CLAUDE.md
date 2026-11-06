@@ -182,7 +182,9 @@ npm run dev           # Start Vite dev server
 | `src/types/database.ts` | IndexedDB schema types |
 | `src/services/cleanupService.ts` | Storage size calculations |
 | `src/utils/tileKey.ts` | Tile key generation (`createTileKey`, `parseTileKey`) |
-| `src/utils/formatting.ts` | XSS prevention (`escapeHtml`) |### One renderer per page
+| `src/utils/formatting.ts` | XSS prevention (`escapeHtml`) |
+
+### One renderer per page
 MapLibre GL 6 stamps a non-configurable `_classRegistryKey` onto the built-in `Set` and `Error`. Mapbox GL 3.34 reads that property when serializing worker messages, throws on `.omit`, and its map stays blank. So `src/main.ts` must not statically import either renderer: each tab imports its own on demand, and switching tabs reloads the page.
 
 ## Commit Conventions
