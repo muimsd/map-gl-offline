@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Expression operands could be read as fonts**, such as `zoom` in `["step", ["zoom"], ...]`.
 - **Programmatic downloads kept `is-active-floor` expressions on the now-flat Mapbox Standard style**, which fail validation on older Mapbox GL.
 
+- **3D buildings could be missing offline.** Mapbox GL renders from a tileset's meshopt `variants`, but downloads used the base tileset, which can be empty where the variant has data: central Dubai has no base tile, so buildings like the Burj Khalifa fell back to plain blocks. Downloads now use the same variant as the renderer. Tile URLs are saved with the style, so **delete an already-stored Mapbox Standard style and download it again** to pick this up.
 - **The demo's Mapbox tab was blank on Mapbox GL 3.34.** MapLibre GL 6 stamps `_classRegistryKey` onto the built-in `Set` and `Error`, which breaks Mapbox GL's worker messaging on the same page. The demo now loads one renderer per page, and switching tabs reloads it. Apps loading both renderers need to do the same.
 
 ### Added

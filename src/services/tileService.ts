@@ -13,6 +13,7 @@ import {
   isMapboxProtocol,
   resolveMapboxUrl,
   rewriteMapboxCdnTileUrl,
+  selectTileJsonVariant,
 } from '@/utils/styleProviderUtils';
 import { MAPBOX_STANDARD_SPARSE_TILESETS } from '@/utils/constants';
 import { classifySources } from '@/utils/styleConfig';
@@ -908,7 +909,9 @@ export class TileService {
               tileLogger.debug(`TileJSON fetch response type: ${response.type}`);
 
               if (response.type === 'json') {
-                const jsonData = response.data as Record<string, unknown> | null;
+                const jsonData = response.data
+                  ? selectTileJsonVariant(response.data as Record<string, unknown>)
+                  : null;
                 tileLogger.debug(`TileJSON data keys: ${Object.keys(jsonData || {}).join(', ')}`);
 
                 if (

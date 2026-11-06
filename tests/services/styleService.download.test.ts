@@ -719,3 +719,41 @@ describe('StyleService.downloadStyleWithProvider', () => {
     expect(result.sourcesEmbedded).toBe(0);
   });
 });
+
+describe('downloadStyleWithProvider TileJSON embedding', () => {
+  beforeEach(async () => {
+    mockFetchWithRetry.mockReset();
+    mockFetchResourceWithRetry.mockReset();
+    await (await dbPromise).clear('styles');
+  });
+
+  it('embeds the tile variant the renderer uses, not the base tileset', async () => {
+    const style = {
+      version: 8,
+      id: 'variants-style',
+      sources: { buildings: { type: 'batched-model', url: 'https://example.com/buildings.json' } },
+      layers: [{ id: 'l', type: 'model', source: 'buildings' }],
+    };
+    const tileJson = {
+      tiles: ['https://a.tiles.mapbox.com/3dtiles/v1/b/{z}/{x}/{y}.glb?access_token=pk.t'],
+      variants: [
+        { capabilities: ['meshopt-v2+lod'], tiles: ['mapbox://3dtiles/b-lod/{z}/{x}/{y}.glb'] },
+      ],
+    };
+    mockFetchWithRetry.mockImplementation(async (url: string) =>
+      okJson(url.includes('buildings.json') ? tileJson : style)
+    );
+
+    const result = await downloadStyleWithProvider('https://example.com/variants-style.json', {
+      provider: 'maplibre',
+      enableSourceEmbedding: true,
+    });
+
+    expect(result.success).toBe(true);
+    const saved = await (await dbPromise).get('styles', result.styleId);
+    const source = saved?.style.sources?.buildings as { tiles?: string[] };
+    expect(source.tiles?.[0]).toBe(
+      'https://api.mapbox.com/3dtiles/v1/b-lod/{z}/{x}/{y}.glb?access_token=pk.t'
+    );
+  });
+});
