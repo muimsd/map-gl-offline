@@ -27,6 +27,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Dependencies upgraded to their latest versions**, including majors: `i18next` 26, TypeScript 6, Babel 8, `puppeteer` 25 and `@types/node` 26. TypeScript stays on 6 because `ts-jest` and `typescript-eslint` don't support 7 yet. The stub `@types/maplibre-gl` is gone, since `maplibre-gl` ships its own types.
+- **Default `sql.js` wasm URL** now matches the installed 1.15.2.
+- **`test:ci` passes `--no-watchman`.** A crashing Watchman made Jest exit 0 without running any tests.
 - Known-sparse Mapbox tilesets now download, without probing, when a switched-on feature needs them.
 - `mapbox-gl` dev dependency is now 3.34. The demo no longer calls `mapboxgl.setRTLTextPlugin`, which 3.34 removed.
 

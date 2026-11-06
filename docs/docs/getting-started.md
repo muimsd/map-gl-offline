@@ -56,6 +56,17 @@ npm install maplibre-gl
 npm install mapbox-gl
 ```
 
+:::note Bundlers and MapLibre GL 6
+Current MapLibre GL looks for its worker file next to its own module, which a bundler moves. If you see `Worker failed to load`, bundle the worker and set its URL. With Vite:
+
+```typescript
+// vite.config.ts needs: worker: { format: 'es' }
+import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
+
+maplibregl.setWorkerUrl(maplibreWorkerUrl);
+```
+:::
+
 ## Basic Setup with MapLibre GL JS
 
 ### 1. Import the Required Modules

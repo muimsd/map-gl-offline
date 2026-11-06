@@ -190,6 +190,13 @@ npm run dev           # Start Vite dev server
 - Do NOT include Claude Code watermark in commits
 - Keep commits focused and atomic
 
+## Upgrading dependencies
+
+- Confirm the test count, not just the exit code. Jest once printed a Watchman crash and exited 0 without running a test, so `test:ci` passes `--no-watchman`.
+- Unit tests don't cover the demo's runtime. After bumping `maplibre-gl`, `mapbox-gl` or `vite`, build the demo and load it in a browser. That's how the `setWorkerUrl` need in `src/main.ts` was found.
+- `DEFAULT_WASM_URL` in `sqlJsLoader.ts` pins a `sql.js` version; keep it equal to the installed one.
+- TypeScript 7 is blocked until `ts-jest` and `typescript-eslint` support it.
+
 ## Things to Avoid
 
 1. Writing to the deprecated `regions` store

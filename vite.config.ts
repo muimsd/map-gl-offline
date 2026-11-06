@@ -9,6 +9,9 @@ export default defineConfig({
       'top-level-await': true,
     },
   },
+  worker: {
+    format: 'es',
+  },
   optimizeDeps: {
     esbuildOptions: {
       target: 'esnext',

@@ -3,6 +3,7 @@ import mapboxgl from 'mapbox-gl';
 import { OfflineMapManager, OfflineManagerControl, configureProxy } from './index';
 import { StyleSwitcherControl, type StyleItem } from 'map-gl-style-switcher';
 import 'maplibre-gl/dist/maplibre-gl.css';
+import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import 'map-gl-style-switcher/dist/map-gl-style-switcher.css';
 
@@ -23,6 +24,10 @@ configureProxy({
 const MAPTILER_API_KEY = import.meta.env.VITE_MAPTILER_API_KEY || '';
 const MAPBOX_ACCESS_TOKEN =
   import.meta.env.VITE_MAPBOX_ACCESS_TOKEN || localStorage.getItem('mapbox-access-token') || '';
+
+// MapLibre looks for its worker next to its own module, which isn't there once
+// bundled, so bundle the worker and tell MapLibre where it is.
+maplibregl.setWorkerUrl(maplibreWorkerUrl);
 
 // ---------- RTL text plugin ----------
 // MapLibre only: current Mapbox GL has RTL support built in.
