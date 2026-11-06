@@ -100,8 +100,7 @@ export class Modal extends BaseComponent {
 
     if (this.config.title) {
       const title = document.createElement('h2');
-      title.className =
-        'text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-gray-900 to-gray-600 dark:from-white dark:to-gray-300';
+      title.className = 'text-xl font-semibold text-gray-900 dark:text-white';
       title.textContent = this.config.title;
       titleSection.appendChild(title);
     }

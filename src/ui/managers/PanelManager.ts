@@ -431,7 +431,7 @@ export class PanelRenderer extends BaseComponent {
             <div class="text-xs text-slate-500 dark:text-slate-400 mt-1">
               ${region.bounds ? `<span class="font-medium">SW:</span> ${region.bounds[0][1].toFixed(4)}, ${region.bounds[0][0].toFixed(4)} <span class="mx-1">→</span> <span class="font-medium">NE:</span> ${region.bounds[1][1].toFixed(4)}, ${region.bounds[1][0].toFixed(4)}` : t('panel.noBounds')}
             </div>
-            <div class="flex items-center gap-4 text-xs text-slate-400 dark:text-slate-500 mt-2">
+            <div class="flex items-center gap-4 text-xs text-slate-500 dark:text-slate-400 mt-2">
               <span>${t('regionList.zoom')}: ${region.minZoom}-${region.maxZoom}</span>
               ${region.downloadedAt ? `<span>${t('regionList.downloaded')}: ${new Date(region.downloadedAt).toLocaleDateString()}</span>` : ''}
               ${region.size ? `<span>${t('regionList.size')}: ${formatBytes(region.size)}</span>` : ''}
@@ -473,7 +473,7 @@ export class PanelRenderer extends BaseComponent {
               <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">
                 ${regionCount} region${regionCount === 1 ? '' : 's'} • ${t('regionList.totalSize')}: ${formatBytes(style.totalSize)}
               </p>
-              <p class="text-xs text-slate-400 dark:text-slate-500 mt-1">
+              <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">
                 ${t('regionList.tiles')}: ${formatBytes(style.regionTilesSize)} • ${t('regionList.styleData')}: ${formatBytes(style.styleJsonSize)}
               </p>
             </div>
@@ -512,7 +512,7 @@ export class PanelRenderer extends BaseComponent {
             <div class="text-xs text-slate-500 dark:text-slate-400 mt-1">
               ${region.bounds ? `<span class="font-medium">SW:</span> ${region.bounds[0][1].toFixed(4)}, ${region.bounds[0][0].toFixed(4)} <span class="mx-1">→</span> <span class="font-medium">NE:</span> ${region.bounds[1][1].toFixed(4)}, ${region.bounds[1][0].toFixed(4)}` : t('panel.noBounds')}
             </div>
-            <div class="flex items-center gap-4 text-xs text-slate-400 dark:text-slate-500 mt-2">
+            <div class="flex items-center gap-4 text-xs text-slate-500 dark:text-slate-400 mt-2">
               <span>${t('regionList.zoom')}: ${region.minZoom}-${region.maxZoom}</span>
               ${region.downloadedAt ? `<span>${t('regionList.downloaded')}: ${new Date(region.downloadedAt).toLocaleDateString()}</span>` : ''}
               ${region.tileSize ? `<span>${t('regionList.tiles')}: ${formatBytes(region.tileSize)}</span>` : ''}

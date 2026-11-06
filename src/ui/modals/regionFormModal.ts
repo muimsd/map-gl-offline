@@ -127,13 +127,13 @@ export class RegionFormModal {
       'grid grid-cols-2 gap-4 p-4 rounded-xl glass-input border border-gray-100/50 dark:border-gray-700/50 bg-gray-50/50 dark:bg-gray-800/50';
     infoGroup.innerHTML = `
       <div class="flex flex-col justify-center">
-        <strong class="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1">${t('regionForm.area')}</strong>
-        <div class="text-xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-gray-900 to-gray-700 dark:from-white dark:to-gray-300">
+        <strong class="text-sm font-semibold text-gray-500 dark:text-gray-400 mb-1">${t('regionForm.area')}</strong>
+        <div class="text-xl font-semibold text-gray-900 dark:text-white">
           ${area.toLocaleString()} <span class="text-sm font-medium text-gray-500">km²</span>
         </div>
       </div>
       <div>
-        <strong class="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1">${t('regionForm.bounds')}</strong>
+        <strong class="text-sm font-semibold text-gray-500 dark:text-gray-400 mb-1">${t('regionForm.bounds')}</strong>
         <div class="text-xs font-mono text-gray-600 dark:text-gray-300 leading-relaxed bg-white/50 dark:bg-black/20 p-2 rounded-lg">
           ${west.toFixed(4)}, ${south.toFixed(4)}<br>
           ${east.toFixed(4)}, ${north.toFixed(4)}

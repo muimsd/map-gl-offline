@@ -30,6 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Redesigned UI.** The offline manager's panels, forms and controls move from blue gradients and glass to a flat palette drawn from printed survey maps: spruce, map-paper mist and revision magenta. Class names are unchanged, so integrations keep working, but anything overriding the old colours may need adjusting. The stylesheet no longer sets `color` and `background-color` on the host page's `:root`. The demo is rebuilt as a full-screen map sheet with live coordinate ticks.
 - **Dependencies upgraded to their latest versions**, including majors: `i18next` 26, TypeScript 6, Babel 8, `puppeteer` 25 and `@types/node` 26. TypeScript stays on 6 because `ts-jest` and `typescript-eslint` don't support 7 yet. The stub `@types/maplibre-gl` is gone, since `maplibre-gl` ships its own types.
 - **Default `sql.js` wasm URL** now matches the installed 1.15.2.
 - **`test:ci` passes `--no-watchman`.** A crashing Watchman made Jest exit 0 without running any tests.

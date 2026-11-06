@@ -3,28 +3,41 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Map Tile Offline</title>
+    <title>map-gl-offline demo</title>
+    <meta
+      name="description"
+      content="Download a map region, then use it with no connection. Live demo of map-gl-offline for MapLibre GL and Mapbox GL."
+    />
+    <meta name="theme-color" content="#12332d" />
     <link rel="stylesheet" href="./src/styles/style.css" />
+    <link rel="stylesheet" href="./src/styles/demo.css" />
   </head>
-  <body class="m-0 p-0 font-sans w-full h-full text-center bg-gray-50">
-    <div id="app" class="container mx-auto p-4">
-      <h1 class="text-2xl font-bold text-gray-900 mb-4">Map Tile Offline Dev</h1>
-      <div class="flex gap-2 mb-4">
-        <button
-          id="tab-maplibre"
-          class="tab-btn px-4 py-2 rounded-lg font-semibold text-sm transition-colors bg-blue-600 text-white cursor-pointer"
-        >
-          MapLibre GL
-        </button>
-        <button
-          id="tab-mapbox"
-          class="tab-btn px-4 py-2 rounded-lg font-semibold text-sm transition-colors bg-gray-200 text-gray-700 hover:bg-gray-300 cursor-pointer"
-        >
-          Mapbox GL
-        </button>
-      </div>
-      <div id="map-maplibre" class="w-full h-[85vh] border border-gray-300 rounded-lg"></div>
-      <div id="map-mapbox" class="w-full h-[85vh] border border-gray-300 rounded-lg hidden"></div>
+  <body>
+    <div class="sheet" id="app">
+      <header class="sheet-head">
+        <h1 class="sheet-title">map-gl-offline</h1>
+        <div class="renderer-switch" role="group" aria-label="Map renderer">
+          <button id="tab-maplibre" type="button" aria-pressed="true">MapLibre GL</button>
+          <button id="tab-mapbox" type="button" aria-pressed="false">Mapbox GL</button>
+        </div>
+        <nav class="sheet-links" aria-label="Project links">
+          <a href="https://map-gl-offline.netlify.app/">Docs</a>
+          <a href="https://github.com/muimsd/map-gl-offline">GitHub</a>
+        </nav>
+      </header>
+
+      <div class="collar collar-lon" id="collar-lon" data-axis="lon" aria-hidden="true"></div>
+      <div class="collar collar-lat" id="collar-lat" data-axis="lat" aria-hidden="true"></div>
+
+      <main class="neatline">
+        <div id="map-maplibre" class="sheet-map"></div>
+        <div id="map-mapbox" class="sheet-map hidden"></div>
+      </main>
+
+      <footer class="sheet-foot">
+        <span id="readout-position"></span>
+        <span id="readout-zoom"></span>
+      </footer>
     </div>
     <script type="module" src="./src/main.ts"></script>
   </body>

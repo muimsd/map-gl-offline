@@ -56,7 +56,7 @@ export function createHeader(props: HeaderProps): HTMLDivElement {
 
   const header = document.createElement('div');
   header.className =
-    'bg-gradient-to-br from-blue-600 to-blue-800 text-white p-4 flex justify-between relative overflow-hidden min-h-[30px] pl-6';
+    'bg-gray-900 dark:border-b dark:border-gray-700 text-white p-4 flex justify-between relative overflow-hidden min-h-[30px] pl-6';
 
   const titleSection = document.createElement('div');
   titleSection.innerHTML = `

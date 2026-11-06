@@ -1,0 +1,303 @@
+/* The demo page only. The library's shipped styles live in style.css. */
+
+:root {
+  --sheet-ink: #12332d;
+  --sheet-ink-raised: #1e4a41;
+  --sheet-on-ink: #e6efe8;
+  --sheet-on-ink-muted: #a9bdb2;
+  --sheet-magenta: #e77cbb;
+  --collar-size: 1.625rem;
+  --collar-lat-size: 4.75rem;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+  background: var(--sheet-ink);
+}
+
+/* The map is the page, framed by a collar like a printed map sheet. */
+.sheet {
+  display: grid;
+  grid-template-columns: var(--collar-lat-size) minmax(0, 1fr);
+  grid-template-rows: auto var(--collar-size) minmax(0, 1fr) auto;
+  grid-template-areas:
+    'head head'
+    '. lon'
+    'lat map'
+    'foot foot';
+  height: 100dvh;
+  padding-inline-end: 0.75rem;
+  color: var(--sheet-on-ink);
+  font-family: var(--font-sans);
+}
+
+.sheet-head {
+  grid-area: head;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1.5rem;
+  padding: 0.625rem 0 0.625rem 0.875rem;
+}
+
+.sheet-title {
+  margin: 0;
+  font-size: 1.1875rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.renderer-switch {
+  display: flex;
+  gap: 0.125rem;
+}
+
+.renderer-switch button {
+  padding: 0.3125rem 0.75rem;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--sheet-on-ink-muted);
+  font: inherit;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.renderer-switch button:hover {
+  background: var(--sheet-ink-raised);
+  color: var(--sheet-on-ink);
+}
+
+.renderer-switch button[aria-pressed='true'] {
+  background: var(--sheet-on-ink);
+  color: var(--sheet-ink);
+}
+
+.sheet-links {
+  display: flex;
+  gap: 1rem;
+  margin-inline-start: auto;
+}
+
+.sheet-links a {
+  color: var(--sheet-on-ink-muted);
+  font-size: 0.9375rem;
+  text-underline-offset: 0.2em;
+}
+
+.sheet-links a:hover {
+  color: var(--sheet-on-ink);
+}
+
+.sheet :focus-visible {
+  outline: 2px solid var(--sheet-magenta);
+  outline-offset: 2px;
+}
+
+/* Ticks and their labels, in the collar around the neatline. */
+.collar {
+  position: relative;
+  overflow: hidden;
+  color: var(--sheet-on-ink-muted);
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.collar-lon {
+  grid-area: lon;
+}
+
+.collar-lat {
+  grid-area: lat;
+}
+
+.tick {
+  position: absolute;
+  white-space: nowrap;
+}
+
+.collar-lon .tick {
+  bottom: 0;
+  padding-bottom: 0.4375rem;
+  transform: translateX(-50%);
+}
+
+.collar-lon .tick::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  width: 1px;
+  height: 0.3125rem;
+  background: currentColor;
+}
+
+.collar-lat .tick {
+  right: 0;
+  padding-right: 0.4375rem;
+  transform: translateY(-50%);
+}
+
+.collar-lat .tick::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  top: 50%;
+  width: 0.3125rem;
+  height: 1px;
+  background: currentColor;
+}
+
+.neatline {
+  grid-area: map;
+  position: relative;
+  min-height: 0;
+  outline: 1px solid var(--sheet-on-ink-muted);
+}
+
+/* Not absolutely positioned: the demo sets position: relative on the map container. */
+.sheet-map {
+  width: 100%;
+  height: 100%;
+}
+
+.sheet-foot {
+  grid-area: foot;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1.25rem;
+  padding: 0.4375rem 0 0.5rem var(--collar-lat-size);
+  color: var(--sheet-on-ink-muted);
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Map controls take the same flat, tight treatment as the rest of the sheet. */
+.sheet .maplibregl-ctrl-group,
+.sheet .mapboxgl-ctrl-group {
+  border-radius: 4px;
+  box-shadow: 0 0 0 1px rgb(18 51 45 / 0.28);
+}
+
+.demo-control {
+  padding: 0.375rem 0.5rem;
+  background: #fff;
+  color: var(--color-gray-800);
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.demo-control select {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.demo-control-danger {
+  color: var(--color-red-700);
+}
+
+.demo-control-danger:hover {
+  background: var(--color-red-50);
+}
+
+/* Shown in place of the map until there's a Mapbox token. */
+.token-prompt {
+  display: grid;
+  place-items: center;
+  height: 100%;
+  padding: 1rem;
+  background: var(--color-gray-50);
+  color: var(--color-gray-800);
+  font-family: var(--font-sans);
+}
+
+.token-card {
+  width: min(100%, 28rem);
+}
+
+.token-card h2 {
+  margin: 0 0 0.5rem;
+  color: var(--color-gray-900);
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+.token-card p {
+  margin: 0 0 1.25rem;
+  line-height: 1.5;
+}
+
+.token-card a {
+  color: var(--color-blue-700);
+  text-decoration: underline;
+}
+
+.token-card form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.token-card input {
+  width: 100%;
+  padding: 0.625rem 0.75rem;
+  border: 1px solid var(--color-gray-400);
+  border-radius: 4px;
+  background: #fff;
+  color: var(--color-gray-900);
+  font: inherit;
+}
+
+.token-card button {
+  padding: 0.625rem 0.75rem;
+  border: 0;
+  border-radius: 4px;
+  background: var(--color-blue-600);
+  color: #fff;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.token-card button:hover {
+  background: var(--color-blue-700);
+}
+
+.token-card :focus-visible {
+  outline: 2px solid var(--color-blue-600);
+  outline-offset: 2px;
+}
+
+@media (max-width: 40rem) {
+  .sheet {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      'head'
+      'lon'
+      'map'
+      'foot';
+    padding-inline: 0.5rem;
+  }
+
+  .collar-lat,
+  .sheet .maplibregl-ctrl-scale,
+  .sheet .mapboxgl-ctrl-scale {
+    display: none;
+  }
+
+  .sheet-head {
+    padding-inline-start: 0;
+  }
+
+  .sheet-foot {
+    padding-inline-start: 0;
+  }
+}

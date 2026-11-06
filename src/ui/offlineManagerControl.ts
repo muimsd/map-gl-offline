@@ -733,7 +733,7 @@ export class OfflineManagerControl implements IControl {
         type: 'line',
         source: sourceId,
         paint: {
-          'line-color': '#3B82F6', // Blue color
+          'line-color': '#A8116F', // Revision magenta, the UI's accent
           'line-width': 3,
           'line-opacity': 0.8,
         },
