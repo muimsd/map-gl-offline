@@ -10,59 +10,28 @@ type FeatureItem = {
 
 const FeatureList: FeatureItem[] = [
   {
-    title: 'Complete Offline Support',
-    description: (
-      <>
-        Download and store entire map regions including vector/raster tiles,
-        fonts, glyphs, sprites, and styles. Works seamlessly when offline.
-      </>
-    ),
+    title: "Everything the map needs",
+    description: <>Regions include the style, tiles, sprites, fonts and 3D models, so the map draws the same with no connection.</>,
   },
   {
-    title: 'Modern UI Control',
-    description: (
-      <>
-        Beautiful glassmorphic UI with dark/light theme support, interactive
-        polygon drawing for region selection, and real-time download progress.
-      </>
-    ),
+    title: "MapLibre and Mapbox GL",
+    description: <>Works with both, including Mapbox Standard with its terrain and 3D buildings. Choose which optional features to save.</>,
   },
   {
-    title: 'MBTiles Import/Export',
-    description: (
-      <>
-        Round-trip regions as real binary v1.3 SQLite MBTiles files. Vector
-        tiles are gzipped and <code>vector_layers</code> is emitted, so the
-        output opens directly in QGIS, tippecanoe, and maplibre-native.
-      </>
-    ),
+    title: "A control or an API",
+    description: <>Add a ready-made control where people draw an area and download it, or call downloadRegion from your own code.</>,
   },
   {
-    title: 'Full TypeScript Support',
-    description: (
-      <>
-        Written in TypeScript with complete type definitions. Enjoy full
-        autocomplete and type checking in your IDE.
-      </>
-    ),
+    title: "Accurate progress",
+    description: <>One percentage that only moves forward, with exact counts for each phase, so people know how far along a download is.</>,
   },
   {
-    title: 'Storage Management',
-    description: (
-      <>
-        Built-in analytics, automatic cleanup, and quota management. Keep track
-        of storage usage and optimize performance.
-      </>
-    ),
+    title: "Storage you can manage",
+    description: <>See what's using space, set expiry dates, and clean up automatically before the browser runs out of room.</>,
   },
   {
-    title: 'Easy Integration',
-    description: (
-      <>
-        Drop-in MapLibre GL JS control. Add offline capabilities to your
-        existing map application with just a few lines of code.
-      </>
-    ),
+    title: "MBTiles in and out",
+    description: <>Export regions to the standard SQLite format that QGIS and tippecanoe read, and import them back.</>,
   },
 ];
 

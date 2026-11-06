@@ -4,9 +4,20 @@ const sidebars: SidebarsConfig = {
   docsSidebar: [
     'intro',
     'getting-started',
+    {
+      type: 'category',
+      label: 'Guides',
+      collapsed: false,
+      items: [
+        'guides/downloading-regions',
+        'guides/mapbox',
+        'guides/ui-control',
+        'guides/storage',
+        'guides/mbtiles',
+        'guides/troubleshooting',
+      ],
+    },
     'api-reference',
-    'configuration',
-    'examples',
     'architecture',
     'migration-0.6',
   ],

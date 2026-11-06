@@ -23,6 +23,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **The progress badge covered the map button and could disappear.** It's now beside the button instead of on it, and it's no longer removed when a download finishes, which hid progress for later downloads in the same session.
 - **The demo's Mapbox tab was blank on Mapbox GL 3.34.** MapLibre GL 6 stamps `_classRegistryKey` onto the built-in `Set` and `Error`, which breaks Mapbox GL's worker messaging on the same page. The demo now loads one renderer per page, and switching tabs reloads it. Apps loading both renderers need to do the same.
 
+### Documentation
+
+- **Rewritten around tasks**, with guides replacing the Configuration and Examples pages, which now redirect. Corrects claims that had gone stale: MapLibre 6 has no default export or `maplibre-gl.js` script, `multipleRegions` has no effect, `setConfigProperty` does work on stored Mapbox Standard styles, and `deleteStyle` leaves a style's tiles in storage.
+- **`npm run check:docs`** compiles every TypeScript example in the docs and README against the library's types, and runs in CI.
+
 ### Added
 
 - **`DownloadRegionOptions.styleConfig`** sets a config-driven style's values, such as `{ showLandmarkIcons: true }`, for both the download and offline rendering.
