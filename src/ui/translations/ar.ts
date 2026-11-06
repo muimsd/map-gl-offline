@@ -185,6 +185,13 @@ export const ar = {
 
   // Active Downloads - التحميلات النشطة
   'download.activeCount': 'التحميلات النشطة ({{count}})',
+  'download.status.style': 'جارٍ تجهيز النمط',
+  'download.status.sprites': 'الرموز: {{completed}} من {{total}}',
+  'download.status.glyphs': 'الخطوط: {{completed}} من {{total}}',
+  'download.status.models': 'النماذج ثلاثية الأبعاد: {{completed}} من {{total}}',
+  'download.status.tiles': 'البلاطات: {{completed}} من {{total}}',
+  'download.status.planning': 'جارٍ تخطيط البلاطات',
+  'download.status.saving': 'جارٍ حفظ المنطقة',
 
   // Panel Manager additional strings - سلاسل إضافية للوحة
   'panel.downloadedRegions': 'المناطق المحملة',

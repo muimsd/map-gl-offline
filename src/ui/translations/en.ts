@@ -189,6 +189,13 @@ export const en = {
 
   // Active Downloads
   'download.activeCount': 'Active Downloads ({{count}})',
+  'download.status.style': 'Preparing style',
+  'download.status.sprites': 'Sprites: {{completed}} of {{total}}',
+  'download.status.glyphs': 'Fonts: {{completed}} of {{total}}',
+  'download.status.models': '3D models: {{completed}} of {{total}}',
+  'download.status.tiles': 'Tiles: {{completed}} of {{total}}',
+  'download.status.planning': 'Planning tiles',
+  'download.status.saving': 'Saving region',
 
   // Panel Manager additional strings
   'panel.downloadedRegions': 'Downloaded Regions',

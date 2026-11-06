@@ -44,9 +44,9 @@ await manager.downloadRegion(
     styleUrl: 'https://example.com/style.json',
   },
   {
-    onProgress: ({ phase, completed, total, percentage, message }) => {
+    onProgress: ({ phase, completed, total, percentage, overallPercentage, message }) => {
       // phase: 'style' | 'sprites' | 'glyphs' | 'models' | 'tiles' | 'metadata'
-      console.log(`[${phase}] ${completed}/${total} (${percentage.toFixed(1)}%)`);
+      console.log(`${overallPercentage.toFixed(0)}% overall, [${phase}] ${completed}/${total}`);
     },
   }
 );
@@ -56,7 +56,7 @@ await manager.downloadRegion(
 
 | Option        | Type                                  | Description                                                                           |
 | ------------- | ------------------------------------- | ------------------------------------------------------------------------------------- |
-| `onProgress`  | `(p: DownloadRegionProgress) => void` | Called with `{ phase, completed, total, percentage, message? }` during each phase.    |
+| `onProgress`  | `(p: DownloadRegionProgress) => void` | Called with `{ phase, completed, total, percentage, overallPercentage, message? }`. `percentage` restarts in each phase; `overallPercentage` only moves forward and reaches 100 when the region is ready. Called during each phase.    |
 | `provider`    | `'auto' \| 'mapbox' \| 'maplibre'`    | Style provider hint when fetching the style. Defaults to `'auto'`.                    |
 | `accessToken` | `string \| null`                      | Mapbox access token; required for `mapbox://` URLs. Accepts `null` (since 0.8.7) so `mapboxgl.accessToken` can be passed directly — `null` is treated as omitted. |
 | `skipSprites` | `boolean`                             | Skip the sprite-download phase. Default `false`.                                      |

@@ -59,6 +59,7 @@ export class PanelRenderer extends BaseComponent {
   private headerContainer?: HTMLElement;
   private actionButtonsContainer?: HTMLElement;
   private regionsList?: List;
+  private awaitingProgressRender = false;
   private downloadProgressContainer?: HTMLElement;
   private languageSelector?: LanguageSelector;
 
@@ -235,6 +236,8 @@ export class PanelRenderer extends BaseComponent {
       this.element.removeChild(this.downloadProgressContainer);
       this.downloadProgressContainer = undefined;
     }
+
+    this.awaitingProgressRender = false;
 
     // Only show if there are active downloads
     if (this.downloadManager?.hasActiveDownloads()) {
@@ -614,6 +617,42 @@ export class PanelRenderer extends BaseComponent {
   }
 
   /**
+   * Show the latest download progress. Called on every update, so it only
+   * redraws the progress section rather than the whole panel.
+   */
+  public updateDownloadProgress(downloads: ReadonlyMap<string, unknown>): void {
+    if (downloads.size === 0) return;
+
+    const container = this.downloadProgressContainer;
+    if (container?.isConnected) {
+      container.innerHTML = this.createDownloadProgressHTML(
+        downloads as Map<string, Record<string, unknown>>
+      );
+      return;
+    }
+
+    // The download started while the panel was open, so it has no section yet.
+    if (this.element.isConnected && !this.awaitingProgressRender) {
+      this.awaitingProgressRender = true;
+      void this.refresh();
+    }
+  }
+
+  /** What the current phase is doing, such as "Tiles: 64 of 128". */
+  private describeDownloadPhase(download: Record<string, unknown>): string {
+    const phase = download.phase as string | undefined;
+    if (phase === 'style') return t('download.status.style');
+    if (phase === 'tiles' && !download.total) return t('download.status.planning');
+    if (phase === 'sprites' || phase === 'glyphs' || phase === 'models' || phase === 'tiles') {
+      return t(`download.status.${phase}`, {
+        completed: Number(download.completed) || 0,
+        total: Number(download.total) || 0,
+      });
+    }
+    return t('download.status.saving');
+  }
+
+  /**
    * Create download progress HTML
    */
   private createDownloadProgressHTML(downloads: Map<string, Record<string, unknown>>): string {
@@ -627,11 +666,14 @@ export class PanelRenderer extends BaseComponent {
           ${downloadArray
             .map(
               download => `
-            <div class="flex items-center justify-between text-sm">
-              <span class="text-blue-800 dark:text-blue-200">${escapeHtml(download.regionName || download.regionId)}</span>
-              <div class="flex items-center gap-2">
-                <div class="w-24 h-2 bg-blue-200 dark:bg-blue-800 rounded-full overflow-hidden">
-                  <div class="h-full bg-blue-600 transition-all duration-300" style="width: ${download.percentage || 0}%"></div>
+            <div class="flex items-center justify-between gap-4 text-sm">
+              <div class="min-w-0">
+                <div class="truncate text-blue-800 dark:text-blue-200">${escapeHtml(download.regionName || download.regionId)}</div>
+                <div class="text-xs text-gray-600 dark:text-gray-300">${escapeHtml(this.describeDownloadPhase(download))}</div>
+              </div>
+              <div class="flex shrink-0 items-center gap-2">
+                <div class="w-24 h-2 bg-blue-200 dark:bg-blue-800 rounded-full overflow-hidden" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round((download.percentage as number) || 0)}">
+                  <div class="h-full bg-blue-600" style="width: ${download.percentage || 0}%"></div>
                 </div>
                 <span class="text-blue-700 dark:text-blue-300 min-w-12">${Math.round((download.percentage as number) || 0)}%</span>
               </div>

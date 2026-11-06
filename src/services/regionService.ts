@@ -26,6 +26,34 @@ import type { SpriteDownloadResult, TileEntry } from '@/types';
 const regionLogger = logger.scope('RegionService');
 
 /**
+ * Where each phase sits in a download's overall progress, as [start, end] in
+ * percent. Tiles get the most because they're usually most of the bytes.
+ */
+const PHASE_PROGRESS_RANGES: Record<DownloadRegionProgress['phase'], [number, number]> = {
+  style: [0, 5],
+  sprites: [5, 10],
+  glyphs: [10, 25],
+  models: [25, 30],
+  tiles: [30, 99],
+  metadata: [99, 100],
+};
+
+/** True for a Mapbox-hosted style sprite, which has an `iconset.pbf` beside it. */
+function hasMapboxIconset(spriteUrl: string): boolean {
+  try {
+    const { hostname, pathname } = new URL(spriteUrl);
+    return (
+      hostname === 'api.mapbox.com' &&
+      pathname.startsWith('/styles/v1/') &&
+      pathname.endsWith('/sprite')
+    );
+  } catch {
+    // Not an absolute URL, so not a Mapbox-hosted sprite.
+    return false;
+  }
+}
+
+/**
  * True when `key` belongs to the given styleId.
  *
  * Font/glyph/sprite keys use `:` (or `::`) as the delimiter after styleId
@@ -299,6 +327,7 @@ export class RegionService {
       styleConfig,
     } = options;
 
+    let overallPercentage = 0;
     const emit = (
       phase: DownloadRegionProgress['phase'],
       completed: number,
@@ -308,11 +337,17 @@ export class RegionService {
       if (!onProgress) return;
       const safeTotal = total > 0 ? total : 1;
       const clamped = Math.min(completed, safeTotal);
+      const [start, end] = PHASE_PROGRESS_RANGES[phase];
+      overallPercentage = Math.max(
+        overallPercentage,
+        start + (end - start) * (clamped / safeTotal)
+      );
       onProgress({
         phase,
         completed: clamped,
-        total: safeTotal,
+        total,
         percentage: (clamped / safeTotal) * 100,
+        overallPercentage,
         message,
       });
     };
@@ -373,17 +408,19 @@ export class RegionService {
         // sibling is also served under the same /styles/v1/.../<hash>/ path
         // — we detect that case per-source below and append it to the list.
         const baseSuffixes = ['.json', '.png', '@2x.json', '@2x.png'];
-        // Estimate total files assuming iconset is always included (the actual
-        // number may be smaller; the emit helper clamps progress to total).
-        const totalFiles = spriteSources.length * (baseSuffixes.length + 1);
+        const resolveSpriteBase = (url: string) =>
+          isMapboxProtocol(url) && effectiveAccessToken
+            ? resolveMapboxUrl(url, effectiveAccessToken)
+            : url;
+        const totalFiles = spriteSources.reduce((sum, source) => {
+          const base = resolveSpriteBase(source.url).split('?')[0];
+          return sum + baseSuffixes.length + (hasMapboxIconset(base) ? 1 : 0);
+        }, 0);
         let completed = 0;
         emit('sprites', 0, totalFiles, 'Downloading sprites');
 
         for (const source of spriteSources) {
-          let spriteBase = source.url;
-          if (isMapboxProtocol(spriteBase) && effectiveAccessToken) {
-            spriteBase = resolveMapboxUrl(spriteBase, effectiveAccessToken);
-          }
+          const spriteBase = resolveSpriteBase(source.url);
           const qIndex = spriteBase.indexOf('?');
           const suffixes = [...baseSuffixes];
           // Mapbox Standard serves an iconset.pbf alongside the sprite under
@@ -391,17 +428,7 @@ export class RegionService {
           // /styles/v1/{owner}/{style}/{hash}/iconset.pbf. The last path
           // segment is `sprite`, so replacing it with `iconset.pbf` works.
           const pathWithoutQuery = qIndex !== -1 ? spriteBase.slice(0, qIndex) : spriteBase;
-          let isMapboxStandardSprite = false;
-          try {
-            const parsed = new URL(pathWithoutQuery);
-            isMapboxStandardSprite =
-              parsed.hostname === 'api.mapbox.com' &&
-              parsed.pathname.startsWith('/styles/v1/') &&
-              parsed.pathname.endsWith('/sprite');
-          } catch {
-            // Non-URL sprite base (e.g. relative); not a Mapbox Standard sprite.
-          }
-          if (isMapboxStandardSprite) {
+          if (hasMapboxIconset(pathWithoutQuery)) {
             // The path-rewrite suffix replaces the trailing `sprite` segment.
             suffixes.push('__ICONSET__');
           }
@@ -514,7 +541,8 @@ export class RegionService {
     // 5. Tiles — use the stored (source-embedded) style, which still has HTTP tile URLs
     const { downloadTiles } = await import('@/services/tileService');
     const regionForTiles = { ...region, styleId };
-    emit('tiles', 0, 100, 'Downloading tiles');
+    // The tile count isn't known until the plan is made, which can take a while.
+    emit('tiles', 0, 0, 'Planning tiles');
     const tileResult = await downloadTiles(regionForTiles, storedStyle, styleId, {
       skipExisting: false,
       batchSize: 20,
