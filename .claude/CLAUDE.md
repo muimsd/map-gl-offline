@@ -197,6 +197,10 @@ MapLibre GL 6 stamps a non-configurable `_classRegistryKey` onto the built-in `S
 - Do NOT include Claude Code watermark in commits
 - Keep commits focused and atomic
 
+## Documentation
+
+Guides live in `docs/docs/guides/`. `npm run check:docs` compiles every `ts` example in the docs and README against `src/`, using the names it declares in `AMBIENT`. It can't check behaviour, so try recipes in a browser, and look at the rendered page: admonitions need the `:::note[Title]` form, or they print as raw text while the site still builds.
+
 ## Upgrading dependencies
 
 - Confirm the test count, not just the exit code. Jest once printed a Watchman crash and exited 0 without running a test, so `test:ci` passes `--no-watchman`.

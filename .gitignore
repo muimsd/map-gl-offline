@@ -73,3 +73,6 @@ examples/*/dist/
 examples/*/build/
 examples/*/node_modules/
 .playwright-mcp
+
+# Temporary folder used by npm run check:docs
+.docs-examples/

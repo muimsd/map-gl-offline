@@ -15,7 +15,7 @@ title: The offline control
 | `mapLib` | `MapLibProtocol` | Pass `maplibregl` on MapLibre. Leave it out on Mapbox GL, which uses the Service Worker instead. |
 | `accessToken` | `string \| null` | Your Mapbox token, filled in on the download form. |
 | `theme` | `'light' \| 'dark'` | The panel's starting theme. |
-| `showBbox` | `boolean` | Show the bounds of stored regions on the map. |
+| `showBbox` | `boolean` | Outline a region on the map when someone selects it in the panel. |
 
 ## Keep it in step with your style switcher
 

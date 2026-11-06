@@ -79,7 +79,7 @@ Standard's extras can be large. These are approximate sizes from single tiles:
 ## What won't work offline
 
 - **Floor selection on indoor maps.** You can download indoor tiles, but choosing a floor isn't available offline.
-- **Features you didn't download.** Turning on a feature offline with `map.setConfigProperty` only works if its tiles were saved. Light presets and themes need no extra data.
+- **Features you didn't download.** Turning on a feature offline only works if its tiles were saved. Light presets need no extra data, so you can change them offline with `map.setConfigProperty('basemap', 'lightPreset', 'night')`.
 - **Other scripts' labels in some fonts.** The library downloads common Unicode blocks. Labels in others, such as Khmer, are left blank offline, without affecting the rest of the map.
 - **Styles that wrap Standard through `imports`.** The library flattens these, and that doesn't carry over `iconsets` or terrain. Use the `mapbox://styles/mapbox/standard` URL directly.
 
