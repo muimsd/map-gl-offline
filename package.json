@@ -73,7 +73,8 @@
     "docs:deploy": "cd docs && npm run deploy",
     "prepare": "husky",
     "check:mapbox-standard": "node scripts/check-mapbox-standard.mjs",
-    "check:demo": "node scripts/check-demo.mjs"
+    "check:demo": "node scripts/check-demo.mjs",
+    "check:docs": "node scripts/check-doc-examples.mjs"
   },
   "keywords": [
     "mapbox-gl",

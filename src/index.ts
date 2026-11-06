@@ -11,7 +11,7 @@
  * @example Basic usage
  * ```typescript
  * import { OfflineMapManager, OfflineManagerControl } from 'map-gl-offline';
- * import maplibregl from 'maplibre-gl';
+ * import * as maplibregl from 'maplibre-gl';
  * import 'map-gl-offline/style.css';
  *
  * const map = new maplibregl.Map({
@@ -46,8 +46,8 @@
  *     styleUrl: 'https://api.maptiler.com/maps/streets/style.json?key=YOUR_KEY',
  *   },
  *   {
- *     onProgress: ({ phase, completed, total, percentage }) => {
- *       console.log(`[${phase}] ${completed}/${total} (${percentage.toFixed(1)}%)`);
+ *     onProgress: ({ phase, completed, total, overallPercentage }) => {
+ *       console.log(`${overallPercentage.toFixed(0)}%, [${phase}] ${completed}/${total}`);
  *     },
  *   }
  * );

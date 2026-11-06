@@ -1,194 +1,57 @@
 ---
 sidebar_position: 1
 slug: /
+title: Introduction
 ---
 
 # map-gl-offline
 
-**[Live Demo](https://map-gl-offline-demo.netlify.app)** | **[GitHub](https://github.com/muimsd/map-gl-offline)** | **[npm](https://www.npmjs.com/package/map-gl-offline)**
+Save a map area to the browser, then keep using it with no connection. map-gl-offline works with [MapLibre GL JS](https://maplibre.org/) and [Mapbox GL JS](https://www.mapbox.com/mapbox-gljs), and stores everything in IndexedDB.
 
-A comprehensive **TypeScript** library for **MapLibre GL JS** and **Mapbox GL JS** that enables complete offline map functionality.
+A saved region includes everything the map needs to draw: the style, tiles, sprites, fonts and 3D models.
 
-## Features
+## Two ways to use it
 
-### Core Offline Capabilities
+**Add the control** for a ready-made interface. People draw an area on the map, choose zoom levels and download it, then manage what they've saved from a panel.
 
-- **Complete Offline Maps** - Download and store entire map regions with polygon-based selection
-- **Smart Tile Management** - Efficient vector/raster tile downloading, caching, and retrieval
-- **Extra Layer Support** - Save additional vector (MVT/PBF) and raster tile sources alongside the style
-- **Font & Glyph Support** - Comprehensive font and glyph management with Unicode range support
-- **Sprite Management** - Handle map sprites and icons offline with multi-resolution support
-- **Real-time Analytics** - Detailed storage analytics and optimization recommendations
-- **MBTiles Import/Export** - Round-trip regions as real binary v1.3 SQLite MBTiles (vector tiles gzipped, `json.vector_layers` emitted); opens in QGIS, tippecanoe, and maplibre-native
-
-### Map Library Support
-
-- **MapLibre GL JS** - Full support with `addProtocol` for seamless `idb://` tile serving
-- **Mapbox GL JS** - Full support via Service Worker for offline tile serving, including the Mapbox Standard style and its 3D models. Mapbox GL's own runtime effects (`setRain` / `setSnow`) keep working offline; the Standard `lightPreset` is baked in at download time — see the [offline limitation](/docs/configuration#light-presets-daynight)
-
-### Modern UI Control
-
-- **Glassmorphic Design** - Beautiful modern interface with smooth animations
-- **Dark/Light Theme** - Automatic theme switching with system preference detection
-- **Polygon Drawing** - Interactive polygon tool for precise region selection
-- **Live Progress** - Real-time download progress with detailed statistics
-- **Responsive** - Mobile-friendly design that adapts to all screen sizes
-- **i18n & RTL** - Built-in internationalization with English and Arabic, including full RTL layout support
-
-### Technical Excellence
-
-- **IndexedDB Storage** - Efficient browser storage with quota management
-- **Full TypeScript** - Complete type definitions and compile-time safety
-- **Performance Optimized** - Concurrent downloads and memory-efficient operations
-- **Robust Error Handling** - Comprehensive error recovery and retry mechanisms
-
-## Quick Start
-
-```bash
-npm install map-gl-offline
+```ts
+map.addControl(new OfflineManagerControl(offlineManager, { styleUrl, mapLib: maplibregl }));
 ```
 
-### CDN (UMD)
+**Call the API** to download regions from your own code, with no UI.
 
-```html
-<script src="https://unpkg.com/map-gl-offline/dist/index.umd.js"></script>
-<link rel="stylesheet" href="https://unpkg.com/map-gl-offline/style.css" />
-<script>
-  const manager = new mapgloffline.OfflineMapManager();
-</script>
-```
-
-### MapLibre GL JS
-
-```typescript
-import maplibregl from 'maplibre-gl';
-import { OfflineMapManager, OfflineManagerControl } from 'map-gl-offline';
-import 'maplibre-gl/dist/maplibre-gl.css';
-import 'map-gl-offline/style.css';
-
-const map = new maplibregl.Map({
-  container: 'map',
-  style: 'https://api.maptiler.com/maps/streets/style.json?key=YOUR_KEY',
-  center: [-74.006, 40.7128],
-  zoom: 12,
-});
-
-const offlineManager = new OfflineMapManager();
-
-map.on('load', () => {
-  const control = new OfflineManagerControl(offlineManager, {
-    styleUrl: 'https://api.maptiler.com/maps/streets/style.json?key=YOUR_KEY',
-    mapLib: maplibregl, // enables idb:// protocol in web workers
-  });
-  map.addControl(control, 'top-right');
-});
-```
-
-### Mapbox GL JS
-
-Mapbox GL JS v3 requires a Service Worker for offline tile serving. Set it up using one of these methods:
-
-```bash
-# CLI (recommended)
-npx map-gl-offline init
-```
-
-Or use the Vite plugin to auto-copy on each build:
-
-```js
-// vite.config.js
-import { offlineSwPlugin } from 'map-gl-offline/vite-plugin';
-
-export default defineConfig({
-  plugins: [offlineSwPlugin()],
-});
-```
-
-```typescript
-import mapboxgl from 'mapbox-gl';
-import { OfflineMapManager, OfflineManagerControl } from 'map-gl-offline';
-import 'mapbox-gl/dist/mapbox-gl.css';
-import 'map-gl-offline/style.css';
-
-mapboxgl.accessToken = 'YOUR_MAPBOX_TOKEN';
-
-const map = new mapboxgl.Map({
-  container: 'map',
-  style: 'mapbox://styles/mapbox/standard',
-  center: [-74.006, 40.7128],
-  zoom: 12,
-});
-
-const offlineManager = new OfflineMapManager();
-
-map.on('load', () => {
-  const control = new OfflineManagerControl(offlineManager, {
-    styleUrl: 'mapbox://styles/mapbox/standard',
-    accessToken: mapboxgl.accessToken,
-  });
-  map.addControl(control, 'top-right');
-});
-```
-
-:::tip
-When using MapLibre, pass `mapLib: maplibregl` in the control options to register the `idb://` protocol in web workers. For Mapbox GL JS, the control automatically falls back to a Service Worker.
-:::
-
-### Programmatic download (no UI)
-
-Skip the UI control and drive the pipeline directly. `downloadRegion` runs the full flow (**style → sprites → glyphs → models → tiles → metadata**) with per-phase progress.
-
-```typescript
-import { OfflineMapManager } from 'map-gl-offline';
-
-const offlineManager = new OfflineMapManager();
-
+```ts
 await offlineManager.downloadRegion(
   {
-    id: 'sf',
-    name: 'San Francisco',
+    id: 'downtown',
+    name: 'Downtown',
     bounds: [
-      [-122.5, 37.7],
-      [-122.3, 37.9],
+      [-74.02, 40.7],
+      [-73.97, 40.75],
     ],
     minZoom: 10,
-    maxZoom: 14,
-    styleUrl: 'https://api.maptiler.com/maps/streets/style.json?key=YOUR_KEY',
+    maxZoom: 16,
+    styleUrl,
   },
-  {
-    onProgress: ({ phase, percentage }) => {
-      console.log(`[${phase}] ${percentage.toFixed(1)}%`);
-    },
-  }
+  { onProgress: ({ overallPercentage }) => console.log(`${Math.round(overallPercentage)}%`) }
 );
 ```
 
-See [Getting Started](/docs/getting-started) for more, or the [API reference](/docs/api-reference) for every option.
+## How it works
 
-## Use Cases
+1. **Download.** `downloadRegion` fetches the style, then its sprites, fonts, 3D models and tiles, and saves them to IndexedDB.
+2. **Rewrite.** The saved copy of the style has its URLs changed to point at IndexedDB, such as `idb://my-style/tile/...`.
+3. **Serve.** When the map asks for those URLs, the library answers from IndexedDB. MapLibre does this through `addProtocol`. Mapbox GL has no `addProtocol`, so it uses a Service Worker that you add to your site.
 
-- **Outdoor & Recreation Apps** - Hiking, camping, and adventure apps with offline trail maps
-- **Field Data Collection** - Survey and data collection in remote areas
-- **Emergency Response** - Critical map access during network outages
-- **Travel Apps** - Tourist apps with offline city maps
-- **Fleet Management** - Vehicle tracking with offline map fallback
+## Before you start
 
-## Browser Compatibility
+- **Storage is limited.** Browsers cap IndexedDB, and each extra zoom level multiplies the tile count by about four. See [Choosing zoom levels](./guides/downloading-regions.md#choosing-zoom-levels).
+- **Check your map provider's terms.** Some providers restrict offline use or bulk downloads of their data.
+- **MapLibre and Mapbox can't share a page.** Load one renderer per page. See [Troubleshooting](./guides/troubleshooting.md#a-mapbox-map-is-blank).
 
-| Browser | Version | Support |
-| ------- | ------- | ------- |
-| Chrome  | 51+     | ✅      |
-| Firefox | 45+     | ✅      |
-| Safari  | 10+     | ✅      |
-| Edge    | 79+     | ✅      |
-| Mobile  | Modern  | ✅      |
+## Where to go next
 
-## Support
-
-If you find this project useful, consider buying me a coffee!
-
-<a href="https://www.buymeacoffee.com/muimsd" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" style={{height: '60px', width: '217px'}} /></a>
-
-## License
-
-MIT © [Muhammad Imran Siddique](https://github.com/muimsd)
+- [Getting started](./getting-started.md): install the library and save your first region.
+- [Downloading regions](./guides/downloading-regions.md): the API, progress, and displaying a region from code.
+- [Mapbox GL and Standard](./guides/mapbox.md): Service Worker setup and Standard's optional features.
+- [Live demo](https://map-gl-offline-demo.netlify.app): try it in your browser.

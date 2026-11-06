@@ -4,7 +4,7 @@ import type * as Preset from '@docusaurus/preset-classic';
 
 const config: Config = {
   title: 'map-gl-offline',
-  tagline: 'Complete offline map functionality for MapLibre GL JS',
+  tagline: 'Save a map area to the browser, then use it with no connection.',
   favicon: 'img/favicon.ico',
 
   future: {
@@ -35,7 +35,7 @@ const config: Config = {
       {
         docs: {
           sidebarPath: './sidebars.ts',
-          editUrl: 'https://github.com/muimsd/map-gl-offline/tree/main/website/',
+          editUrl: 'https://github.com/muimsd/map-gl-offline/tree/main/docs/',
         },
         blog: false,
         theme: {
@@ -91,8 +91,8 @@ const config: Config = {
               to: '/docs/api-reference',
             },
             {
-              label: 'Examples',
-              to: '/docs/examples',
+              label: 'Troubleshooting',
+              to: '/docs/guides/troubleshooting',
             },
           ],
         },

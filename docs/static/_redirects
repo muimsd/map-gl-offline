@@ -1,3 +1,7 @@
 # Netlify redirects
+# Pages replaced by the guides
+/docs/configuration    /docs/guides/ui-control    301
+/docs/examples         /docs/guides/downloading-regions    301
+
 # SPA fallback
 /*    /index.html   200

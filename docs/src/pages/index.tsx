@@ -39,8 +39,8 @@ export default function Home(): ReactNode {
   const {siteConfig} = useDocusaurusContext();
   return (
     <Layout
-      title="Offline Maps for MapLibre GL JS"
-      description="Complete offline map functionality for MapLibre GL JS - tiles, fonts, sprites, and styles stored in IndexedDB">
+      title="Offline maps for MapLibre and Mapbox GL"
+      description="Save a map area to the browser, then use it with no connection. Works with MapLibre GL JS and Mapbox GL JS.">
       <HomepageHeader />
       <main>
         <HomepageFeatures />
