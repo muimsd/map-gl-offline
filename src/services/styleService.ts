@@ -19,6 +19,7 @@ import {
   validateStyleForProvider,
   isMapboxProtocol,
   resolveMapboxUrl,
+  selectTileJsonVariant,
 } from '@/utils/styleProviderUtils';
 import type {
   StyleEntry,
@@ -330,7 +331,7 @@ export async function downloadStyles(
               retryDelay: 1000,
             });
 
-            const sourceData = await sourceResponse.json();
+            const sourceData = selectTileJsonVariant(await sourceResponse.json());
             style.sources[sourceKey] = { ...source, ...sourceData }; // Embed source data
             sourcesEmbedded++;
             logger.debug(`Embedded source data for ${sourceKey}`);
@@ -1117,7 +1118,7 @@ export async function downloadStyleWithProvider(
               timeout: timeoutMs,
               retryDelay: 1000,
             });
-            const sourceData = await sourceResponse.json();
+            const sourceData = selectTileJsonVariant(await sourceResponse.json());
             // Only copy valid MapLibre/Mapbox source properties from TileJSON
             // Copying unknown properties (like "name", "tilejson") causes
             // MapLibre to throw "unknown property" errors on setStyle()

@@ -89,6 +89,7 @@ The live `mapbox/standard` style is flat (no `imports`) and switches features wi
 
 ### Mapbox tile endpoints and runtime assets
 - Keep `/raster/v1/` tile URLs and add an `sku` (`rewriteMapboxCdnTileUrl`). Never rewrite them to `/v4/`: the DEM there is a 256px palette PNG with wrong elevations, not the 514px RGB tile `tileSize: 514` expects.
+- Plan tiles from the TileJSON variant the renderer uses (`selectTileJsonVariant`). The base and meshopt tilesets hold different data: the base `3dbuildings` tile over central Dubai is empty, so the base alone loses its 3D buildings.
 - Mapbox GL fetches decoders from api.mapbox.com while rendering (Draco, meshopt, RTL text, procedural buildings). `MAPBOX_RUNTIME_ASSETS` (`src/sw/shared.ts`) lists them; `cacheMapboxRuntimeAssets` stores them in the Cache API and the SW serves them. Paths are versioned, so a `mapbox-gl` bump can need new entries.
 
 ### Glyph serving

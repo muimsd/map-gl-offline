@@ -103,6 +103,46 @@ export function resolveMapboxUrl(mapboxUrl: string, accessToken: string): string
   return `${MAPBOX_API.BASE_URL}${MAPBOX_API.TILES_PATH}/${path}.json${query}`;
 }
 
+interface TileJsonVariant {
+  capabilities?: unknown;
+  tiles?: unknown;
+}
+
+/**
+ * Pick the TileJSON variant Mapbox GL renders from, the way its `mergeVariants`
+ * does: `meshopt-v2+lod`, then `meshopt`, then the base tileset.
+ *
+ * These aren't just different encodings of one dataset. For
+ * `mapbox.mapbox-3dbuildings-v1`, the base tile over central Dubai is empty while
+ * the variants hold its 3D buildings, so downloading the base loses them offline.
+ * Variant tiles are `mapbox://3dtiles/...` URLs, resolved here using the base
+ * URL's query string, which carries the access token.
+ */
+export function selectTileJsonVariant<T extends object>(tileJson: T): T {
+  const { variants, tiles: baseTiles } = tileJson as { variants?: unknown; tiles?: unknown };
+  if (!Array.isArray(variants)) return tileJson;
+
+  const withCapability = (capability: string) =>
+    (variants as TileJsonVariant[]).find(
+      variant =>
+        Array.isArray(variant?.capabilities) &&
+        variant.capabilities.length === 1 &&
+        variant.capabilities[0] === capability
+    );
+  const selected = withCapability('meshopt-v2+lod') ?? withCapability('meshopt');
+  if (!selected || !Array.isArray(selected.tiles)) return tileJson;
+
+  const firstBaseTile = Array.isArray(baseTiles) ? String(baseTiles[0] ?? '') : '';
+  const queryIndex = firstBaseTile.indexOf('?');
+  const query = queryIndex === -1 ? '' : firstBaseTile.slice(queryIndex);
+  const tiles = (selected.tiles as string[]).map(tile =>
+    tile.startsWith('mapbox://3dtiles/')
+      ? `${MAPBOX_API.BASE_URL}/3dtiles/v1/${tile.slice('mapbox://3dtiles/'.length)}${query}`
+      : tile
+  );
+  return { ...tileJson, ...selected, tiles };
+}
+
 const SKU_LIFETIME_MS = 12 * 60 * 60 * 1000;
 const SKU_CHARS = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
 let skuSession: { token: string; expiresAt: number } | undefined;
