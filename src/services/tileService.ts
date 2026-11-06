@@ -15,6 +15,7 @@ import {
   rewriteMapboxCdnTileUrl,
 } from '@/utils/styleProviderUtils';
 import { MAPBOX_STANDARD_SPARSE_TILESETS } from '@/utils/constants';
+import { findInactiveSources, isConfigDrivenStyle } from '@/utils/styleConfig';
 import type { FetchResourceResult } from '@/utils';
 import type {
   TileDownloadOptions,
@@ -83,6 +84,7 @@ export class TileService {
       bandwidthLimit,
       probeSourcesBeforeDownload = true,
       skipKnownSparseSources = true,
+      skipInactiveSources = true,
     } = options;
 
     const startTime = Date.now();
@@ -132,6 +134,19 @@ export class TileService {
     if (tileSources.size === 0) {
       throw new Error('No valid tile sources found in style definition');
     }
+
+    // Features a config-driven style has switched off (Mapbox Standard's HD
+    // roads, indoor, landmark icons...) don't need their tiles.
+    if (skipInactiveSources) {
+      for (const sourceId of findInactiveSources(style)) {
+        if (tileSources.delete(sourceId)) {
+          tileLogger.info(
+            `Skipping source "${sourceId}" — nothing visible uses it under the style's config`
+          );
+        }
+      }
+    }
+    const configDriven = isConfigDrivenStyle(style);
 
     // Some sources have zoom ranges entirely outside the user's region (e.g.
     // procedural-buildings at z15 when the user requested z0-z14, or a z14-capped
@@ -204,11 +219,12 @@ export class TileService {
       // issuing any network request. They 404 for nearly every coord in a
       // typical region; the downstream probe step would catch them, but the
       // probe itself logs 404s in devtools. Matching here keeps the console
-      // clean.
-      if (
-        skipKnownSparseSources &&
-        tiles.some(template => urlReferencesKnownSparseTileset(template))
-      ) {
+      // clean. On a config-driven style, a sparse source still here is one a
+      // switched-on feature needs, so it's kept (and not probed, because its
+      // tiles cluster and the three probe tiles could easily all miss).
+      const knownSparse = tiles.some(template => urlReferencesKnownSparseTileset(template));
+      const neededSparseSource = knownSparse && configDriven;
+      if (skipKnownSparseSources && knownSparse && !neededSparseSource) {
         tileLogger.info(
           `Skipping source "${sourceId}" — references a known sparse Mapbox Standard sub-tileset (no probe/download issued)`
         );
@@ -266,7 +282,7 @@ export class TileService {
       // A single probe on the wrong coord would false-pass and cause a
       // flood of 404s during the download. Probing start/middle/end of
       // the plan catches this case.
-      if (probeSourcesBeforeDownload) {
+      if (probeSourcesBeforeDownload && !neededSparseSource) {
         const picks = [
           coordsForSource[0],
           coordsForSource[Math.floor(coordsForSource.length / 2)],
@@ -776,9 +792,10 @@ export class TileService {
 
       // Handle tile-based sources (vector, raster, raster-dem, batched-model,
       // raster-array). `raster-array` is used by Mapbox Standard for layers
-      // like `mapbox-landmarks` (mapbox.mapbox-landmark-icons-v1) — the tiles
-      // are fetched from the same /v4/ endpoint as other tilesets, so the
-      // TileJSON resolution path below handles them uniformly.
+      // like `mapbox-landmarks` (mapbox.mapbox-landmark-icons-v1). Each type has
+      // its own tile endpoint (/v4/, /raster/v1/, /rasterarrays/v1/, /3dtiles/v1/),
+      // but TileJSON gives the URL for all of them, so the resolution path below
+      // handles them uniformly.
       if (
         config.type === 'vector' ||
         config.type === 'raster' ||

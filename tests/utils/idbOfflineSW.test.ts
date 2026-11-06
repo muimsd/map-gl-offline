@@ -26,6 +26,8 @@ type FetchHandler = (event: FetchEvent) => void;
 // ---------------------------------------------------------------
 
 let fetchHandler: FetchHandler;
+const runtimeCache = new Map<string, Response>();
+const networkFetch = jest.fn();
 
 /** Send a fetch event to the SW and return the Response */
 async function swFetch(url: string): Promise<Response> {
@@ -169,6 +171,12 @@ beforeAll(() => {
     decodeURIComponent: globalThis.decodeURIComponent,
     encodeURIComponent: globalThis.encodeURIComponent,
     Blob: globalThis.Blob,
+    caches: {
+      open: async () => ({
+        match: async (url: string) => runtimeCache.get(url),
+      }),
+    },
+    fetch: networkFetch,
   };
 
   vm.createContext(sandbox);
@@ -456,10 +464,39 @@ describe('idb-offline-sw.js', () => {
   // Glyph handling
   // -----------------------------------------------------------
 
+  describe('Mapbox runtime assets', () => {
+    const DRACO = 'https://api.mapbox.com/mapbox-gl-js/draco_decoder_gltf_v1.5.6.wasm';
+
+    beforeEach(() => {
+      runtimeCache.clear();
+      networkFetch.mockReset();
+    });
+
+    it('should only intercept listed assets', () => {
+      expect(wouldIntercept(DRACO)).toBe(true);
+      expect(wouldIntercept('https://api.mapbox.com/mapbox-gl-js/mapbox-gl.js')).toBe(false);
+      expect(wouldIntercept('https://api.mapbox.com/v4/a/1/2/3.pbf')).toBe(false);
+    });
+
+    it('should serve the cached copy without using the network', async () => {
+      runtimeCache.set(DRACO, new Response('cached'));
+      const resp = await swFetch(DRACO);
+      expect(await resp.text()).toBe('cached');
+      expect(networkFetch).not.toHaveBeenCalled();
+    });
+
+    it('should fall back to the network when not cached', async () => {
+      networkFetch.mockResolvedValue(new Response('network'));
+      const resp = await swFetch(DRACO);
+      expect(await resp.text()).toBe('network');
+    });
+  });
+
   describe('glyph handling', () => {
-    it('should return 404 for non-existent glyph', async () => {
+    it('should serve an empty range, not a 404, for a glyph range it lacks', async () => {
       const resp = await swFetch('https://localhost/__offline__/style-1/glyph/Arial/0-255.pbf');
-      expect(resp.status).toBe(404);
+      expect(resp.status).toBe(200);
+      expect((await resp.arrayBuffer()).byteLength).toBe(0);
     });
 
     it('should serve stored glyph', async () => {
@@ -473,6 +510,35 @@ describe('idb-offline-sw.js', () => {
       const resp = await swFetch('https://localhost/__offline__/style-1/glyph/Arial/0-255.pbf');
       expect(resp.status).toBe(200);
       expect(resp.headers.get('Content-Type')).toBe('application/x-protobuf');
+    });
+
+    /** A stored range with no glyphs, as a server returns for a block a font lacks. */
+    const emptyRange = () => {
+      const name = Array.from(Buffer.from('DIN'));
+      const range = Array.from(Buffer.from('1536-1791'));
+      const stack = [0x0a, name.length, ...name, 0x12, range.length, ...range];
+      return new Uint8Array([0x0a, stack.length, ...stack]).buffer;
+    };
+
+    it('should pass over an empty range for a later font that has glyphs', async () => {
+      await idbPut(db, 'glyphs', { key: 'style-1::DIN/1536-1791.pbf', data: emptyRange() });
+      await idbPut(db, 'glyphs', { key: 'style-1::Arial/1536-1791.pbf', data: new ArrayBuffer(50) });
+
+      const resp = await swFetch(
+        'https://localhost/__offline__/style-1/glyph/DIN,Arial/1536-1791.pbf'
+      );
+      expect((await resp.arrayBuffer()).byteLength).toBe(50);
+    });
+
+    it('should serve an empty range when no font has glyphs, rather than a 404', async () => {
+      const data = emptyRange();
+      await idbPut(db, 'glyphs', { key: 'style-1::DIN/1536-1791.pbf', data });
+
+      const resp = await swFetch(
+        'https://localhost/__offline__/style-1/glyph/DIN,Arial/1536-1791.pbf'
+      );
+      expect(resp.status).toBe(200);
+      expect((await resp.arrayBuffer()).byteLength).toBe(data.byteLength);
     });
 
     it('should handle comma-separated font fallbacks (first match)', async () => {

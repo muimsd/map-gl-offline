@@ -14,6 +14,7 @@ import {
   deriveTileExtensionFromTiles,
   findStyleByRegionIdIn,
   glyphCandidateKeys,
+  isEmptyGlyphRange,
   isGzipped,
   makeTileKey,
   matchTileJsonSource,
@@ -119,6 +120,37 @@ describe('parseGlyphPath', () => {
       fontstacks: ['A'],
       rangePart: '0-255.pbf',
     });
+  });
+});
+
+describe('isEmptyGlyphRange', () => {
+  const bytes = (...values: number[]) => new Uint8Array(values).buffer;
+  const text = (value: string) => Array.from(Buffer.from(value));
+
+  /** Build `glyphs { stacks { name; range; ...extra } }`. */
+  const glyphRange = (extra: number[] = []) => {
+    const name = text('DIN Pro Medium');
+    const range = text('1536-1791');
+    const stack = [0x0a, name.length, ...name, 0x12, range.length, ...range, ...extra];
+    return bytes(0x0a, stack.length, ...stack);
+  };
+
+  it('recognises the exact bytes Mapbox returns for an uncovered block', () => {
+    const live = Buffer.from('0a1b0a0e44494e2050726f204d656469756d1209313533362d31373931', 'hex');
+    const data = live.buffer.slice(live.byteOffset, live.byteOffset + live.length);
+    expect(isEmptyGlyphRange(data)).toBe(true);
+    expect(isEmptyGlyphRange(glyphRange())).toBe(true);
+  });
+
+  it('treats a range holding a glyph as not empty', () => {
+    expect(isEmptyGlyphRange(glyphRange([0x1a, 0x02, 0x08, 0x20]))).toBe(false);
+  });
+
+  it('serves anything it cannot parse', () => {
+    expect(isEmptyGlyphRange(new ArrayBuffer(0))).toBe(false);
+    expect(isEmptyGlyphRange(new ArrayBuffer(50))).toBe(false);
+    expect(isEmptyGlyphRange(bytes(0x1f, 0x8b, 0x08))).toBe(false);
+    expect(isEmptyGlyphRange(bytes(0x0a, 0x7f, 0x0a))).toBe(false);
   });
 });
 

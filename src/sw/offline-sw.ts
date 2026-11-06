@@ -27,6 +27,9 @@ import {
   tileFallbackExtensions,
   parseGlyphPath,
   glyphCandidateKeys,
+  isEmptyGlyphRange,
+  isMapboxRuntimeAsset,
+  MAPBOX_RUNTIME_CACHE,
   spriteCandidateKeys,
   modelCandidateKeys,
   matchTileJsonSource,
@@ -202,18 +205,25 @@ async function handleGlyph(db: IDBDatabase, downloadId: string, rest: string[]):
   const styleId = styleEntry?.key ?? downloadId;
   const { fontstacks, rangePart } = parseGlyphPath(safeDecodeURIComponent(rest.join('/')));
 
+  const glyphResponse = (data: ArrayBuffer) =>
+    new Response(data, {
+      status: 200,
+      headers: { 'Content-Type': 'application/x-protobuf' },
+    });
+
+  let emptyRange: ArrayBuffer | undefined;
   for (const fontstack of fontstacks) {
     for (const key of glyphCandidateKeys(styleId, downloadId, fontstack, rangePart)) {
       const resource = await idbGet<{ data: ArrayBuffer }>(db, 'glyphs', key);
       if (resource?.data) {
-        return new Response(resource.data, {
-          status: 200,
-          headers: { 'Content-Type': 'application/x-protobuf' },
-        });
+        if (!isEmptyGlyphRange(resource.data)) return glyphResponse(resource.data);
+        emptyRange ??= resource.data;
       }
     }
   }
-  return new Response('Glyph not found', { status: 404 });
+  // Never a 404: Mapbox GL fails a tile's whole glyph request if one range
+  // errors, so a range outside the downloaded set would blank all its labels.
+  return glyphResponse(emptyRange ?? new ArrayBuffer(0));
 }
 
 async function handleSprite(
@@ -295,10 +305,21 @@ async function handleTileJSON(
 
 self.addEventListener('fetch', event => {
   const url = event.request.url;
+  if (isMapboxRuntimeAsset(url)) {
+    event.respondWith(serveRuntimeAsset(event.request));
+    return;
+  }
   const idx = url.indexOf(OFFLINE_PREFIX);
   if (idx === -1) return;
   event.respondWith(handleOfflineRequest(url, idx));
 });
+
+/** Versioned, immutable renderer code: use the cached copy, else the network. */
+async function serveRuntimeAsset(request: Request): Promise<Response> {
+  const cache = await caches.open(MAPBOX_RUNTIME_CACHE);
+  const cached = await cache.match(request.url, { ignoreSearch: true });
+  return cached ?? fetch(request);
+}
 
 async function handleOfflineRequest(url: string, prefixIndex: number): Promise<Response> {
   try {

@@ -5,6 +5,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+> **Mapbox Standard audit.** Checked against the live style (modified 2026-10-08) with a real download and a DNS-blocked offline render. **Re-download Mapbox Standard regions** to get correct terrain and fallback fonts.
+
+### Fixed
+
+- **Terrain elevations were wrong offline.** `/raster/v1/` DEM URLs were rewritten to `/v4/`, which serves a 256px palette PNG: in one tile, elevations were off by 46 m on average and up to 207 m, and the size didn't match the style's `tileSize: 514`. These URLs now stay on `/raster/v1/` with an `sku` session token.
+- **3D models and RTL text needed the network.** Mapbox GL fetches its Draco and meshopt decoders, RTL text and procedural-building modules from api.mapbox.com at render time. `downloadRegion` now caches them, and the Service Worker serves them.
+- **Non-Latin labels were blank.** `text-font` parsing missed fallback fonts in Mapbox Standard's config-built stacks, so only `DIN Pro` was stored, and its empty Arabic and Devanagari ranges were served as matches. Fallback fonts are now downloaded, and handlers skip empty ranges.
+- **A missing glyph range blanked a tile's labels.** Handlers returned 404, and Mapbox GL fails a tile's whole glyph request when one range errors. They now return an empty range.
+- **Expression operands could be read as fonts**, such as `zoom` in `["step", ["zoom"], ...]`.
+- **Programmatic downloads kept `is-active-floor` expressions on the now-flat Mapbox Standard style**, which fail validation on older Mapbox GL.
+
+### Added
+
+- **`DownloadRegionOptions.styleConfig`** sets a config-driven style's values, such as `{ showLandmarkIcons: true }`, for both the download and offline rendering.
+- **`TileDownloadOptions.skipInactiveSources`** (default `true`) skips sources only used by features the style's config has off. HD roads, 3D bridges and landmark icon tiles no longer download by default for Mapbox Standard.
+- **`runtimeAssetsCached`** on `DownloadRegionResult`.
+- **`npm run check:mapbox-standard`** reports when the live style or installed renderer moves past a known baseline.
+
+### Changed
+
+- Known-sparse Mapbox tilesets now download, without probing, when a switched-on feature needs them.
+- `mapbox-gl` dev dependency is now 3.34. The demo no longer calls `mapboxgl.setRTLTextPlugin`, which 3.34 removed.
+
 ## [0.8.9] - 2026-08-24
 
 > **Documentation-vs-implementation audit.** A page-by-page pass over the README and the docs site against the actual package surface. Two of the findings were bugs in the package rather than the prose: the 0.8.8 sparse-tileset allowlist named a tileset id that doesn't exist, so a third of the feature never fired; and the UMD bundle the docs point CDN users at expected globals that no CDN provides.

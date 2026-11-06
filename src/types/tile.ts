@@ -97,11 +97,25 @@ export interface TileDownloadOptions {
    * coordinate. Pre-skipping means we never issue probe or download
    * requests for them, eliminating the 404 noise in devtools.
    *
+   * On a config-driven style this only applies when the source's feature is
+   * off (and `skipInactiveSources` already covers that); a feature that's on
+   * keeps its source, without probing, because the tiles cluster and the probe
+   * tiles could all miss.
+   *
    * Default: `true`. Set `false` to attempt these sources anyway — the
    * downstream `probeSourcesBeforeDownload` pass will still skip them
    * for most regions, but you'll see the probe 404s in the network log.
    */
   skipKnownSparseSources?: boolean;
+  /**
+   * Skip sources a config-driven style (one with a `schema`, like Mapbox
+   * Standard) only uses from layers its config hides, such as HD roads while
+   * `showHdRoads` is false. Styles without config are never affected.
+   *
+   * Default: `true`. Set `false` to download every source, so features can be
+   * switched on later without downloading again.
+   */
+  skipInactiveSources?: boolean;
 }
 
 /**

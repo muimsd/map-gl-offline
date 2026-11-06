@@ -64,6 +64,7 @@ await manager.downloadRegion(
 | `skipModels`  | `boolean`                             | Skip the 3D-model phase. Default `false`. Models are declared via `style.models` and live at `mapbox://models/…` URLs, so skipping is free for styles without model layers — and saves storage on Mapbox Standard at the cost of trees / wind turbines not rendering. |
 | `glyphRanges` | `string[]`                            | Override Unicode glyph ranges. Defaults to `GLYPH_CONFIG.COMPREHENSIVE_RANGES`.       |
 | `tileOptions` | `TileDownloadOptions`                 | Forwarded to the tile download step (e.g. `probeSourcesBeforeDownload`, `batchSize`). |
+| `styleConfig` | `Record<string, unknown>`             | Config values for a style with a `schema`, such as Mapbox Standard: `{ showLandmarkIcons: true, show3dFacades: true }`. Saved as the stored style's defaults, so they decide both what downloads and what renders offline. Applies to the whole style. Features that are off aren't downloaded unless `tileOptions.skipInactiveSources` is `false`. |
 
 **`DownloadRegionResult`** includes `regionId`, `styleId`, `styleResult?`, `spriteResults`, `glyphResult?`, `modelResult?`, and `tileResult`. `styleResult` is present only when the style wasn't already stored; `glyphResult` / `modelResult` are absent when the corresponding phase was skipped or had nothing to fetch.
 

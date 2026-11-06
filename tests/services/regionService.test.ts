@@ -1292,6 +1292,63 @@ describe('RegionService', () => {
       );
     });
 
+    describe('Mapbox Standard', () => {
+      const FONTS = 'mapbox://fonts/mapbox/{fontstack}/{range}.pbf';
+      const seedStandard = () =>
+        seedStyle({
+          style: {
+            version: 8,
+            schema: {
+              font: { default: 'DIN Pro' },
+              showLandmarkIcons: { default: false },
+            },
+            sources: { v: { tiles: ['http://tiles/{z}/{x}/{y}.pbf'] } },
+            layers: [
+              {
+                id: 'text',
+                type: 'symbol',
+                layout: {
+                  'text-font': [['concat', ['config', 'font'], ' Medium'], 'Arial Unicode MS Bold'],
+                },
+              },
+            ],
+            glyphs: FONTS,
+          },
+          originalGlyphsUrl: FONTS,
+        });
+
+      it('saves styleConfig before the phases that plan from it', async () => {
+        await seedStandard();
+
+        await regionService.downloadRegion(makeRegion(), {
+          styleConfig: { showLandmarkIcons: true, font: 'Roboto' },
+        });
+
+        const db = await dbPromise;
+        const stored = await db.get('styles', 'test-style-id');
+        const schema = (stored?.style as unknown as { schema: Record<string, { default: unknown }> })
+          .schema;
+        expect(schema.showLandmarkIcons.default).toBe(true);
+        expect(mockDownloadGlyphs.mock.calls[0][1]).toEqual([
+          'Roboto Medium',
+          'Arial Unicode MS Bold',
+        ]);
+        const styleForTiles = mockDownloadTiles.mock.calls[0][1] as {
+          schema: Record<string, { default: unknown }>;
+        };
+        expect(styleForTiles.schema.showLandmarkIcons.default).toBe(true);
+      });
+
+      it('downloads each font of the stack, since the renderer fetches them separately', async () => {
+        await seedStandard();
+        await regionService.downloadRegion(makeRegion());
+        expect(mockDownloadGlyphs.mock.calls[0][1]).toEqual([
+          'DIN Pro Medium',
+          'Arial Unicode MS Bold',
+        ]);
+      });
+    });
+
     it('does not auto-fill tileExtension from tileResult (regression: mixed-format styles)', async () => {
       // tileResult.tileExtension is the first source's extension only; passing
       // it through to addRegion→patchStyleForOffline would override ALL

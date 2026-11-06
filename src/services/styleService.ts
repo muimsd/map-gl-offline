@@ -10,6 +10,7 @@ import {
 } from '@/utils';
 import { GLYPH_CONFIG } from '@/utils/constants';
 import { patchStyleForOffline } from '@/utils/styleUtils';
+import { sanitizeIndoorExpressions } from '@/utils/importResolver';
 import {
   detectStyleProvider,
   extractAccessToken,
@@ -249,6 +250,8 @@ export async function downloadStyles(
         layerCount: style.layers ? style.layers.length : 0,
       });
     }
+    // Mapbox Standard now arrives flat, so resolveImports may not have run.
+    sanitizeIndoorExpressions(style);
 
     // Check if style already exists in the database
     const db = await dbPromise;
@@ -1083,6 +1086,8 @@ export async function downloadStyleWithProvider(
         layerCount: style.layers ? style.layers.length : 0,
       });
     }
+    // Mapbox Standard now arrives flat, so resolveImports may not have run.
+    sanitizeIndoorExpressions(style);
 
     emit(40, 'Processing style sources');
 

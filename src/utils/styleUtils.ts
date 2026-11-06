@@ -181,13 +181,32 @@ export function patchStyleForOffline(
   return style;
 }
 
+type FontSchema = Record<string, { default?: unknown }>;
+
+/** Resolve one entry of a font stack: a name, `["config", key]` or a `["concat", ...]` of those. */
+function resolveFontName(value: unknown, schema?: FontSchema): string | undefined {
+  if (typeof value === 'string') return value;
+  if (!Array.isArray(value)) return undefined;
+  if (value[0] === 'config' && typeof value[1] === 'string') {
+    const configured = schema?.[value[1]]?.default;
+    return typeof configured === 'string' ? configured : undefined;
+  }
+  if (value[0] === 'concat') {
+    const parts = value.slice(1).map(part => resolveFontName(part, schema));
+    return parts.every(part => part !== undefined) ? parts.join('') : undefined;
+  }
+  return undefined;
+}
+
 /**
  * Extract individual font names from a `text-font` layout property value.
  *
- * Handles both simple arrays (`["Font A", "Font B"]`) and Mapbox GL expression
- * syntax (e.g. `["step", ["zoom"], ["literal", ["Font A"]], 10, ["literal", ["Font B"]]]`).
+ * Handles simple arrays (`["Font A", "Font B"]`), Mapbox GL expression syntax
+ * (e.g. `["step", ["zoom"], ["literal", ["Font A"]], 10, ["literal", ["Font B"]]]`),
+ * and Mapbox Standard's config-built stacks
+ * (`[["concat", ["config", "font"], " Medium"], "Arial Unicode MS Bold"]`).
  */
-export function extractFontNamesFromTextField(textFont: unknown): string[] {
+export function extractFontNamesFromTextField(textFont: unknown, schema?: FontSchema): string[] {
   const fonts = new Set<string>();
 
   // Known expression operators — anything starting with one of these is NOT a font name list
@@ -214,6 +233,16 @@ export function extractFontNamesFromTextField(textFont: unknown): string[] {
     'linear',
     'exponential',
     'cubic-bezier',
+    'zoom',
+    '==',
+    '!=',
+    '<',
+    '<=',
+    '>',
+    '>=',
+    '!',
+    'all',
+    'any',
     // Mapbox GL v3 config system (Standard style uses ["config", "font"])
     'config',
   ]);
@@ -229,11 +258,14 @@ export function extractFontNamesFromTextField(textFont: unknown): string[] {
       return;
     }
 
-    // Simple font stack: every element is a string and the first element is
-    // NOT a known expression operator
-    if (value.every((v: unknown) => typeof v === 'string') && !expressionOps.has(value[0])) {
-      for (const f of value) {
-        fonts.add(f as string);
+    // A font stack: only font names, and the first isn't an expression operator
+    const isFontEntry = (item: unknown) =>
+      typeof item === 'string' ||
+      (Array.isArray(item) && (item[0] === 'config' || item[0] === 'concat'));
+    if (value.every(isFontEntry) && !expressionOps.has(value[0])) {
+      for (const item of value) {
+        const name = resolveFontName(item, schema);
+        if (name !== undefined) fonts.add(name);
       }
       return;
     }
@@ -278,7 +310,7 @@ export function extractAllFontNames(style: {
   if (style && Array.isArray(style.layers)) {
     for (const layer of style.layers) {
       if (layer.layout && layer.layout['text-font']) {
-        for (const name of extractFontNamesFromTextField(layer.layout['text-font'])) {
+        for (const name of extractFontNamesFromTextField(layer.layout['text-font'], style.schema)) {
           fonts.add(name);
         }
       }
