@@ -39,7 +39,7 @@ const offlineManager = new OfflineMapManager();
 | `loadStyleById(styleId)` | `Promise<StyleEntry \| null>` | Get a stored style |
 | `listStyles()` | `Promise<StyleEntry[]>` | List stored styles |
 | `getStyleStats(styleId)` | `Promise<EnhancedStyleStats>` | Sizes and counts for a style |
-| `deleteStyle(styleId)` | `Promise<void>` | Delete only the style's entry, leaving its tiles and other data in storage. To remove everything, delete its regions. |
+| `deleteStyle(styleId)` | `Promise<void>` | Delete a style, all its regions, and everything stored for them |
 | `cleanupOldStyles(maxAgeDays?)` | `Promise<number>` | Delete old styles, returning how many |
 
 ### Analytics
@@ -109,7 +109,7 @@ See [The offline control](./guides/ui-control.md) for its options.
 | `expiry` | `number` | Absolute time in milliseconds since the epoch. Defaults to 30 days from now. |
 | `extraSources` | `ExtraSource[]` | More tile sources to save. [Guide](./guides/downloading-regions.md#add-your-own-layers) |
 | `tileExtension` | `string` | Force one tile extension for every source. Rarely needed. |
-| `multipleRegions`, `deleteOnExpiry` | `boolean` | Have no effect. Regions already coexist, keyed by `id`. |
+| `multipleRegions`, `deleteOnExpiry` | `boolean` | Deprecated, with no effect. Regions already coexist, keyed by `id`. To delete expired regions, use `forceCleanupExpiredRegions`. |
 
 ### DownloadRegionOptions
 

@@ -172,6 +172,16 @@ export class RegionService {
   /**
    * Delete all tiles for a style
    */
+  /**
+   * Delete everything stored for a style except its own entry: tiles, fonts,
+   * glyphs, sprites and models.
+   */
+  async deleteStyleData(styleId: string): Promise<void> {
+    await this.deleteAllStyleTiles(styleId);
+    await this.deleteStyleResources(styleId);
+    clearAllCaches();
+  }
+
   private async deleteAllStyleTiles(styleId: string): Promise<number> {
     const db = await dbPromise;
     let deletedCount = 0;
@@ -663,12 +673,7 @@ export class RegionService {
           `Style ${foundStyle.key} has no remaining regions, deleting entire style and all resources`
         );
 
-        // Delete all tiles for this style
-        const deletedTileCount = await this.deleteAllStyleTiles(foundStyle.key);
-        regionLogger.debug(`Deleted ${deletedTileCount} tiles`);
-
-        // Delete all style resources (fonts, glyphs, sprites)
-        await this.deleteStyleResources(foundStyle.key);
+        await this.deleteStyleData(foundStyle.key);
 
         // Delete the style entry itself
         await db.delete('styles', foundStyle.key);
