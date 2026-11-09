@@ -17,6 +17,24 @@ export function formatBytes(bytes: number): string {
 }
 
 /**
+ * A stored style's display name: its own `name`, or else the last meaningful
+ * part of its URL ("liberty" for `.../styles/liberty`), or else its key.
+ */
+export function styleDisplayName(entry: {
+  key: string;
+  originalUrl?: string;
+  style?: { name?: string };
+}): string {
+  if (entry.style?.name) return entry.style.name;
+  const path = (entry.originalUrl ?? '').split(/[?#]/)[0];
+  const segments = path
+    .split('/')
+    .map(segment => segment.replace(/\.json$/i, ''))
+    .filter(segment => segment && !/^(style|styles)$/i.test(segment) && !segment.includes(':'));
+  return segments.at(-1) ?? entry.key;
+}
+
+/**
  * Format date to human readable string
  */
 export function formatDate(date: number | Date): string {

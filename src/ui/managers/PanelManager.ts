@@ -11,7 +11,7 @@ import { RegionDetailsModal } from '@/ui/modals/regionDetailsModal';
 import { StoredRegion, StorageAnalyticsReport } from '@/types';
 import { ConfirmationModal } from '@/ui/modals/confirmationModal';
 import { MBTilesModal } from '@/ui/modals/mbtilesModal';
-import { formatBytes, escapeHtml } from '@/utils/formatting';
+import { formatBytes, escapeHtml, styleDisplayName } from '@/utils/formatting';
 import { themeManager } from '@/ui/ThemeManager';
 import { logger } from '@/utils/logger';
 import { i18n, regionCountLabel, t } from '@/ui/translations';
@@ -22,6 +22,7 @@ import { icons } from '@/utils/icons';
 import type { MapboxStyle, StyleStorageItem } from '@/types/style';
 import { convertStyleForServiceWorker } from '@/utils/convertStyleForSW';
 import { sanitizeIndoorExpressions } from '@/utils/importResolver';
+import { isMapboxGlMap, needsMapboxGl } from '@/utils/styleUtils';
 
 // Import modular components
 import { List, ListItemConfig } from '@/ui/components/shared/List';
@@ -66,6 +67,7 @@ export class PanelRenderer extends BaseComponent {
   // Debounce mechanism
   private refreshTimeout?: NodeJS.Timeout;
   private isRefreshing = false;
+  private refreshQueued = false;
 
   // Language change unsubscribe function
   private unsubscribeLanguage?: () => void;
@@ -470,7 +472,7 @@ export class PanelRenderer extends BaseComponent {
           <div class="flex items-center justify-between">
             <div class="flex-1">
               <h3 class="font-semibold text-slate-800 dark:text-slate-100 text-base">
-                ${escapeHtml(style.style?.name || style.key || t('style.unnamedStyle'))}
+                ${escapeHtml(styleDisplayName(style))}
               </h3>
               <p class="text-sm text-slate-600 dark:text-slate-300 mt-1">
                 ${t('regionList.styleId')}: ${escapeHtml(style.key)}
@@ -568,7 +570,7 @@ export class PanelRenderer extends BaseComponent {
           <div class="flex items-center justify-between">
             <div class="flex-1">
               <h3 class="font-semibold text-blue-900 dark:text-blue-100 text-base">
-                ${escapeHtml(style.style?.name || style.key || t('style.unnamedStyle'))}
+                ${escapeHtml(styleDisplayName(style))}
               </h3>
               <p class="text-sm text-blue-700 dark:text-blue-300 mt-1">
                 ${t('regionList.styleId')}: ${escapeHtml(style.key)}
@@ -759,7 +761,15 @@ export class PanelRenderer extends BaseComponent {
         cancelText: t('app.cancel'),
         onConfirm: async () => {
           try {
+            // Deleting a style's last region deletes the style too.
+            const { loadStyleById } = await import('@/services/styleService');
+            const shownEntry = this.isStyleShown(region.styleId)
+              ? await loadStyleById(region.styleId)
+              : null;
             await this.offlineManager.deleteRegion(regionId, region.styleId);
+            if (shownEntry && !(await loadStyleById(region.styleId))) {
+              this.showOnlineStyle(shownEntry);
+            }
             this.modalManager.close();
             // Refresh the panel to show updated regions
             await this.refresh();
@@ -1057,7 +1067,8 @@ export class PanelRenderer extends BaseComponent {
     }
 
     if (this.isRefreshing) {
-      panelLogger.debug('Refresh already in progress, skipping...');
+      // Run again once this one finishes, or the panel misses what changed meanwhile.
+      this.refreshQueued = true;
       return;
     }
 
@@ -1107,6 +1118,10 @@ export class PanelRenderer extends BaseComponent {
       this.renderErrorState(this.element as HTMLDivElement);
     } finally {
       this.isRefreshing = false;
+      if (this.refreshQueued) {
+        this.refreshQueued = false;
+        void this.refresh();
+      }
     }
   }
 
@@ -1263,6 +1278,20 @@ export class PanelRenderer extends BaseComponent {
   /**
    * Handle loading a style to the map
    */
+  /** Whether the map is drawing this stored style, through `idb://` or the Service Worker. */
+  private isStyleShown(styleKey: string): boolean {
+    const shown = (this.map as { getStyle?: () => unknown } | undefined)?.getStyle?.();
+    if (!shown) return false;
+    const text = JSON.stringify(shown);
+    return text.includes(`idb://${styleKey}/`) || text.includes(`/__offline__/${styleKey}/`);
+  }
+
+  /** After its stored copy is deleted, show a style from its original URL, not a blank map. */
+  private showOnlineStyle(entry: { originalUrl?: string }): void {
+    if (!entry.originalUrl) return;
+    (this.map as { setStyle?: (style: string) => void } | undefined)?.setStyle?.(entry.originalUrl);
+  }
+
   private async handleLoadStyle(styleData: unknown): Promise<void> {
     if (!this.map) {
       panelLogger.warn('Map not available for loading style');
@@ -1282,6 +1311,11 @@ export class PanelRenderer extends BaseComponent {
       if (!styleEntry.key) {
         panelLogger.error('Invalid style data - missing key property');
         alert(t('error.invalidStyleData'));
+        return;
+      }
+
+      if (needsMapboxGl(styleEntry.style) && !isMapboxGlMap(this.map)) {
+        alert(t('alert.needsMapboxGl'));
         return;
       }
 
@@ -1501,13 +1535,15 @@ export class PanelRenderer extends BaseComponent {
       const style = styleData as { key: string; style?: { name?: string } };
       const confirmModal = new ConfirmationModal({
         title: t('delete.styleTitle'),
-        message: t('delete.styleMessage', { name: style.style?.name || style.key }),
+        message: t('delete.styleMessage', { name: styleDisplayName(style) }),
         confirmText: t('actions.deleteStyle'),
         cancelText: t('app.cancel'),
         onConfirm: async () => {
           try {
             const { deleteStyleById } = await import('@/services/styleService');
+            const wasShown = this.isStyleShown(style.key);
             await deleteStyleById(style.key);
+            if (wasShown) this.showOnlineStyle(styleData as StyleStorageItem);
             this.modalManager.close();
             // Refresh the panel
             await this.refresh();

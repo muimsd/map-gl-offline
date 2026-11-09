@@ -3,6 +3,7 @@ import { getFontStats } from './fontService';
 import { getSpriteStats } from './spriteService';
 import { getGlyphStats, EnhancedGlyphStats } from './glyphService';
 import { getModelStats } from './modelService';
+import { getStyleStats } from './styleService';
 import type {
   RegionAnalytics,
   TileStats,
@@ -34,17 +35,20 @@ export class AnalyticsService {
   async getComprehensiveStorageAnalytics(
     getRegionAnalytics: () => Promise<RegionAnalytics>
   ): Promise<StorageAnalyticsReport> {
-    const [tileStats, fontStats, spriteStats, glyphStats, modelStats, regionAnalytics] =
+    const [tileStats, fontStats, spriteStats, glyphStats, modelStats, styleStats, regionAnalytics] =
       await Promise.all([
         this.getAllTileStats(),
         this.getAllFontStats(),
         this.getAllSpriteStats(),
         this.getAllGlyphStats(),
         getModelStats(),
+        getStyleStats(),
         getRegionAnalytics(),
       ]);
 
     const storageByType = {
+      // The style documents themselves, which the panel's per-style totals include.
+      styles: styleStats.totalSize || 0,
       tiles: tileStats.totalSize || 0,
       fonts: fontStats.totalSize || 0,
       sprites: spriteStats.totalSize || 0,

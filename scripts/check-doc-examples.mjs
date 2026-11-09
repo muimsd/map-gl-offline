@@ -38,6 +38,7 @@ declare global {
   const maplibregl: typeof import('maplibre-gl');
   const progressBar: HTMLProgressElement;
   const statusText: HTMLElement;
+  const cancelButton: HTMLButtonElement;
 }
 export {};
 `;

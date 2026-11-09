@@ -56,6 +56,23 @@ await offlineManager.downloadRegion(region, {
 
 `overallPercentage` gives each phase a fixed share (tiles get most of it), so it estimates progress rather than measuring bytes.
 
+## Cancel a download
+
+Pass an `AbortSignal`, and abort it to stop:
+
+```ts
+const controller = new AbortController();
+cancelButton.onclick = () => controller.abort();
+
+try {
+  await offlineManager.downloadRegion(region, { signal: controller.signal });
+} catch (error) {
+  if (!controller.signal.aborted) throw error;
+}
+```
+
+A cancelled or failed download saves no region. It removes the tiles it stored that no other region uses, and undoes any `styleConfig` it applied. If every tile fails, as with an expired token, `downloadRegion` rejects rather than saving an empty region.
+
 ## Choosing zoom levels
 
 Each zoom level has about four times as many tiles as the one before, so `maxZoom` matters most.

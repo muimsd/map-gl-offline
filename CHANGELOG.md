@@ -18,6 +18,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **MapLibre logged an empty error for each missing tile** when the map moved outside a saved region. Missing tiles are now treated as "no tile here".
 - **Style names containing `:` or `/`** could make deleting one style remove another's data, or break the stored style's URLs. Those characters now become `-` in new style keys.
 - **The panel's scrollbar stayed light in dark mode**, and the header said "1 regions".
+- **A failed download could leave a feature switched on with no data.** `styleConfig` was saved before the tiles, and stayed when the download failed. A failed or cancelled download now undoes its config change and removes the tiles it stored that no other region uses.
+- **Downloading a style again lost its config and extra sources.** `downloadStyle` replaced the stored copy, so `styleConfig` values and regions' `extraSources` vanished. They're now carried over.
+- **A 3D model that failed to download was never retried**, and offline it pointed at storage that didn't have it. Models now keep their upstream URLs until they're stored.
+- **Deleting a style during a download left its tiles behind**, with no style to delete them through. The download now removes them and says the style was deleted.
+- **Deleting the style on screen left the map blank.** The control now shows that style online again, and does the same when deleting a style's last region.
+- **The progress badge could go backwards** with several downloads at once. It now counts finished downloads as 100% until all are done.
+- **The panel could miss updates** when a refresh arrived during another, leaving an old progress row or a missing region.
+- **Loading a Mapbox Standard style on a MapLibre map** produced a page of validation errors. The control now explains that the style needs Mapbox GL.
+- **`cancelDownload` didn't stop anything.** It now aborts the download.
+- The header total now includes the style documents, matching the per-style totals. Styles without a `name` are titled from their URL, not a generated id. Form labels are linked to their fields for screen readers.
 - **Terrain elevations were wrong offline.** `/raster/v1/` DEM URLs were rewritten to `/v4/`, which serves a 256px palette PNG: in one tile, elevations were off by 46 m on average and up to 207 m, and the size didn't match the style's `tileSize: 514`. These URLs now stay on `/raster/v1/` with an `sku` session token.
 - **3D models and RTL text needed the network.** Mapbox GL fetches its Draco and meshopt decoders, RTL text and procedural-building modules from api.mapbox.com at render time. `downloadRegion` now caches them, and the Service Worker serves them.
 - **Non-Latin labels were blank.** `text-font` parsing missed fallback fonts in Mapbox Standard's config-built stacks, so only `DIN Pro` was stored, and its empty Arabic and Devanagari ranges were served as matches. Fallback fonts are now downloaded, and handlers skip empty ranges.
@@ -31,10 +41,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Deleting a style left its data behind.** `deleteStyle`, the panel's Delete Style button, `cleanupOldStyles` and `deleteStyles` removed only the style's entry, stranding its tiles, fonts, glyphs, sprites and models in storage with no way to reach them. They now remove all of it. Data stranded by earlier versions stays until the browser's site data is cleared or `resetOfflineMapDB()` is called.
 - **The progress badge covered the map button and could disappear.** It's now beside the button instead of on it, and it's no longer removed when a download finishes, which hid progress for later downloads in the same session.
 - **The demo's Mapbox tab was blank on Mapbox GL 3.34.** MapLibre GL 6 stamps `_classRegistryKey` onto the built-in `Set` and `Error`, which breaks Mapbox GL's worker messaging on the same page. The demo now loads one renderer per page, and switching tabs reloads it. Apps loading both renderers need to do the same.
-
-### Added
-
-- **The region form warns when a Mapbox Standard region would have no buildings**, which is when Max Zoom is below 15.
 
 ### Deprecated
 
@@ -51,6 +57,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`TileDownloadOptions.skipInactiveSources`** (default `true`) skips sources only used by features the style's config has off. HD roads, 3D bridges and landmark icon tiles no longer download by default for Mapbox Standard.
 - **`runtimeAssetsCached`** on `DownloadRegionResult`.
 - **`npm run check:mapbox-standard`** reports when the live style or installed renderer moves past a known baseline.
+- **`DownloadRegionOptions.signal`** cancels a download with an `AbortSignal`. See [Cancel a download](https://map-gl-offline.netlify.app/docs/guides/downloading-regions#cancel-a-download).
+- **The region form warns when a Mapbox Standard region would have no buildings**, which is when Max Zoom is below 15.
 
 ### Changed
 

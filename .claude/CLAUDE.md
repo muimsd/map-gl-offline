@@ -97,6 +97,11 @@ Current Mapbox GL fetches each font of a stack separately and merges client-side
 
 When testing offline rendering, don't rely on Chrome's offline emulation (it missed worker fetches here). Relaunch with `--host-resolver-rules="MAP * ~NOTFOUND, EXCLUDE localhost"`, and let 3D models settle before judging a screenshot.
 
+### Stored style state that must survive re-patching
+- `StyleEntry.originalModels` keeps each model's upstream URL (`stashOriginalModels`, once). After every `patchStyleForOffline` on a stored entry, call `restoreUnstoredModels` so models that aren't in the `models` store keep their real URLs, and the models phase plans from the stash.
+- `StyleEntry.styleConfig` records values callers set through `styleConfig`. `carryOverRegions` re-applies them, along with regions' `extraSources` (`injectExtraSources`), when a style is downloaded again.
+- `downloadRegion` cleans up on any failure from the tile phase on, including a `signal` abort (`cleanUpFailedDownload`): it restores the config, prunes tiles no region uses, and removes a style it created or one deleted mid-download.
+
 ### Missing tiles
 Moving outside a saved region is normal, so a missing tile must stay quiet. The `addProtocol` handler's error carries `status: 404`, because MapLibre only skips its console error for that status. Only the start of a download error decides whether it's a 404: the rest includes the URL, whose coordinates or token can contain `404`.
 

@@ -230,6 +230,8 @@ export const en = {
   // Alerts/Messages
   'alert.unknownError': 'Unknown error occurred',
   'alert.downloadFailed': 'Download failed',
+  'alert.needsMapboxGl':
+    'This style uses Mapbox GL JS features, such as 3D models or style config, so only a Mapbox GL map can show it.',
   'alert.downloadNotImplemented': 'Download feature not implemented in this refactored version',
   'alert.mapNotAvailable': 'Map not available',
   'alert.invalidBounds': 'Invalid bounds for region',

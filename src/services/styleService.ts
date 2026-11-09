@@ -9,7 +9,13 @@ import {
   resolveImports,
 } from '@/utils';
 import { GLYPH_CONFIG } from '@/utils/constants';
-import { patchStyleForOffline } from '@/utils/styleUtils';
+import {
+  injectExtraSources,
+  patchStyleForOffline,
+  restoreUnstoredModels,
+  stashOriginalModels,
+} from '@/utils/styleUtils';
+import { applyStyleConfig } from '@/utils/styleConfig';
 import { sanitizeIndoorExpressions } from '@/utils/importResolver';
 import { clearAllCaches } from '@/utils/idbFetchHandler';
 import {
@@ -87,10 +93,23 @@ async function resolveStyleKey(db: StylesDb, baseId: string, styleUrl: string): 
 async function carryOverRegions(db: StylesDb, entry: StyleEntry): Promise<void> {
   const existing = await db.get('styles', entry.key);
   const regions = existing?.regions;
+
+  // Config set through `styleConfig` decides what renders and what's planned,
+  // so it has to survive a fresh copy of the style.
+  if (existing?.styleConfig) {
+    entry.style = JSON.parse(JSON.stringify(entry.style)) as BaseStyle;
+    applyStyleConfig(entry.style, existing.styleConfig);
+    entry.styleConfig = existing.styleConfig;
+  }
   if (!Array.isArray(regions) || regions.length === 0) return;
 
   entry.regions = regions;
   entry.style = JSON.parse(JSON.stringify(entry.style)) as BaseStyle;
+  // Regions' extra sources were added to the old copy, so add them to this one.
+  for (const region of regions) {
+    injectExtraSources(entry.style as { sources: Record<string, unknown> }, region.extraSources);
+  }
+  stashOriginalModels(entry);
   patchStyleForOffline(
     entry.style,
     entry.key,
@@ -98,6 +117,8 @@ async function carryOverRegions(db: StylesDb, entry: StyleEntry): Promise<void> 
     undefined,
     entry.key
   );
+  const { storedModelNames } = await import('@/services/modelService');
+  restoreUnstoredModels(entry, await storedModelNames(entry.key));
   logger.debug(`Carried ${regions.length} region(s) over to re-downloaded style ${entry.key}`);
 }
 

@@ -17,6 +17,14 @@ function modelKey(styleId: string, modelName: string): string {
   return `${styleId}::model::${modelName}`;
 }
 
+/** Names of the models stored for a style. */
+export async function storedModelNames(styleId: string): Promise<Set<string>> {
+  const db = await dbPromise;
+  const prefix = modelKey(styleId, '');
+  const keys = await db.getAllKeys('models', IDBKeyRange.bound(prefix, `${prefix}￿`));
+  return new Set(keys.map(key => String(key).slice(prefix.length)));
+}
+
 /** True when the given key belongs to the given styleId's model store prefix. */
 export function modelKeyBelongsToStyle(key: string, styleId: string): boolean {
   return key.startsWith(`${styleId}::model::`);

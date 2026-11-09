@@ -40,7 +40,7 @@ import { OfflineMapManager } from '@/managers/offlineMapManager';
 import { themeManager } from './ThemeManager';
 import { idbFetchHandler } from '@/utils/idbFetchHandler';
 import { logger } from '@/utils/logger';
-import { escapeHtml } from '@/utils/formatting';
+import { escapeHtml, styleDisplayName } from '@/utils/formatting';
 import { i18n, regionCountLabel, t } from './translations';
 import {
   registerOfflineServiceWorker,
@@ -48,6 +48,7 @@ import {
 } from '@/utils/swRegistration';
 import { convertStyleForServiceWorker } from '@/utils/convertStyleForSW';
 import { sanitizeIndoorExpressions } from '@/utils/importResolver';
+import { isMapboxGlMap, needsMapboxGl } from '@/utils/styleUtils';
 import type { MapboxStyle } from '@/types/style';
 
 // Import refactored modular components
@@ -160,6 +161,9 @@ export class OfflineManagerControl implements IControl {
   private regionControl: RegionControl | undefined;
   private downloadManager: DownloadManager;
   private modalManager: ModalManager = new ModalManager();
+  /** Percentages of this batch's downloads, finished ones at 100, for the badge. */
+  private badgeBatch = new Map<string, number>();
+  private badgePercentage = 0;
   /** Whether the bounding box visualization layer has been added to the map */
   private bboxLayerAdded = false;
   /** Map library module for protocol registration (null if not provided) */
@@ -515,14 +519,26 @@ export class OfflineManagerControl implements IControl {
   private handleProgressUpdate(
     downloads: Map<string, { percentage: number; phase?: string; currentResource?: string }>
   ): void {
-    if (downloads.size > 0) {
-      // The panel has the detail for each phase; the badge only has room for the
-      // overall figure, averaged when several regions are downloading.
-      let totalPercentage = 0;
-      for (const download of downloads.values()) {
-        totalPercentage += download.percentage;
-      }
-      this.updateProgressBadge(`${Math.round(totalPercentage / downloads.size)}%`, true);
+    // The panel has the detail for each phase; the badge only has room for one
+    // figure. With several downloads it averages all of this batch's, counting
+    // finished ones as 100, so one finishing doesn't drop the figure, and never
+    // goes back: a download added mid-batch holds it until the average catches up.
+    for (const [regionId, download] of downloads) {
+      this.badgeBatch.set(regionId, download.percentage);
+    }
+    for (const regionId of this.badgeBatch.keys()) {
+      if (!downloads.has(regionId)) this.badgeBatch.set(regionId, 100);
+    }
+    if (downloads.size === 0) {
+      this.badgeBatch.clear();
+      this.badgePercentage = 0;
+    } else {
+      const total = [...this.badgeBatch.values()].reduce((sum, value) => sum + value, 0);
+      this.badgePercentage = Math.max(
+        this.badgePercentage,
+        Math.round(total / this.badgeBatch.size)
+      );
+      this.updateProgressBadge(`${this.badgePercentage}%`, true);
     }
 
     this.panelRenderer?.updateDownloadProgress(downloads);
@@ -769,6 +785,11 @@ export class OfflineManagerControl implements IControl {
         return;
       }
 
+      if (needsMapboxGl(styleEntry.style) && !isMapboxGlMap(this.map)) {
+        controlLogger.error(`Style ${styleId} needs Mapbox GL JS, so this map can't show it`);
+        return;
+      }
+
       // The style is already patched with idb:// URLs by addRegion() in regionService.
       // DO NOT call patchStyleForOffline() again — double-patching rewrites the downloadId
       // in URLs and can break tile/glyph lookups.
@@ -836,7 +857,7 @@ export class OfflineManagerControl implements IControl {
             .map(
               style => `
             <button class="w-full p-3 text-left border border-gray-200 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors" data-style-id="${escapeHtml(style.key)}">
-              <div class="font-medium text-gray-900 dark:text-white">${escapeHtml(style.style.name || style.key)}</div>
+              <div class="font-medium text-gray-900 dark:text-white">${escapeHtml(styleDisplayName(style))}</div>
               <div class="text-sm text-gray-500 dark:text-gray-400">
                 ${regionCountLabel(style.regions?.length || 0)} •
                 ${Object.keys(style.style.sources || {}).length} sources

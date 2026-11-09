@@ -86,6 +86,7 @@ export class TileService {
       probeSourcesBeforeDownload = true,
       skipKnownSparseSources = true,
       skipInactiveSources = true,
+      signal,
     } = options;
 
     const startTime = Date.now();
@@ -365,6 +366,8 @@ export class TileService {
       await processBatch(
         plan.coords,
         async coord => {
+          // Cancelled: let the remaining tiles go by without fetching them.
+          if (signal?.aborted) return;
           const { x, y, z } = coord;
           const label = `${plan.sourceId}:${z}/${x}/${y}`;
           let tileUrl = '';
