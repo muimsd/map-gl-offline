@@ -147,6 +147,14 @@ describe('RegionFormModal', () => {
   });
 
   describe('form inputs', () => {
+    it('links each label to its field', () => {
+      const element = new RegionFormModal(createOptions()).show();
+      const minZoom = element.querySelectorAll<HTMLInputElement>('input[type="number"]')[0];
+      const label = element.querySelector<HTMLLabelElement>(`label[for="${minZoom.id}"]`);
+      expect(minZoom.id).not.toBe('');
+      expect(label?.textContent?.trim()).toBe('Min Zoom');
+    });
+
     it('should have default zoom values', () => {
       const options = createOptions();
       const modal = new RegionFormModal(options);

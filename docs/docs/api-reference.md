@@ -122,6 +122,7 @@ See [The offline control](./guides/ui-control.md) for its options.
 | `skipSprites`, `skipGlyphs`, `skipModels` | `boolean` | Leave out a phase. Default `false`. |
 | `glyphRanges` | `string[]` | Font ranges to download, as 256-wide blocks. Defaults to common Unicode blocks. |
 | `tileOptions` | `TileDownloadOptions` | See below |
+| `signal` | `AbortSignal` | [Cancels the download](./guides/downloading-regions.md#cancel-a-download) when aborted |
 
 ### DownloadRegionResult
 

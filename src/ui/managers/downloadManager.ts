@@ -128,6 +128,8 @@ export class DownloadManager {
   private offlineManager: OfflineMapManager;
   /** Map of region IDs to their download progress */
   private currentDownloads: Map<string, DownloadProgress> = new Map();
+  /** Aborts each running download, by region id. */
+  private controllers = new Map<string, AbortController>();
   private options: DownloadManagerOptions;
 
   /**
@@ -200,13 +202,18 @@ export class DownloadManager {
     };
 
     const regionId = regionConfig.id;
+    const controller = new AbortController();
+    this.controllers.set(regionId, controller);
     this.updateUIForDownloadStart();
 
     try {
       await this.offlineManager.downloadRegion(regionConfig, {
         provider: formData.provider || 'auto',
         accessToken: formData.accessToken,
+        signal: controller.signal,
         onProgress: progress => {
+          // A cancelled download keeps reporting until it stops; don't show it again.
+          if (controller.signal.aborted) return;
           const uiPhase: DownloadProgress['phase'] | undefined =
             progress.phase === 'metadata' ? undefined : progress.phase;
           this.updateProgress(
@@ -226,8 +233,14 @@ export class DownloadManager {
 
       this.handleDownloadComplete(regionId);
     } catch (error) {
-      downloadLogger.error('Error downloading region:', error);
-      this.handleDownloadError(regionId, error);
+      if (controller.signal.aborted) {
+        downloadLogger.debug(`Download of ${regionId} was cancelled`);
+      } else {
+        downloadLogger.error('Error downloading region:', error);
+        this.handleDownloadError(regionId, error);
+      }
+    } finally {
+      this.controllers.delete(regionId);
     }
   }
 
@@ -253,6 +266,8 @@ export class DownloadManager {
    * @param regionId - The ID of the region download to cancel
    */
   public cancelDownload(regionId: string): void {
+    // Stops the download; downloadRegion then saves nothing and removes its partial tiles.
+    this.controllers.get(regionId)?.abort();
     this.currentDownloads.delete(regionId);
 
     if (this.currentDownloads.size === 0) {
@@ -267,6 +282,7 @@ export class DownloadManager {
    * Clears all download tracking and resets the UI.
    */
   public cancelAllDownloads(): void {
+    for (const controller of this.controllers.values()) controller.abort();
     this.currentDownloads.clear();
     this.resetUI();
     this.options.onProgressUpdate?.(this.currentDownloads);

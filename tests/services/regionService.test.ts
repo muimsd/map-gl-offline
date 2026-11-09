@@ -1274,6 +1274,86 @@ describe('RegionService', () => {
       expect((await db.get('styles', 'test-style-id'))?.regions).toEqual([]);
     });
 
+    /** A tile the region would download, at its min zoom inside its bounds. */
+    const putRegionTile = async (styleId = 'test-style-id') => {
+      const db = await dbPromise;
+      await db.put('tiles', {
+        key: `${styleId}:v:10:163:395.pbf`,
+        styleId,
+        sourceId: 'v',
+        data: new ArrayBuffer(4),
+        size: 4,
+      } as never);
+    };
+
+    it('cancels: rejects, saves no region and removes its partial tiles', async () => {
+      await seedStyle();
+      const controller = new AbortController();
+      mockDownloadTiles.mockImplementationOnce(async () => {
+        await putRegionTile();
+        controller.abort();
+        return {
+          totalTiles: 4,
+          downloadedTiles: 1,
+          skippedTiles: 0,
+          failedTiles: 0,
+          totalSize: 4,
+          downloadTime: 0,
+          averageSpeed: 0,
+          errors: [],
+        };
+      });
+
+      await expect(
+        regionService.downloadRegion(makeRegion(), { signal: controller.signal })
+      ).rejects.toThrow();
+      const db = await dbPromise;
+      expect((await db.get('styles', 'test-style-id'))?.regions).toEqual([]);
+      expect(await db.count('tiles')).toBe(0);
+    });
+
+    it('puts the style config back when the download fails', async () => {
+      await seedStyle({
+        style: {
+          version: 8,
+          schema: { showPlaceLabels: { default: false } },
+          sources: { v: { tiles: ['http://tiles/{z}/{x}/{y}.pbf'] } },
+          layers: [],
+        },
+      });
+      mockDownloadTiles.mockRejectedValueOnce(new Error('Not enough storage'));
+
+      await expect(
+        regionService.downloadRegion(makeRegion(), { styleConfig: { showPlaceLabels: true } })
+      ).rejects.toThrow('Not enough storage');
+      const stored = await (await dbPromise).get('styles', 'test-style-id');
+      expect(stored?.style.schema).toEqual({ showPlaceLabels: { default: false } });
+      expect(stored?.styleConfig).toBeUndefined();
+    });
+
+    it('removes stray tiles when the style is deleted during the download', async () => {
+      await seedStyle();
+      mockDownloadTiles.mockImplementationOnce(async () => {
+        await putRegionTile();
+        await (await dbPromise).delete('styles', 'test-style-id');
+        return {
+          totalTiles: 1,
+          downloadedTiles: 1,
+          skippedTiles: 0,
+          failedTiles: 0,
+          totalSize: 4,
+          downloadTime: 0,
+          averageSpeed: 0,
+          errors: [],
+        };
+      });
+
+      await expect(regionService.downloadRegion(makeRegion())).rejects.toThrow(
+        'The style was deleted while this region was downloading.'
+      );
+      expect(await (await dbPromise).count('tiles')).toBe(0);
+    });
+
     it('does not save a region when every tile failed', async () => {
       await seedStyle();
       mockDownloadTiles.mockResolvedValueOnce({

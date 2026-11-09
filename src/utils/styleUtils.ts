@@ -21,6 +21,84 @@ const styleLogger = logger.scope('StyleUtils');
  *                  models are stored per style, so URLs keyed by style keep working
  *                  when any one region is deleted.
  */
+/**
+ * Add a region's extra tile sources to a style, unless one with that id is
+ * already there. Sources must be in the style before it's patched for offline use.
+ */
+export function injectExtraSources(
+  style: { sources: Record<string, unknown> },
+  extraSources: ReadonlyArray<{
+    id: string;
+    tiles: string[];
+    type?: string;
+    minzoom?: number;
+    maxzoom?: number;
+    attribution?: string;
+  }> = []
+): void {
+  for (const extra of extraSources) {
+    if (style.sources[extra.id]) continue;
+    style.sources[extra.id] = {
+      type: extra.type || 'vector',
+      tiles: extra.tiles,
+      ...(extra.minzoom !== undefined ? { minzoom: extra.minzoom } : {}),
+      ...(extra.maxzoom !== undefined ? { maxzoom: extra.maxzoom } : {}),
+      ...(extra.attribution ? { attribution: extra.attribution } : {}),
+    };
+  }
+}
+
+/**
+ * Keep each model's upstream URL before the style is patched, the first time
+ * only. Patching points every model at `idb://`, so without this a model that
+ * failed to download couldn't be fetched again.
+ */
+export function stashOriginalModels(entry: {
+  style: object;
+  originalModels?: Record<string, unknown>;
+}): void {
+  const models = (entry.style as { models?: Record<string, unknown> }).models;
+  if (!models || entry.originalModels) return;
+  const isPatched = (value: unknown) =>
+    String(typeof value === 'string' ? value : (value as { uri?: unknown })?.uri).startsWith(
+      'idb://'
+    );
+  // A style patched before this stash existed has no upstream URLs left to keep.
+  if (Object.values(models).some(isPatched)) return;
+  entry.originalModels = JSON.parse(JSON.stringify(models)) as Record<string, unknown>;
+}
+
+/**
+ * Point models that aren't stored back at their upstream URLs. Run after
+ * patching, which points every model at `idb://`.
+ */
+export function restoreUnstoredModels(
+  entry: { style: object; originalModels?: Record<string, unknown> },
+  storedNames: ReadonlySet<string>
+): void {
+  const models = (entry.style as { models?: Record<string, unknown> }).models;
+  if (!models || !entry.originalModels) return;
+  for (const name of Object.keys(models)) {
+    if (!storedNames.has(name) && entry.originalModels[name] !== undefined) {
+      models[name] = JSON.parse(JSON.stringify(entry.originalModels[name]));
+    }
+  }
+}
+
+/**
+ * Whether a style uses parts of the spec only Mapbox GL JS v3 draws: config
+ * (`schema`), 3D `models`, `lights` or `imports`. MapLibre rejects these.
+ */
+export function needsMapboxGl(style: object): boolean {
+  const parts = style as Record<string, unknown>;
+  return Boolean(parts.schema || parts.models || parts.lights || parts.imports);
+}
+
+/** Whether a map instance is Mapbox GL JS v3, the only renderer with style config. */
+export function isMapboxGlMap(map: unknown): boolean {
+  return typeof (map as { setConfigProperty?: unknown } | null)?.setConfigProperty === 'function';
+}
+
 export function patchStyleForOffline(
   style: MapboxStyle,
   downloadId: string,

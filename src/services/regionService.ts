@@ -1,9 +1,13 @@
 import { dbPromise } from '@/storage/indexedDbManager';
 import {
   extractAllFontNames,
+  injectExtraSources,
   normalizeSpriteProperty,
   patchStyleForOffline,
+  restoreUnstoredModels,
+  stashOriginalModels,
 } from '@/utils/styleUtils';
+import { storedModelNames } from '@/services/modelService';
 import { applyStyleConfig } from '@/utils/styleConfig';
 import { sanitizeIndoorExpressions } from '@/utils/importResolver';
 import { logger } from '@/utils/logger';
@@ -177,6 +181,45 @@ export class RegionService {
    * Delete everything stored for a style except its own entry: tiles, fonts,
    * glyphs, sprites and models.
    */
+  /**
+   * Undo what a failed or cancelled download left behind: its partly stored
+   * tiles and its config change. A style this download created, which no other
+   * region uses, goes entirely, and so does a style deleted during the download.
+   */
+  private async cleanUpFailedDownload(
+    styleId: string,
+    createdStyle: boolean,
+    configBefore?: { schema?: BaseStyle['schema']; values?: Record<string, unknown> }
+  ): Promise<void> {
+    try {
+      const db = await dbPromise;
+      const entry = await db.get('styles', styleId);
+      if (!entry) {
+        await this.deleteStyleData(styleId);
+        return;
+      }
+      const regions = Array.isArray(entry.regions) ? entry.regions : [];
+      if (createdStyle && regions.length === 0) {
+        await this.deleteStyleData(styleId);
+        await db.delete('styles', styleId);
+        return;
+      }
+      if (configBefore) {
+        entry.style.schema = configBefore.schema;
+        entry.styleConfig = configBefore.values;
+        await db.put('styles', entry);
+      }
+      await this.deleteNonOverlappingTiles(
+        styleId,
+        regions,
+        (entry.style?.sources ?? {}) as Record<string, SourceZoomConfig | undefined>
+      );
+      clearAllCaches();
+    } catch (error) {
+      regionLogger.warn(`Could not clean up after the failed download on ${styleId}:`, error);
+    }
+  }
+
   async deleteStyleData(styleId: string): Promise<void> {
     await this.deleteAllStyleTiles(styleId);
     await this.deleteStyleResources(styleId);
@@ -238,20 +281,11 @@ export class RegionService {
     }
 
     // Inject extra sources into the style so they get patched for offline use
-    if (region.extraSources && region.extraSources.length > 0) {
-      for (const extra of region.extraSources) {
-        if (!styleEntry.style.sources[extra.id]) {
-          styleEntry.style.sources[extra.id] = {
-            type: extra.type || 'vector',
-            tiles: extra.tiles,
-            ...(extra.minzoom !== undefined ? { minzoom: extra.minzoom } : {}),
-            ...(extra.maxzoom !== undefined ? { maxzoom: extra.maxzoom } : {}),
-            ...(extra.attribution ? { attribution: extra.attribution } : {}),
-          };
-          regionLogger.debug(`Injected extra source into style: ${extra.id}`);
-        }
-      }
-    }
+    injectExtraSources(
+      styleEntry.style as { sources: Record<string, unknown> },
+      region.extraSources
+    );
+    stashOriginalModels(styleEntry);
 
     // Patch style for offline use. URLs are keyed by styleId (resources are
     // stored per style), and maxzoom is capped at the deepest region on the
@@ -268,6 +302,7 @@ export class RegionService {
       region.tileExtension,
       styleId
     );
+    restoreUnstoredModels(styleEntry, await storedModelNames(styleId));
 
     // Add or update region metadata on the style entry.
     // `expiry` is stored as an absolute timestamp (per the type doc and all
@@ -337,6 +372,7 @@ export class RegionService {
       glyphRanges,
       tileOptions,
       styleConfig,
+      signal,
     } = options;
 
     let overallPercentage = 0;
@@ -403,8 +439,15 @@ export class RegionService {
     const originalGlyphsUrl = styleEntry.originalGlyphsUrl ?? storedStyle.glyphs;
 
     // Applied before the resource phases, which all plan from the style's config.
+    // Kept so a failed download can put the config back as it was.
+    const configBefore = styleConfig
+      ? (JSON.parse(
+          JSON.stringify({ schema: storedStyle.schema, values: styleEntry.styleConfig })
+        ) as { schema?: BaseStyle['schema']; values?: Record<string, unknown> })
+      : undefined;
     if (styleConfig) {
       applyStyleConfig(storedStyle, styleConfig);
+      styleEntry.styleConfig = { ...styleEntry.styleConfig, ...styleConfig };
     }
     // A reused style may predate download-time sanitizing.
     sanitizeIndoorExpressions(storedStyle);
@@ -511,12 +554,17 @@ export class RegionService {
     //    (plain string or `{ uri }`) — we accept both.
     let modelResult: DownloadRegionResult['modelResult'];
     if (!skipModels && storedStyle.models) {
-      const rawModels = storedStyle.models as Record<string, string | { uri?: string }>;
+      // Upstream URLs, from before patching, so models that failed last time are retried.
+      const rawModels = (styleEntry.originalModels ?? storedStyle.models) as Record<
+        string,
+        string | { uri?: string }
+      >;
+      const alreadyStored = await storedModelNames(styleId);
       const resolved: Record<string, string> = {};
       for (const [name, value] of Object.entries(rawModels)) {
         const uri = typeof value === 'string' ? value : value?.uri;
-        if (!uri) continue;
-        if (uri.startsWith('idb://')) continue; // already patched
+        if (!uri || alreadyStored.has(name)) continue;
+        if (uri.startsWith('idb://')) continue; // patched before upstream URLs were kept
         const httpUrl =
           isMapboxProtocol(uri) && effectiveAccessToken
             ? resolveMapboxUrl(uri, effectiveAccessToken)
@@ -551,39 +599,56 @@ export class RegionService {
     }
 
     // 5. Tiles — use the stored (source-embedded) style, which still has HTTP tile URLs
-    const { downloadTiles } = await import('@/services/tileService');
-    const regionForTiles = { ...region, styleId };
-    // The tile count isn't known until the plan is made, which can take a while.
-    emit('tiles', 0, 0, 'Planning tiles');
-    const tileResult = await downloadTiles(regionForTiles, storedStyle, styleId, {
-      skipExisting: false,
-      batchSize: 20,
-      ...tileOptions,
-      onProgress: progress => {
-        emit('tiles', progress.completed, progress.total, progress.message ?? 'Downloading tiles');
-        tileOptions?.onProgress?.(progress);
-      },
-    });
+    let tileResult: DownloadRegionResult['tileResult'];
+    try {
+      signal?.throwIfAborted();
+      const { downloadTiles } = await import('@/services/tileService');
+      const regionForTiles = { ...region, styleId };
+      // The tile count isn't known until the plan is made, which can take a while.
+      emit('tiles', 0, 0, 'Planning tiles');
+      tileResult = await downloadTiles(regionForTiles, storedStyle, styleId, {
+        skipExisting: false,
+        batchSize: 20,
+        ...tileOptions,
+        signal,
+        onProgress: progress => {
+          emit(
+            'tiles',
+            progress.completed,
+            progress.total,
+            progress.message ?? 'Downloading tiles'
+          );
+          tileOptions?.onProgress?.(progress);
+        },
+      });
+      signal?.throwIfAborted();
 
-    // A region with no tiles at all isn't worth saving as if it had worked, as happens
-    // with an expired token. Partial failures still save: tileResult reports them.
-    const { failedTiles, downloadedTiles, skippedTiles } = tileResult;
-    if (failedTiles > 0 && downloadedTiles === 0 && skippedTiles === 0) {
-      throw new Error(
-        `None of the ${failedTiles} tiles could be downloaded. Check your connection and access token.`
-      );
+      // A region with no tiles at all isn't worth saving as if it had worked, as happens
+      // with an expired token. Partial failures still save: tileResult reports them.
+      const { failedTiles, downloadedTiles, skippedTiles } = tileResult;
+      if (failedTiles > 0 && downloadedTiles === 0 && skippedTiles === 0) {
+        throw new Error(
+          `None of the ${failedTiles} tiles could be downloaded. Check your connection and access token.`
+        );
+      }
+
+      // 6. Metadata — must run last, since addRegion patches style URLs to idb://.
+      // Do NOT auto-fill tileExtension from tileResult: that's only the first
+      // source's extension, and addRegion feeds it to patchStyleForOffline which
+      // would override ALL sources — breaking mixed raster+vector styles. The
+      // patcher extracts per-source extensions from tile URL patterns when
+      // tileExtension is undefined. Callers who need to force an extension can
+      // still pass `region.tileExtension` explicitly.
+      emit('metadata', 0, 1, 'Saving region metadata');
+      if (!(await (await dbPromise).get('styles', styleId))) {
+        throw new Error('The style was deleted while this region was downloading.');
+      }
+      await this.addRegion({ ...region, styleId });
+      emit('metadata', 1, 1, 'Region ready');
+    } catch (error) {
+      await this.cleanUpFailedDownload(styleId, Boolean(styleResult), configBefore);
+      throw error;
     }
-
-    // 6. Metadata — must run last, since addRegion patches style URLs to idb://.
-    // Do NOT auto-fill tileExtension from tileResult: that's only the first
-    // source's extension, and addRegion feeds it to patchStyleForOffline which
-    // would override ALL sources — breaking mixed raster+vector styles. The
-    // patcher extracts per-source extensions from tile URL patterns when
-    // tileExtension is undefined. Callers who need to force an extension can
-    // still pass `region.tileExtension` explicitly.
-    emit('metadata', 0, 1, 'Saving region metadata');
-    await this.addRegion({ ...region, styleId });
-    emit('metadata', 1, 1, 'Region ready');
 
     return {
       regionId: region.id,
@@ -715,6 +780,7 @@ export class RegionService {
           undefined,
           foundStyle.key
         );
+        restoreUnstoredModels(foundStyle, await storedModelNames(foundStyle.key));
 
         // Update the style entry with the remaining regions
         await db.put('styles', foundStyle);

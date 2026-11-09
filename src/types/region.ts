@@ -69,6 +69,11 @@ export interface DownloadRegionOptions {
    * available offline, so `showIndoor` adds little.
    */
   styleConfig?: Record<string, unknown>;
+  /**
+   * Cancels the download when aborted. `downloadRegion` then rejects, saves no
+   * region, and removes the tiles it had stored that no other region needs.
+   */
+  signal?: AbortSignal;
 }
 
 /**

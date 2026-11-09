@@ -226,6 +226,8 @@ export const ar = {
   // Alerts/Messages - التنبيهات/الرسائل
   'alert.unknownError': 'حدث خطأ غير معروف',
   'alert.downloadFailed': 'فشل التحميل',
+  'alert.needsMapboxGl':
+    'يستخدم هذا النمط ميزات Mapbox GL JS، مثل النماذج ثلاثية الأبعاد أو إعدادات النمط، لذا لا يمكن عرضه إلا على خريطة Mapbox GL.',
   'alert.downloadNotImplemented': 'ميزة التحميل غير مطبقة في هذه النسخة',
   'alert.mapNotAvailable': 'الخريطة غير متاحة',
   'alert.invalidBounds': 'حدود غير صالحة للمنطقة',

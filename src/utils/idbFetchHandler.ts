@@ -205,7 +205,9 @@ export async function idbFetchHandler(url: string, init?: RequestInit): Promise<
 
   const db = await dbPromise;
   const parsed = url.replace('idb://', '').split('/');
-  const [downloadId, type, ...rest] = parsed;
+  // A Request's URL arrives percent-encoded, so decode the style id as the Service Worker does.
+  const [encodedDownloadId, type, ...rest] = parsed;
+  const downloadId = safeDecodeURIComponent(encodedDownloadId ?? '');
   const resourcePath = rest.join('/');
   const decodedResourcePath = safeDecodeURIComponent(resourcePath);
   const key = `${downloadId}::${decodedResourcePath}`;
@@ -229,7 +231,9 @@ export async function idbFetchHandler(url: string, init?: RequestInit): Promise<
           // MapLibre can request fractional zoom levels (e.g., 12.5)
           // but tiles are stored with integer zoom levels, so floor the value
           const z = Math.floor(parseFloat(pathParts[pathParts.length - 3]));
-          const sourceKey = pathParts.slice(0, pathParts.length - 3).join('/');
+          const sourceKey = safeDecodeURIComponent(
+            pathParts.slice(0, pathParts.length - 3).join('/')
+          );
           const yMatch = yExt.match(/^(\d+)\.(\w+)$/);
           if (yMatch) {
             const y = parseInt(yMatch[1]);

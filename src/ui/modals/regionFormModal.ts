@@ -62,6 +62,22 @@ export interface RegionFormOptions {
 /** Mapbox Standard's buildings start at this zoom. */
 const STANDARD_BUILDINGS_MIN_ZOOM = 15;
 
+let fieldCount = 0;
+
+/**
+ * Point each label at the one field beside it, so screen readers name the field
+ * and clicking the label focuses it. Groups with several fields are left alone.
+ */
+function linkLabelsToFields(form: HTMLElement): void {
+  for (const label of Array.from(form.querySelectorAll('label'))) {
+    const fields = label.parentElement?.querySelectorAll('input, select, textarea');
+    if (label.htmlFor || fields?.length !== 1) continue;
+    const field = fields[0];
+    field.id ||= `map-gl-offline-field-${++fieldCount}`;
+    label.htmlFor = field.id;
+  }
+}
+
 /**
  * True when a region of Mapbox Standard stops below the zoom where its buildings
  * start. Standard Satellite has no buildings, so it doesn't count.
@@ -298,6 +314,7 @@ export class RegionFormModal {
 
     // Initialize provider detection
     this.detectProviderFromUrl();
+    linkLabelsToFields(form);
 
     return form;
   }

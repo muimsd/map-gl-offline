@@ -431,7 +431,8 @@ describe('OfflineManagerControl', () => {
         sprites: [],
       });
       control = new OfflineManagerControl(mockOfflineManager as any);
-      const mockMap = createMockMap();
+      // A style with imports needs Mapbox GL, which has setConfigProperty.
+      const mockMap = { ...createMockMap(), setConfigProperty: jest.fn() };
       control.onAdd(mockMap as any);
 
       await control.loadOfflineStyle('abc');
@@ -555,6 +556,31 @@ describe('OfflineManagerControl', () => {
   });
 
   describe('internal handlers', () => {
+    it('keeps the badge from going back when one of several downloads finishes', () => {
+      control = new OfflineManagerControl(mockOfflineManager as any);
+      control.onAdd(createMockMap() as any);
+      const shown: string[] = [];
+      (control as unknown as { updateProgressBadge: (text: string) => void }).updateProgressBadge =
+        (text: string) => shown.push(text);
+      const update = (downloads: Array<[string, number]>) =>
+        (
+          control as unknown as { handleProgressUpdate: (d: Map<string, unknown>) => void }
+        ).handleProgressUpdate(new Map(downloads.map(([id, percentage]) => [id, { percentage }])));
+
+      update([
+        ['a', 90],
+        ['b', 10],
+      ]);
+      update([['b', 10]]); // a finished
+      update([['b', 30]]);
+      update([
+        ['c', 0],
+        ['b', 40],
+      ]); // c starts mid-batch
+
+      expect(shown).toEqual(['50%', '55%', '65%', '65%']);
+    });
+
     it('formats single-download progress by phase', () => {
       control = new OfflineManagerControl(mockOfflineManager as any);
       const map = createMockMap();

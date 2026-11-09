@@ -45,6 +45,8 @@ export interface TileEntry {
 export interface TileDownloadOptions {
   /** Progress callback function */
   onProgress?: (progress: DownloadProgress) => void;
+  /** Stops fetching tiles once aborted. Tiles already stored stay stored. */
+  signal?: AbortSignal;
   /** Number of tiles to download concurrently (default: 10) */
   batchSize?: number;
   /** Maximum retry attempts for failed downloads (default: 3) */

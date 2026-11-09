@@ -544,6 +544,51 @@ describe('StyleService.downloadStyleWithProvider', () => {
     forceProvider: true,
   };
 
+  it("keeps config and regions' extra sources when a style is downloaded again", async () => {
+    mockFetchWithRetry.mockImplementation(async () =>
+      okJson({
+        version: 8,
+        name: 'Keep Config',
+        schema: { showPlaceLabels: { default: false } },
+        sources: { s1: { type: 'raster', tiles: ['https://t.example.com/{z}/{x}/{y}.png'] } },
+        layers: [{ id: 'L', type: 'background' }],
+      })
+    );
+    const first = await downloadStyleWithProvider(
+      'https://example.com/config.json',
+      providerOptions
+    );
+    const db = await dbPromise;
+    const entry = await db.get('styles', first.styleId);
+    if (!entry) throw new Error('style not stored');
+    entry.styleConfig = { showPlaceLabels: true };
+    entry.regions = [
+      {
+        id: 'r1',
+        name: 'r1',
+        bounds: [
+          [0, 0],
+          [1, 1],
+        ],
+        minZoom: 0,
+        maxZoom: 9,
+        styleUrl: 'https://example.com/config.json',
+        extraSources: [{ id: 'extra', type: 'raster', tiles: ['https://e/{z}/{x}/{y}.png'] }],
+      },
+    ] as never;
+    await db.put('styles', entry);
+
+    await downloadStyleWithProvider('https://example.com/config.json', providerOptions);
+
+    const after = await db.get('styles', first.styleId);
+    expect(after?.styleConfig).toEqual({ showPlaceLabels: true });
+    expect((after?.style as { schema?: unknown }).schema).toEqual({
+      showPlaceLabels: { default: true },
+    });
+    const sources = after?.style.sources as Record<string, Record<string, unknown>>;
+    expect(sources.extra.tiles).toEqual([`idb://${first.styleId}/tile/extra/{z}/{x}/{y}.png`]);
+  });
+
   it('keeps existing regions (and re-patches) when a style is downloaded again', async () => {
     mockFetchWithRetry.mockImplementation(async () =>
       namedStyle('Keep Regions', 'https://t.example.com/{z}/{x}/{y}.png')

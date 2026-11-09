@@ -67,6 +67,10 @@ export type StyleEntry = {
   originalGlyphsUrl?: string;
   // Original imports array before flattening (for reference)
   originalImports?: BaseStyle['imports'];
+  /** Model URLs before patching, so a model that wasn't stored keeps its real URL. */
+  originalModels?: Record<string, unknown>;
+  /** Config values callers set with `styleConfig`, re-applied when the style is downloaded again. */
+  styleConfig?: Record<string, unknown>;
 };
 
 export interface StyleDownloadOptions {

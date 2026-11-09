@@ -277,6 +277,49 @@ describe('PanelRenderer', () => {
       expect(mockOfflineManager.listStoredRegions).toHaveBeenCalled();
     });
 
+    it('runs a refresh asked for during another one once that one finishes', async () => {
+      const mockOfflineManager = createMockOfflineManager();
+      const renderer = new PanelRenderer(
+        createOptions({
+          offlineManager: mockOfflineManager as unknown as PanelRendererOptions['offlineManager'],
+        })
+      );
+      await renderer.render(panelElement);
+      mockOfflineManager.listStoredRegions.mockClear();
+
+      let finishFirst: (value: never[]) => void = () => {};
+      mockOfflineManager.listStoredRegions.mockImplementationOnce(
+        () => new Promise(resolve => (finishFirst = resolve))
+      );
+      renderer.refresh();
+      await new Promise(resolve => setTimeout(resolve, 150)); // first refresh is now running
+      renderer.refresh(); // arrives mid-refresh
+      finishFirst([]);
+      await new Promise(resolve => setTimeout(resolve, 300));
+
+      expect(mockOfflineManager.listStoredRegions).toHaveBeenCalledTimes(2);
+    });
+
+    it('refuses to show a Mapbox-only style on a map without Mapbox GL', async () => {
+      const setStyle = jest.fn();
+      const alertMock = jest.spyOn(window, 'alert').mockImplementation(() => {});
+      const renderer = new PanelRenderer(
+        createOptions({
+          map: { setStyle, getStyle: jest.fn() } as unknown as PanelRendererOptions['map'],
+        })
+      );
+      await (
+        renderer as unknown as { handleLoadStyle: (data: unknown) => Promise<void> }
+      ).handleLoadStyle({
+        key: 'standard',
+        style: { version: 8, schema: {}, sources: {}, layers: [] },
+        regions: [],
+      });
+      expect(setStyle).not.toHaveBeenCalled();
+      expect(alertMock).toHaveBeenCalledWith(expect.stringContaining('Mapbox GL'));
+      alertMock.mockRestore();
+    });
+
     it('should debounce rapid refresh calls', async () => {
       const mockOfflineManager = createMockOfflineManager();
       const options = createOptions({
@@ -869,7 +912,8 @@ describe('PanelRenderer', () => {
 
     it('strips the `imports` field before applying the style', async () => {
       const setStyle = jest.fn();
-      const mockMap = { setStyle, getStyle: jest.fn() };
+      // A style with imports needs Mapbox GL, which has setConfigProperty.
+      const mockMap = { setStyle, getStyle: jest.fn(), setConfigProperty: jest.fn() };
       const options = createOptions({
         map: mockMap as unknown as PanelRendererOptions['map'],
       });
