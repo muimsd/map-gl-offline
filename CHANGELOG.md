@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-11-09
+
 > **Mapbox Standard audit.** Checked against the live style (modified 2026-10-08) with a real download and a DNS-blocked offline render. **Re-download Mapbox Standard regions** to get correct terrain and fallback fonts.
 
 ### Fixed
