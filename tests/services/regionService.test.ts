@@ -1312,6 +1312,19 @@ describe('RegionService', () => {
       expect(await db.count('tiles')).toBe(0);
     });
 
+    it('starts no further phases once cancelled', async () => {
+      await seedStyle();
+      const controller = new AbortController();
+      controller.abort();
+
+      await expect(
+        regionService.downloadRegion(makeRegion(), { signal: controller.signal })
+      ).rejects.toThrow();
+      expect(mockDownloadSprites).not.toHaveBeenCalled();
+      expect(mockDownloadGlyphs).not.toHaveBeenCalled();
+      expect(mockDownloadTiles).not.toHaveBeenCalled();
+    });
+
     it('puts the style config back when the download fails', async () => {
       await seedStyle({
         style: {

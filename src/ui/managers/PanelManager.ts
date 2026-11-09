@@ -252,6 +252,16 @@ export class PanelRenderer extends BaseComponent {
         downloads as unknown as Map<string, Record<string, unknown>>
       );
       this.downloadProgressContainer.innerHTML = progressHTML;
+      // The rows are redrawn on every update, so listen on the container.
+      this.downloadProgressContainer.addEventListener('click', event => {
+        const button = (event.target as Element).closest<HTMLElement>(
+          '[data-action="cancel-download"]'
+        );
+        const regionId = button?.dataset.regionId;
+        if (!regionId) return;
+        this.downloadManager.cancelDownload(regionId);
+        void this.refresh();
+      });
 
       this.element.appendChild(this.downloadProgressContainer);
     }
@@ -681,6 +691,7 @@ export class PanelRenderer extends BaseComponent {
                   <div class="h-full bg-blue-600" style="width: ${download.percentage || 0}%"></div>
                 </div>
                 <span class="text-blue-700 dark:text-blue-300 min-w-12">${Math.round((download.percentage as number) || 0)}%</span>
+                <button type="button" class="px-2 py-1 rounded-md text-xs font-medium cursor-pointer text-gray-700 dark:text-gray-200 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600" data-action="cancel-download" data-region-id="${escapeHtml(download.regionId)}" aria-label="${t('download.cancelRegion', { name: String(download.regionName || download.regionId) })}">${t('app.cancel')}</button>
               </div>
             </div>
           `
