@@ -71,7 +71,7 @@ try {
 }
 ```
 
-A cancelled or failed download saves no region. It removes the tiles it stored that no other region uses, and undoes any `styleConfig` it applied. If every tile fails, as with an expired token, `downloadRegion` rejects rather than saving an empty region.
+A cancelled or failed download saves no region. It removes the tiles it stored that no other region uses, and undoes any `styleConfig` it applied. Cancelling stops the download at the next phase, so a fonts or sprites phase that's already running finishes first. In the control, each download in progress has a **Cancel** button in the panel. If every tile fails, as with an expired token, `downloadRegion` rejects rather than saving an empty region.
 
 ## Choosing zoom levels
 

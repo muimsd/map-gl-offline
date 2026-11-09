@@ -197,6 +197,7 @@ export const ar = {
   'download.status.models': 'النماذج ثلاثية الأبعاد: {{completed}} من {{total}}',
   'download.status.tiles': 'البلاطات: {{completed}} من {{total}}',
   'download.status.planning': 'جارٍ تخطيط البلاطات',
+  'download.cancelRegion': 'إلغاء تحميل {{name}}',
   'download.status.saving': 'جارٍ حفظ المنطقة',
 
   // Panel Manager additional strings - سلاسل إضافية للوحة

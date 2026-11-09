@@ -455,7 +455,8 @@ export class RegionService {
 
     // 2. Sprites
     const spriteResults: SpriteDownloadResult[] = [];
-    if (!skipSprites) {
+    // After a cancel, later phases don't start; the tile step then cleans up.
+    if (!skipSprites && !signal?.aborted) {
       const spriteSources = normalizeSpriteProperty(originalSpriteUrl);
       if (spriteSources.length > 0) {
         const { downloadSprites } = await import('@/services/spriteService');
@@ -518,7 +519,12 @@ export class RegionService {
 
     // 3. Glyphs
     let glyphResult: DownloadRegionResult['glyphResult'];
-    if (!skipGlyphs && originalGlyphsUrl && !originalGlyphsUrl.startsWith('idb://')) {
+    if (
+      !skipGlyphs &&
+      !signal?.aborted &&
+      originalGlyphsUrl &&
+      !originalGlyphsUrl.startsWith('idb://')
+    ) {
       const fontFamilies = new Set(
         extractAllFontNames(
           storedStyle as unknown as {
@@ -553,7 +559,7 @@ export class RegionService {
     //    turbine .glb assets. Two value shapes exist in the wild
     //    (plain string or `{ uri }`) — we accept both.
     let modelResult: DownloadRegionResult['modelResult'];
-    if (!skipModels && storedStyle.models) {
+    if (!skipModels && !signal?.aborted && storedStyle.models) {
       // Upstream URLs, from before patching, so models that failed last time are retried.
       const rawModels = (styleEntry.originalModels ?? storedStyle.models) as Record<
         string,
@@ -592,6 +598,7 @@ export class RegionService {
     // RTL text, procedural buildings). Never throws; see cacheMapboxRuntimeAssets.
     let runtimeAssetsCached: number | undefined;
     if (
+      !signal?.aborted &&
       /mapbox:\/\/|api\.mapbox\.com/.test(`${region.styleUrl ?? ''} ${originalGlyphsUrl ?? ''}`)
     ) {
       const { cacheMapboxRuntimeAssets } = await import('@/services/runtimeAssetService');

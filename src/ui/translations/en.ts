@@ -201,6 +201,7 @@ export const en = {
   'download.status.models': '3D models: {{completed}} of {{total}}',
   'download.status.tiles': 'Tiles: {{completed}} of {{total}}',
   'download.status.planning': 'Planning tiles',
+  'download.cancelRegion': 'Cancel downloading {{name}}',
   'download.status.saving': 'Saving region',
 
   // Panel Manager additional strings

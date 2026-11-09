@@ -85,4 +85,28 @@ describe('PanelManager.updateDownloadProgress', () => {
     panel.updateDownloadProgress(new Map());
     expect(panel.refresh).not.toHaveBeenCalled();
   });
+
+  it('cancels a download from its row, including after the row is redrawn', async () => {
+    const panel = makePanel() as Internals & {
+      downloadManager: unknown;
+      renderDownloadProgress: () => Promise<void>;
+    };
+    const cancelDownload = jest.fn();
+    panel.downloadManager = {
+      hasActiveDownloads: () => true,
+      getCurrentDownloads: () => tiles(8, 20),
+      cancelDownload,
+    };
+    await panel.renderDownloadProgress();
+    panel.updateDownloadProgress(tiles(16, 30)); // redraws the rows
+
+    const cancel = panel.element.querySelector<HTMLButtonElement>(
+      '[data-action="cancel-download"]'
+    );
+    expect(cancel?.getAttribute('aria-label')).toBe('Cancel downloading Dubai');
+    cancel?.click();
+
+    expect(cancelDownload).toHaveBeenCalledWith('r');
+    expect(panel.refresh).toHaveBeenCalled();
+  });
 });
