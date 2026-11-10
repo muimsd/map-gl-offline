@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **A Cancel button on each download in progress** in the offline manager panel. A cancelled download saves no region and removes what it stored that nothing else uses. Cancelling takes effect within a request or two in every phase: sprites, fonts, 3D models and tiles stop starting new requests, and later phases don't begin. `signal` is also accepted by the sprite, glyph and model download options.
 
+### Changed
+
+- **Minor and patch dependency updates**, including MapLibre GL 6.17, Vite 8.3.7, Rollup 4.68 and Tailwind CSS 4.3.5. No runtime dependency changed major version.
+
 ## [0.9.0] - 2026-11-09
 
 > **Mapbox Standard audit.** Checked against the live style (modified 2026-10-08) with a real download and a DNS-blocked offline render. **Re-download Mapbox Standard regions** to get correct terrain and fallback fonts.
