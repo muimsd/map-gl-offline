@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.1] - 2026-11-10
+
+> Checked with every hostname except localhost unresolvable: stored Mapbox Standard (zoom 14 to 16, tilted, with 3D buildings, landmark models and Arabic labels) and Liberty regions draw with no network. The only failed requests were Mapbox telemetry and session pings, which rendering doesn't need.
+
 ### Added
 
 - **A Cancel button on each download in progress** in the offline manager panel. A cancelled download saves no region and removes what it stored that nothing else uses. Cancelling takes effect within a request or two in every phase: sprites, fonts, 3D models and tiles stop starting new requests, and later phases don't begin. `signal` is also accepted by the sprite, glyph and model download options.
