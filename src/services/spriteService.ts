@@ -47,6 +47,7 @@ export class SpriteService {
       bandwidthLimit,
       enableValidation = true,
       namePrefix,
+      signal,
     } = options;
 
     const startTime = Date.now();
@@ -136,6 +137,8 @@ export class SpriteService {
     await processBatch(
       urlsToDownload,
       async spriteUrl => {
+        // Cancelled: let the remaining sprites go by without fetching them.
+        if (signal?.aborted) return;
         try {
           const spriteName = namePrefix
             ? this.buildSpriteName(spriteUrl, namePrefix)

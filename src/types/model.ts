@@ -32,6 +32,8 @@ export interface ModelEntry {
 
 /** Options for `downloadModels`. */
 export interface ModelDownloadOptions {
+  /** Stops starting new model requests once aborted. */
+  signal?: AbortSignal;
   onProgress?: (progress: DownloadProgress) => void;
   batchSize?: number;
   maxRetries?: number;

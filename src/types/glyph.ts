@@ -71,6 +71,8 @@ export interface LocalGlyphEntry {
  * Configuration options for glyph downloads
  */
 export interface GlyphDownloadOptions {
+  /** Stops starting new glyph requests once aborted. */
+  signal?: AbortSignal;
   /** Maximum number of concurrent downloads (default: 5) */
   maxConcurrency?: number;
   /** Maximum retry attempts for failed downloads (default: 3) */

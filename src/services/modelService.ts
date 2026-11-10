@@ -69,6 +69,7 @@ export class ModelService {
       maxRetries = 3,
       skipExisting = true,
       timeoutMs = 30000,
+      signal,
     } = options;
 
     const entries = Object.entries(models);
@@ -99,6 +100,8 @@ export class ModelService {
     await processBatch(
       entries,
       async ([modelName, url]) => {
+        // Cancelled: let the remaining models go by without fetching them.
+        if (signal?.aborted) return;
         const key = modelKey(styleId, modelName);
         const label = `${styleId}::${modelName}`;
 

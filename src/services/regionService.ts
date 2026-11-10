@@ -500,6 +500,7 @@ export class RegionService {
           });
           try {
             const result = await downloadSprites(spriteUrls, styleId, {
+              signal,
               enableValidation: true,
               skipExisting: false,
               namePrefix: source.id !== 'sprite' ? source.id : undefined,
@@ -545,6 +546,7 @@ export class RegionService {
         // jump when the real total came in).
         try {
           glyphResult = await downloadGlyphs(glyphsUrl, Array.from(fontFamilies), styleId, ranges, {
+            signal,
             onProgress: (progress: { completed: number; total: number }) => {
               emit('glyphs', progress.completed, progress.total, 'Downloading glyphs');
             },
@@ -584,6 +586,7 @@ export class RegionService {
         emit('models', 0, Object.keys(resolved).length, 'Downloading 3D models');
         try {
           modelResult = await downloadModels(resolved, styleId, {
+            signal,
             onProgress: (progress: { completed: number; total: number }) => {
               emit('models', progress.completed, progress.total, 'Downloading 3D models');
             },
