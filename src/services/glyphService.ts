@@ -41,6 +41,7 @@ export class GlyphService {
       onProgress,
       enableValidation = true,
       priorityFonts = [],
+      signal,
     } = options;
 
     const startTime = Date.now();
@@ -76,7 +77,8 @@ export class GlyphService {
     // Process glyphs with concurrency control
     const semaphore = new Array(maxConcurrency).fill(0);
     const promises = semaphore.map(async () => {
-      while (glyphTasks.length > 0) {
+      // Once cancelled, workers stop taking tasks; those in flight finish.
+      while (glyphTasks.length > 0 && !signal?.aborted) {
         const task = glyphTasks.shift();
         if (!task) break;
 

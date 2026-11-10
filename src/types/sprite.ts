@@ -39,6 +39,8 @@ export interface SpriteEntry {
  * Configuration options for sprite downloads
  */
 export interface SpriteDownloadOptions {
+  /** Stops starting new sprite requests once aborted. */
+  signal?: AbortSignal;
   /** Callback for progress updates */
   onProgress?: (progress: DownloadProgress) => void;
   /** Number of sprites to download concurrently (default: 10) */

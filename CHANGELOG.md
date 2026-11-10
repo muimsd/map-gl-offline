@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **A Cancel button on each download in progress** in the offline manager panel. A cancelled download saves no region and removes what it stored that nothing else uses. Once cancelled, `downloadRegion` starts no further phases; the one already running finishes first.
+- **A Cancel button on each download in progress** in the offline manager panel. A cancelled download saves no region and removes what it stored that nothing else uses. Cancelling takes effect within a request or two in every phase: sprites, fonts, 3D models and tiles stop starting new requests, and later phases don't begin. `signal` is also accepted by the sprite, glyph and model download options.
 
 ## [0.9.0] - 2026-11-09
 

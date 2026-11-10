@@ -42,6 +42,24 @@ describe('GlyphService.downloadGlyphs', () => {
     });
   };
 
+  it('stops requesting glyphs once its signal is aborted', async () => {
+    const controller = new AbortController();
+    mockFetchWithRetry.mockImplementation(async () => {
+      controller.abort(); // cancelled while the first request is in flight
+      return makeResponse(16);
+    });
+
+    await service.downloadGlyphs(
+      'https://example.com/fonts/{fontstack}/{range}.pbf',
+      ['Arial'],
+      'style-a',
+      ['0-255', '256-511', '512-767', '768-1023'],
+      { enableValidation: false, maxConcurrency: 1, signal: controller.signal }
+    );
+
+    expect(mockFetchWithRetry).toHaveBeenCalledTimes(1);
+  });
+
   it('downloads a range of glyphs and stores each', async () => {
     mockFetchWithRetry.mockImplementation(async () => makeResponse(16));
 
