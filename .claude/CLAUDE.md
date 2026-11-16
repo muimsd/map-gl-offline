@@ -130,7 +130,7 @@ import { loadStyles } from '@/services/styleService';
 import { loadStyles } from '../services/styleService';
 ```
 
-`tsc` does not rewrite path aliases in emitted declarations, so `build:types` runs `tsc-alias` after `tsc` to rewrite `@/` to relative paths in the published `.d.ts`. Do **not** drop `tsc-alias` from `build:types` — without it every shipped declaration imports from an unresolvable `@/...` path and consumer types silently degrade to `any`.
+The published types are one bundled `dist/index.d.ts` from `rollup-plugin-dts`, given `tsconfig.build.json` so it resolves the `@/` aliases. It must import only packages, never a relative or `@/` path: an extensionless relative specifier in this `"type": "module"` package breaks `moduleResolution: node16/nodenext`, where exports go missing and `OfflineMapManager` becomes `any` (issue #88). Every package it imports must be a `dependency`, so don't let public types reference an optional peer (no `implements IControl` from `maplibre-gl`) or a dev-only `@types` package. `npm run check:types`, run by `npm run build`, enforces all of this and compiles a consumer under nodenext, node16 and bundler. Don't reintroduce a per-file `tsc --emitDeclarationOnly` step that writes over the bundle.
 
 ### OfflineMapManager class shape
 The class uses class/interface declaration merging — every method from the `*Management` module interfaces is attached at runtime via `Object.assign(this, this.modules)` in the constructor. Adding a new method to a `*Management` interface makes it automatically available on `OfflineMapManager` with no edits to `src/managers/offlineMapManager/index.ts`.

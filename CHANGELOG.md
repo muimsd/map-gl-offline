@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Types were `any` under `moduleResolution: "node16"` or `"nodenext"`** (#88). The published declarations used extensionless relative imports, which those modes reject in an ESM package, so re-exports such as `TileService` went missing and `OfflineMapManager` resolved to `any`. `dist/index.d.ts` is now one self-contained file that imports only packages. It also no longer imports `maplibre-gl`, so Mapbox-only projects that check library types don't need it installed, and `@types/sql.js` is now a dependency.
+
 ## [0.9.1] - 2026-11-10
 
 > Checked with every hostname except localhost unresolvable: stored Mapbox Standard (zoom 14 to 16, tilted, with 3D buildings, landmark models and Arabic labels) and Liberty regions draw with no network. The only failed requests were Mapbox telemetry and session pings, which rendering doesn't need.
