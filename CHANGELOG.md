@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.2] - 2026-11-16
+
 ### Fixed
 
 - **Types were `any` under `moduleResolution: "node16"` or `"nodenext"`** (#88). The published declarations used extensionless relative imports, which those modes reject in an ESM package, so re-exports such as `TileService` went missing and `OfflineMapManager` resolved to `any`. `dist/index.d.ts` is now one self-contained file that imports only packages. It also no longer imports `maplibre-gl`, so Mapbox-only projects that check library types don't need it installed, and `@types/sql.js` is now a dependency.
