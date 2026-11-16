@@ -35,7 +35,7 @@
  * @module offlineManagerControl
  */
 
-import type { IControl, Map as MaplibreMap, StyleSpecification, GeoJSONSource } from 'maplibre-gl';
+import type { Map as MaplibreMap, StyleSpecification, GeoJSONSource } from 'maplibre-gl';
 import { OfflineMapManager } from '@/managers/offlineMapManager';
 import { themeManager } from './ThemeManager';
 import { idbFetchHandler } from '@/utils/idbFetchHandler';
@@ -147,9 +147,12 @@ export interface OfflineManagerControlOptions {
  * The control automatically intercepts fetch requests to serve offline resources
  * from IndexedDB when available, enabling seamless offline map usage.
  *
- * @implements {IControl}
+ * It matches both renderers' `IControl` structurally rather than declaring
+ * `implements IControl`, which would make the published types import
+ * `maplibre-gl` even for Mapbox-only users. `src/main.ts` adds it to both
+ * kinds of map without a cast, which checks that it still fits.
  */
-export class OfflineManagerControl implements IControl {
+export class OfflineManagerControl {
   private map: MaplibreMap | undefined;
   private panel: HTMLDivElement | undefined;
   private isOpen = false;

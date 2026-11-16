@@ -95,6 +95,10 @@ export default defineConfig([
       file: 'dist/index.d.ts',
       format: 'esm'
     },
-    plugins: [dts()]
+    // One self-contained file. With the build tsconfig the plugin resolves the
+    // `@/` aliases, so the output imports only real packages and works under
+    // every moduleResolution, including node16/nodenext, which reject
+    // extensionless relative specifiers in an ESM package.
+    plugins: [dts({ tsconfig: './tsconfig.build.json' })]
   }
 ]);
