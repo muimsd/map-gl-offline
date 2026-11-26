@@ -110,7 +110,7 @@
     "@turf/difference": "^7.4.0",
     "@turf/helpers": "^7.4.0",
     "@types/sql.js": "^1.4.11",
-    "i18next": "^26.7.2",
+    "i18next": "^27.2.7",
     "idb": "^8.0.4",
     "sql.js": "^1.15.2"
   },
